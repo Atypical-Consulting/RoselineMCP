@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoselineMCP", "RoselineMCP\RoselineMCP.csproj", "{0EBAA73B-E92E-49B0-BAE0-92CE6A6DFB0F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoselineMCP.Tests", "RoselineMCP.Tests\RoselineMCP.Tests.csproj", "{4E91B4DF-0A79-4671-837F-482641AE493C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{0EBAA73B-E92E-49B0-BAE0-92CE6A6DFB0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0EBAA73B-E92E-49B0-BAE0-92CE6A6DFB0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0EBAA73B-E92E-49B0-BAE0-92CE6A6DFB0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E91B4DF-0A79-4671-837F-482641AE493C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E91B4DF-0A79-4671-837F-482641AE493C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E91B4DF-0A79-4671-837F-482641AE493C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E91B4DF-0A79-4671-837F-482641AE493C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

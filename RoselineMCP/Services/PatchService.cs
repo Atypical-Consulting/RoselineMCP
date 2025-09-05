@@ -7,7 +7,7 @@ using System.Text;
 
 namespace RoselineMCP.Services;
 
-public class PatchService
+public class PatchService : IPatchService
 {
     private readonly ILogger<PatchService> _logger;
 
@@ -63,9 +63,9 @@ public class PatchService
 
             // Generate unified diff
             response.Patch = GenerateUnifiedDiff(
-                before, 
-                after, 
-                $"a/{response.FileName}", 
+                before,
+                after,
+                $"a/{response.FileName}",
                 $"b/{response.FileName}",
                 diff);
 
@@ -74,10 +74,10 @@ public class PatchService
             if (linesAdded > 0) summaryParts.Add($"+{linesAdded}");
             if (linesRemoved > 0) summaryParts.Add($"-{linesRemoved}");
             if (linesModified > 0) summaryParts.Add($"~{linesModified}");
-            
+
             response.Summary = $"{response.FileName}: {string.Join(", ", summaryParts)} lines";
 
-            _logger.LogInformation("Created patch for {FileName}: +{Added} -{Removed} lines", 
+            _logger.LogInformation("Created patch for {FileName}: +{Added} -{Removed} lines",
                 response.FileName, linesAdded, linesRemoved);
 
             return response;
@@ -90,14 +90,14 @@ public class PatchService
     }
 
     private string GenerateUnifiedDiff(
-        string oldText, 
-        string newText, 
-        string oldPath, 
+        string oldText,
+        string newText,
+        string oldPath,
         string newPath,
         DiffPaneModel diff)
     {
         var sb = new StringBuilder();
-        
+
         // Add header
         sb.AppendLine($"--- {oldPath}");
         sb.AppendLine($"+++ {newPath}");
@@ -114,7 +114,7 @@ public class PatchService
         for (int i = 0; i < diff.Lines.Count; i++)
         {
             var line = diff.Lines[i];
-            
+
             if (line.Type != ChangeType.Unchanged)
             {
                 // Start a new hunk or extend current one
@@ -139,10 +139,10 @@ public class PatchService
         {
             // Calculate hunk header
             var hunkLines = diff.Lines.Skip(hunk.StartIndex).Take(hunk.EndIndex - hunk.StartIndex + 1).ToList();
-            
+
             var oldStart = CountLinesBeforeIndex(diff.Lines, hunk.StartIndex, ChangeType.Inserted) + 1;
             var oldCount = hunkLines.Count(l => l.Type != ChangeType.Inserted);
-            
+
             var newStart = CountLinesBeforeIndex(diff.Lines, hunk.StartIndex, ChangeType.Deleted) + 1;
             var newCount = hunkLines.Count(l => l.Type != ChangeType.Deleted);
 
@@ -202,9 +202,9 @@ public class PatchService
 
             var beforeContent = File.ReadAllText(beforePath);
             var afterContent = File.ReadAllText(afterPath);
-            
+
             var fileName = Path.GetFileName(beforePath);
-            
+
             return CreatePatch(beforeContent, afterContent, fileName);
         }
         catch (Exception ex)
@@ -215,8 +215,8 @@ public class PatchService
     }
 
     public CreatePatchResponse CreatePatchWithOptions(
-        string before, 
-        string after, 
+        string before,
+        string after,
         string? fileName = null,
         int contextLines = 3,
         bool ignoreWhitespace = false,
@@ -241,7 +241,7 @@ public class PatchService
             }
 
             var response = CreatePatch(processedBefore, processedAfter, fileName);
-            
+
             // Add options info to summary if applicable
             if (ignoreWhitespace || ignoreCase)
             {
@@ -270,10 +270,10 @@ public class PatchService
         {
             // Trim trailing whitespace
             var trimmed = line.TrimEnd();
-            
+
             // Replace multiple spaces with single space
             var collapsed = System.Text.RegularExpressions.Regex.Replace(trimmed, @"\s+", " ");
-            
+
             normalized.Add(collapsed);
         }
 
@@ -285,11 +285,11 @@ public class PatchService
         try
         {
             _logger.LogInformation("Applying patch to {FilePath}", filePath);
-            
+
             // This is a simplified patch application
             // In a real implementation, you'd parse the unified diff format properly
             // For now, this is just a placeholder
-            
+
             _logger.LogWarning("Patch application is not fully implemented yet");
             return false;
         }

@@ -6,7 +6,7 @@ using RoselineMCP.Models;
 
 namespace RoselineMCP.Services;
 
-public class SolutionAnalyzerService
+public class SolutionAnalyzerService : ISolutionAnalyzerService
 {
     private readonly ILogger<SolutionAnalyzerService> _logger;
     private static bool _msBuildRegistered = false;
@@ -57,14 +57,14 @@ public class SolutionAnalyzerService
         try
         {
             var solutionPath = ResolveSolutionPath(pathOrGit, branch);
-            
+
             if (!File.Exists(solutionPath))
             {
                 throw new FileNotFoundException($"Solution file not found: {solutionPath}");
             }
 
             using var workspace = MSBuildWorkspace.Create();
-            
+
             workspace.WorkspaceFailed += (sender, e) =>
             {
                 _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
@@ -72,7 +72,7 @@ public class SolutionAnalyzerService
 
             _logger.LogInformation("Loading solution: {Path}", solutionPath);
             var solution = await workspace.OpenSolutionAsync(solutionPath);
-            
+
             var response = new AnalyzeSolutionResponse
             {
                 Solution = Path.GetFileName(solutionPath),
@@ -90,7 +90,7 @@ public class SolutionAnalyzerService
                 }
 
                 _logger.LogInformation("Analyzing project: {ProjectName}", project.Name);
-                
+
                 var compilation = await project.GetCompilationAsync();
                 if (compilation == null)
                 {
@@ -105,7 +105,7 @@ public class SolutionAnalyzerService
                 foreach (var diagnostic in diagnostics)
                 {
                     UpdateSummary(summary, diagnostic.Severity);
-                    
+
                     if (allDiagnostics.Count < maxDiagnostics)
                     {
                         var location = diagnostic.Location.GetLineSpan();
@@ -230,18 +230,18 @@ public class SolutionAnalyzerService
         try
         {
             var projectPath = ResolveProjectPath(project);
-            
+
             using var workspace = MSBuildWorkspace.Create();
-            
+
             workspace.WorkspaceFailed += (sender, e) =>
             {
                 _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
             };
 
             _logger.LogInformation("Loading project: {Path}", projectPath);
-            
+
             Microsoft.CodeAnalysis.Project? msProject = null;
-            
+
             // Try to load as project file first
             if (File.Exists(projectPath) && projectPath.EndsWith(".csproj"))
             {
@@ -254,7 +254,7 @@ public class SolutionAnalyzerService
                 if (solutionPath != null)
                 {
                     var solution = await workspace.OpenSolutionAsync(solutionPath);
-                    msProject = solution.Projects.FirstOrDefault(p => 
+                    msProject = solution.Projects.FirstOrDefault(p =>
                         p.Name.Equals(project, StringComparison.OrdinalIgnoreCase) ||
                         p.FilePath?.Contains(project) == true);
                 }
@@ -371,7 +371,7 @@ public class SolutionAnalyzerService
     private string? FindSolutionFile(string startPath)
     {
         var directory = Directory.Exists(startPath) ? startPath : Path.GetDirectoryName(startPath);
-        
+
         while (!string.IsNullOrEmpty(directory))
         {
             var slnFiles = Directory.GetFiles(directory!, "*.sln", SearchOption.TopDirectoryOnly);
@@ -379,14 +379,14 @@ public class SolutionAnalyzerService
             {
                 return slnFiles.First();
             }
-            
+
             var parent = Directory.GetParent(directory!);
             if (parent == null)
                 break;
-                
+
             directory = parent.FullName;
         }
-        
+
         return null;
     }
 
@@ -394,7 +394,7 @@ public class SolutionAnalyzerService
     {
         if (ids == null || ids.Count == 0)
             return true;
-            
+
         return ids.Contains(diagnostic.Id);
     }
 
@@ -402,11 +402,11 @@ public class SolutionAnalyzerService
     {
         if (files == null || files.Count == 0)
             return true;
-            
+
         var location = diagnostic.Location.GetLineSpan();
         if (location.Path == null)
             return false;
-            
+
         return files.Any(f => location.Path.Contains(f, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -428,7 +428,7 @@ public class SolutionAnalyzerService
             "RCS1197", "RCS1198", "RCS1199", "RCS1200", "RCS1201", "RCS1202", "RCS1203", "RCS1204",
             "RCS1205", "RCS1206", "RCS1207", "RCS1208", "RCS1209", "RCS1210", "RCS1211", "RCS1212",
             "RCS1213", "RCS1214", "RCS1215", "RCS1216", "RCS1217", "RCS1218", "RCS1220", "RCS1221",
-            
+
             // StyleCop
             "SA1000", "SA1001", "SA1002", "SA1003", "SA1004", "SA1005", "SA1006", "SA1007", "SA1008",
             "SA1009", "SA1010", "SA1011", "SA1012", "SA1013", "SA1014", "SA1015", "SA1016", "SA1017",
@@ -441,7 +441,7 @@ public class SolutionAnalyzerService
             "SA1208", "SA1209", "SA1210", "SA1211", "SA1212", "SA1213", "SA1214", "SA1216", "SA1217",
             "SA1300", "SA1302", "SA1303", "SA1304", "SA1305", "SA1306", "SA1307", "SA1308", "SA1309",
             "SA1310", "SA1311", "SA1312", "SA1313", "SA1314", "SA1316", "SA1400", "SA1401", "SA1402",
-            
+
             // Common C# compiler warnings that can be fixed
             "CS0168", // Variable declared but never used
             "CS0219", // Variable assigned but never used

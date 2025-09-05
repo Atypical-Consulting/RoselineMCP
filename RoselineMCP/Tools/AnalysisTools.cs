@@ -11,7 +11,7 @@ public static class AnalysisTools
     [McpServerTool]
     [Description("Analyze a C# solution and return diagnostics summary with details about errors, warnings, and info messages")]
     public static async Task<string> AnalyzeSolution(
-        SolutionAnalyzerService analyzerService,
+        ISolutionAnalyzerService analyzerService,
         [Description("Path to solution file or directory containing .sln file, or Git repository URL")]
         string pathOrGit,
         [Description("Git branch name (only used if pathOrGit is a Git URL)")]
@@ -53,11 +53,11 @@ public static class AnalysisTools
             return JsonSerializer.Serialize(errorResponse);
         }
     }
-    
+
     [McpServerTool]
     [Description("List detailed diagnostics for a specific project with statistics and fixable suggestions")]
     public static async Task<string> ListDiagnostics(
-        SolutionAnalyzerService analyzerService,
+        ISolutionAnalyzerService analyzerService,
         [Description("Project name or path to .csproj file")]
         string project,
         [Description("Optional list of diagnostic IDs to filter (e.g., ['CS0168', 'CS0219'])")]
@@ -74,12 +74,12 @@ public static class AnalysisTools
                 ids?.ToList(),
                 files?.ToList(),
                 max);
-            
+
             var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
-            
+
             return json;
         }
         catch (Exception ex)
@@ -89,15 +89,15 @@ public static class AnalysisTools
                 error = ex.Message,
                 type = ex.GetType().Name
             };
-            
+
             return JsonSerializer.Serialize(errorResponse);
         }
     }
-    
+
     [McpServerTool]
     [Description("Apply code fixes for specified diagnostic IDs in a project")]
     public static async Task<string> ApplyFixes(
-        CodeFixService codeFixService,
+        ICodeFixService codeFixService,
         [Description("Project name or path to .csproj file")]
         string project,
         [Description("List of diagnostic IDs to fix (e.g., ['RCS1213', 'SA1101'])")]
@@ -116,17 +116,17 @@ public static class AnalysisTools
                 };
                 return JsonSerializer.Serialize(errorResponse);
             }
-            
+
             var result = await codeFixService.ApplyFixesAsync(
                 project,
                 ids.ToList(),
                 previewOnly);
-            
+
             var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
-            
+
             return json;
         }
         catch (Exception ex)
@@ -136,15 +136,15 @@ public static class AnalysisTools
                 error = ex.Message,
                 type = ex.GetType().Name
             };
-            
+
             return JsonSerializer.Serialize(errorResponse);
         }
     }
-    
+
     [McpServerTool]
     [Description("Create a unified diff patch between two text blobs")]
     public static string CreatePatch(
-        PatchService patchService,
+        IPatchService patchService,
         [Description("The original text content (before changes)")]
         string before,
         [Description("The modified text content (after changes)")]
@@ -155,12 +155,12 @@ public static class AnalysisTools
         try
         {
             var result = patchService.CreatePatch(before, after, fileName);
-            
+
             var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
-            
+
             return json;
         }
         catch (Exception ex)
@@ -170,7 +170,7 @@ public static class AnalysisTools
                 error = ex.Message,
                 type = ex.GetType().Name
             };
-            
+
             return JsonSerializer.Serialize(errorResponse);
         }
     }

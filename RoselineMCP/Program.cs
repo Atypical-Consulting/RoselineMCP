@@ -16,8 +16,8 @@ builder.Services
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
-builder.Services.AddSingleton<SolutionAnalyzerService>();
-builder.Services.AddSingleton<CodeFixService>();
-builder.Services.AddSingleton<PatchService>();
+builder.Services.AddSingleton<ISolutionAnalyzerService, SolutionAnalyzerService>();
+builder.Services.AddSingleton<ICodeFixService, CodeFixService>();
+builder.Services.AddSingleton<IPatchService, PatchService>();
 
 await builder.Build().RunAsync();
