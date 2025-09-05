@@ -2,6 +2,33 @@ using System.Text.Json.Serialization;
 
 namespace MyFirstMCP.Models;
 
+public class ListDiagnosticsResponse
+{
+    [JsonPropertyName("project")]
+    public string Project { get; set; } = string.Empty;
+    
+    [JsonPropertyName("totalDiagnostics")]
+    public int TotalDiagnostics { get; set; }
+    
+    [JsonPropertyName("diagnostics")]
+    public List<DiagnosticDetail> Diagnostics { get; set; } = new();
+    
+    [JsonPropertyName("stats")]
+    public DiagnosticStats Stats { get; set; } = new();
+    
+    [JsonPropertyName("suggestedFixableIds")]
+    public List<string> SuggestedFixableIds { get; set; } = new();
+}
+
+public class DiagnosticStats
+{
+    [JsonPropertyName("byId")]
+    public Dictionary<string, int> ById { get; set; } = new();
+    
+    [JsonPropertyName("bySeverity")]
+    public Dictionary<string, int> BySeverity { get; set; } = new();
+}
+
 public class AnalyzeSolutionResponse
 {
     [JsonPropertyName("solution")]
