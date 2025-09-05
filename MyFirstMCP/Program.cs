@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using System.ComponentModel;
 using MyFirstMCP;
+using MyFirstMCP.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.AddConsole(consoleLogOptions =>
@@ -19,5 +20,6 @@ builder.Services
 
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<MonkeyService>();
+builder.Services.AddSingleton<SolutionAnalyzerService>();
 
 await builder.Build().RunAsync();
