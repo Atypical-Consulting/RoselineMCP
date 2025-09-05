@@ -94,14 +94,14 @@ public class DiagnosticFilterService : IDiagnosticFilterService
             // Roslynator
             "RCS1001", "RCS1003", "RCS1018", "RCS1036", "RCS1037", "RCS1058", "RCS1059", "RCS1060",
             "RCS1213", "RCS1214", "RCS1215", "RCS1216", "RCS1217", "RCS1218", "RCS1220", "RCS1221",
-            
+
             // StyleCop
             "SA1000", "SA1001", "SA1002", "SA1003", "SA1004", "SA1005", "SA1006", "SA1007", "SA1008",
             "SA1101", "SA1200", "SA1210",
-            
+
             // Common C# compiler warnings
             "CS0168", "CS0219", "CS0414", "CS0649", "CS1591", "CS8019",
-            
+
             // IDE suggestions
             "IDE0001", "IDE0002", "IDE0003", "IDE0004", "IDE0005", "IDE0007", "IDE0008", "IDE0009",
             "IDE0017", "IDE0028", "IDE0031", "IDE0041", "IDE0051", "IDE0052", "IDE0055", "IDE0060",

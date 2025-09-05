@@ -29,7 +29,7 @@ public class DiffService : IDiffService
         sb.AppendLine($"+++ {newPath}");
 
         var hunks = BuildDiffHunks(diff);
-        
+
         foreach (var hunk in hunks)
         {
             AppendHunkToStringBuilder(sb, diff, hunk);
@@ -48,10 +48,10 @@ public class DiffService : IDiffService
         {
             // Trim trailing whitespace
             var trimmed = line.TrimEnd();
-            
+
             // Replace multiple spaces with single space
             var collapsed = Regex.Replace(trimmed, @"\s+", " ");
-            
+
             normalized.Add(collapsed);
         }
 
@@ -91,10 +91,10 @@ public class DiffService : IDiffService
     private void AppendHunkToStringBuilder(StringBuilder sb, DiffPaneModel diff, DiffHunk hunk)
     {
         var hunkLines = diff.Lines.Skip(hunk.StartIndex).Take(hunk.EndIndex - hunk.StartIndex + 1).ToList();
-        
+
         var oldStart = CountLinesBeforeIndex(diff.Lines, hunk.StartIndex, ChangeType.Inserted) + 1;
         var oldCount = hunkLines.Count(l => l.Type != ChangeType.Inserted);
-        
+
         var newStart = CountLinesBeforeIndex(diff.Lines, hunk.StartIndex, ChangeType.Deleted) + 1;
         var newCount = hunkLines.Count(l => l.Type != ChangeType.Deleted);
 

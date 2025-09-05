@@ -56,7 +56,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         try
         {
             var assemblies = GetAssembliesToScan();
-            
+
             foreach (var assembly in assemblies)
             {
                 LoadProvidersFromAssembly(assembly);

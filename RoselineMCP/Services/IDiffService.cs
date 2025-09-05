@@ -14,7 +14,7 @@ public interface IDiffService
     /// <param name="newPath">The path for the new file in the diff header.</param>
     /// <returns>A unified diff string.</returns>
     string GenerateUnifiedDiff(string oldText, string newText, string oldPath, string newPath);
-    
+
     /// <summary>
     /// Normalizes whitespace in text for comparison.
     /// </summary>

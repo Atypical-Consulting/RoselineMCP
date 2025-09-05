@@ -9,7 +9,7 @@ public interface IMSBuildService
     /// Ensures MSBuild is registered for the current process.
     /// </summary>
     void EnsureMSBuildRegistered();
-    
+
     /// <summary>
     /// Creates a new MSBuild workspace.
     /// </summary>

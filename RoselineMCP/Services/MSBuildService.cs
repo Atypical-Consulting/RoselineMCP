@@ -57,12 +57,12 @@ public class MSBuildService : IMSBuildService
     {
         EnsureMSBuildRegistered();
         var workspace = MSBuildWorkspace.Create();
-        
+
         workspace.WorkspaceFailed += (sender, e) =>
         {
             _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
         };
-        
+
         return workspace;
     }
 }

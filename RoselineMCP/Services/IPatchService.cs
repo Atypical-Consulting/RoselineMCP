@@ -35,8 +35,8 @@ public interface IPatchService
     /// <param name="ignoreCase">Whether to ignore case differences.</param>
     /// <returns>A response containing the patch and change statistics.</returns>
     CreatePatchResponse CreatePatchWithOptions(
-        string before, 
-        string after, 
+        string before,
+        string after,
         string? fileName = null,
         int contextLines = 3,
         bool ignoreWhitespace = false,

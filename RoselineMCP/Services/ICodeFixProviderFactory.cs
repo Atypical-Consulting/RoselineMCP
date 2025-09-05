@@ -13,13 +13,13 @@ public interface ICodeFixProviderFactory
     /// <param name="diagnosticId">The diagnostic ID to get a provider for.</param>
     /// <returns>A code fix provider if available, null otherwise.</returns>
     CodeFixProvider? GetProviderForDiagnostic(string diagnosticId);
-    
+
     /// <summary>
     /// Gets all available diagnostic IDs that have code fix providers.
     /// </summary>
     /// <returns>Collection of fixable diagnostic IDs.</returns>
     IEnumerable<string> GetFixableDiagnosticIds();
-    
+
     /// <summary>
     /// Loads all available code fix providers.
     /// </summary>
