@@ -1,7 +1,6 @@
 using System.Text.Json;
 using FakeItEasy;
 using RoselineMCP.Models;
-using RoselineMCP.Services;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Tools;
 using Shouldly;

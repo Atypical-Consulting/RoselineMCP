@@ -1,6 +1,4 @@
-using System.Collections.Immutable;
 using FakeItEasy;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Services;
