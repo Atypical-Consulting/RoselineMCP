@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
 using RoselineMCP.Services;
-
+using RoselineMCP.Interfaces;
 namespace RoselineMCP.Tools;
 
 /// <summary>

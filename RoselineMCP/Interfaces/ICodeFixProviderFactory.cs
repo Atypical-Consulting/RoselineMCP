@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis.CodeFixes;
 
-namespace RoselineMCP.Services;
+namespace RoselineMCP.Interfaces;
 
 /// <summary>
 /// Factory for creating and managing code fix providers.

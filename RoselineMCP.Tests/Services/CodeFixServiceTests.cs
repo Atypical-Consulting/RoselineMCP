@@ -1,6 +1,7 @@
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Services;
+using RoselineMCP.Interfaces;
 using Shouldly;
 
 namespace RoselineMCP.Tests.Services;

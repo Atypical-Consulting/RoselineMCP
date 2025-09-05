@@ -1,6 +1,7 @@
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
+using RoselineMCP.Interfaces;
 
 namespace RoselineMCP.Services;
 

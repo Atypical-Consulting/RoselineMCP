@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using RoselineMCP.Interfaces;
 
 namespace RoselineMCP.Services;
 
@@ -43,7 +44,12 @@ public class DiagnosticFilterService : IDiagnosticFilterService
             return true;
         }
 
-        var requestedSeverity = Enum.Parse<DiagnosticSeverity>(severityFilter, true);
+        if (!Enum.TryParse<DiagnosticSeverity>(severityFilter, true, out var requestedSeverity))
+        {
+            // If invalid severity provided, include all diagnostics
+            return true;
+        }
+        
         return diagnostic.Severity >= requestedSeverity;
     }
 

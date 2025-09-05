@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.Extensions.Logging;
+using RoselineMCP.Interfaces;
 using System.Reflection;
 
 namespace RoselineMCP.Services;

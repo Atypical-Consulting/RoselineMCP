@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 
 namespace RoselineMCP.Services;

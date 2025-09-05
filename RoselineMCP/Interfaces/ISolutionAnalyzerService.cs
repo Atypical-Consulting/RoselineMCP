@@ -1,6 +1,6 @@
 using RoselineMCP.Models;
 
-namespace RoselineMCP.Services;
+namespace RoselineMCP.Interfaces;
 
 /// <summary>
 /// Interface for analyzing C# solutions and projects for diagnostics.

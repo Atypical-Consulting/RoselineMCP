@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.Extensions.Logging;
+using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using System.Text;
 

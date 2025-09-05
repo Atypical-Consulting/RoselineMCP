@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace RoselineMCP.Services;
+namespace RoselineMCP.Interfaces;
 
 /// <summary>
 /// Service for filtering diagnostics based on various criteria.

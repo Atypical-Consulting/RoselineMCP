@@ -1,4 +1,4 @@
-namespace RoselineMCP.Services;
+namespace RoselineMCP.Interfaces;
 
 /// <summary>
 /// Service for generating unified diff patches.

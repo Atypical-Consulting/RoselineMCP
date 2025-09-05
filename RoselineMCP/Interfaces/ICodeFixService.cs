@@ -1,6 +1,6 @@
 using RoselineMCP.Models;
 
-namespace RoselineMCP.Services;
+namespace RoselineMCP.Interfaces;
 
 /// <summary>
 /// Interface for applying automated code fixes to C# projects.
