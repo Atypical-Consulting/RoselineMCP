@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
-using MyFirstMCP.Services;
+using RoselineMCP.Services;
 
-namespace MyFirstMCP.Tools;
+namespace RoselineMCP.Tools;
 
 [McpServerToolType]
 public static class AnalysisTools

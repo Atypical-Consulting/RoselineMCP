@@ -2,10 +2,10 @@ using DiffPlex;
 using DiffPlex.DiffBuilder;
 using DiffPlex.DiffBuilder.Model;
 using Microsoft.Extensions.Logging;
-using MyFirstMCP.Models;
+using RoselineMCP.Models;
 using System.Text;
 
-namespace MyFirstMCP.Services;
+namespace RoselineMCP.Services;
 
 public class PatchService
 {

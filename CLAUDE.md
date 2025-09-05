@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a .NET 9.0 MCP (Model Context Protocol) server implementation that provides comprehensive code analysis and automated fixing tools for C# solutions.
+**RoselineMCP** is a .NET 9.0 MCP (Model Context Protocol) server implementation that provides comprehensive code analysis and automated fixing tools for C# solutions.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ dotnet build
 
 ### Run
 ```bash
-dotnet run --project MyFirstMCP/MyFirstMCP.csproj
+dotnet run --project RoselineMCP/RoselineMCP.csproj
 ```
 
 ### Clean build

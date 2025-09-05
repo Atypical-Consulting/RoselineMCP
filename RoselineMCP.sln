@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyFirstMCP", "MyFirstMCP\MyFirstMCP.csproj", "{0EBAA73B-E92E-49B0-BAE0-92CE6A6DFB0F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RoselineMCP", "RoselineMCP\RoselineMCP.csproj", "{0EBAA73B-E92E-49B0-BAE0-92CE6A6DFB0F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

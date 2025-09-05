@@ -2,9 +2,9 @@ using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
-using MyFirstMCP.Models;
+using RoselineMCP.Models;
 
-namespace MyFirstMCP.Services;
+namespace RoselineMCP.Services;
 
 public class SolutionAnalyzerService
 {

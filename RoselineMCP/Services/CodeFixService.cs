@@ -6,11 +6,11 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
-using MyFirstMCP.Models;
+using RoselineMCP.Models;
 using System.Reflection;
 using System.Text;
 
-namespace MyFirstMCP.Services;
+namespace RoselineMCP.Services;
 
 public class CodeFixService
 {

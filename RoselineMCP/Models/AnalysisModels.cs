@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace MyFirstMCP.Models;
+namespace RoselineMCP.Models;
 
 public class CreatePatchResponse
 {
