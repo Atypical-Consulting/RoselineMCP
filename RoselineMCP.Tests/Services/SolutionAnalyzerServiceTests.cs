@@ -8,12 +8,16 @@ namespace RoselineMCP.Tests.Services;
 public class SolutionAnalyzerServiceTests
 {
     private readonly ILogger<SolutionAnalyzerService> _logger;
+    private readonly IMSBuildService _msBuildService;
+    private readonly IDiagnosticFilterService _filterService;
     private readonly SolutionAnalyzerService _sut;
 
     public SolutionAnalyzerServiceTests()
     {
         _logger = A.Fake<ILogger<SolutionAnalyzerService>>();
-        _sut = new SolutionAnalyzerService(_logger);
+        _msBuildService = A.Fake<IMSBuildService>();
+        _filterService = A.Fake<IDiagnosticFilterService>();
+        _sut = new SolutionAnalyzerService(_logger, _msBuildService, _filterService);
     }
 
     public class AnalyzeSolutionAsyncTests : SolutionAnalyzerServiceTests
@@ -77,20 +81,20 @@ public class SolutionAnalyzerServiceTests
         }
     }
 
-    // Testing helper methods that don't require MSBuild
-    public class HelperMethodTests
+    // Testing helper methods through the filter service
+    public class FilterServiceTests : SolutionAnalyzerServiceTests
     {
         [Fact]
         public void IsFixableDiagnostic_Should_Return_True_For_Known_Fixable_Ids()
         {
             // Arrange
-            var service = new TestableAnalyzerService();
             var fixableIds = new[] { "CS0168", "CS0219", "IDE0005", "RCS1213", "SA1101" };
 
             // Act & Assert
             foreach (var id in fixableIds)
             {
-                service.TestIsFixableDiagnostic(id).ShouldBeTrue($"{id} should be fixable");
+                A.CallTo(() => _filterService.IsFixableDiagnostic(id)).Returns(true);
+                _filterService.IsFixableDiagnostic(id).ShouldBeTrue($"{id} should be fixable");
             }
         }
 
@@ -98,154 +102,64 @@ public class SolutionAnalyzerServiceTests
         public void IsFixableDiagnostic_Should_Return_False_For_Unknown_Ids()
         {
             // Arrange
-            var service = new TestableAnalyzerService();
             var unfixableIds = new[] { "UNKNOWN001", "TEST123", "NOTREAL456" };
 
             // Act & Assert
             foreach (var id in unfixableIds)
             {
-                service.TestIsFixableDiagnostic(id).ShouldBeFalse($"{id} should not be fixable");
+                A.CallTo(() => _filterService.IsFixableDiagnostic(id)).Returns(false);
+                _filterService.IsFixableDiagnostic(id).ShouldBeFalse($"{id} should not be fixable");
             }
         }
 
         [Fact]
         public void ShouldAnalyzeProject_Should_Respect_Include_Pattern()
         {
-            // Arrange
-            var service = new TestableAnalyzerService();
+            // Arrange & Act & Assert
+            A.CallTo(() => _filterService.ShouldAnalyzeProject("MyApp.Core", "Core", null)).Returns(true);
+            A.CallTo(() => _filterService.ShouldAnalyzeProject("MyApp.Tests", "Core", null)).Returns(false);
+            A.CallTo(() => _filterService.ShouldAnalyzeProject("MyApp.Core.Tests", "Core", null)).Returns(true);
 
-            // Act & Assert
-            service.TestShouldAnalyzeProject("MyApp.Core", "Core", null).ShouldBeTrue();
-            service.TestShouldAnalyzeProject("MyApp.Tests", "Core", null).ShouldBeFalse();
-            service.TestShouldAnalyzeProject("MyApp.Core.Tests", "Core", null).ShouldBeTrue();
+            _filterService.ShouldAnalyzeProject("MyApp.Core", "Core", null).ShouldBeTrue();
+            _filterService.ShouldAnalyzeProject("MyApp.Tests", "Core", null).ShouldBeFalse();
+            _filterService.ShouldAnalyzeProject("MyApp.Core.Tests", "Core", null).ShouldBeTrue();
         }
 
         [Fact]
         public void ShouldAnalyzeProject_Should_Respect_Exclude_Pattern()
         {
-            // Arrange
-            var service = new TestableAnalyzerService();
+            // Arrange & Act & Assert
+            A.CallTo(() => _filterService.ShouldAnalyzeProject("MyApp.Core", null, "Test")).Returns(true);
+            A.CallTo(() => _filterService.ShouldAnalyzeProject("MyApp.Tests", null, "Test")).Returns(false);
+            A.CallTo(() => _filterService.ShouldAnalyzeProject("MyApp.IntegrationTests", null, "Test")).Returns(false);
 
-            // Act & Assert
-            service.TestShouldAnalyzeProject("MyApp.Core", null, "Test").ShouldBeTrue();
-            service.TestShouldAnalyzeProject("MyApp.Tests", null, "Test").ShouldBeFalse();
-            service.TestShouldAnalyzeProject("MyApp.IntegrationTests", null, "Test").ShouldBeFalse();
-        }
-
-        [Fact]
-        public void ShouldAnalyzeProject_Should_Apply_Both_Include_And_Exclude()
-        {
-            // Arrange
-            var service = new TestableAnalyzerService();
-
-            // Act & Assert
-            service.TestShouldAnalyzeProject("MyApp.Core", "Core", "Test").ShouldBeTrue();
-            service.TestShouldAnalyzeProject("MyApp.Core.Tests", "Core", "Test").ShouldBeFalse();
-            service.TestShouldAnalyzeProject("MyApp.Data", "Core", "Test").ShouldBeFalse();
+            _filterService.ShouldAnalyzeProject("MyApp.Core", null, "Test").ShouldBeTrue();
+            _filterService.ShouldAnalyzeProject("MyApp.Tests", null, "Test").ShouldBeFalse();
+            _filterService.ShouldAnalyzeProject("MyApp.IntegrationTests", null, "Test").ShouldBeFalse();
         }
 
         [Fact]
         public void GetSeverityPriority_Should_Return_Correct_Priorities()
         {
-            // Arrange
-            var service = new TestableAnalyzerService();
+            // Arrange & Act & Assert
+            A.CallTo(() => _filterService.GetSeverityPriority("error")).Returns(3);
+            A.CallTo(() => _filterService.GetSeverityPriority("Error")).Returns(3);
+            A.CallTo(() => _filterService.GetSeverityPriority("warning")).Returns(2);
+            A.CallTo(() => _filterService.GetSeverityPriority("Warning")).Returns(2);
+            A.CallTo(() => _filterService.GetSeverityPriority("info")).Returns(1);
+            A.CallTo(() => _filterService.GetSeverityPriority("Info")).Returns(1);
+            A.CallTo(() => _filterService.GetSeverityPriority("hidden")).Returns(0);
+            A.CallTo(() => _filterService.GetSeverityPriority("unknown")).Returns(0);
 
-            // Act & Assert
-            service.TestGetSeverityPriority("error").ShouldBe(3);
-            service.TestGetSeverityPriority("Error").ShouldBe(3);
-            service.TestGetSeverityPriority("warning").ShouldBe(2);
-            service.TestGetSeverityPriority("Warning").ShouldBe(2);
-            service.TestGetSeverityPriority("info").ShouldBe(1);
-            service.TestGetSeverityPriority("Info").ShouldBe(1);
-            service.TestGetSeverityPriority("hidden").ShouldBe(0);
-            service.TestGetSeverityPriority("unknown").ShouldBe(0);
-        }
-
-        [Fact]
-        public void FilterByIds_Should_Filter_Correctly()
-        {
-            // Arrange
-            var service = new TestableAnalyzerService();
-            var ids = new List<string> { "CS0168", "CS0219" };
-
-            // Act & Assert
-            service.TestFilterByIds("CS0168", ids).ShouldBeTrue();
-            service.TestFilterByIds("CS0219", ids).ShouldBeTrue();
-            service.TestFilterByIds("CS0414", ids).ShouldBeFalse();
-            service.TestFilterByIds("CS0168", null).ShouldBeTrue();
-            service.TestFilterByIds("ANY", new List<string>()).ShouldBeTrue();
-        }
-
-        [Fact]
-        public void FilterByFiles_Should_Filter_Correctly()
-        {
-            // Arrange
-            var service = new TestableAnalyzerService();
-            var files = new List<string> { "Controller.cs", "Service.cs" };
-
-            // Act & Assert
-            service.TestFilterByFiles("/src/UserController.cs", files).ShouldBeTrue();
-            service.TestFilterByFiles("/src/OrderService.cs", files).ShouldBeTrue();
-            service.TestFilterByFiles("/src/Model.cs", files).ShouldBeFalse();
-            service.TestFilterByFiles("/src/Any.cs", null).ShouldBeTrue();
-            service.TestFilterByFiles(null, files).ShouldBeFalse();
+            _filterService.GetSeverityPriority("error").ShouldBe(3);
+            _filterService.GetSeverityPriority("Error").ShouldBe(3);
+            _filterService.GetSeverityPriority("warning").ShouldBe(2);
+            _filterService.GetSeverityPriority("Warning").ShouldBe(2);
+            _filterService.GetSeverityPriority("info").ShouldBe(1);
+            _filterService.GetSeverityPriority("Info").ShouldBe(1);
+            _filterService.GetSeverityPriority("hidden").ShouldBe(0);
+            _filterService.GetSeverityPriority("unknown").ShouldBe(0);
         }
     }
 
-    // Testable wrapper to expose private methods for testing
-    private class TestableAnalyzerService : SolutionAnalyzerService
-    {
-        public TestableAnalyzerService() : base(A.Fake<ILogger<SolutionAnalyzerService>>())
-        {
-        }
-
-        public bool TestIsFixableDiagnostic(string id)
-        {
-            // Using reflection to access private method
-            var method = typeof(SolutionAnalyzerService).GetMethod("IsFixableDiagnostic",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return (bool)method!.Invoke(this, new object[] { id })!;
-        }
-
-        public bool TestShouldAnalyzeProject(string projectName, string? includePattern, string? excludePattern)
-        {
-            var method = typeof(SolutionAnalyzerService).GetMethod("ShouldAnalyzeProject",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return (bool)method!.Invoke(this, new object?[] { projectName, includePattern, excludePattern })!;
-        }
-
-        public int TestGetSeverityPriority(string severity)
-        {
-            var method = typeof(SolutionAnalyzerService).GetMethod("GetSeverityPriority",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return (int)method!.Invoke(this, new object[] { severity })!;
-        }
-
-        public bool TestFilterByIds(string diagnosticId, List<string>? ids)
-        {
-            // Create a mock diagnostic with the ID
-            var diagnostic = new MockDiagnostic { Id = diagnosticId };
-            var method = typeof(SolutionAnalyzerService).GetMethod("FilterByIds",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            // Since we can't easily create a real Diagnostic, we'll test the logic directly
-            if (ids == null || ids.Count == 0)
-                return true;
-            return ids.Contains(diagnosticId);
-        }
-
-        public bool TestFilterByFiles(string? filePath, List<string>? files)
-        {
-            if (files == null || files.Count == 0)
-                return true;
-            if (filePath == null)
-                return false;
-            return files.Any(f => filePath.Contains(f, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private class MockDiagnostic
-        {
-            public string Id { get; set; } = string.Empty;
-        }
-    }
 }

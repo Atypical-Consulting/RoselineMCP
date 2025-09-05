@@ -1,13 +1,8 @@
-using DiffPlex;
-using DiffPlex.DiffBuilder;
-using DiffPlex.DiffBuilder.Model;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Formatting;
-using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Models;
-using System.Reflection;
 using System.Text;
 
 namespace RoselineMCP.Services;
@@ -19,96 +14,32 @@ public class CodeFixService : ICodeFixService
 {
     private readonly ILogger<CodeFixService> _logger;
     private readonly ISolutionAnalyzerService _analyzerService;
-    private static readonly Dictionary<string, Type> _codeFixProviders = new();
-    private static bool _providersLoaded = false;
+    private readonly ICodeFixProviderFactory _codeFixProviderFactory;
+    private readonly IDiffService _diffService;
+    private readonly IMSBuildService _msBuildService;
 
     /// <summary>
     /// Initializes a new instance of the CodeFixService.
     /// </summary>
     /// <param name="logger">Logger for diagnostic output.</param>
     /// <param name="analyzerService">Service for analyzing solutions.</param>
-    public CodeFixService(ILogger<CodeFixService> logger, ISolutionAnalyzerService analyzerService)
+    /// <param name="codeFixProviderFactory">Factory for creating code fix providers.</param>
+    /// <param name="diffService">Service for generating diffs.</param>
+    /// <param name="msBuildService">Service for MSBuild operations.</param>
+    public CodeFixService(
+        ILogger<CodeFixService> logger,
+        ISolutionAnalyzerService analyzerService,
+        ICodeFixProviderFactory codeFixProviderFactory,
+        IDiffService diffService,
+        IMSBuildService msBuildService)
     {
         _logger = logger;
         _analyzerService = analyzerService;
-        LoadCodeFixProviders();
+        _codeFixProviderFactory = codeFixProviderFactory;
+        _diffService = diffService;
+        _msBuildService = msBuildService;
     }
 
-    private void LoadCodeFixProviders()
-    {
-        if (_providersLoaded) return;
-
-        try
-        {
-            // Load built-in code fix providers
-            var assemblies = new List<Assembly> { typeof(CodeFixProvider).Assembly };
-
-            try
-            {
-                assemblies.Add(Assembly.Load("Microsoft.CodeAnalysis.Features"));
-                assemblies.Add(Assembly.Load("Microsoft.CodeAnalysis.CSharp.Features"));
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                assemblies.Add(Assembly.Load("Roslynator.CodeFixes"));
-            }
-            catch
-            {
-                // ignored
-            }
-
-            foreach (var assembly in assemblies.Where(a => a != null))
-            {
-                try
-                {
-                    var types = assembly.GetTypes()
-                        .Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(CodeFixProvider)));
-
-                    foreach (var type in types)
-                    {
-                        try
-                        {
-                            var instance = Activator.CreateInstance(type) as CodeFixProvider;
-                            if (instance != null)
-                            {
-                                foreach (var id in instance.FixableDiagnosticIds)
-                                {
-                                    if (!_codeFixProviders.ContainsKey(id))
-                                    {
-                                        _codeFixProviders[id] = type;
-                                        _logger.LogDebug("Registered code fix provider for {DiagnosticId}: {Provider}",
-                                            id, type.Name);
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogDebug("Could not instantiate code fix provider {Type}: {Message}",
-                                type.Name, ex.Message);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning("Error loading code fix providers from assembly {Assembly}: {Message}",
-                        assembly.FullName, ex.Message);
-                }
-            }
-
-            _providersLoaded = true;
-            _logger.LogInformation("Loaded {Count} code fix providers", _codeFixProviders.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load code fix providers");
-        }
-    }
 
     /// <inheritdoc/>
     public async Task<ApplyFixesResponse> ApplyFixesAsync(
@@ -125,7 +56,7 @@ public class CodeFixService : ICodeFixService
         try
         {
             // Create a temporary workspace
-            using var workspace = MSBuildWorkspace.Create();
+            using var workspace = _msBuildService.CreateWorkspace();
 
             workspace.WorkspaceFailed += (sender, e) =>
             {
@@ -178,7 +109,8 @@ public class CodeFixService : ICodeFixService
                 }
 
                 // Find code fix provider for this diagnostic
-                if (!_codeFixProviders.TryGetValue(diagnosticId, out var providerType))
+                var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId);
+                if (provider == null)
                 {
                     response.Notes.Add($"No code fix provider found for {diagnosticId}");
                     continue;
@@ -186,8 +118,6 @@ public class CodeFixService : ICodeFixService
 
                 try
                 {
-                    var provider = Activator.CreateInstance(providerType) as CodeFixProvider;
-                    if (provider == null) continue;
 
                     // Group diagnostics by document
                     var diagnosticsByDocument = diagnostics
@@ -286,7 +216,7 @@ public class CodeFixService : ICodeFixService
                         var newText = await newDocument.GetTextAsync();
                         var oldText = originalTexts.GetValueOrDefault(filePath, "");
 
-                        var diff = GenerateUnifiedDiff(
+                        var diff = _diffService.GenerateUnifiedDiff(
                             oldText,
                             newText.ToString(),
                             $"a/{relativePath}",
@@ -366,90 +296,4 @@ public class CodeFixService : ICodeFixService
         throw new FileNotFoundException($"Project not found: {project}");
     }
 
-    private string GenerateUnifiedDiff(string oldText, string newText, string oldPath, string newPath)
-    {
-        var diffBuilder = new InlineDiffBuilder(new Differ());
-        var diff = diffBuilder.BuildDiffModel(oldText, newText);
-
-        if (!diff.HasDifferences)
-        {
-            return string.Empty;
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"--- {oldPath}");
-        sb.AppendLine($"+++ {newPath}");
-
-        var oldLines = oldText.Split('\n');
-        var newLines = newText.Split('\n');
-
-        int contextLines = 3;
-        var chunks = new List<DiffChunk>();
-        DiffChunk? currentChunk = null;
-
-        for (int i = 0; i < diff.Lines.Count; i++)
-        {
-            var line = diff.Lines[i];
-
-            if (line.Type != ChangeType.Unchanged)
-            {
-                // Start a new chunk or extend current one
-                if (currentChunk == null || i > currentChunk.EndIndex + contextLines)
-                {
-                    currentChunk = new DiffChunk
-                    {
-                        StartIndex = Math.Max(0, i - contextLines),
-                        EndIndex = Math.Min(diff.Lines.Count - 1, i + contextLines)
-                    };
-                    chunks.Add(currentChunk);
-                }
-                else
-                {
-                    currentChunk.EndIndex = Math.Min(diff.Lines.Count - 1, i + contextLines);
-                }
-            }
-        }
-
-        foreach (var chunk in chunks)
-        {
-            var oldStart = chunk.StartIndex + 1;
-            var oldCount = diff.Lines
-                .Skip(chunk.StartIndex)
-                .Take(chunk.EndIndex - chunk.StartIndex + 1)
-                .Count(l => l.Type != ChangeType.Inserted);
-
-            var newStart = chunk.StartIndex + 1;
-            var newCount = diff.Lines
-                .Skip(chunk.StartIndex)
-                .Take(chunk.EndIndex - chunk.StartIndex + 1)
-                .Count(l => l.Type != ChangeType.Deleted);
-
-            sb.AppendLine($"@@ -{oldStart},{oldCount} +{newStart},{newCount} @@");
-
-            for (int i = chunk.StartIndex; i <= chunk.EndIndex; i++)
-            {
-                var line = diff.Lines[i];
-                switch (line.Type)
-                {
-                    case ChangeType.Unchanged:
-                        sb.AppendLine($" {line.Text}");
-                        break;
-                    case ChangeType.Deleted:
-                        sb.AppendLine($"-{line.Text}");
-                        break;
-                    case ChangeType.Inserted:
-                        sb.AppendLine($"+{line.Text}");
-                        break;
-                }
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private class DiffChunk
-    {
-        public int StartIndex { get; set; }
-        public int EndIndex { get; set; }
-    }
 }

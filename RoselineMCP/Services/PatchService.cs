@@ -1,9 +1,5 @@
-using DiffPlex;
-using DiffPlex.DiffBuilder;
-using DiffPlex.DiffBuilder.Model;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Models;
-using System.Text;
 
 namespace RoselineMCP.Services;
 
@@ -13,14 +9,17 @@ namespace RoselineMCP.Services;
 public class PatchService : IPatchService
 {
     private readonly ILogger<PatchService> _logger;
+    private readonly IDiffService _diffService;
 
     /// <summary>
     /// Initializes a new instance of the PatchService.
     /// </summary>
     /// <param name="logger">Logger for diagnostic output.</param>
-    public PatchService(ILogger<PatchService> logger)
+    /// <param name="diffService">Service for generating diffs.</param>
+    public PatchService(ILogger<PatchService> logger, IDiffService diffService)
     {
         _logger = logger;
+        _diffService = diffService;
     }
 
     /// <inheritdoc/>
@@ -34,54 +33,47 @@ public class PatchService : IPatchService
             };
 
             // Generate the diff
-            var diffBuilder = new InlineDiffBuilder(new Differ());
-            var diff = diffBuilder.BuildDiffModel(before, after);
+            var patch = _diffService.GenerateUnifiedDiff(
+                before,
+                after,
+                $"a/{response.FileName}",
+                $"b/{response.FileName}");
 
-            response.HasChanges = diff.HasDifferences;
+            response.HasChanges = !string.IsNullOrEmpty(patch);
 
-            if (!diff.HasDifferences)
+            if (!response.HasChanges)
             {
                 response.Summary = "No changes detected";
                 return response;
             }
 
-            // Calculate statistics
+            // Calculate statistics from the patch
             var linesAdded = 0;
             var linesRemoved = 0;
-            var linesModified = 0;
 
-            foreach (var line in diff.Lines)
+            var patchLines = patch.Split('\n');
+            foreach (var line in patchLines)
             {
-                switch (line.Type)
+                if (line.StartsWith("+") && !line.StartsWith("+++"))
                 {
-                    case ChangeType.Inserted:
-                        linesAdded++;
-                        break;
-                    case ChangeType.Deleted:
-                        linesRemoved++;
-                        break;
-                    case ChangeType.Modified:
-                        linesModified++;
-                        break;
+                    linesAdded++;
+                }
+                else if (line.StartsWith("-") && !line.StartsWith("---"))
+                {
+                    linesRemoved++;
                 }
             }
 
             response.LinesAdded = linesAdded;
             response.LinesRemoved = linesRemoved;
 
-            // Generate unified diff
-            response.Patch = GenerateUnifiedDiff(
-                before,
-                after,
-                $"a/{response.FileName}",
-                $"b/{response.FileName}",
-                diff);
+            // Set the patch
+            response.Patch = patch;
 
             // Create summary
             var summaryParts = new List<string>();
             if (linesAdded > 0) summaryParts.Add($"+{linesAdded}");
             if (linesRemoved > 0) summaryParts.Add($"-{linesRemoved}");
-            if (linesModified > 0) summaryParts.Add($"~{linesModified}");
 
             response.Summary = $"{response.FileName}: {string.Join(", ", summaryParts)} lines";
 
@@ -97,102 +89,6 @@ public class PatchService : IPatchService
         }
     }
 
-    private string GenerateUnifiedDiff(
-        string oldText,
-        string newText,
-        string oldPath,
-        string newPath,
-        DiffPaneModel diff)
-    {
-        var sb = new StringBuilder();
-
-        // Add header
-        sb.AppendLine($"--- {oldPath}");
-        sb.AppendLine($"+++ {newPath}");
-
-        // Split into lines for processing
-        var oldLines = oldText.Split('\n');
-        var newLines = newText.Split('\n');
-
-        // Group changes into hunks
-        int contextLines = 3;
-        var hunks = new List<DiffHunk>();
-        DiffHunk? currentHunk = null;
-
-        for (int i = 0; i < diff.Lines.Count; i++)
-        {
-            var line = diff.Lines[i];
-
-            if (line.Type != ChangeType.Unchanged)
-            {
-                // Start a new hunk or extend current one
-                if (currentHunk == null || i > currentHunk.EndIndex + contextLines * 2)
-                {
-                    currentHunk = new DiffHunk
-                    {
-                        StartIndex = Math.Max(0, i - contextLines),
-                        EndIndex = Math.Min(diff.Lines.Count - 1, i + contextLines)
-                    };
-                    hunks.Add(currentHunk);
-                }
-                else
-                {
-                    currentHunk.EndIndex = Math.Min(diff.Lines.Count - 1, i + contextLines);
-                }
-            }
-        }
-
-        // Generate output for each hunk
-        foreach (var hunk in hunks)
-        {
-            // Calculate hunk header
-            var hunkLines = diff.Lines.Skip(hunk.StartIndex).Take(hunk.EndIndex - hunk.StartIndex + 1).ToList();
-
-            var oldStart = CountLinesBeforeIndex(diff.Lines, hunk.StartIndex, ChangeType.Inserted) + 1;
-            var oldCount = hunkLines.Count(l => l.Type != ChangeType.Inserted);
-
-            var newStart = CountLinesBeforeIndex(diff.Lines, hunk.StartIndex, ChangeType.Deleted) + 1;
-            var newCount = hunkLines.Count(l => l.Type != ChangeType.Deleted);
-
-            // Add hunk header
-            sb.AppendLine($"@@ -{oldStart},{oldCount} +{newStart},{newCount} @@");
-
-            // Add hunk content
-            foreach (var line in hunkLines)
-            {
-                switch (line.Type)
-                {
-                    case ChangeType.Unchanged:
-                        sb.AppendLine($" {line.Text}");
-                        break;
-                    case ChangeType.Deleted:
-                        sb.AppendLine($"-{line.Text}");
-                        break;
-                    case ChangeType.Inserted:
-                        sb.AppendLine($"+{line.Text}");
-                        break;
-                    case ChangeType.Modified:
-                        // Modified lines are typically shown as delete + insert
-                        sb.AppendLine($"-{line.Text}");
-                        sb.AppendLine($"+{line.Text}");
-                        break;
-                }
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private int CountLinesBeforeIndex(List<DiffPiece> lines, int index, ChangeType excludeType)
-    {
-        return lines.Take(index).Count(l => l.Type != excludeType);
-    }
-
-    private class DiffHunk
-    {
-        public int StartIndex { get; set; }
-        public int EndIndex { get; set; }
-    }
 
     /// <inheritdoc/>
     public CreatePatchResponse CreatePatchFromFiles(string beforePath, string afterPath)
@@ -240,8 +136,8 @@ public class PatchService : IPatchService
             // Apply options
             if (ignoreWhitespace)
             {
-                processedBefore = NormalizeWhitespace(processedBefore);
-                processedAfter = NormalizeWhitespace(processedAfter);
+                processedBefore = _diffService.NormalizeWhitespace(processedBefore);
+                processedAfter = _diffService.NormalizeWhitespace(processedAfter);
             }
 
             if (ignoreCase)
@@ -270,25 +166,6 @@ public class PatchService : IPatchService
         }
     }
 
-    private string NormalizeWhitespace(string text)
-    {
-        // Normalize different types of whitespace
-        var lines = text.Split('\n');
-        var normalized = new List<string>();
-
-        foreach (var line in lines)
-        {
-            // Trim trailing whitespace
-            var trimmed = line.TrimEnd();
-
-            // Replace multiple spaces with single space
-            var collapsed = System.Text.RegularExpressions.Regex.Replace(trimmed, @"\s+", " ");
-
-            normalized.Add(collapsed);
-        }
-
-        return string.Join('\n', normalized);
-    }
 
     /// <inheritdoc/>
     public bool ApplyPatch(string filePath, string patch)

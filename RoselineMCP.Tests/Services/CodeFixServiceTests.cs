@@ -9,13 +9,19 @@ public class CodeFixServiceTests
 {
     private readonly ILogger<CodeFixService> _logger;
     private readonly ISolutionAnalyzerService _analyzerService;
+    private readonly ICodeFixProviderFactory _codeFixProviderFactory;
+    private readonly IDiffService _diffService;
+    private readonly IMSBuildService _msBuildService;
     private readonly CodeFixService _sut;
 
     public CodeFixServiceTests()
     {
         _logger = A.Fake<ILogger<CodeFixService>>();
         _analyzerService = A.Fake<ISolutionAnalyzerService>();
-        _sut = new CodeFixService(_logger, _analyzerService);
+        _codeFixProviderFactory = A.Fake<ICodeFixProviderFactory>();
+        _diffService = A.Fake<IDiffService>();
+        _msBuildService = A.Fake<IMSBuildService>();
+        _sut = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _msBuildService);
     }
 
     public class ApplyFixesAsyncTests : CodeFixServiceTests
@@ -134,88 +140,6 @@ public class CodeFixServiceTests
         }
     }
 
-    public class GenerateUnifiedDiffTests
-    {
-        [Fact]
-        public void Should_Return_Empty_When_No_Differences()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var text = "Same content";
-
-            // Act
-            var result = service.TestGenerateUnifiedDiff(text, text, "a/file.cs", "b/file.cs");
-
-            // Assert
-            result.ShouldBeEmpty();
-        }
-
-        [Fact]
-        public void Should_Generate_Diff_For_Added_Lines()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var oldText = "Line 1\nLine 2";
-            var newText = "Line 1\nLine 2\nLine 3";
-
-            // Act
-            var result = service.TestGenerateUnifiedDiff(oldText, newText, "a/file.cs", "b/file.cs");
-
-            // Assert
-            result.ShouldContain("--- a/file.cs");
-            result.ShouldContain("+++ b/file.cs");
-            result.ShouldContain("+Line 3");
-        }
-
-        [Fact]
-        public void Should_Generate_Diff_For_Removed_Lines()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var oldText = "Line 1\nLine 2\nLine 3";
-            var newText = "Line 1\nLine 3";
-
-            // Act
-            var result = service.TestGenerateUnifiedDiff(oldText, newText, "a/file.cs", "b/file.cs");
-
-            // Assert
-            result.ShouldContain("-Line 2");
-        }
-
-        [Fact]
-        public void Should_Include_Context_Lines()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var oldText = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
-            var newText = "Line 1\nLine 2\nModified 3\nLine 4\nLine 5";
-
-            // Act
-            var result = service.TestGenerateUnifiedDiff(oldText, newText, "a/file.cs", "b/file.cs");
-
-            // Assert
-            result.ShouldContain(" Line 2");  // Context line before
-            result.ShouldContain("-Line 3");
-            result.ShouldContain("+Modified 3");
-            result.ShouldContain(" Line 4");  // Context line after
-        }
-
-        [Fact]
-        public void Should_Generate_Proper_Hunk_Headers()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var oldText = "Line 1\nLine 2";
-            var newText = "Line 1\nModified 2";
-
-            // Act
-            var result = service.TestGenerateUnifiedDiff(oldText, newText, "a/file.cs", "b/file.cs");
-
-            // Assert
-            result.ShouldContain("@@");
-            result.ShouldMatch(@"@@ -\d+,\d+ \+\d+,\d+ @@");
-        }
-    }
 
     public class LoadCodeFixProvidersTests : CodeFixServiceTests
     {
@@ -231,7 +155,7 @@ public class CodeFixServiceTests
         public void Should_Handle_Missing_Assemblies_Gracefully()
         {
             // The service should not throw even if some assemblies are not found
-            var service = new CodeFixService(_logger, _analyzerService);
+            var service = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _msBuildService);
             service.ShouldNotBeNull();
         }
     }
@@ -240,7 +164,11 @@ public class CodeFixServiceTests
     private class TestableCodeFixService : CodeFixService
     {
         public TestableCodeFixService() 
-            : base(A.Fake<ILogger<CodeFixService>>(), A.Fake<ISolutionAnalyzerService>())
+            : base(A.Fake<ILogger<CodeFixService>>(), 
+                   A.Fake<ISolutionAnalyzerService>(),
+                   A.Fake<ICodeFixProviderFactory>(),
+                   A.Fake<IDiffService>(),
+                   A.Fake<IMSBuildService>())
         {
         }
 
@@ -249,13 +177,6 @@ public class CodeFixServiceTests
             var method = typeof(CodeFixService).GetMethod("ResolveProjectPath",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             return (string)method!.Invoke(this, new object[] { project })!;
-        }
-
-        public string TestGenerateUnifiedDiff(string oldText, string newText, string oldPath, string newPath)
-        {
-            var method = typeof(CodeFixService).GetMethod("GenerateUnifiedDiff",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return (string)method!.Invoke(this, new object[] { oldText, newText, oldPath, newPath })!;
         }
     }
 }

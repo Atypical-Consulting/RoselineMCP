@@ -8,12 +8,14 @@ namespace RoselineMCP.Tests.Services;
 public class PatchServiceTests
 {
     private readonly ILogger<PatchService> _logger;
+    private readonly IDiffService _diffService;
     private readonly PatchService _sut;
 
     public PatchServiceTests()
     {
         _logger = A.Fake<ILogger<PatchService>>();
-        _sut = new PatchService(_logger);
+        _diffService = A.Fake<IDiffService>();
+        _sut = new PatchService(_logger, _diffService);
     }
 
     public class CreatePatchTests : PatchServiceTests
@@ -23,6 +25,8 @@ public class PatchServiceTests
         {
             // Arrange
             var text = "Hello World\nThis is a test";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(text, text, A<string>._, A<string>._))
+                .Returns(string.Empty);
 
             // Act
             var result = _sut.CreatePatch(text, text);
@@ -40,6 +44,9 @@ public class PatchServiceTests
             // Arrange
             var before = "Line 1\nLine 2";
             var after = "Line 1\nLine 2\nLine 3";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -1,2 +1,3 @@\n Line 1\n Line 2\n+Line 3";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after);
@@ -57,6 +64,9 @@ public class PatchServiceTests
             // Arrange
             var before = "Line 1\nLine 2\nLine 3";
             var after = "Line 1\nLine 3";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -1,3 +1,2 @@\n Line 1\n-Line 2\n Line 3";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after);
@@ -74,6 +84,9 @@ public class PatchServiceTests
             // Arrange
             var before = "Line 1\nLine 2\nLine 3";
             var after = "Line 1\nLine 2 Modified\nLine 3";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -1,3 +1,3 @@\n Line 1\n-Line 2\n+Line 2 Modified\n Line 3";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after);
@@ -91,6 +104,9 @@ public class PatchServiceTests
             var before = "Old content";
             var after = "New content";
             var fileName = "test.cs";
+            var mockPatch = $"--- a/{fileName}\n+++ b/{fileName}\n@@ -1 +1 @@\n-Old content\n+New content";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, $"a/{fileName}", $"b/{fileName}"))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after, fileName);
@@ -107,6 +123,9 @@ public class PatchServiceTests
             // Arrange
             var before = "Line 1";
             var after = "Line 1\nLine 2";
+            var mockPatch = "--- a/test.txt\n+++ b/test.txt\n@@ -1 +1,2 @@\n Line 1\n+Line 2";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, "a/test.txt", "b/test.txt"))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after, "test.txt");
@@ -123,6 +142,9 @@ public class PatchServiceTests
             // Arrange
             var before = "";
             var after = "New content\nLine 2";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -0,0 +1,2 @@\n+New content\n+Line 2";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after);
@@ -139,6 +161,9 @@ public class PatchServiceTests
             // Arrange
             var before = "Old content\nLine 2";
             var after = "";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -1,2 +0,0 @@\n-Old content\n-Line 2";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after);
@@ -155,6 +180,9 @@ public class PatchServiceTests
             // Arrange
             var before = "Line 1\nLine 2";
             var after = "Line 1\nLine 2 Modified\nLine 3";
+            var mockPatch = "--- a/test.cs\n+++ b/test.cs\n@@ -1,2 +1,3 @@\n Line 1\n-Line 2\n+Line 2 Modified\n+Line 3";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, "a/test.cs", "b/test.cs"))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after, "test.cs");
@@ -172,6 +200,9 @@ public class PatchServiceTests
             var before = string.Join("\n", Enumerable.Range(1, 100).Select(i => $"Line {i}"));
             var after = string.Join("\n", Enumerable.Range(1, 50).Select(i => $"Line {i}")) + "\n" +
                        string.Join("\n", Enumerable.Range(51, 50).Select(i => $"Modified Line {i}"));
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ large diff @@";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatch(before, after);
@@ -200,6 +231,9 @@ public class PatchServiceTests
             var afterPath = Path.Combine(_testDirectory, "after.txt");
             File.WriteAllText(beforePath, "Original content");
             File.WriteAllText(afterPath, "Modified content");
+            var mockPatch = "--- a/before.txt\n+++ b/before.txt\n@@ -1 +1 @@\n-Original content\n+Modified content";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff("Original content", "Modified content", "a/before.txt", "b/before.txt"))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatchFromFiles(beforePath, afterPath);
@@ -253,6 +287,12 @@ public class PatchServiceTests
             // Arrange
             var before = "Line 1  \nLine 2    ";
             var after = "Line 1\nLine 2";
+            A.CallTo(() => _diffService.NormalizeWhitespace(before))
+                .Returns("Line 1\nLine 2");
+            A.CallTo(() => _diffService.NormalizeWhitespace(after))
+                .Returns("Line 1\nLine 2");
+            A.CallTo(() => _diffService.GenerateUnifiedDiff("Line 1\nLine 2", "Line 1\nLine 2", A<string>._, A<string>._))
+                .Returns(string.Empty);
 
             // Act
             var result = _sut.CreatePatchWithOptions(before, after, ignoreWhitespace: true);
@@ -268,6 +308,9 @@ public class PatchServiceTests
             // Arrange
             var before = "HELLO WORLD";
             var after = "hello world";
+            // When ignoreCase is true, both are converted to lowercase
+            A.CallTo(() => _diffService.GenerateUnifiedDiff("hello world", "hello world", A<string>._, A<string>._))
+                .Returns(string.Empty);
 
             // Act
             var result = _sut.CreatePatchWithOptions(before, after, ignoreCase: true);
@@ -283,6 +326,13 @@ public class PatchServiceTests
             // Arrange
             var before = "HELLO   WORLD  ";
             var after = "hello world";
+            A.CallTo(() => _diffService.NormalizeWhitespace(before))
+                .Returns("HELLO WORLD");
+            A.CallTo(() => _diffService.NormalizeWhitespace(after))
+                .Returns("hello world");
+            // After normalization and lowercase conversion
+            A.CallTo(() => _diffService.GenerateUnifiedDiff("hello world", "hello world", A<string>._, A<string>._))
+                .Returns(string.Empty);
 
             // Act
             var result = _sut.CreatePatchWithOptions(before, after, 
@@ -301,6 +351,9 @@ public class PatchServiceTests
             // Arrange
             var before = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
             var after = "Line 1\nLine 2\nModified 3\nLine 4\nLine 5";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -1,5 +1,5 @@\n Line 1\n Line 2\n-Line 3\n+Modified 3\n Line 4\n Line 5";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
 
             // Act
             var result = _sut.CreatePatchWithOptions(before, after, contextLines: 3);

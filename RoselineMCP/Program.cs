@@ -16,6 +16,13 @@ builder.Services
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
+// Core services
+builder.Services.AddSingleton<IMSBuildService, MSBuildService>();
+builder.Services.AddSingleton<IDiagnosticFilterService, DiagnosticFilterService>();
+builder.Services.AddSingleton<ICodeFixProviderFactory, CodeFixProviderFactory>();
+builder.Services.AddSingleton<IDiffService, DiffService>();
+
+// Main services
 builder.Services.AddSingleton<ISolutionAnalyzerService, SolutionAnalyzerService>();
 builder.Services.AddSingleton<ICodeFixService, CodeFixService>();
 builder.Services.AddSingleton<IPatchService, PatchService>();
