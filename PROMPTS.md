@@ -525,6 +525,213 @@ The ApplyFixes tool returns:
 
 ---
 
+# Part 4: CreatePatch Tool
+
+## Basic Patch Generation Prompts
+
+### 1. Simple Text Diff
+```
+Create a patch showing the differences between "Hello World" and "Hello Universe"
+```
+
+### 2. Code Changes Patch
+```
+Generate a unified diff between the original function implementation and the optimized version
+```
+
+### 3. Configuration File Changes
+```
+Create a patch file for the changes made to appsettings.json
+```
+
+## Code Comparison Prompts
+
+### 4. Method Refactoring Diff
+```
+Show me a patch for the refactored GetUserById method with the async version
+```
+
+### 5. Class Structure Changes
+```
+Generate a diff showing the changes from the old Product class to the new one with additional properties
+```
+
+### 6. Bug Fix Documentation
+```
+Create a patch that shows what was changed to fix the null reference exception in UserService
+```
+
+### 7. API Endpoint Modifications
+```
+Generate a unified diff for the updated REST endpoint implementation
+```
+
+## Advanced Patch Scenarios
+
+### 8. Multi-line Complex Changes
+```
+Create a patch showing the complete refactoring of the OrderProcessor class including new methods and removed code
+```
+
+### 9. Documentation Updates
+```
+Generate a diff patch for the README.md changes including the new installation instructions
+```
+
+### 10. Configuration Migration
+```
+Create a patch showing the migration from XML configuration to JSON configuration
+```
+
+## Example Tool Invocations
+
+### Example 1: Simple Text Diff
+```json
+{
+  "tool": "CreatePatch",
+  "parameters": {
+    "before": "public void ProcessOrder(Order order)\n{\n    // Process order\n    Console.WriteLine(\"Processing\");\n}",
+    "after": "public async Task ProcessOrderAsync(Order order)\n{\n    // Process order asynchronously\n    await Task.Delay(100);\n    Console.WriteLine(\"Processing\");\n}",
+    "fileName": "OrderService.cs"
+  }
+}
+```
+
+### Example 2: Configuration Changes
+```json
+{
+  "tool": "CreatePatch",
+  "parameters": {
+    "before": "{\n  \"Logging\": {\n    \"LogLevel\": {\n      \"Default\": \"Information\"\n    }\n  }\n}",
+    "after": "{\n  \"Logging\": {\n    \"LogLevel\": {\n      \"Default\": \"Warning\",\n      \"Microsoft\": \"Information\"\n    }\n  },\n  \"AllowedHosts\": \"*\"\n}",
+    "fileName": "appsettings.json"
+  }
+}
+```
+
+### Example 3: Bug Fix Patch
+```json
+{
+  "tool": "CreatePatch",
+  "parameters": {
+    "before": "public User GetUser(int id)\n{\n    return _users.First(u => u.Id == id);\n}",
+    "after": "public User? GetUser(int id)\n{\n    return _users.FirstOrDefault(u => u.Id == id);\n}",
+    "fileName": "UserRepository.cs"
+  }
+}
+```
+
+### Example 4: Class Refactoring
+```json
+{
+  "tool": "CreatePatch",
+  "parameters": {
+    "before": "public class Product\n{\n    public int Id { get; set; }\n    public string Name { get; set; }\n}",
+    "after": "public class Product\n{\n    public int Id { get; set; }\n    public string Name { get; set; } = string.Empty;\n    public decimal Price { get; set; }\n    public DateTime CreatedAt { get; set; }\n}",
+    "fileName": "Product.cs"
+  }
+}
+```
+
+## Expected Response Format
+
+The CreatePatch tool returns:
+
+```json
+{
+  "patch": "--- a/UserService.cs\n+++ b/UserService.cs\n@@ -1,4 +1,5 @@\n public User GetUser(int id)\n {\n-    return _users.First(u => u.Id == id);\n+    // Added null safety\n+    return _users.FirstOrDefault(u => u.Id == id);\n }",
+  "hasChanges": true,
+  "linesAdded": 2,
+  "linesRemoved": 1,
+  "fileName": "UserService.cs",
+  "summary": "UserService.cs: +2, -1 lines"
+}
+```
+
+## Tips for Using CreatePatch
+
+1. **Always Provide Context**: Include enough surrounding code for meaningful patches
+2. **Use Descriptive File Names**: Helps identify what the patch modifies
+3. **Preserve Formatting**: Maintain consistent indentation in before/after text
+4. **Review Line Counts**: Check added/removed lines to verify changes
+5. **Test Patch Application**: Ensure patches can be applied cleanly
+
+## Common Use Cases
+
+### Code Review Preparation
+- Generate patches for proposed changes
+- Document bug fixes with clear diffs
+- Show refactoring improvements
+- Demonstrate optimization changes
+
+### Documentation
+- Track configuration changes
+- Document API modifications
+- Show migration steps
+- Capture setup changes
+
+### Collaboration
+- Share code changes without full files
+- Provide focused feedback on specific changes
+- Create reviewable change sets
+- Document troubleshooting steps
+
+## Integration Workflows
+
+### Workflow 1: Fix and Document
+1. Identify issue with AnalyzeSolution
+2. Apply fixes with ApplyFixes
+3. Extract specific changes
+4. Use CreatePatch to document the fix
+5. Share patch for review
+
+### Workflow 2: Manual Refactoring Documentation
+1. Copy original code (before)
+2. Make manual improvements
+3. Copy improved code (after)
+4. Generate patch with CreatePatch
+5. Include in pull request description
+
+### Workflow 3: Configuration Migration
+1. Save current configuration
+2. Update to new format
+3. Create patch showing migration
+4. Use as template for other projects
+5. Document in migration guide
+
+## Patch Format Details
+
+The tool generates standard unified diff format:
+- `---` indicates the original file
+- `+++` indicates the modified file
+- `@@` marks the beginning of a change hunk
+- `-` prefix for removed lines
+- `+` prefix for added lines
+- ` ` (space) prefix for unchanged context lines
+
+## Advanced Features
+
+### Multi-file Patches (Future)
+While the current tool handles single file diffs, you can:
+1. Generate multiple patches
+2. Concatenate them manually
+3. Apply as a series
+
+### Patch Validation
+The response includes:
+- `hasChanges`: Quickly check if files differ
+- `linesAdded`/`linesRemoved`: Verify scope of changes
+- `summary`: Human-readable change description
+
+### Best Practices
+- Keep patches focused and atomic
+- Include 3 lines of context by default
+- Use meaningful file names
+- Document why changes were made
+- Test patches before sharing
+
+---
+
 ## Future Enhancement Prompts (Not Yet Implemented)
 
 These prompts demonstrate planned features from the ONE-PAGER:
@@ -533,3 +740,5 @@ These prompts demonstrate planned features from the ONE-PAGER:
 - "Apply fixes for all fixable issues across the entire solution"
 - "Create a pull request with all StyleCop fixes"
 - "Generate separate patches for each diagnostic category"
+- "Apply this patch file to the current project"
+- "Create a patch series for all changes in the feature branch"

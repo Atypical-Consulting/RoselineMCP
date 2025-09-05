@@ -2,6 +2,27 @@ using System.Text.Json.Serialization;
 
 namespace MyFirstMCP.Models;
 
+public class CreatePatchResponse
+{
+    [JsonPropertyName("patch")]
+    public string Patch { get; set; } = string.Empty;
+    
+    [JsonPropertyName("hasChanges")]
+    public bool HasChanges { get; set; }
+    
+    [JsonPropertyName("linesAdded")]
+    public int LinesAdded { get; set; }
+    
+    [JsonPropertyName("linesRemoved")]
+    public int LinesRemoved { get; set; }
+    
+    [JsonPropertyName("fileName")]
+    public string FileName { get; set; } = "file.txt";
+    
+    [JsonPropertyName("summary")]
+    public string Summary { get; set; } = string.Empty;
+}
+
 public class ApplyFixesResponse
 {
     [JsonPropertyName("project")]
