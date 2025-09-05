@@ -2,8 +2,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using System.ComponentModel;
-using MyFirstMCP;
 using MyFirstMCP.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -18,8 +16,6 @@ builder.Services
     .WithStdioServerTransport()
     .WithToolsFromAssembly();
 
-builder.Services.AddHttpClient();
-builder.Services.AddSingleton<MonkeyService>();
 builder.Services.AddSingleton<SolutionAnalyzerService>();
 builder.Services.AddSingleton<CodeFixService>();
 builder.Services.AddSingleton<PatchService>();

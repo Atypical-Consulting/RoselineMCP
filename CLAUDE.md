@@ -4,21 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a .NET 9.0 MCP (Model Context Protocol) server implementation that provides tools for interacting with monkey data from an external API.
+This is a .NET 9.0 MCP (Model Context Protocol) server implementation that provides comprehensive code analysis and automated fixing tools for C# solutions.
 
 ## Architecture
 
 The solution follows the MCP Server pattern:
 - **Program.cs**: Configures and hosts the MCP server using stdio transport
-- **MonkeyService.cs**: HTTP service that fetches and caches monkey data from https://www.montemagno.com/monkeys.json
-- **MonkeyTools.cs**: MCP tool definitions for GetMonkeys and GetMonkey operations
-- **EchoTool.cs**: Simple echo tools for testing MCP communication
+- **Services/SolutionAnalyzerService.cs**: Analyzes C# solutions and projects for diagnostics
+- **Services/CodeFixService.cs**: Applies Roslyn code fixes to resolve diagnostics
+- **Services/PatchService.cs**: Generates unified diff patches between text versions
+- **Tools/AnalysisTools.cs**: MCP tool definitions for all analysis operations
 
 Key architectural decisions:
 - Uses `ModelContextProtocol.Server` NuGet package for MCP implementation
 - Tools are auto-discovered via `WithToolsFromAssembly()` 
-- HTTP client is injected via IHttpClientFactory for proper lifecycle management
-- MonkeyService implements in-memory caching to avoid repeated API calls
+- Leverages Roslyn for code analysis and fixes
+- Uses DiffPlex for unified diff generation
+- Implements temporary workspace isolation for safe operations
 
 ## Common Commands
 
@@ -50,8 +52,18 @@ When adding new MCP tools:
 3. Use `[Description("...")]` on parameters to document their purpose
 4. Tools are auto-discovered at startup - no registration needed
 
+## MCP Tools Available
+
+1. **AnalyzeSolution**: Analyze C# solutions for diagnostics with filtering options
+2. **ListDiagnostics**: Get detailed diagnostics for specific projects
+3. **ApplyFixes**: Apply automated code fixes for specified diagnostic IDs
+4. **CreatePatch**: Generate unified diff patches between text versions
+
 ## Dependencies
 
 - **ModelContextProtocol** (0.3.0-preview.4): Core MCP server implementation
 - **Microsoft.Extensions.Hosting**: Application hosting and DI
-- **Microsoft.Extensions.Http**: HTTP client factory
+- **Microsoft.CodeAnalysis**: Roslyn for code analysis and fixes
+- **Microsoft.Build.Locator**: MSBuild location for solution loading
+- **Roslynator**: Additional analyzers and code fixes
+- **DiffPlex**: Unified diff generation
