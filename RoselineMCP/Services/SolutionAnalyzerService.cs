@@ -289,13 +289,13 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
 
         while (!string.IsNullOrEmpty(directory))
         {
-            var slnFiles = Directory.GetFiles(directory!, "*.sln", SearchOption.TopDirectoryOnly);
+            var slnFiles = Directory.GetFiles(directory, "*.sln", SearchOption.TopDirectoryOnly);
             if (slnFiles.Length > 0)
             {
                 return slnFiles.First();
             }
 
-            var parent = Directory.GetParent(directory!);
+            var parent = Directory.GetParent(directory);
             if (parent == null)
                 break;
 

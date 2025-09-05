@@ -95,6 +95,7 @@ public class MSBuildServiceTests
         }
 
         [Fact]
+#pragma warning disable xUnit1051 // TestContext.Current not available in xUnit 3
         public void Should_Be_Thread_Safe()
         {
             // Arrange

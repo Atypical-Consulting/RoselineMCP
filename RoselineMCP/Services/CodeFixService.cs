@@ -124,7 +124,7 @@ public class CodeFixService : ICodeFixService
                     var diagnosticsByDocument = diagnostics
                         .Where(d => d.Location.SourceTree != null)
                         .GroupBy(d => currentProject.Documents.FirstOrDefault(doc =>
-                            doc.FilePath == d.Location.SourceTree.FilePath));
+                            doc.FilePath == d.Location.SourceTree?.FilePath));
 
                     foreach (var group in diagnosticsByDocument.Where(g => g.Key != null))
                     {

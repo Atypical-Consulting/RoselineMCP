@@ -30,9 +30,9 @@ public class SolutionAnalyzerServiceTests
             var gitUrl = "https://github.com/test/repo.git";
 
             // Act & Assert
-            await Should.ThrowAsync<NotImplementedException>(
-                async () => await _sut.AnalyzeSolutionAsync(gitUrl))
-                .ContinueWith(t => t.Result.Message.ShouldContain("Git repository cloning not yet implemented"));
+            var exception = await Should.ThrowAsync<NotImplementedException>(
+                async () => await _sut.AnalyzeSolutionAsync(gitUrl));
+            exception.Message.ShouldContain("Git repository cloning not yet implemented");
         }
 
         [Fact]
@@ -42,9 +42,9 @@ public class SolutionAnalyzerServiceTests
             var invalidPath = "/nonexistent/solution.sln";
 
             // Act & Assert
-            await Should.ThrowAsync<FileNotFoundException>(
-                async () => await _sut.AnalyzeSolutionAsync(invalidPath))
-                .ContinueWith(t => t.Result.Message.ShouldContain("Solution file not found"));
+            var exception = await Should.ThrowAsync<FileNotFoundException>(
+                async () => await _sut.AnalyzeSolutionAsync(invalidPath));
+            exception.Message.ShouldContain("Solution file not found");
         }
 
         [Fact]
@@ -57,9 +57,9 @@ public class SolutionAnalyzerServiceTests
             try
             {
                 // Act & Assert
-                await Should.ThrowAsync<FileNotFoundException>(
-                    async () => await _sut.AnalyzeSolutionAsync(tempDir))
-                    .ContinueWith(t => t.Result.Message.ShouldContain("No solution files found"));
+                var exception = await Should.ThrowAsync<FileNotFoundException>(
+                    async () => await _sut.AnalyzeSolutionAsync(tempDir));
+                exception.Message.ShouldContain("No solution files found");
             }
             finally
             {

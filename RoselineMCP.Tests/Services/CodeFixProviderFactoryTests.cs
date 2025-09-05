@@ -112,6 +112,7 @@ public class CodeFixProviderFactoryTests
     public class ThreadSafetyTests : CodeFixProviderFactoryTests
     {
         [Fact]
+#pragma warning disable xUnit1051 // TestContext.Current not available in xUnit 3
         public void Should_Be_Thread_Safe_For_Loading()
         {
             // Arrange
@@ -128,6 +129,7 @@ public class CodeFixProviderFactoryTests
         }
 
         [Fact]
+#pragma warning disable xUnit1051 // TestContext.Current not available in xUnit 3
         public void Should_Be_Thread_Safe_For_Getting_Providers()
         {
             // Arrange
