@@ -2,6 +2,30 @@ using System.Text.Json.Serialization;
 
 namespace MyFirstMCP.Models;
 
+public class ApplyFixesResponse
+{
+    [JsonPropertyName("project")]
+    public string Project { get; set; } = string.Empty;
+    
+    [JsonPropertyName("fixersApplied")]
+    public List<string> FixersApplied { get; set; } = new();
+    
+    [JsonPropertyName("changedFiles")]
+    public List<string> ChangedFiles { get; set; } = new();
+    
+    [JsonPropertyName("patch")]
+    public string Patch { get; set; } = string.Empty;
+    
+    [JsonPropertyName("notes")]
+    public List<string> Notes { get; set; } = new();
+    
+    [JsonPropertyName("fixedCount")]
+    public int FixedCount { get; set; }
+    
+    [JsonPropertyName("previewOnly")]
+    public bool PreviewOnly { get; set; }
+}
+
 public class ListDiagnosticsResponse
 {
     [JsonPropertyName("project")]

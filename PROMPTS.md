@@ -319,11 +319,217 @@ The ListDiagnostics tool returns:
 
 ---
 
+# Part 3: ApplyFixes Tool
+
+## Basic Fix Application Prompts
+
+### 1. Apply Single Diagnostic Fix
+```
+Apply fixes for CS0168 (unused variables) in the MyApp.Core project
+```
+
+### 2. Preview Changes Before Applying
+```
+Show me what would change if I fix all RCS1213 diagnostics in MyApp.API project without actually applying the changes
+```
+
+### 3. Fix Multiple Diagnostic Types
+```
+Fix both CS0168 and CS0219 diagnostics in the MyApp.Core project
+```
+
+## Targeted Code Cleanup Prompts
+
+### 4. Clean Up Unused Code
+```
+Remove all unused variables and parameters (CS0168, CS0219, IDE0060) from MyApp.Services project
+```
+
+### 5. Fix Code Style Issues
+```
+Apply fixes for all SA1101 (this qualifier) and SA1200 (using directives) issues in MyApp.Core
+```
+
+### 6. Apply Roslynator Fixes
+```
+Fix all RCS1213 (remove unused member) and RCS1036 (remove redundant empty line) in the MyApp.API project
+```
+
+### 7. IDE Suggestions
+```
+Apply all IDE0005 (remove unnecessary imports) and IDE0051 (remove unused private members) fixes in MyApp.Core
+```
+
+## Advanced Fix Scenarios
+
+### 8. Preview Complex Refactoring
+```
+Preview all fixes for IDE0017 (object initializers), IDE0028 (collection initializers), and IDE0031 (null propagation) in MyApp.Core without applying
+```
+
+### 9. Comprehensive Code Cleanup
+```
+Apply fixes for CS0168, CS0219, IDE0005, RCS1213, and SA1101 in the MyApp.Services project
+```
+
+### 10. Selective Pattern-Based Fixes
+```
+Fix all formatting and style issues (SA1000-SA1099 range) in MyApp.Core project, preview mode first
+```
+
+## Example Tool Invocations
+
+### Example 1: Basic Fix Application
+```json
+{
+  "tool": "ApplyFixes",
+  "parameters": {
+    "project": "MyApp.Core",
+    "ids": ["CS0168"],
+    "previewOnly": false
+  }
+}
+```
+
+### Example 2: Preview Mode
+```json
+{
+  "tool": "ApplyFixes",
+  "parameters": {
+    "project": "MyApp.API",
+    "ids": ["RCS1213", "IDE0051"],
+    "previewOnly": true
+  }
+}
+```
+
+### Example 3: Multiple Fixes
+```json
+{
+  "tool": "ApplyFixes",
+  "parameters": {
+    "project": "/Users/myproject/src/MyApp.Core/MyApp.Core.csproj",
+    "ids": ["CS0168", "CS0219", "IDE0005", "SA1101"],
+    "previewOnly": false
+  }
+}
+```
+
+### Example 4: Style and Formatting Fixes
+```json
+{
+  "tool": "ApplyFixes",
+  "parameters": {
+    "project": "MyApp.Services",
+    "ids": ["SA1101", "SA1200", "SA1210", "IDE0055"],
+    "previewOnly": true
+  }
+}
+```
+
+## Expected Response Format
+
+The ApplyFixes tool returns:
+
+```json
+{
+  "project": "MyApp.Core",
+  "fixersApplied": [
+    "CS0168",
+    "RCS1213"
+  ],
+  "changedFiles": [
+    "Services/UserService.cs",
+    "Models/Product.cs",
+    "Controllers/ApiController.cs"
+  ],
+  "patch": "--- a/Services/UserService.cs\n+++ b/Services/UserService.cs\n@@ -45,7 +45,6 @@\n     public async Task<User> GetUser(int id)\n     {\n-        var unused = \"temp\";\n         return await _repository.GetByIdAsync(id);\n     }\n",
+  "notes": [
+    "Applied 5 fixes to 3 files"
+  ],
+  "fixedCount": 5,
+  "previewOnly": false
+}
+```
+
+## Tips for Using ApplyFixes
+
+1. **Always Preview First**: Use `previewOnly: true` to review changes before applying
+2. **Start Small**: Begin with a single diagnostic ID to understand the impact
+3. **Group Related Fixes**: Apply similar fixes together (e.g., all unused code removals)
+4. **Review Patches**: Examine the unified diff to ensure changes are correct
+5. **Test After Fixing**: Run your tests after applying fixes to ensure nothing broke
+
+## Common Fix Patterns
+
+### Unused Code Removal
+- **CS0168**: Variable declared but never used
+- **CS0219**: Variable assigned but never used
+- **CS0414**: Field assigned but never used
+- **IDE0051**: Remove unused private member
+- **IDE0052**: Remove unread private member
+- **RCS1213**: Remove unused member declaration
+
+### Code Style and Formatting
+- **SA1101**: Prefix local calls with this
+- **SA1200**: Using directives must be placed correctly
+- **SA1210**: Using directives must be ordered alphabetically
+- **IDE0055**: Fix formatting
+- **IDE0005**: Remove unnecessary imports
+
+### Code Modernization
+- **IDE0017**: Use object initializers
+- **IDE0028**: Use collection initializers
+- **IDE0031**: Use null propagation
+- **IDE0041**: Use is null check
+- **IDE0066**: Use switch expression
+- **IDE0090**: Simplify new expression
+
+## Workflow Examples
+
+### Workflow 1: Safe Code Cleanup
+1. Use ListDiagnostics to identify fixable issues
+2. Preview fixes with `previewOnly: true`
+3. Review the patch output
+4. Apply fixes if satisfied
+5. Run tests to verify
+
+### Workflow 2: Progressive Refactoring
+1. Start with critical fixes (errors)
+2. Move to warnings (unused code)
+3. Apply style fixes (formatting)
+4. Finally, apply modernization suggestions
+
+### Workflow 3: Pull Request Preparation
+1. Analyze solution to find all issues
+2. List diagnostics for each project
+3. Apply fixes in preview mode
+4. Review all patches
+5. Apply fixes and create PR with the changes
+
+## Safety Considerations
+
+- **Preview Mode**: Always available to review changes without risk
+- **Atomic Operations**: All fixes for a diagnostic ID are applied together
+- **Workspace Isolation**: Changes are made in a temporary workspace first
+- **Patch Generation**: All changes are captured in a unified diff for review
+- **Deterministic**: Same inputs produce same outputs
+
+## Integration with Other Tools
+
+### Complete Analysis Workflow
+1. **AnalyzeSolution** - Get overview of all issues
+2. **ListDiagnostics** - Detailed view of specific project issues
+3. **ApplyFixes** - Fix selected issues with preview
+4. **CreatePatch** (future) - Generate patches for review
+
+---
+
 ## Future Enhancement Prompts (Not Yet Implemented)
 
 These prompts demonstrate planned features from the ONE-PAGER:
 
 - "Analyze the GitHub repository https://github.com/myorg/myapp.git on the main branch"
-- "Apply fixes for all RCS1213 diagnostics in MyApp.Core"
-- "Create a patch file with fixes for CS0168 and CS0219 in the entire solution"
-- "Generate a unified diff for all fixable StyleCop violations"
+- "Apply fixes for all fixable issues across the entire solution"
+- "Create a pull request with all StyleCop fixes"
+- "Generate separate patches for each diagnostic category"

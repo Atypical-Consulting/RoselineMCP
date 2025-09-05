@@ -21,5 +21,6 @@ builder.Services
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<MonkeyService>();
 builder.Services.AddSingleton<SolutionAnalyzerService>();
+builder.Services.AddSingleton<CodeFixService>();
 
 await builder.Build().RunAsync();
