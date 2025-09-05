@@ -40,7 +40,7 @@ public class AnalysisToolsTests
                 .Returns(Task.FromResult(expectedResponse));
 
             // Act
-            var result = await AnalysisTools.AnalyzeSolution(
+            var result = await AnalyzeSolutionTool.AnalyzeSolution(
                 _analyzerService,
                 "test.sln",
                 null,
@@ -71,7 +71,7 @@ public class AnalysisToolsTests
                 .Throws(new FileNotFoundException("Solution not found"));
 
             // Act
-            var result = await AnalysisTools.AnalyzeSolution(
+            var result = await AnalyzeSolutionTool.AnalyzeSolution(
                 _analyzerService,
                 "test.sln",
                 null,
@@ -107,7 +107,7 @@ public class AnalysisToolsTests
                 .Returns(Task.FromResult(new AnalyzeSolutionResponse()));
 
             // Act
-            await AnalysisTools.AnalyzeSolution(
+            await AnalyzeSolutionTool.AnalyzeSolution(
                 _analyzerService,
                 pathOrGit,
                 branch,
@@ -158,7 +158,7 @@ public class AnalysisToolsTests
                 .Returns(Task.FromResult(expectedResponse));
 
             // Act
-            var result = await AnalysisTools.ListDiagnostics(
+            var result = await ListDiagnosticsTool.ListDiagnostics(
                 _analyzerService,
                 "TestProject",
                 null,
@@ -195,7 +195,7 @@ public class AnalysisToolsTests
                 .Returns(Task.FromResult(new ListDiagnosticsResponse()));
 
             // Act
-            await AnalysisTools.ListDiagnostics(
+            await ListDiagnosticsTool.ListDiagnostics(
                 _analyzerService,
                 "TestProject",
                 ids,
@@ -223,7 +223,7 @@ public class AnalysisToolsTests
                 .Returns(Task.FromResult(new ListDiagnosticsResponse()));
 
             // Act
-            var result = await AnalysisTools.ListDiagnostics(
+            var result = await ListDiagnosticsTool.ListDiagnostics(
                 _analyzerService,
                 "TestProject",
                 null,
@@ -248,7 +248,7 @@ public class AnalysisToolsTests
         public async Task Should_Return_Error_When_No_Ids_Provided()
         {
             // Act
-            var result = await AnalysisTools.ApplyFixes(
+            var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
                 "TestProject",
                 Array.Empty<string>(),
@@ -280,7 +280,7 @@ public class AnalysisToolsTests
                 .Returns(Task.FromResult(expectedResponse));
 
             // Act
-            var result = await AnalysisTools.ApplyFixes(
+            var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
                 "TestProject",
                 new[] { "CS0168" },
@@ -315,7 +315,7 @@ public class AnalysisToolsTests
                 .Returns(Task.FromResult(new ApplyFixesResponse()));
 
             // Act
-            await AnalysisTools.ApplyFixes(
+            await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
                 project,
                 ids,
@@ -359,7 +359,7 @@ public class AnalysisToolsTests
                 .Returns(expectedResponse);
 
             // Act
-            var result = AnalysisTools.CreatePatch(
+            var result = CreatePatchTool.CreatePatch(
                 _patchService,
                 "old content",
                 "new content",
@@ -384,7 +384,7 @@ public class AnalysisToolsTests
                 .Throws(new InvalidOperationException("Failed to create patch"));
 
             // Act
-            var result = AnalysisTools.CreatePatch(
+            var result = CreatePatchTool.CreatePatch(
                 _patchService,
                 "old",
                 "new",
@@ -412,7 +412,7 @@ public class AnalysisToolsTests
                 .Returns(new CreatePatchResponse());
 
             // Act
-            AnalysisTools.CreatePatch(
+            CreatePatchTool.CreatePatch(
                 _patchService,
                 "old",
                 "new",
