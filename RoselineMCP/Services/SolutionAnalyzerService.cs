@@ -135,7 +135,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
 
             _logger.LogInformation("Loading project: {Path}", projectPath);
 
-            Microsoft.CodeAnalysis.Project? msProject = null;
+            Project? msProject = null;
 
             // Try to load as project file first
             if (File.Exists(projectPath) && projectPath.EndsWith(".csproj"))

@@ -42,12 +42,7 @@ public class AnalysisToolsTests
             // Act
             var result = await AnalyzeSolutionTool.AnalyzeSolution(
                 _analyzerService,
-                "test.sln",
-                null,
-                null,
-                null,
-                null,
-                100);
+                "test.sln");
 
             // Assert
             result.ShouldNotBeNullOrEmpty();
@@ -73,12 +68,7 @@ public class AnalysisToolsTests
             // Act
             var result = await AnalyzeSolutionTool.AnalyzeSolution(
                 _analyzerService,
-                "test.sln",
-                null,
-                null,
-                null,
-                null,
-                100);
+                "test.sln");
 
             // Assert
             result.ShouldContain("error");
@@ -160,10 +150,7 @@ public class AnalysisToolsTests
             // Act
             var result = await ListDiagnosticsTool.ListDiagnostics(
                 _analyzerService,
-                "TestProject",
-                null,
-                null,
-                100);
+                "TestProject");
 
             // Assert
             result.ShouldNotBeNullOrEmpty();
@@ -187,7 +174,7 @@ public class AnalysisToolsTests
                 A<List<string>?>._,
                 A<List<string>?>._,
                 A<int>._))
-                .Invokes((string p, List<string>? i, List<string>? f, int m) =>
+                .Invokes((string _, List<string>? i, List<string>? f, int _) =>
                 {
                     capturedIds = i;
                     capturedFiles = f;
@@ -199,8 +186,7 @@ public class AnalysisToolsTests
                 _analyzerService,
                 "TestProject",
                 ids,
-                files,
-                100);
+                files);
 
             // Assert
             capturedIds.ShouldNotBeNull();
@@ -225,10 +211,7 @@ public class AnalysisToolsTests
             // Act
             var result = await ListDiagnosticsTool.ListDiagnostics(
                 _analyzerService,
-                "TestProject",
-                null,
-                null,
-                100);
+                "TestProject");
 
             // Assert
             result.ShouldNotBeNullOrEmpty();
@@ -251,8 +234,7 @@ public class AnalysisToolsTests
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
                 "TestProject",
-                Array.Empty<string>(),
-                false);
+                Array.Empty<string>());
 
             // Assert
             result.ShouldContain("\"error\"");
@@ -308,7 +290,7 @@ public class AnalysisToolsTests
                 project,
                 A<List<string>>._,
                 previewOnly))
-                .Invokes((string p, List<string> i, bool pr) =>
+                .Invokes((string _, List<string> i, bool _) =>
                 {
                     capturedIds = i;
                 })
@@ -387,8 +369,7 @@ public class AnalysisToolsTests
             var result = CreatePatchTool.CreatePatch(
                 _patchService,
                 "old",
-                "new",
-                null);
+                "new");
 
             // Assert
             result.ShouldContain("error");
@@ -405,7 +386,7 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<string>._,
                 A<string?>._))
-                .Invokes((string b, string a, string? f) =>
+                .Invokes((string _, string _, string? f) =>
                 {
                     capturedFileName = f;
                 })
@@ -415,8 +396,7 @@ public class AnalysisToolsTests
             CreatePatchTool.CreatePatch(
                 _patchService,
                 "old",
-                "new",
-                null);
+                "new");
 
             // Assert
             capturedFileName.ShouldBeNull();

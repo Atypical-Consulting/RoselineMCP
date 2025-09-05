@@ -41,7 +41,7 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
                 .AddEnvironmentVariables(prefix: "ROSELINE_")
                 .AddCommandLine(args);
         })
-        .ConfigureServices((context, services) =>
+        .ConfigureServices((_, services) =>
         {
             // Configure MCP Server
             services
@@ -99,7 +99,7 @@ public partial class Program
     // Configure global exception handlers
     static Program()
     {
-        AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             var exception = e.ExceptionObject as Exception;
             Console.Error.WriteLine($"Unhandled exception: {exception?.Message ?? "Unknown error"}");
@@ -110,7 +110,7 @@ public partial class Program
             Environment.Exit(1);
         };
 
-        TaskScheduler.UnobservedTaskException += (sender, e) =>
+        TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             e.SetObserved();
             foreach (var ex in e.Exception.Flatten().InnerExceptions)

@@ -70,7 +70,7 @@ public class CodeFixServiceTests
                 var previewResult = await _sut.ApplyFixesAsync(project, ids, true);
                 previewResult.PreviewOnly.ShouldBeTrue();
 
-                var applyResult = await _sut.ApplyFixesAsync(project, ids, false);
+                var applyResult = await _sut.ApplyFixesAsync(project, ids);
                 applyResult.PreviewOnly.ShouldBeFalse();
             }
             catch (FileNotFoundException)

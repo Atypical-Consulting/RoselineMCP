@@ -59,10 +59,7 @@ public class CodeFixService : ICodeFixService
             // Create a temporary workspace
             using var workspace = _msBuildService.CreateWorkspace();
 
-            workspace.WorkspaceFailed += (sender, e) =>
-            {
-                _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
-            };
+            workspace.WorkspaceFailed += (sender, e) => _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
 
             // Load the project
             var projectPath = ResolveProjectPath(project);
@@ -136,7 +133,7 @@ public class CodeFixService : ICodeFixService
                             var context = new CodeFixContext(
                                 document,
                                 diagnostic,
-                                async (action, _) =>
+                                async void (action, _) =>
                                 {
                                     try
                                     {

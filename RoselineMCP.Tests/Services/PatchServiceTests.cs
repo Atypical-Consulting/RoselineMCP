@@ -276,7 +276,10 @@ public class PatchServiceTests
             {
                 Directory.Delete(_testDirectory, true);
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
         }
     }
 

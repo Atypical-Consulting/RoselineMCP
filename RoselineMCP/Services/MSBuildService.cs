@@ -11,8 +11,8 @@ namespace RoselineMCP.Services;
 public class MSBuildService : IMSBuildService
 {
     private readonly ILogger<MSBuildService> _logger;
-    private static bool _msBuildRegistered = false;
-    private static readonly object _msBuildLock = new();
+    private static bool _msBuildRegistered;
+    private static readonly Lock _msBuildLock = new();
 
     /// <summary>
     /// Initializes a new instance of the MSBuildService.

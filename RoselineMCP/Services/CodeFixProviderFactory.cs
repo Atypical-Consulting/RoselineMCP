@@ -12,7 +12,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
 {
     private readonly ILogger<CodeFixProviderFactory> _logger;
     private readonly Dictionary<string, Type> _providers = new();
-    private bool _providersLoaded = false;
+    private bool _providersLoaded;
 
     /// <summary>
     /// Initializes a new instance of the CodeFixProviderFactory.
