@@ -6,12 +6,19 @@ using RoselineMCP.Models;
 
 namespace RoselineMCP.Services;
 
+/// <summary>
+/// Service for analyzing C# solutions and projects for diagnostics using Roslyn.
+/// </summary>
 public class SolutionAnalyzerService : ISolutionAnalyzerService
 {
     private readonly ILogger<SolutionAnalyzerService> _logger;
     private static bool _msBuildRegistered = false;
     private static readonly object _msBuildLock = new();
 
+    /// <summary>
+    /// Initializes a new instance of the SolutionAnalyzerService.
+    /// </summary>
+    /// <param name="logger">Logger for diagnostic output.</param>
     public SolutionAnalyzerService(ILogger<SolutionAnalyzerService> logger)
     {
         _logger = logger;
@@ -46,6 +53,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         }
     }
 
+    /// <inheritdoc/>
     public async Task<AnalyzeSolutionResponse> AnalyzeSolutionAsync(
         string pathOrGit,
         string? branch = null,
@@ -221,6 +229,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         };
     }
 
+    /// <inheritdoc/>
     public async Task<ListDiagnosticsResponse> ListDiagnosticsAsync(
         string project,
         List<string>? ids = null,

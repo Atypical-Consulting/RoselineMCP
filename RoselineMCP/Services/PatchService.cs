@@ -7,15 +7,23 @@ using System.Text;
 
 namespace RoselineMCP.Services;
 
+/// <summary>
+/// Service for generating unified diff patches between text versions.
+/// </summary>
 public class PatchService : IPatchService
 {
     private readonly ILogger<PatchService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the PatchService.
+    /// </summary>
+    /// <param name="logger">Logger for diagnostic output.</param>
     public PatchService(ILogger<PatchService> logger)
     {
         _logger = logger;
     }
 
+    /// <inheritdoc/>
     public CreatePatchResponse CreatePatch(string before, string after, string? fileName = null)
     {
         try
@@ -186,6 +194,7 @@ public class PatchService : IPatchService
         public int EndIndex { get; set; }
     }
 
+    /// <inheritdoc/>
     public CreatePatchResponse CreatePatchFromFiles(string beforePath, string afterPath)
     {
         try
@@ -214,6 +223,7 @@ public class PatchService : IPatchService
         }
     }
 
+    /// <inheritdoc/>
     public CreatePatchResponse CreatePatchWithOptions(
         string before,
         string after,
@@ -280,6 +290,7 @@ public class PatchService : IPatchService
         return string.Join('\n', normalized);
     }
 
+    /// <inheritdoc/>
     public bool ApplyPatch(string filePath, string patch)
     {
         try

@@ -12,6 +12,9 @@ using System.Text;
 
 namespace RoselineMCP.Services;
 
+/// <summary>
+/// Service for applying automated code fixes to C# projects using Roslyn code fix providers.
+/// </summary>
 public class CodeFixService : ICodeFixService
 {
     private readonly ILogger<CodeFixService> _logger;
@@ -19,6 +22,11 @@ public class CodeFixService : ICodeFixService
     private static readonly Dictionary<string, Type> _codeFixProviders = new();
     private static bool _providersLoaded = false;
 
+    /// <summary>
+    /// Initializes a new instance of the CodeFixService.
+    /// </summary>
+    /// <param name="logger">Logger for diagnostic output.</param>
+    /// <param name="analyzerService">Service for analyzing solutions.</param>
     public CodeFixService(ILogger<CodeFixService> logger, ISolutionAnalyzerService analyzerService)
     {
         _logger = logger;
@@ -102,6 +110,7 @@ public class CodeFixService : ICodeFixService
         }
     }
 
+    /// <inheritdoc/>
     public async Task<ApplyFixesResponse> ApplyFixesAsync(
         string project,
         List<string> ids,

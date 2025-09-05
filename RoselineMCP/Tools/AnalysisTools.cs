@@ -5,6 +5,9 @@ using RoselineMCP.Services;
 
 namespace RoselineMCP.Tools;
 
+/// <summary>
+/// MCP tools for code analysis and automated fixing operations.
+/// </summary>
 [McpServerToolType]
 public static class AnalysisTools
 {
