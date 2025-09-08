@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
@@ -42,82 +43,155 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         try
         {
             var solutionPath = ResolveSolutionPath(pathOrGit, branch);
-
-            if (!File.Exists(solutionPath))
-            {
-                throw new FileNotFoundException($"Solution file not found: {solutionPath}");
-            }
+            ValidateSolutionPath(solutionPath);
 
             using var workspace = _msBuildService.CreateWorkspace();
+            var solution = await LoadSolutionAsync(workspace, solutionPath);
 
-            _logger.LogInformation("Loading solution: {Path}", solutionPath);
-            var solution = await workspace.OpenSolutionAsync(solutionPath);
-
-            var response = new AnalyzeSolutionResponse
+            var analysisContext = new AnalysisContext
             {
-                Solution = Path.GetFileName(solutionPath),
-                Projects = solution.Projects.Count()
+                IncludePattern = includePattern,
+                ExcludePattern = excludePattern,
+                Severity = severity,
+                MaxDiagnostics = maxDiagnostics
             };
 
-            var allDiagnostics = new List<DiagnosticDetail>();
-            var summary = new DiagnosticSummary();
+            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext);
 
-            foreach (var project in solution.Projects)
-            {
-                if (!_filterService.ShouldAnalyzeProject(project.Name, includePattern, excludePattern))
-                {
-                    continue;
-                }
-
-                _logger.LogInformation("Analyzing project: {ProjectName}", project.Name);
-
-                var compilation = await project.GetCompilationAsync();
-                if (compilation == null)
-                {
-                    _logger.LogWarning("Failed to get compilation for project: {ProjectName}", project.Name);
-                    continue;
-                }
-
-                var diagnostics = compilation.GetDiagnostics()
-                    .Where(d => _filterService.ShouldIncludeDiagnostic(d, severity))
-                    .Take(maxDiagnostics);
-
-                foreach (var diagnostic in diagnostics)
-                {
-                    UpdateSummary(summary, diagnostic.Severity);
-
-                    if (allDiagnostics.Count < maxDiagnostics)
-                    {
-                        var location = diagnostic.Location.GetLineSpan();
-                        allDiagnostics.Add(new DiagnosticDetail
-                        {
-                            Project = project.Name,
-                            File = location.Path ?? "Unknown",
-                            Line = location.StartLinePosition.Line + 1,
-                            Column = location.StartLinePosition.Character + 1,
-                            Id = diagnostic.Id,
-                            Severity = diagnostic.Severity.ToString().ToLower(),
-                            Message = diagnostic.GetMessage()
-                        });
-                    }
-                }
-            }
-
-            response.DiagnosticSummary = summary;
-            response.TopDiagnostics = allDiagnostics
-                .OrderByDescending(d => _filterService.GetSeverityPriority(d.Severity))
-                .ThenBy(d => d.File)
-                .ThenBy(d => d.Line)
-                .Take(maxDiagnostics)
-                .ToList();
-
-            return response;
+            return BuildAnalyzeSolutionResponse(solutionPath, solution, diagnostics, summary, maxDiagnostics);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to analyze solution");
             throw;
         }
+    }
+
+    private void ValidateSolutionPath(string solutionPath)
+    {
+        if (!File.Exists(solutionPath))
+        {
+            throw new FileNotFoundException($"Solution file not found: {solutionPath}");
+        }
+    }
+
+    private async Task<Solution> LoadSolutionAsync(MSBuildWorkspace workspace, string solutionPath)
+    {
+        _logger.LogInformation("Loading solution: {Path}", solutionPath);
+        return await workspace.OpenSolutionAsync(solutionPath);
+    }
+
+    private async Task<(List<DiagnosticDetail> diagnostics, DiagnosticSummary summary)> AnalyzeProjectsAsync(
+        Solution solution,
+        AnalysisContext context)
+    {
+        var allDiagnostics = new List<DiagnosticDetail>();
+        var summary = new DiagnosticSummary();
+
+        foreach (var project in solution.Projects)
+        {
+            if (!_filterService.ShouldAnalyzeProject(project.Name, context.IncludePattern, context.ExcludePattern))
+            {
+                continue;
+            }
+
+            await AnalyzeProjectAsync(project, allDiagnostics, summary, context);
+        }
+
+        return (allDiagnostics, summary);
+    }
+
+    private async Task AnalyzeProjectAsync(
+        Project project,
+        List<DiagnosticDetail> allDiagnostics,
+        DiagnosticSummary summary,
+        AnalysisContext context)
+    {
+        _logger.LogInformation("Analyzing project: {ProjectName}", project.Name);
+
+        var compilation = await project.GetCompilationAsync();
+        if (compilation == null)
+        {
+            _logger.LogWarning("Failed to get compilation for project: {ProjectName}", project.Name);
+            return;
+        }
+
+        var diagnostics = GetFilteredDiagnostics(compilation, context);
+        ProcessProjectDiagnostics(diagnostics, project.Name, allDiagnostics, summary, context.MaxDiagnostics);
+    }
+
+    private IEnumerable<Diagnostic> GetFilteredDiagnostics(Compilation compilation, AnalysisContext context)
+    {
+        return compilation.GetDiagnostics()
+            .Where(d => _filterService.ShouldIncludeDiagnostic(d, context.Severity))
+            .Take(context.MaxDiagnostics);
+    }
+
+    private void ProcessProjectDiagnostics(
+        IEnumerable<Diagnostic> diagnostics,
+        string projectName,
+        List<DiagnosticDetail> allDiagnostics,
+        DiagnosticSummary summary,
+        int maxDiagnostics)
+    {
+        foreach (var diagnostic in diagnostics)
+        {
+            UpdateSummary(summary, diagnostic.Severity);
+
+            if (allDiagnostics.Count < maxDiagnostics)
+            {
+                allDiagnostics.Add(CreateDiagnosticDetail(diagnostic, projectName));
+            }
+        }
+    }
+
+    private DiagnosticDetail CreateDiagnosticDetail(Diagnostic diagnostic, string projectName)
+    {
+        var location = diagnostic.Location.GetLineSpan();
+        return new DiagnosticDetail
+        {
+            Project = projectName,
+            File = location.Path ?? "Unknown",
+            Line = location.StartLinePosition.Line + 1,
+            Column = location.StartLinePosition.Character + 1,
+            Id = diagnostic.Id,
+            Severity = diagnostic.Severity.ToString().ToLower(),
+            Message = diagnostic.GetMessage()
+        };
+    }
+
+    private AnalyzeSolutionResponse BuildAnalyzeSolutionResponse(
+        string solutionPath,
+        Solution solution,
+        List<DiagnosticDetail> diagnostics,
+        DiagnosticSummary summary,
+        int maxDiagnostics)
+    {
+        return new AnalyzeSolutionResponse
+        {
+            Solution = Path.GetFileName(solutionPath),
+            Projects = solution.Projects.Count(),
+            DiagnosticSummary = summary,
+            TopDiagnostics = OrderDiagnostics(diagnostics, maxDiagnostics)
+        };
+    }
+
+    private List<DiagnosticDetail> OrderDiagnostics(List<DiagnosticDetail> diagnostics, int maxDiagnostics)
+    {
+        return diagnostics
+            .OrderByDescending(d => _filterService.GetSeverityPriority(d.Severity))
+            .ThenBy(d => d.File)
+            .ThenBy(d => d.Line)
+            .Take(maxDiagnostics)
+            .ToList();
+    }
+
+    private class AnalysisContext
+    {
+        public string? IncludePattern { get; set; }
+        public string? ExcludePattern { get; set; }
+        public string? Severity { get; set; }
+        public int MaxDiagnostics { get; set; }
     }
 
     /// <inheritdoc/>
@@ -129,110 +203,27 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     {
         try
         {
-            var projectPath = ResolveProjectPath(project);
-
             using var workspace = _msBuildService.CreateWorkspace();
+            var msProject = await LoadProjectAsync(workspace, project);
 
-            _logger.LogInformation("Loading project: {Path}", projectPath);
-
-            Project? msProject = null;
-
-            // Try to load as project file first
-            if (File.Exists(projectPath) && projectPath.EndsWith(".csproj"))
-            {
-                msProject = await workspace.OpenProjectAsync(projectPath);
-            }
-            else
-            {
-                // Try to find project by name in solution
-                var solutionPath = FindSolutionFile(projectPath);
-                if (solutionPath != null)
-                {
-                    var solution = await workspace.OpenSolutionAsync(solutionPath);
-                    msProject = solution.Projects.FirstOrDefault(p =>
-                        p.Name.Equals(project, StringComparison.OrdinalIgnoreCase) ||
-                        p.FilePath?.Contains(project) == true);
-                }
-            }
-
-            if (msProject == null)
-            {
-                throw new InvalidOperationException($"Project not found: {project}");
-            }
-
-            var response = new ListDiagnosticsResponse
-            {
-                Project = msProject.Name
-            };
-
-            var compilation = await msProject.GetCompilationAsync();
+            var compilation = await GetProjectCompilationAsync(msProject);
             if (compilation == null)
             {
-                _logger.LogWarning("Failed to get compilation for project: {ProjectName}", msProject.Name);
-                return response;
+                return new ListDiagnosticsResponse { Project = msProject.Name };
             }
 
-            var allDiagnostics = compilation.GetDiagnostics()
-                .Where(d => !d.IsSuppressed)
-                .Where(d => _filterService.FilterByIds(d, ids))
-                .Where(d => _filterService.FilterByFiles(d, files))
-                .ToList();
+            var allDiagnostics = GetProjectDiagnostics(compilation, ids, files);
+            var stats = CollectDiagnosticStatistics(allDiagnostics);
+            var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
 
-            response.TotalDiagnostics = allDiagnostics.Count;
-
-            // Collect statistics
-            var byId = new Dictionary<string, int>();
-            var bySeverity = new Dictionary<string, int>();
-            var fixableIds = new HashSet<string>();
-
-            foreach (var diagnostic in allDiagnostics)
+            return new ListDiagnosticsResponse
             {
-                // Update ID stats
-                if (!byId.ContainsKey(diagnostic.Id))
-                    byId[diagnostic.Id] = 0;
-                byId[diagnostic.Id]++;
-
-                // Update severity stats
-                var severityStr = diagnostic.Severity.ToString();
-                if (!bySeverity.ContainsKey(severityStr))
-                    bySeverity[severityStr] = 0;
-                bySeverity[severityStr]++;
-
-                // Check if fixable
-                if (_filterService.IsFixableDiagnostic(diagnostic.Id))
-                {
-                    fixableIds.Add(diagnostic.Id);
-                }
-            }
-
-            response.Stats = new DiagnosticStats
-            {
-                ById = byId,
-                BySeverity = bySeverity
+                Project = msProject.Name,
+                TotalDiagnostics = allDiagnostics.Count,
+                Stats = stats.Stats,
+                SuggestedFixableIds = stats.FixableIds,
+                Diagnostics = diagnosticDetails
             };
-
-            response.SuggestedFixableIds = fixableIds.OrderBy(id => id).ToList();
-
-            // Add diagnostic details (limited by max)
-            response.Diagnostics = allDiagnostics
-                .Take(max)
-                .Select(d =>
-                {
-                    var location = d.Location.GetLineSpan();
-                    return new DiagnosticDetail
-                    {
-                        Project = msProject.Name,
-                        File = location.Path ?? "Unknown",
-                        Line = location.StartLinePosition.Line + 1,
-                        Column = location.StartLinePosition.Character + 1,
-                        Id = d.Id,
-                        Severity = d.Severity.ToString().ToLower(),
-                        Message = d.GetMessage()
-                    };
-                })
-                .ToList();
-
-            return response;
         }
         catch (Exception ex)
         {
@@ -241,68 +232,228 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         }
     }
 
-    private string ResolveSolutionPath(string pathOrGit, string? branch)
+    private async Task<Project> LoadProjectAsync(MSBuildWorkspace workspace, string project)
     {
-        if (pathOrGit.StartsWith("http://") || pathOrGit.StartsWith("https://"))
+        var projectPath = ResolveProjectPath(project);
+        _logger.LogInformation("Loading project: {Path}", projectPath);
+
+        var msProject = await TryLoadProjectDirectlyAsync(workspace, projectPath);
+        if (msProject != null)
         {
-            throw new NotImplementedException("Git repository cloning not yet implemented. Please provide a local path.");
+            return msProject;
         }
 
+        msProject = await TryLoadProjectFromSolutionAsync(workspace, projectPath, project);
+        if (msProject == null)
+        {
+            throw new InvalidOperationException($"Project not found: {project}");
+        }
+
+        return msProject;
+    }
+
+    private async Task<Project?> TryLoadProjectDirectlyAsync(MSBuildWorkspace workspace, string projectPath)
+    {
+        if (File.Exists(projectPath) && projectPath.EndsWith(".csproj"))
+        {
+            return await workspace.OpenProjectAsync(projectPath);
+        }
+        return null;
+    }
+
+    private async Task<Project?> TryLoadProjectFromSolutionAsync(MSBuildWorkspace workspace, string projectPath, string projectName)
+    {
+        var solutionPath = FindSolutionFile(projectPath);
+        if (solutionPath == null)
+        {
+            return null;
+        }
+
+        var solution = await workspace.OpenSolutionAsync(solutionPath);
+        return FindProjectInSolution(solution, projectName);
+    }
+
+    private Project? FindProjectInSolution(Solution solution, string projectName)
+    {
+        return solution.Projects.FirstOrDefault(p =>
+            p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase) ||
+            p.FilePath?.Contains(projectName) == true);
+    }
+
+    private async Task<Compilation?> GetProjectCompilationAsync(Project project)
+    {
+        var compilation = await project.GetCompilationAsync();
+        if (compilation == null)
+        {
+            _logger.LogWarning("Failed to get compilation for project: {ProjectName}", project.Name);
+        }
+        return compilation;
+    }
+
+    private List<Diagnostic> GetProjectDiagnostics(Compilation compilation, List<string>? ids, List<string>? files)
+    {
+        return compilation.GetDiagnostics()
+            .Where(d => !d.IsSuppressed)
+            .Where(d => _filterService.FilterByIds(d, ids))
+            .Where(d => _filterService.FilterByFiles(d, files))
+            .ToList();
+    }
+
+    private (DiagnosticStats Stats, List<string> FixableIds) CollectDiagnosticStatistics(List<Diagnostic> diagnostics)
+    {
+        var byId = new Dictionary<string, int>();
+        var bySeverity = new Dictionary<string, int>();
+        var fixableIds = new HashSet<string>();
+
+        foreach (var diagnostic in diagnostics)
+        {
+            UpdateIdStatistics(byId, diagnostic.Id);
+            UpdateSeverityStatistics(bySeverity, diagnostic.Severity);
+            CheckFixability(fixableIds, diagnostic.Id);
+        }
+
+        var stats = new DiagnosticStats
+        {
+            ById = byId,
+            BySeverity = bySeverity
+        };
+
+        return (stats, fixableIds.OrderBy(id => id).ToList());
+    }
+
+    private void UpdateIdStatistics(Dictionary<string, int> byId, string diagnosticId)
+    {
+        if (!byId.ContainsKey(diagnosticId))
+        {
+            byId[diagnosticId] = 0;
+        }
+        byId[diagnosticId]++;
+    }
+
+    private void UpdateSeverityStatistics(Dictionary<string, int> bySeverity, DiagnosticSeverity severity)
+    {
+        var severityStr = severity.ToString();
+        if (!bySeverity.ContainsKey(severityStr))
+        {
+            bySeverity[severityStr] = 0;
+        }
+        bySeverity[severityStr]++;
+    }
+
+    private void CheckFixability(HashSet<string> fixableIds, string diagnosticId)
+    {
+        if (_filterService.IsFixableDiagnostic(diagnosticId))
+        {
+            fixableIds.Add(diagnosticId);
+        }
+    }
+
+    private List<DiagnosticDetail> CreateDiagnosticDetails(List<Diagnostic> diagnostics, string projectName, int max)
+    {
+        return diagnostics
+            .Take(max)
+            .Select(d => CreateDiagnosticDetail(d, projectName))
+            .ToList();
+    }
+
+    private string ResolveSolutionPath(string pathOrGit, string? branch)
+    {
+        ValidateNotGitRepository(pathOrGit);
+        
         if (Directory.Exists(pathOrGit))
         {
-            var slnFiles = Directory.GetFiles(pathOrGit, "*.sln", SearchOption.TopDirectoryOnly);
-            if (slnFiles.Length == 0)
-            {
-                throw new FileNotFoundException($"No solution files found in directory: {pathOrGit}");
-            }
-            return slnFiles.First();
+            return FindSolutionInDirectory(pathOrGit);
         }
 
         return pathOrGit;
     }
 
+    private void ValidateNotGitRepository(string path)
+    {
+        if (IsGitUrl(path))
+        {
+            throw new NotImplementedException("Git repository cloning not yet implemented. Please provide a local path.");
+        }
+    }
+
+    private bool IsGitUrl(string path)
+    {
+        return path.StartsWith("http://") || path.StartsWith("https://");
+    }
+
+    private string FindSolutionInDirectory(string directory)
+    {
+        var slnFiles = Directory.GetFiles(directory, "*.sln", SearchOption.TopDirectoryOnly);
+        if (slnFiles.Length == 0)
+        {
+            throw new FileNotFoundException($"No solution files found in directory: {directory}");
+        }
+        return slnFiles.First();
+    }
+
     private string ResolveProjectPath(string project)
     {
-        // If it's already a full path to a .csproj file
-        if (File.Exists(project) && project.EndsWith(".csproj"))
+        if (IsValidProjectFile(project))
         {
             return project;
         }
 
-        // If it's a directory, look for .csproj files
-        if (Directory.Exists(project))
+        var projectFromDirectory = TryFindProjectInDirectory(project);
+        return projectFromDirectory ?? project;
+    }
+
+    private bool IsValidProjectFile(string path)
+    {
+        return File.Exists(path) && path.EndsWith(".csproj");
+    }
+
+    private string? TryFindProjectInDirectory(string path)
+    {
+        if (!Directory.Exists(path))
         {
-            var csprojFiles = Directory.GetFiles(project, "*.csproj", SearchOption.TopDirectoryOnly);
-            if (csprojFiles.Length > 0)
-            {
-                return csprojFiles.First();
-            }
+            return null;
         }
 
-        // Otherwise return as-is and let the caller handle finding it
-        return project;
+        var csprojFiles = Directory.GetFiles(path, "*.csproj", SearchOption.TopDirectoryOnly);
+        return csprojFiles.Length > 0 ? csprojFiles.First() : null;
     }
 
     private string? FindSolutionFile(string startPath)
     {
-        var directory = Directory.Exists(startPath) ? startPath : Path.GetDirectoryName(startPath);
+        var directory = GetStartDirectory(startPath);
+        return SearchForSolutionInParentDirectories(directory);
+    }
 
+    private string? GetStartDirectory(string path)
+    {
+        return Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+    }
+
+    private string? SearchForSolutionInParentDirectories(string? directory)
+    {
         while (!string.IsNullOrEmpty(directory))
         {
-            var slnFiles = Directory.GetFiles(directory, "*.sln", SearchOption.TopDirectoryOnly);
-            if (slnFiles.Length > 0)
+            var solutionFile = TryFindSolutionInDirectory(directory);
+            if (solutionFile != null)
             {
-                return slnFiles.First();
+                return solutionFile;
             }
 
-            var parent = Directory.GetParent(directory);
-            if (parent == null)
-                break;
-
-            directory = parent.FullName;
+            directory = GetParentDirectory(directory);
         }
 
         return null;
+    }
+
+    private string? TryFindSolutionInDirectory(string directory)
+    {
+        var slnFiles = Directory.GetFiles(directory, "*.sln", SearchOption.TopDirectoryOnly);
+        return slnFiles.Length > 0 ? slnFiles.First() : null;
+    }
+
+    private string? GetParentDirectory(string directory)
+    {
+        return Directory.GetParent(directory)?.FullName;
     }
 
     private void UpdateSummary(DiagnosticSummary summary, DiagnosticSeverity severity)

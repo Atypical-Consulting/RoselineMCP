@@ -8,47 +8,71 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-### Core Components
+### Service Layer Architecture
 
-- **Program.cs**: Entry point that configures the MCP server with stdio transport and auto-discovers tools
-- **Tools/AnalysisTools.cs**: MCP tool definitions marked with `[McpServerTool]` attributes
-- **Services/SolutionAnalyzerService.cs**: Analyzes C# solutions for diagnostics using Roslyn
-- **Services/CodeFixService.cs**: Applies automated code fixes for specified diagnostic IDs
-- **Services/PatchService.cs**: Generates unified diff patches using DiffPlex
-- **Models/AnalysisModels.cs**: Data models for analysis results and fix responses
+The application uses a dependency injection-based service architecture with clear separation of concerns:
 
-### Key Design Decisions
+1. **Interface Contracts** (`Interfaces/`): All services have corresponding interfaces for testability
+2. **Service Implementations** (`Services/`): Business logic separated by responsibility
+   - `SolutionAnalyzerService`: Roslyn-based solution/project analysis
+   - `CodeFixService`: Automated code fix application
+   - `DiagnosticFilterService`: Filtering and categorization of diagnostics
+   - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers
+   - `PatchService`/`DiffService`: Unified diff generation for code changes
+   - `MSBuildService`: MSBuildWorkspace management and initialization
 
-- Uses temporary workspace isolation to ensure safe, non-destructive operations
-- All fixes are deterministic and reviewable through unified diff patches
-- Tools auto-discovered via `WithToolsFromAssembly()` - no manual registration needed
-- MSBuildLocator ensures correct solution loading across different environments
-- Stderr logging to avoid interfering with MCP stdio communication
+3. **MCP Tool Layer** (`Tools/`): Static methods with `[McpServerTool]` attributes that bridge MCP protocol to services
+4. **Model Layer** (`Models/`): DTOs for structured responses
+
+### Key Architectural Patterns
+
+- **Workspace Isolation**: Each operation creates a new MSBuildWorkspace to prevent state pollution
+- **Service Injection**: Tools receive services as first parameters via DI container
+- **Error Resilience**: All tools return JSON with error details on failure, never throwing to MCP layer
+- **Streaming Prevention**: Stderr logging ensures clean stdio communication for MCP protocol
 
 ## Common Commands
 
-### Build and Run
+### Build and Test
 ```bash
-# Build the project
+# Build the solution
 dotnet build
 
-# Run the MCP server
-dotnet run --project RoselineMCP/RoselineMCP.csproj
+# Run all tests
+dotnet test
 
-# Clean and rebuild
-dotnet clean && dotnet build
+# Run tests with coverage
+dotnet test --collect:"XPlat Code Coverage"
 
-# Restore packages
-dotnet restore
+# Run a specific test
+dotnet test --filter "FullyQualifiedName~SolutionAnalyzerServiceTests"
+
+# Run tests in a specific project
+dotnet test RoselineMCP.Tests/RoselineMCP.Tests.csproj
 ```
 
-### Development Workflow
+### Running the MCP Server
 ```bash
-# Watch for changes and rebuild
-dotnet watch build --project RoselineMCP/RoselineMCP.csproj
+# Run in development mode
+dotnet run --project RoselineMCP/RoselineMCP.csproj
 
-# Run with verbose logging
-dotnet run --project RoselineMCP/RoselineMCP.csproj --verbosity detailed
+# Run with specific environment
+ASPNETCORE_ENVIRONMENT=Development dotnet run --project RoselineMCP/RoselineMCP.csproj
+
+# Watch mode for development
+dotnet watch run --project RoselineMCP/RoselineMCP.csproj
+```
+
+### Package Management
+```bash
+# Restore all packages
+dotnet restore
+
+# Add a new package
+dotnet add RoselineMCP/RoselineMCP.csproj package PackageName
+
+# Update packages
+dotnet list package --outdated
 ```
 
 ## MCP Tools Available
@@ -76,7 +100,7 @@ Generates unified diff patches between text versions.
 ## Adding New MCP Tools
 
 When implementing new tools:
-1. Add method to `AnalysisTools.cs` with `[McpServerTool]` attribute
+1. Add method to appropriate tool class in `Tools/` with `[McpServerTool]` attribute
 2. Use `[Description("...")]` on method and all parameters for documentation
 3. Accept required services as first parameters (injected automatically)
 4. Return JSON-serialized results or error responses
@@ -87,35 +111,47 @@ Example:
 [McpServerTool]
 [Description("Tool description")]
 public static async Task<string> NewTool(
-    RequiredService service,
+    IRequiredService service,
     [Description("Parameter description")] string param)
 {
-    // Implementation
+    try
+    {
+        var result = await service.ProcessAsync(param);
+        return JsonSerializer.Serialize(result);
+    }
+    catch (Exception ex)
+    {
+        return JsonSerializer.Serialize(new { error = ex.Message, type = ex.GetType().Name });
+    }
 }
 ```
 
-## Error Handling
+## Testing Strategy
 
-All tools follow consistent error handling:
-- Wrap operations in try-catch blocks
-- Return JSON with `error` and `type` fields on failure
-- Use appropriate exception types for different failure modes
-- Log errors to stderr for debugging (won't interfere with stdio)
+### Unit Test Structure
+- Tests located in `RoselineMCP.Tests/`
+- Mirror the main project structure (Services/, Tools/)
+- Use xUnit as the test framework
+- Mock dependencies using interfaces
 
-## Testing MCP Tools
+### Running Tests
+```bash
+# Run with detailed output
+dotnet test --logger "console;verbosity=detailed"
 
-To test tools locally without a client:
-1. Build the project
-2. Use a MCP client library or testing tool
-3. Connect via stdio transport
-4. Call tools with test parameters
-5. Verify JSON responses
+# Run with test filter
+dotnet test --filter DisplayName~CodeFix
+
+# Generate test report
+dotnet test --logger html
+```
 
 ## Dependencies
 
 ### Core MCP and Hosting
 - **ModelContextProtocol** (0.3.0-preview.4): MCP server implementation
 - **Microsoft.Extensions.Hosting**: Application hosting and DI
+- **Microsoft.Extensions.DependencyInjection**: Service registration
 
 ### Roslyn Analysis and Fixes
 - **Microsoft.CodeAnalysis.CSharp**: Core Roslyn compiler
@@ -131,10 +167,27 @@ To test tools locally without a client:
 ### Utilities
 - **DiffPlex**: Unified diff generation
 
+### Testing
+- **xunit**: Test framework
+- **xunit.runner.visualstudio**: Test runner
+- **Microsoft.NET.Test.Sdk**: Test SDK
+
+## Environment Configuration
+
+The application supports environment-specific configuration through:
+- `appsettings.json`: Base configuration
+- `appsettings.{Environment}.json`: Environment-specific overrides
+- `ROSELINE_` prefixed environment variables
+- Command-line arguments
+
+Logging levels adjust automatically:
+- **Development**: Debug level for RoselineMCP namespace
+- **Production**: Information level for RoselineMCP namespace
+
 ## Security Considerations
 
 - Never executes arbitrary code from analyzed projects
-- Uses read-only Git clones when analyzing remote repositories
+- Uses read-only Git clones when analyzing remote repositories  
 - Operates in temporary workspaces to prevent accidental modifications
 - All changes are returned as patches for review before application
 - Path traversal protection in file operations
