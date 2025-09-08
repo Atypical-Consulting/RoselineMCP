@@ -7,6 +7,12 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    
+    <!-- Docker Container Support -->
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <ContainerRepository>phmatray/roseline-mcp</ContainerRepository>
+    <ContainerFamily>alpine</ContainerFamily>
+    <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
