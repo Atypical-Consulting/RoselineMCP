@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,7 +7,20 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
-    
+
+    <!-- NuGet Global Tool Packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>roseline-mcp</ToolCommandName>
+    <PackageId>RoselineMCP</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Atypical Consulting SRL</Authors>
+    <Description>High-performance MCP server for C# code analysis using Roslyn analyzers and code fix providers.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Atypical-Consulting/RoselineMCP</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Atypical-Consulting/RoselineMCP</RepositoryUrl>
+    <PackageTags>mcp;roslyn;csharp;dotnet;code-analysis;ai</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
     <!-- Docker Container Support -->
     <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
     <ContainerRepository>phmatray/roseline-mcp</ContainerRepository>
@@ -32,6 +45,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="\" />
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

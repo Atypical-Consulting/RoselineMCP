@@ -13,17 +13,73 @@ A high-performance MCP (Model Context Protocol) server that provides comprehensi
 
 ## Installation
 
-### Prerequisites
+Choose the installation method that best fits your workflow:
 
-- .NET 9.0 SDK or later
-- MSBuild (included with Visual Studio or .NET SDK)
-- MCP-compatible client (e.g., Claude Desktop)
+### Option 1 — NuGet Global Tool (recommended)
 
-### Building from Source
+Requires .NET 9.0 SDK or later.
+
+```bash
+dotnet tool install -g RoselineMCP
+```
+
+After installation, the `roseline-mcp` command is available globally.
+
+#### Claude Desktop configuration (NuGet global tool)
+
+Add to your Claude Desktop configuration file (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "roseline": {
+      "command": "roseline-mcp"
+    }
+  }
+}
+```
+
+> **Config file location:**
+> - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+> - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+---
+
+### Option 2 — Docker
+
+No SDK required. Works on any platform with Docker installed.
+
+```bash
+docker run -i --rm phmatray/roseline-mcp:latest
+```
+
+#### Claude Desktop configuration (Docker)
+
+```json
+{
+  "mcpServers": {
+    "roseline": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "phmatray/roseline-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+> **Note:** The `-i` flag is required for stdio transport. The `--rm` flag removes the container after the session ends.
+
+---
+
+### Option 3 — Build from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/phmatray/RoselineMCP.git
+git clone https://github.com/Atypical-Consulting/RoselineMCP.git
 cd RoselineMCP
 
 # Build the project
@@ -33,18 +89,7 @@ dotnet build
 dotnet test
 ```
 
-## Usage
-
-### Running as MCP Server
-
-```bash
-# Start the MCP server
-dotnet run --project RoselineMCP/RoselineMCP.csproj
-```
-
-### Integration with Claude Desktop
-
-Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+#### Claude Desktop configuration (build from source)
 
 ```json
 {
@@ -56,6 +101,15 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
   }
 }
 ```
+
+---
+
+### Prerequisites
+
+- **NuGet global tool**: .NET 9.0 SDK or later
+- **Docker**: Docker Desktop or Docker Engine
+- **Build from source**: .NET 9.0 SDK + MSBuild (included with Visual Studio or .NET SDK)
+- **MCP client**: Claude Desktop or any MCP-compatible client
 
 ## Available Tools
 
