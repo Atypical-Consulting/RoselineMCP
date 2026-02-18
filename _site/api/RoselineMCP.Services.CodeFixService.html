@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Class CodeFixService | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Class CodeFixService | RoselineMCP ">
+      
+      <meta name="description" content="Service for applying automated code fixes to C# projects using Roslyn code fix providers.">
+      <link rel="icon" href="../favicon.ico">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="ManagedReference">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="RoselineMCP.Services.CodeFixService">
+
+
+
+  <h1 id="RoselineMCP_Services_CodeFixService" data-uid="RoselineMCP.Services.CodeFixService" class="text-break">
+Class CodeFixService  
+  </h1>
+
+  <div class="facts text-secondary">
+    <dl><dt>Namespace</dt><dd><a class="xref" href="RoselineMCP.html">RoselineMCP</a>.<a class="xref" href="RoselineMCP.Services.html">Services</a></dd></dl>
+  <dl><dt>Assembly</dt><dd>RoselineMCP.dll</dd></dl>
+  </div>
+
+  <div class="markdown summary"><p>Service for applying automated code fixes to C# projects using Roslyn code fix providers.</p>
+</div>
+  <div class="markdown conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public class CodeFixService : ICodeFixService</code></pre>
+  </div>
+
+
+
+
+  <dl class="typelist inheritance">
+    <dt>Inheritance</dt>
+    <dd>
+      <div><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object">object</a></div>
+      <div><span class="xref">CodeFixService</span></div>
+    </dd>
+  </dl>
+
+  <dl class="typelist implements">
+    <dt>Implements</dt>
+    <dd>
+      <div><a class="xref" href="RoselineMCP.Interfaces.ICodeFixService.html">ICodeFixService</a></div>
+    </dd>
+  </dl>
+
+
+  <dl class="typelist inheritedMembers">
+    <dt>Inherited Members</dt>
+    <dd>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)">object.Equals(object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)">object.Equals(object, object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.gethashcode">object.GetHashCode()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.gettype">object.GetType()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone">object.MemberwiseClone()</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.referenceequals">object.ReferenceEquals(object, object)</a>
+    </div>
+    <div>
+      <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.object.tostring">object.ToString()</a>
+    </div>
+  </dd></dl>
+
+
+
+
+
+
+  <h2 class="section" id="constructors">Constructors
+</h2>
+
+
+  <a id="RoselineMCP_Services_CodeFixService__ctor_" data-uid="RoselineMCP.Services.CodeFixService.#ctor*"></a>
+
+  <h3 id="RoselineMCP_Services_CodeFixService__ctor_Microsoft_Extensions_Logging_ILogger_RoselineMCP_Services_CodeFixService__RoselineMCP_Interfaces_ISolutionAnalyzerService_RoselineMCP_Interfaces_ICodeFixProviderFactory_RoselineMCP_Interfaces_IDiffService_RoselineMCP_Interfaces_IMSBuildService_" data-uid="RoselineMCP.Services.CodeFixService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.CodeFixService},RoselineMCP.Interfaces.ISolutionAnalyzerService,RoselineMCP.Interfaces.ICodeFixProviderFactory,RoselineMCP.Interfaces.IDiffService,RoselineMCP.Interfaces.IMSBuildService)">
+  CodeFixService(ILogger&lt;CodeFixService&gt;, ISolutionAnalyzerService, ICodeFixProviderFactory, IDiffService, IMSBuildService)
+  
+  </h3>
+
+  <div class="markdown level1 summary"><p>Initializes a new instance of the CodeFixService.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public CodeFixService(ILogger&lt;CodeFixService&gt; logger, ISolutionAnalyzerService analyzerService, ICodeFixProviderFactory codeFixProviderFactory, IDiffService diffService, IMSBuildService msBuildService)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>logger</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger-1">ILogger</a>&lt;<a class="xref" href="RoselineMCP.Services.CodeFixService.html">CodeFixService</a>&gt;</dt>
+    <dd><p>Logger for diagnostic output.</p>
+</dd>
+    <dt><code>analyzerService</code> <a class="xref" href="RoselineMCP.Interfaces.ISolutionAnalyzerService.html">ISolutionAnalyzerService</a></dt>
+    <dd><p>Service for analyzing solutions.</p>
+</dd>
+    <dt><code>codeFixProviderFactory</code> <a class="xref" href="RoselineMCP.Interfaces.ICodeFixProviderFactory.html">ICodeFixProviderFactory</a></dt>
+    <dd><p>Factory for creating code fix providers.</p>
+</dd>
+    <dt><code>diffService</code> <a class="xref" href="RoselineMCP.Interfaces.IDiffService.html">IDiffService</a></dt>
+    <dd><p>Service for generating diffs.</p>
+</dd>
+    <dt><code>msBuildService</code> <a class="xref" href="RoselineMCP.Interfaces.IMSBuildService.html">IMSBuildService</a></dt>
+    <dd><p>Service for MSBuild operations.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+  <h2 class="section" id="methods">Methods
+</h2>
+
+
+  <a id="RoselineMCP_Services_CodeFixService_ApplyFixesAsync_" data-uid="RoselineMCP.Services.CodeFixService.ApplyFixesAsync*"></a>
+
+  <h3 id="RoselineMCP_Services_CodeFixService_ApplyFixesAsync_System_String_System_Collections_Generic_List_System_String__System_Boolean_" data-uid="RoselineMCP.Services.CodeFixService.ApplyFixesAsync(System.String,System.Collections.Generic.List{System.String},System.Boolean)">
+  ApplyFixesAsync(string, List&lt;string&gt;, bool)
+  
+  </h3>
+
+  <div class="markdown level1 summary"><p>Applies code fixes for specified diagnostic IDs in a project.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task&lt;ApplyFixesResponse&gt; ApplyFixesAsync(string project, List&lt;string&gt; ids, bool previewOnly = false)</code></pre>
+  </div>
+
+  <h4 class="section">Parameters</h4>
+  <dl class="parameters">
+    <dt><code>project</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a></dt>
+    <dd><p>Project name or path to .csproj file.</p>
+</dd>
+    <dt><code>ids</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1">List</a>&lt;<a class="xref" href="https://learn.microsoft.com/dotnet/api/system.string">string</a>&gt;</dt>
+    <dd><p>List of diagnostic IDs to fix.</p>
+</dd>
+    <dt><code>previewOnly</code> <a class="xref" href="https://learn.microsoft.com/dotnet/api/system.boolean">bool</a></dt>
+    <dd><p>If true, only preview changes without applying them.</p>
+</dd>
+  </dl>
+
+  <h4 class="section">Returns</h4>
+  <dl class="parameters">
+    <dt><a class="xref" href="https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1">Task</a>&lt;<a class="xref" href="RoselineMCP.Models.ApplyFixesResponse.html">ApplyFixesResponse</a>&gt;</dt>
+    <dd><p>Response containing changed files, patch, and fix statistics.</p>
+</dd>
+  </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

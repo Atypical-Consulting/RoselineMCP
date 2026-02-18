@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Architecture Overview | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Architecture Overview | RoselineMCP ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="architecture-overview">Architecture Overview</h1>
+
+<p>Understanding the technical architecture of RoselineMCP.</p>
+<h2 id="system-architecture">System Architecture</h2>
+<pre><code>MCP Client (Claude, etc.)
+    ↓ stdio (JSON-RPC)
+MCP Server Layer
+    ↓ Tool Registration
+Tools Layer ([McpServerTool])
+    ↓ Dependency Injection
+Service Layer (Business Logic)
+    ↓
+External Dependencies (Roslyn, MSBuild)
+</code></pre>
+<h2 id="core-components">Core Components</h2>
+<h3 id="mcp-server-layer">MCP Server Layer</h3>
+<ul>
+<li>Handles MCP protocol communication</li>
+<li>Auto-discovers tools via reflection</li>
+<li>Manages stdio transport</li>
+</ul>
+<h3 id="tools-layer">Tools Layer</h3>
+<ul>
+<li>Static methods with <code>[McpServerTool]</code> attribute</li>
+<li>Receives services via DI</li>
+<li>Returns JSON responses</li>
+</ul>
+<h3 id="service-layer">Service Layer</h3>
+<ul>
+<li><code>SolutionAnalyzerService</code>: Solution analysis</li>
+<li><code>CodeFixService</code>: Automated fixes</li>
+<li><code>DiagnosticFilterService</code>: Filtering logic</li>
+<li><code>MSBuildService</code>: Workspace management</li>
+</ul>
+<h2 id="design-patterns">Design Patterns</h2>
+<h3 id="dependency-injection">Dependency Injection</h3>
+<p>All services registered as singletons:</p>
+<pre><code class="lang-csharp">services.AddSingleton&lt;ISolutionAnalyzerService, SolutionAnalyzerService&gt;();
+</code></pre>
+<h3 id="workspace-isolation">Workspace Isolation</h3>
+<p>Each operation creates a new workspace to prevent conflicts.</p>
+<h3 id="error-resilience">Error Resilience</h3>
+<p>All tools catch exceptions and return JSON errors.</p>
+<h2 id="data-flow">Data Flow</h2>
+<ol>
+<li>Client sends MCP request</li>
+<li>Server routes to tool method</li>
+<li>Tool calls service layer</li>
+<li>Service performs operations</li>
+<li>Results serialized to JSON</li>
+<li>Response sent to client</li>
+</ol>
+<h2 id="performance-considerations">Performance Considerations</h2>
+<ul>
+<li>Workspace caching for repeated operations</li>
+<li>Lazy loading of analyzers</li>
+<li>Streaming for large results</li>
+<li>Parallel project analysis</li>
+</ul>
+<h2 id="security">Security</h2>
+<ul>
+<li>No code execution from analyzed projects</li>
+<li>Temporary workspace isolation</li>
+<li>Path validation</li>
+<li>Read-only operations by default</li>
+</ul>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="custom-analyzers.html">Custom Analyzers</a></li>
+<li><a href="../../api/index.html">API Reference</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

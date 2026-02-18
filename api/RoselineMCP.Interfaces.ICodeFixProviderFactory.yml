@@ -1,0 +1,318 @@
+### YamlMime:ManagedReference
+items:
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory
+  commentId: T:RoselineMCP.Interfaces.ICodeFixProviderFactory
+  id: ICodeFixProviderFactory
+  parent: RoselineMCP.Interfaces
+  children:
+  - RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  - RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(System.String)
+  - RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  langs:
+  - csharp
+  - vb
+  name: ICodeFixProviderFactory
+  nameWithType: ICodeFixProviderFactory
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory
+  type: Interface
+  source:
+    id: ICodeFixProviderFactory
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/ICodeFixProviderFactory.cs
+    startLine: 7
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Factory for creating and managing code fix providers.
+  example: []
+  syntax:
+    content: public interface ICodeFixProviderFactory
+    content.vb: Public Interface ICodeFixProviderFactory
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(System.String)
+  commentId: M:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(System.String)
+  id: GetProviderForDiagnostic(System.String)
+  parent: RoselineMCP.Interfaces.ICodeFixProviderFactory
+  langs:
+  - csharp
+  - vb
+  name: GetProviderForDiagnostic(string)
+  nameWithType: ICodeFixProviderFactory.GetProviderForDiagnostic(string)
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(string)
+  type: Method
+  source:
+    id: GetProviderForDiagnostic
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/ICodeFixProviderFactory.cs
+    startLine: 14
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Gets a code fix provider for the specified diagnostic ID.
+  example: []
+  syntax:
+    content: CodeFixProvider? GetProviderForDiagnostic(string diagnosticId)
+    parameters:
+    - id: diagnosticId
+      type: System.String
+      description: The diagnostic ID to get a provider for.
+    return:
+      type: Microsoft.CodeAnalysis.CodeFixes.CodeFixProvider
+      description: A code fix provider if available, null otherwise.
+    content.vb: Function GetProviderForDiagnostic(diagnosticId As String) As CodeFixProvider
+  overload: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic*
+  nameWithType.vb: ICodeFixProviderFactory.GetProviderForDiagnostic(String)
+  fullName.vb: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(String)
+  name.vb: GetProviderForDiagnostic(String)
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  commentId: M:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  id: GetFixableDiagnosticIds
+  parent: RoselineMCP.Interfaces.ICodeFixProviderFactory
+  langs:
+  - csharp
+  - vb
+  name: GetFixableDiagnosticIds()
+  nameWithType: ICodeFixProviderFactory.GetFixableDiagnosticIds()
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds()
+  type: Method
+  source:
+    id: GetFixableDiagnosticIds
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/ICodeFixProviderFactory.cs
+    startLine: 20
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Gets all available diagnostic IDs that have code fix providers.
+  example: []
+  syntax:
+    content: IEnumerable<string> GetFixableDiagnosticIds()
+    return:
+      type: System.Collections.Generic.IEnumerable{System.String}
+      description: Collection of fixable diagnostic IDs.
+    content.vb: Function GetFixableDiagnosticIds() As IEnumerable(Of String)
+  overload: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds*
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  commentId: M:RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  id: LoadProviders
+  parent: RoselineMCP.Interfaces.ICodeFixProviderFactory
+  langs:
+  - csharp
+  - vb
+  name: LoadProviders()
+  nameWithType: ICodeFixProviderFactory.LoadProviders()
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders()
+  type: Method
+  source:
+    id: LoadProviders
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/ICodeFixProviderFactory.cs
+    startLine: 25
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Loads all available code fix providers.
+  example: []
+  syntax:
+    content: void LoadProviders()
+    content.vb: Sub LoadProviders()
+  overload: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders*
+references:
+- uid: RoselineMCP.Interfaces
+  commentId: N:RoselineMCP.Interfaces
+  href: RoselineMCP.html
+  name: RoselineMCP.Interfaces
+  nameWithType: RoselineMCP.Interfaces
+  fullName: RoselineMCP.Interfaces
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic*
+  commentId: Overload:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic
+  href: RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_GetProviderForDiagnostic_System_String_
+  name: GetProviderForDiagnostic
+  nameWithType: ICodeFixProviderFactory.GetProviderForDiagnostic
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic
+- uid: System.String
+  commentId: T:System.String
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.string
+  name: string
+  nameWithType: string
+  fullName: string
+  nameWithType.vb: String
+  fullName.vb: String
+  name.vb: String
+- uid: Microsoft.CodeAnalysis.CodeFixes.CodeFixProvider
+  commentId: T:Microsoft.CodeAnalysis.CodeFixes.CodeFixProvider
+  parent: Microsoft.CodeAnalysis.CodeFixes
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.codefixes.codefixprovider
+  name: CodeFixProvider
+  nameWithType: CodeFixProvider
+  fullName: Microsoft.CodeAnalysis.CodeFixes.CodeFixProvider
+- uid: System
+  commentId: N:System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System
+  nameWithType: System
+  fullName: System
+- uid: Microsoft.CodeAnalysis.CodeFixes
+  commentId: N:Microsoft.CodeAnalysis.CodeFixes
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/microsoft
+  name: Microsoft.CodeAnalysis.CodeFixes
+  nameWithType: Microsoft.CodeAnalysis.CodeFixes
+  fullName: Microsoft.CodeAnalysis.CodeFixes
+  spec.csharp:
+  - uid: Microsoft
+    name: Microsoft
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft
+  - name: .
+  - uid: Microsoft.CodeAnalysis
+    name: CodeAnalysis
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis
+  - name: .
+  - uid: Microsoft.CodeAnalysis.CodeFixes
+    name: CodeFixes
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.codefixes
+  spec.vb:
+  - uid: Microsoft
+    name: Microsoft
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft
+  - name: .
+  - uid: Microsoft.CodeAnalysis
+    name: CodeAnalysis
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis
+  - name: .
+  - uid: Microsoft.CodeAnalysis.CodeFixes
+    name: CodeFixes
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.codefixes
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds*
+  commentId: Overload:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  href: RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_GetFixableDiagnosticIds
+  name: GetFixableDiagnosticIds
+  nameWithType: ICodeFixProviderFactory.GetFixableDiagnosticIds
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+- uid: System.Collections.Generic.IEnumerable{System.String}
+  commentId: T:System.Collections.Generic.IEnumerable{System.String}
+  parent: System.Collections.Generic
+  definition: System.Collections.Generic.IEnumerable`1
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1
+  name: IEnumerable<string>
+  nameWithType: IEnumerable<string>
+  fullName: System.Collections.Generic.IEnumerable<string>
+  nameWithType.vb: IEnumerable(Of String)
+  fullName.vb: System.Collections.Generic.IEnumerable(Of String)
+  name.vb: IEnumerable(Of String)
+  spec.csharp:
+  - uid: System.Collections.Generic.IEnumerable`1
+    name: IEnumerable
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.IEnumerable`1
+    name: IEnumerable
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+- uid: System.Collections.Generic.IEnumerable`1
+  commentId: T:System.Collections.Generic.IEnumerable`1
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1
+  name: IEnumerable<T>
+  nameWithType: IEnumerable<T>
+  fullName: System.Collections.Generic.IEnumerable<T>
+  nameWithType.vb: IEnumerable(Of T)
+  fullName.vb: System.Collections.Generic.IEnumerable(Of T)
+  name.vb: IEnumerable(Of T)
+  spec.csharp:
+  - uid: System.Collections.Generic.IEnumerable`1
+    name: IEnumerable
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1
+  - name: <
+  - name: T
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.IEnumerable`1
+    name: IEnumerable
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.ienumerable-1
+  - name: (
+  - name: Of
+  - name: " "
+  - name: T
+  - name: )
+- uid: System.Collections.Generic
+  commentId: N:System.Collections.Generic
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System.Collections.Generic
+  nameWithType: System.Collections.Generic
+  fullName: System.Collections.Generic
+  spec.csharp:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic
+  spec.vb:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders*
+  commentId: Overload:RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  href: RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_LoadProviders
+  name: LoadProviders
+  nameWithType: ICodeFixProviderFactory.LoadProviders
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders

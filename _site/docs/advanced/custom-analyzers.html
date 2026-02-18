@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Custom Analyzers | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Custom Analyzers | RoselineMCP ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="custom-analyzers">Custom Analyzers</h1>
+
+<p>Integrating custom Roslyn analyzers with RoselineMCP.</p>
+<h2 id="overview">Overview</h2>
+<p>RoselineMCP automatically discovers and uses any Roslyn-based analyzers installed in your projects.</p>
+<h2 id="adding-analyzers">Adding Analyzers</h2>
+<h3 id="via-nuget-package">Via NuGet Package</h3>
+<p>Add analyzer packages to your <code>.csproj</code>:</p>
+<pre><code class="lang-xml">&lt;ItemGroup&gt;
+  &lt;!-- Microsoft Analyzers --&gt;
+  &lt;PackageReference Include=&quot;Microsoft.CodeAnalysis.NetAnalyzers&quot; Version=&quot;8.0.0&quot; /&gt;
+  
+  &lt;!-- Roslynator --&gt;
+  &lt;PackageReference Include=&quot;Roslynator.Analyzers&quot; Version=&quot;4.14.0&quot; /&gt;
+  
+  &lt;!-- StyleCop --&gt;
+  &lt;PackageReference Include=&quot;StyleCop.Analyzers&quot; Version=&quot;1.2.0&quot; /&gt;
+  
+  &lt;!-- Custom Analyzer --&gt;
+  &lt;PackageReference Include=&quot;YourCustom.Analyzers&quot; Version=&quot;1.0.0&quot; /&gt;
+&lt;/ItemGroup&gt;
+</code></pre>
+<h3 id="via-project-reference">Via Project Reference</h3>
+<pre><code class="lang-xml">&lt;ItemGroup&gt;
+  &lt;ProjectReference Include=&quot;../CustomAnalyzer/CustomAnalyzer.csproj&quot;
+                    OutputItemType=&quot;Analyzer&quot; /&gt;
+&lt;/ItemGroup&gt;
+</code></pre>
+<h2 id="creating-custom-analyzers">Creating Custom Analyzers</h2>
+<h3 id="basic-analyzer-structure">Basic Analyzer Structure</h3>
+<pre><code class="lang-csharp">[DiagnosticAnalyzer(LanguageNames.CSharp)]
+public class MyCustomAnalyzer : DiagnosticAnalyzer
+{
+    public const string DiagnosticId = &quot;CUSTOM001&quot;;
+    
+    private static readonly DiagnosticDescriptor Rule = new(
+        DiagnosticId,
+        &quot;Title&quot;,
+        &quot;Message format&quot;,
+        &quot;Category&quot;,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+    
+    public override ImmutableArray&lt;DiagnosticDescriptor&gt; SupportedDiagnostics
+        =&gt; ImmutableArray.Create(Rule);
+    
+    public override void Initialize(AnalysisContext context)
+    {
+        // Register analysis actions
+    }
+}
+</code></pre>
+<h3 id="with-code-fix-provider">With Code Fix Provider</h3>
+<pre><code class="lang-csharp">[ExportCodeFixProvider(LanguageNames.CSharp)]
+public class MyCustomCodeFixProvider : CodeFixProvider
+{
+    public override ImmutableArray&lt;string&gt; FixableDiagnosticIds
+        =&gt; ImmutableArray.Create(&quot;CUSTOM001&quot;);
+    
+    public override async Task RegisterCodeFixesAsync(CodeFixContext context)
+    {
+        // Register code fixes
+    }
+}
+</code></pre>
+<h2 id="testing-custom-analyzers">Testing Custom Analyzers</h2>
+<ol>
+<li>Add analyzer to project</li>
+<li>Run <code>listDiagnostics</code> to verify detection</li>
+<li>Check if ID appears in results</li>
+<li>Test fixes with <code>applyFixes</code></li>
+</ol>
+<h2 id="popular-analyzer-packages">Popular Analyzer Packages</h2>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Focus</th>
+<th>Diagnostic Prefix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Microsoft.CodeAnalysis.NetAnalyzers</td>
+<td>.NET best practices</td>
+<td>CA</td>
+</tr>
+<tr>
+<td>Roslynator.Analyzers</td>
+<td>Code quality</td>
+<td>RCS</td>
+</tr>
+<tr>
+<td>StyleCop.Analyzers</td>
+<td>Code style</td>
+<td>SA</td>
+</tr>
+<tr>
+<td>SonarAnalyzer.CSharp</td>
+<td>Security &amp; quality</td>
+<td>S</td>
+</tr>
+<tr>
+<td>Meziantou.Analyzer</td>
+<td>Performance</td>
+<td>MA</td>
+</tr>
+</tbody>
+</table>
+<h2 id="configuration">Configuration</h2>
+<h3 id="editorconfig">.editorconfig</h3>
+<p>Configure analyzer severity:</p>
+<pre><code class="lang-ini">[*.cs]
+# Custom analyzer rules
+dotnet_diagnostic.CUSTOM001.severity = warning
+dotnet_diagnostic.CA1001.severity = error
+</code></pre>
+<h3 id="suppression">Suppression</h3>
+<p>Suppress specific diagnostics:</p>
+<pre><code class="lang-csharp">#pragma warning disable CUSTOM001
+// Code here
+#pragma warning restore CUSTOM001
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="docker-deployment.html">Docker Deployment</a></li>
+<li><a href="../../api/index.html">API Reference</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

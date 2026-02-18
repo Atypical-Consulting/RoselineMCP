@@ -1,0 +1,640 @@
+### YamlMime:ManagedReference
+items:
+- uid: RoselineMCP.Models.DiagnosticDetail
+  commentId: T:RoselineMCP.Models.DiagnosticDetail
+  id: DiagnosticDetail
+  parent: RoselineMCP.Models
+  children:
+  - RoselineMCP.Models.DiagnosticDetail.Column
+  - RoselineMCP.Models.DiagnosticDetail.File
+  - RoselineMCP.Models.DiagnosticDetail.Id
+  - RoselineMCP.Models.DiagnosticDetail.Line
+  - RoselineMCP.Models.DiagnosticDetail.Message
+  - RoselineMCP.Models.DiagnosticDetail.Project
+  - RoselineMCP.Models.DiagnosticDetail.Severity
+  langs:
+  - csharp
+  - vb
+  name: DiagnosticDetail
+  nameWithType: DiagnosticDetail
+  fullName: RoselineMCP.Models.DiagnosticDetail
+  type: Class
+  source:
+    id: DiagnosticDetail
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 7
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: Detailed information about a specific diagnostic.
+  example: []
+  syntax:
+    content: public class DiagnosticDetail
+    content.vb: Public Class DiagnosticDetail
+  inheritance:
+  - System.Object
+  inheritedMembers:
+  - System.Object.Equals(System.Object)
+  - System.Object.Equals(System.Object,System.Object)
+  - System.Object.GetHashCode
+  - System.Object.GetType
+  - System.Object.MemberwiseClone
+  - System.Object.ReferenceEquals(System.Object,System.Object)
+  - System.Object.ToString
+- uid: RoselineMCP.Models.DiagnosticDetail.Project
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Project
+  id: Project
+  parent: RoselineMCP.Models.DiagnosticDetail
+  langs:
+  - csharp
+  - vb
+  name: Project
+  nameWithType: DiagnosticDetail.Project
+  fullName: RoselineMCP.Models.DiagnosticDetail.Project
+  type: Property
+  source:
+    id: Project
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 12
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: Name of the project containing the diagnostic.
+  example: []
+  syntax:
+    content: >-
+      [JsonPropertyName("project")]
+
+      public string Project { get; set; }
+    parameters: []
+    return:
+      type: System.String
+    content.vb: >-
+      <JsonPropertyName("project")>
+
+      Public Property Project As String
+  overload: RoselineMCP.Models.DiagnosticDetail.Project*
+  attributes:
+  - type: System.Text.Json.Serialization.JsonPropertyNameAttribute
+    ctor: System.Text.Json.Serialization.JsonPropertyNameAttribute.#ctor(System.String)
+    arguments:
+    - type: System.String
+      value: project
+- uid: RoselineMCP.Models.DiagnosticDetail.File
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.File
+  id: File
+  parent: RoselineMCP.Models.DiagnosticDetail
+  langs:
+  - csharp
+  - vb
+  name: File
+  nameWithType: DiagnosticDetail.File
+  fullName: RoselineMCP.Models.DiagnosticDetail.File
+  type: Property
+  source:
+    id: File
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 18
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: File path where the diagnostic was found.
+  example: []
+  syntax:
+    content: >-
+      [JsonPropertyName("file")]
+
+      public string File { get; set; }
+    parameters: []
+    return:
+      type: System.String
+    content.vb: >-
+      <JsonPropertyName("file")>
+
+      Public Property File As String
+  overload: RoselineMCP.Models.DiagnosticDetail.File*
+  attributes:
+  - type: System.Text.Json.Serialization.JsonPropertyNameAttribute
+    ctor: System.Text.Json.Serialization.JsonPropertyNameAttribute.#ctor(System.String)
+    arguments:
+    - type: System.String
+      value: file
+- uid: RoselineMCP.Models.DiagnosticDetail.Line
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Line
+  id: Line
+  parent: RoselineMCP.Models.DiagnosticDetail
+  langs:
+  - csharp
+  - vb
+  name: Line
+  nameWithType: DiagnosticDetail.Line
+  fullName: RoselineMCP.Models.DiagnosticDetail.Line
+  type: Property
+  source:
+    id: Line
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 24
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: Line number of the diagnostic (1-based).
+  example: []
+  syntax:
+    content: >-
+      [JsonPropertyName("line")]
+
+      public int Line { get; set; }
+    parameters: []
+    return:
+      type: System.Int32
+    content.vb: >-
+      <JsonPropertyName("line")>
+
+      Public Property Line As Integer
+  overload: RoselineMCP.Models.DiagnosticDetail.Line*
+  attributes:
+  - type: System.Text.Json.Serialization.JsonPropertyNameAttribute
+    ctor: System.Text.Json.Serialization.JsonPropertyNameAttribute.#ctor(System.String)
+    arguments:
+    - type: System.String
+      value: line
+- uid: RoselineMCP.Models.DiagnosticDetail.Column
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Column
+  id: Column
+  parent: RoselineMCP.Models.DiagnosticDetail
+  langs:
+  - csharp
+  - vb
+  name: Column
+  nameWithType: DiagnosticDetail.Column
+  fullName: RoselineMCP.Models.DiagnosticDetail.Column
+  type: Property
+  source:
+    id: Column
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 30
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: Column number of the diagnostic (1-based).
+  example: []
+  syntax:
+    content: >-
+      [JsonPropertyName("column")]
+
+      public int Column { get; set; }
+    parameters: []
+    return:
+      type: System.Int32
+    content.vb: >-
+      <JsonPropertyName("column")>
+
+      Public Property Column As Integer
+  overload: RoselineMCP.Models.DiagnosticDetail.Column*
+  attributes:
+  - type: System.Text.Json.Serialization.JsonPropertyNameAttribute
+    ctor: System.Text.Json.Serialization.JsonPropertyNameAttribute.#ctor(System.String)
+    arguments:
+    - type: System.String
+      value: column
+- uid: RoselineMCP.Models.DiagnosticDetail.Id
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Id
+  id: Id
+  parent: RoselineMCP.Models.DiagnosticDetail
+  langs:
+  - csharp
+  - vb
+  name: Id
+  nameWithType: DiagnosticDetail.Id
+  fullName: RoselineMCP.Models.DiagnosticDetail.Id
+  type: Property
+  source:
+    id: Id
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 36
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: Diagnostic ID (e.g., CS0168, IDE0005).
+  example: []
+  syntax:
+    content: >-
+      [JsonPropertyName("id")]
+
+      public string Id { get; set; }
+    parameters: []
+    return:
+      type: System.String
+    content.vb: >-
+      <JsonPropertyName("id")>
+
+      Public Property Id As String
+  overload: RoselineMCP.Models.DiagnosticDetail.Id*
+  attributes:
+  - type: System.Text.Json.Serialization.JsonPropertyNameAttribute
+    ctor: System.Text.Json.Serialization.JsonPropertyNameAttribute.#ctor(System.String)
+    arguments:
+    - type: System.String
+      value: id
+- uid: RoselineMCP.Models.DiagnosticDetail.Severity
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Severity
+  id: Severity
+  parent: RoselineMCP.Models.DiagnosticDetail
+  langs:
+  - csharp
+  - vb
+  name: Severity
+  nameWithType: DiagnosticDetail.Severity
+  fullName: RoselineMCP.Models.DiagnosticDetail.Severity
+  type: Property
+  source:
+    id: Severity
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 42
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: Severity level of the diagnostic.
+  example: []
+  syntax:
+    content: >-
+      [JsonPropertyName("severity")]
+
+      public string Severity { get; set; }
+    parameters: []
+    return:
+      type: System.String
+    content.vb: >-
+      <JsonPropertyName("severity")>
+
+      Public Property Severity As String
+  overload: RoselineMCP.Models.DiagnosticDetail.Severity*
+  attributes:
+  - type: System.Text.Json.Serialization.JsonPropertyNameAttribute
+    ctor: System.Text.Json.Serialization.JsonPropertyNameAttribute.#ctor(System.String)
+    arguments:
+    - type: System.String
+      value: severity
+- uid: RoselineMCP.Models.DiagnosticDetail.Message
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Message
+  id: Message
+  parent: RoselineMCP.Models.DiagnosticDetail
+  langs:
+  - csharp
+  - vb
+  name: Message
+  nameWithType: DiagnosticDetail.Message
+  fullName: RoselineMCP.Models.DiagnosticDetail.Message
+  type: Property
+  source:
+    id: Message
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Models/DiagnosticDetail.cs
+    startLine: 48
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Models
+  summary: Descriptive message for the diagnostic.
+  example: []
+  syntax:
+    content: >-
+      [JsonPropertyName("message")]
+
+      public string Message { get; set; }
+    parameters: []
+    return:
+      type: System.String
+    content.vb: >-
+      <JsonPropertyName("message")>
+
+      Public Property Message As String
+  overload: RoselineMCP.Models.DiagnosticDetail.Message*
+  attributes:
+  - type: System.Text.Json.Serialization.JsonPropertyNameAttribute
+    ctor: System.Text.Json.Serialization.JsonPropertyNameAttribute.#ctor(System.String)
+    arguments:
+    - type: System.String
+      value: message
+references:
+- uid: RoselineMCP.Models
+  commentId: N:RoselineMCP.Models
+  href: RoselineMCP.html
+  name: RoselineMCP.Models
+  nameWithType: RoselineMCP.Models
+  fullName: RoselineMCP.Models
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Models
+    name: Models
+    href: RoselineMCP.Models.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Models
+    name: Models
+    href: RoselineMCP.Models.html
+- uid: System.Object
+  commentId: T:System.Object
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object
+  name: object
+  nameWithType: object
+  fullName: object
+  nameWithType.vb: Object
+  fullName.vb: Object
+  name.vb: Object
+- uid: System.Object.Equals(System.Object)
+  commentId: M:System.Object.Equals(System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  name: Equals(object)
+  nameWithType: object.Equals(object)
+  fullName: object.Equals(object)
+  nameWithType.vb: Object.Equals(Object)
+  fullName.vb: Object.Equals(Object)
+  name.vb: Equals(Object)
+  spec.csharp:
+  - uid: System.Object.Equals(System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.Equals(System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.Equals(System.Object,System.Object)
+  commentId: M:System.Object.Equals(System.Object,System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  name: Equals(object, object)
+  nameWithType: object.Equals(object, object)
+  fullName: object.Equals(object, object)
+  nameWithType.vb: Object.Equals(Object, Object)
+  fullName.vb: Object.Equals(Object, Object)
+  name.vb: Equals(Object, Object)
+  spec.csharp:
+  - uid: System.Object.Equals(System.Object,System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.Equals(System.Object,System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.GetHashCode
+  commentId: M:System.Object.GetHashCode
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  name: GetHashCode()
+  nameWithType: object.GetHashCode()
+  fullName: object.GetHashCode()
+  nameWithType.vb: Object.GetHashCode()
+  fullName.vb: Object.GetHashCode()
+  spec.csharp:
+  - uid: System.Object.GetHashCode
+    name: GetHashCode
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.GetHashCode
+    name: GetHashCode
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  - name: (
+  - name: )
+- uid: System.Object.GetType
+  commentId: M:System.Object.GetType
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  name: GetType()
+  nameWithType: object.GetType()
+  fullName: object.GetType()
+  nameWithType.vb: Object.GetType()
+  fullName.vb: Object.GetType()
+  spec.csharp:
+  - uid: System.Object.GetType
+    name: GetType
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.GetType
+    name: GetType
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  - name: (
+  - name: )
+- uid: System.Object.MemberwiseClone
+  commentId: M:System.Object.MemberwiseClone
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  name: MemberwiseClone()
+  nameWithType: object.MemberwiseClone()
+  fullName: object.MemberwiseClone()
+  nameWithType.vb: Object.MemberwiseClone()
+  fullName.vb: Object.MemberwiseClone()
+  spec.csharp:
+  - uid: System.Object.MemberwiseClone
+    name: MemberwiseClone
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.MemberwiseClone
+    name: MemberwiseClone
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  - name: (
+  - name: )
+- uid: System.Object.ReferenceEquals(System.Object,System.Object)
+  commentId: M:System.Object.ReferenceEquals(System.Object,System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  name: ReferenceEquals(object, object)
+  nameWithType: object.ReferenceEquals(object, object)
+  fullName: object.ReferenceEquals(object, object)
+  nameWithType.vb: Object.ReferenceEquals(Object, Object)
+  fullName.vb: Object.ReferenceEquals(Object, Object)
+  name.vb: ReferenceEquals(Object, Object)
+  spec.csharp:
+  - uid: System.Object.ReferenceEquals(System.Object,System.Object)
+    name: ReferenceEquals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.ReferenceEquals(System.Object,System.Object)
+    name: ReferenceEquals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.ToString
+  commentId: M:System.Object.ToString
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  name: ToString()
+  nameWithType: object.ToString()
+  fullName: object.ToString()
+  nameWithType.vb: Object.ToString()
+  fullName.vb: Object.ToString()
+  spec.csharp:
+  - uid: System.Object.ToString
+    name: ToString
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.ToString
+    name: ToString
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  - name: (
+  - name: )
+- uid: System
+  commentId: N:System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System
+  nameWithType: System
+  fullName: System
+- uid: RoselineMCP.Models.DiagnosticDetail.Project*
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Project
+  href: RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Project
+  name: Project
+  nameWithType: DiagnosticDetail.Project
+  fullName: RoselineMCP.Models.DiagnosticDetail.Project
+- uid: System.String
+  commentId: T:System.String
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.string
+  name: string
+  nameWithType: string
+  fullName: string
+  nameWithType.vb: String
+  fullName.vb: String
+  name.vb: String
+- uid: RoselineMCP.Models.DiagnosticDetail.File*
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.File
+  href: RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_File
+  name: File
+  nameWithType: DiagnosticDetail.File
+  fullName: RoselineMCP.Models.DiagnosticDetail.File
+- uid: RoselineMCP.Models.DiagnosticDetail.Line*
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Line
+  href: RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Line
+  name: Line
+  nameWithType: DiagnosticDetail.Line
+  fullName: RoselineMCP.Models.DiagnosticDetail.Line
+- uid: System.Int32
+  commentId: T:System.Int32
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.int32
+  name: int
+  nameWithType: int
+  fullName: int
+  nameWithType.vb: Integer
+  fullName.vb: Integer
+  name.vb: Integer
+- uid: RoselineMCP.Models.DiagnosticDetail.Column*
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Column
+  href: RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Column
+  name: Column
+  nameWithType: DiagnosticDetail.Column
+  fullName: RoselineMCP.Models.DiagnosticDetail.Column
+- uid: RoselineMCP.Models.DiagnosticDetail.Id*
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Id
+  href: RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Id
+  name: Id
+  nameWithType: DiagnosticDetail.Id
+  fullName: RoselineMCP.Models.DiagnosticDetail.Id
+- uid: RoselineMCP.Models.DiagnosticDetail.Severity*
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Severity
+  href: RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Severity
+  name: Severity
+  nameWithType: DiagnosticDetail.Severity
+  fullName: RoselineMCP.Models.DiagnosticDetail.Severity
+- uid: RoselineMCP.Models.DiagnosticDetail.Message*
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Message
+  href: RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Message
+  name: Message
+  nameWithType: DiagnosticDetail.Message
+  fullName: RoselineMCP.Models.DiagnosticDetail.Message

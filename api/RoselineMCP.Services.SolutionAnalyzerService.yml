@@ -1,0 +1,1035 @@
+### YamlMime:ManagedReference
+items:
+- uid: RoselineMCP.Services.SolutionAnalyzerService
+  commentId: T:RoselineMCP.Services.SolutionAnalyzerService
+  id: SolutionAnalyzerService
+  parent: RoselineMCP.Services
+  children:
+  - RoselineMCP.Services.SolutionAnalyzerService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService},RoselineMCP.Interfaces.IMSBuildService,RoselineMCP.Interfaces.IDiagnosticFilterService)
+  - RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  - RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  langs:
+  - csharp
+  - vb
+  name: SolutionAnalyzerService
+  nameWithType: SolutionAnalyzerService
+  fullName: RoselineMCP.Services.SolutionAnalyzerService
+  type: Class
+  source:
+    id: SolutionAnalyzerService
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/SolutionAnalyzerService.cs
+    startLine: 11
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Service for analyzing C# solutions and projects for diagnostics using Roslyn.
+  example: []
+  syntax:
+    content: 'public class SolutionAnalyzerService : ISolutionAnalyzerService'
+    content.vb: Public Class SolutionAnalyzerService Implements ISolutionAnalyzerService
+  inheritance:
+  - System.Object
+  implements:
+  - RoselineMCP.Interfaces.ISolutionAnalyzerService
+  inheritedMembers:
+  - System.Object.Equals(System.Object)
+  - System.Object.Equals(System.Object,System.Object)
+  - System.Object.GetHashCode
+  - System.Object.GetType
+  - System.Object.MemberwiseClone
+  - System.Object.ReferenceEquals(System.Object,System.Object)
+  - System.Object.ToString
+- uid: RoselineMCP.Services.SolutionAnalyzerService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService},RoselineMCP.Interfaces.IMSBuildService,RoselineMCP.Interfaces.IDiagnosticFilterService)
+  commentId: M:RoselineMCP.Services.SolutionAnalyzerService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService},RoselineMCP.Interfaces.IMSBuildService,RoselineMCP.Interfaces.IDiagnosticFilterService)
+  id: '#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService},RoselineMCP.Interfaces.IMSBuildService,RoselineMCP.Interfaces.IDiagnosticFilterService)'
+  parent: RoselineMCP.Services.SolutionAnalyzerService
+  langs:
+  - csharp
+  - vb
+  name: SolutionAnalyzerService(ILogger<SolutionAnalyzerService>, IMSBuildService, IDiagnosticFilterService)
+  nameWithType: SolutionAnalyzerService.SolutionAnalyzerService(ILogger<SolutionAnalyzerService>, IMSBuildService, IDiagnosticFilterService)
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.SolutionAnalyzerService(Microsoft.Extensions.Logging.ILogger<RoselineMCP.Services.SolutionAnalyzerService>, RoselineMCP.Interfaces.IMSBuildService, RoselineMCP.Interfaces.IDiagnosticFilterService)
+  type: Constructor
+  source:
+    id: .ctor
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/SolutionAnalyzerService.cs
+    startLine: 23
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Initializes a new instance of the SolutionAnalyzerService.
+  example: []
+  syntax:
+    content: public SolutionAnalyzerService(ILogger<SolutionAnalyzerService> logger, IMSBuildService msBuildService, IDiagnosticFilterService filterService)
+    parameters:
+    - id: logger
+      type: Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService}
+      description: Logger for diagnostic output.
+    - id: msBuildService
+      type: RoselineMCP.Interfaces.IMSBuildService
+      description: Service for MSBuild operations.
+    - id: filterService
+      type: RoselineMCP.Interfaces.IDiagnosticFilterService
+      description: Service for filtering diagnostics.
+    content.vb: Public Sub New(logger As ILogger(Of SolutionAnalyzerService), msBuildService As IMSBuildService, filterService As IDiagnosticFilterService)
+  overload: RoselineMCP.Services.SolutionAnalyzerService.#ctor*
+  nameWithType.vb: SolutionAnalyzerService.New(ILogger(Of SolutionAnalyzerService), IMSBuildService, IDiagnosticFilterService)
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.New(Microsoft.Extensions.Logging.ILogger(Of RoselineMCP.Services.SolutionAnalyzerService), RoselineMCP.Interfaces.IMSBuildService, RoselineMCP.Interfaces.IDiagnosticFilterService)
+  name.vb: New(ILogger(Of SolutionAnalyzerService), IMSBuildService, IDiagnosticFilterService)
+- uid: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  commentId: M:RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  id: AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  parent: RoselineMCP.Services.SolutionAnalyzerService
+  langs:
+  - csharp
+  - vb
+  name: AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  nameWithType: SolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  type: Method
+  source:
+    id: AnalyzeSolutionAsync
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/SolutionAnalyzerService.cs
+    startLine: 34
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Analyzes a C# solution for diagnostics with filtering options.
+  example: []
+  syntax:
+    content: public Task<AnalyzeSolutionResponse> AnalyzeSolutionAsync(string pathOrGit, string? branch = null, string? includePattern = null, string? excludePattern = null, string? severity = null, int maxDiagnostics = 100)
+    parameters:
+    - id: pathOrGit
+      type: System.String
+      description: Path to solution file, directory containing .sln file, or Git repository URL.
+    - id: branch
+      type: System.String
+      description: Git branch name (only used if pathOrGit is a Git URL).
+    - id: includePattern
+      type: System.String
+      description: Include pattern for project names.
+    - id: excludePattern
+      type: System.String
+      description: Exclude pattern for project names.
+    - id: severity
+      type: System.String
+      description: Minimum severity level to include.
+    - id: maxDiagnostics
+      type: System.Int32
+      description: Maximum number of diagnostics to return.
+    return:
+      type: System.Threading.Tasks.Task{RoselineMCP.Models.AnalyzeSolutionResponse}
+      description: Analysis response containing diagnostics summary and details.
+    content.vb: Public Function AnalyzeSolutionAsync(pathOrGit As String, branch As String = Nothing, includePattern As String = Nothing, excludePattern As String = Nothing, severity As String = Nothing, maxDiagnostics As Integer = 100) As Task(Of AnalyzeSolutionResponse)
+  overload: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync*
+  implements:
+  - RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  nameWithType.vb: SolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  name.vb: AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+- uid: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  commentId: M:RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  id: ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  parent: RoselineMCP.Services.SolutionAnalyzerService
+  langs:
+  - csharp
+  - vb
+  name: ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  nameWithType: SolutionAnalyzerService.ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(string, System.Collections.Generic.List<string>?, System.Collections.Generic.List<string>?, int)
+  type: Method
+  source:
+    id: ListDiagnosticsAsync
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/SolutionAnalyzerService.cs
+    startLine: 197
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Lists detailed diagnostics for a specific project.
+  example: []
+  syntax:
+    content: public Task<ListDiagnosticsResponse> ListDiagnosticsAsync(string project, List<string>? ids = null, List<string>? files = null, int max = 100)
+    parameters:
+    - id: project
+      type: System.String
+      description: Project name or path to .csproj file.
+    - id: ids
+      type: System.Collections.Generic.List{System.String}
+      description: Optional list of diagnostic IDs to filter.
+    - id: files
+      type: System.Collections.Generic.List{System.String}
+      description: Optional list of file patterns to filter.
+    - id: max
+      type: System.Int32
+      description: Maximum number of diagnostic details to return.
+    return:
+      type: System.Threading.Tasks.Task{RoselineMCP.Models.ListDiagnosticsResponse}
+      description: Response containing diagnostics list and statistics.
+    content.vb: Public Function ListDiagnosticsAsync(project As String, ids As List(Of String) = Nothing, files As List(Of String) = Nothing, max As Integer = 100) As Task(Of ListDiagnosticsResponse)
+  overload: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync*
+  implements:
+  - RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  nameWithType.vb: SolutionAnalyzerService.ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(String, System.Collections.Generic.List(Of String), System.Collections.Generic.List(Of String), Integer)
+  name.vb: ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+references:
+- uid: RoselineMCP.Services
+  commentId: N:RoselineMCP.Services
+  href: RoselineMCP.html
+  name: RoselineMCP.Services
+  nameWithType: RoselineMCP.Services
+  fullName: RoselineMCP.Services
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Services
+    name: Services
+    href: RoselineMCP.Services.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Services
+    name: Services
+    href: RoselineMCP.Services.html
+- uid: System.Object
+  commentId: T:System.Object
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object
+  name: object
+  nameWithType: object
+  fullName: object
+  nameWithType.vb: Object
+  fullName.vb: Object
+  name.vb: Object
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  commentId: T:RoselineMCP.Interfaces.ISolutionAnalyzerService
+  parent: RoselineMCP.Interfaces
+  href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html
+  name: ISolutionAnalyzerService
+  nameWithType: ISolutionAnalyzerService
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService
+- uid: System.Object.Equals(System.Object)
+  commentId: M:System.Object.Equals(System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  name: Equals(object)
+  nameWithType: object.Equals(object)
+  fullName: object.Equals(object)
+  nameWithType.vb: Object.Equals(Object)
+  fullName.vb: Object.Equals(Object)
+  name.vb: Equals(Object)
+  spec.csharp:
+  - uid: System.Object.Equals(System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.Equals(System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.Equals(System.Object,System.Object)
+  commentId: M:System.Object.Equals(System.Object,System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  name: Equals(object, object)
+  nameWithType: object.Equals(object, object)
+  fullName: object.Equals(object, object)
+  nameWithType.vb: Object.Equals(Object, Object)
+  fullName.vb: Object.Equals(Object, Object)
+  name.vb: Equals(Object, Object)
+  spec.csharp:
+  - uid: System.Object.Equals(System.Object,System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.Equals(System.Object,System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.GetHashCode
+  commentId: M:System.Object.GetHashCode
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  name: GetHashCode()
+  nameWithType: object.GetHashCode()
+  fullName: object.GetHashCode()
+  nameWithType.vb: Object.GetHashCode()
+  fullName.vb: Object.GetHashCode()
+  spec.csharp:
+  - uid: System.Object.GetHashCode
+    name: GetHashCode
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.GetHashCode
+    name: GetHashCode
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  - name: (
+  - name: )
+- uid: System.Object.GetType
+  commentId: M:System.Object.GetType
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  name: GetType()
+  nameWithType: object.GetType()
+  fullName: object.GetType()
+  nameWithType.vb: Object.GetType()
+  fullName.vb: Object.GetType()
+  spec.csharp:
+  - uid: System.Object.GetType
+    name: GetType
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.GetType
+    name: GetType
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  - name: (
+  - name: )
+- uid: System.Object.MemberwiseClone
+  commentId: M:System.Object.MemberwiseClone
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  name: MemberwiseClone()
+  nameWithType: object.MemberwiseClone()
+  fullName: object.MemberwiseClone()
+  nameWithType.vb: Object.MemberwiseClone()
+  fullName.vb: Object.MemberwiseClone()
+  spec.csharp:
+  - uid: System.Object.MemberwiseClone
+    name: MemberwiseClone
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.MemberwiseClone
+    name: MemberwiseClone
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  - name: (
+  - name: )
+- uid: System.Object.ReferenceEquals(System.Object,System.Object)
+  commentId: M:System.Object.ReferenceEquals(System.Object,System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  name: ReferenceEquals(object, object)
+  nameWithType: object.ReferenceEquals(object, object)
+  fullName: object.ReferenceEquals(object, object)
+  nameWithType.vb: Object.ReferenceEquals(Object, Object)
+  fullName.vb: Object.ReferenceEquals(Object, Object)
+  name.vb: ReferenceEquals(Object, Object)
+  spec.csharp:
+  - uid: System.Object.ReferenceEquals(System.Object,System.Object)
+    name: ReferenceEquals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.ReferenceEquals(System.Object,System.Object)
+    name: ReferenceEquals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.ToString
+  commentId: M:System.Object.ToString
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  name: ToString()
+  nameWithType: object.ToString()
+  fullName: object.ToString()
+  nameWithType.vb: Object.ToString()
+  fullName.vb: Object.ToString()
+  spec.csharp:
+  - uid: System.Object.ToString
+    name: ToString
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.ToString
+    name: ToString
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  - name: (
+  - name: )
+- uid: System
+  commentId: N:System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System
+  nameWithType: System
+  fullName: System
+- uid: RoselineMCP.Interfaces
+  commentId: N:RoselineMCP.Interfaces
+  href: RoselineMCP.html
+  name: RoselineMCP.Interfaces
+  nameWithType: RoselineMCP.Interfaces
+  fullName: RoselineMCP.Interfaces
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+- uid: RoselineMCP.Services.SolutionAnalyzerService.#ctor*
+  commentId: Overload:RoselineMCP.Services.SolutionAnalyzerService.#ctor
+  href: RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService__ctor_Microsoft_Extensions_Logging_ILogger_RoselineMCP_Services_SolutionAnalyzerService__RoselineMCP_Interfaces_IMSBuildService_RoselineMCP_Interfaces_IDiagnosticFilterService_
+  name: SolutionAnalyzerService
+  nameWithType: SolutionAnalyzerService.SolutionAnalyzerService
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.SolutionAnalyzerService
+  nameWithType.vb: SolutionAnalyzerService.New
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.New
+  name.vb: New
+- uid: Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService}
+  commentId: T:Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService}
+  parent: Microsoft.Extensions.Logging
+  definition: Microsoft.Extensions.Logging.ILogger`1
+  href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger-1
+  name: ILogger<SolutionAnalyzerService>
+  nameWithType: ILogger<SolutionAnalyzerService>
+  fullName: Microsoft.Extensions.Logging.ILogger<RoselineMCP.Services.SolutionAnalyzerService>
+  nameWithType.vb: ILogger(Of SolutionAnalyzerService)
+  fullName.vb: Microsoft.Extensions.Logging.ILogger(Of RoselineMCP.Services.SolutionAnalyzerService)
+  name.vb: ILogger(Of SolutionAnalyzerService)
+  spec.csharp:
+  - uid: Microsoft.Extensions.Logging.ILogger`1
+    name: ILogger
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger-1
+  - name: <
+  - uid: RoselineMCP.Services.SolutionAnalyzerService
+    name: SolutionAnalyzerService
+    href: RoselineMCP.Services.SolutionAnalyzerService.html
+  - name: '>'
+  spec.vb:
+  - uid: Microsoft.Extensions.Logging.ILogger`1
+    name: ILogger
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: RoselineMCP.Services.SolutionAnalyzerService
+    name: SolutionAnalyzerService
+    href: RoselineMCP.Services.SolutionAnalyzerService.html
+  - name: )
+- uid: RoselineMCP.Interfaces.IMSBuildService
+  commentId: T:RoselineMCP.Interfaces.IMSBuildService
+  parent: RoselineMCP.Interfaces
+  href: RoselineMCP.Interfaces.IMSBuildService.html
+  name: IMSBuildService
+  nameWithType: IMSBuildService
+  fullName: RoselineMCP.Interfaces.IMSBuildService
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService
+  commentId: T:RoselineMCP.Interfaces.IDiagnosticFilterService
+  parent: RoselineMCP.Interfaces
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html
+  name: IDiagnosticFilterService
+  nameWithType: IDiagnosticFilterService
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService
+- uid: Microsoft.Extensions.Logging.ILogger`1
+  commentId: T:Microsoft.Extensions.Logging.ILogger`1
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger-1
+  name: ILogger<TCategoryName>
+  nameWithType: ILogger<TCategoryName>
+  fullName: Microsoft.Extensions.Logging.ILogger<TCategoryName>
+  nameWithType.vb: ILogger(Of TCategoryName)
+  fullName.vb: Microsoft.Extensions.Logging.ILogger(Of TCategoryName)
+  name.vb: ILogger(Of TCategoryName)
+  spec.csharp:
+  - uid: Microsoft.Extensions.Logging.ILogger`1
+    name: ILogger
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger-1
+  - name: <
+  - name: TCategoryName
+  - name: '>'
+  spec.vb:
+  - uid: Microsoft.Extensions.Logging.ILogger`1
+    name: ILogger
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging.ilogger-1
+  - name: (
+  - name: Of
+  - name: " "
+  - name: TCategoryName
+  - name: )
+- uid: Microsoft.Extensions.Logging
+  commentId: N:Microsoft.Extensions.Logging
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/microsoft
+  name: Microsoft.Extensions.Logging
+  nameWithType: Microsoft.Extensions.Logging
+  fullName: Microsoft.Extensions.Logging
+  spec.csharp:
+  - uid: Microsoft
+    name: Microsoft
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft
+  - name: .
+  - uid: Microsoft.Extensions
+    name: Extensions
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions
+  - name: .
+  - uid: Microsoft.Extensions.Logging
+    name: Logging
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging
+  spec.vb:
+  - uid: Microsoft
+    name: Microsoft
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft
+  - name: .
+  - uid: Microsoft.Extensions
+    name: Extensions
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions
+  - name: .
+  - uid: Microsoft.Extensions.Logging
+    name: Logging
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.extensions.logging
+- uid: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync*
+  commentId: Overload:RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync
+  href: RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService_AnalyzeSolutionAsync_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  name: AnalyzeSolutionAsync
+  nameWithType: SolutionAnalyzerService.AnalyzeSolutionAsync
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  commentId: M:RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  parent: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  isExternal: true
+  href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_AnalyzeSolutionAsync_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  name: AnalyzeSolutionAsync(string, string, string, string, string, int)
+  nameWithType: ISolutionAnalyzerService.AnalyzeSolutionAsync(string, string, string, string, string, int)
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(string, string, string, string, string, int)
+  nameWithType.vb: ISolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  fullName.vb: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  name.vb: AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+    name: AnalyzeSolutionAsync
+    href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_AnalyzeSolutionAsync_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  - name: (
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.Int32
+    name: int
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.int32
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+    name: AnalyzeSolutionAsync
+    href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_AnalyzeSolutionAsync_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  - name: (
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.Int32
+    name: Integer
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.int32
+  - name: )
+- uid: System.String
+  commentId: T:System.String
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.string
+  name: string
+  nameWithType: string
+  fullName: string
+  nameWithType.vb: String
+  fullName.vb: String
+  name.vb: String
+- uid: System.Int32
+  commentId: T:System.Int32
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.int32
+  name: int
+  nameWithType: int
+  fullName: int
+  nameWithType.vb: Integer
+  fullName.vb: Integer
+  name.vb: Integer
+- uid: System.Threading.Tasks.Task{RoselineMCP.Models.AnalyzeSolutionResponse}
+  commentId: T:System.Threading.Tasks.Task{RoselineMCP.Models.AnalyzeSolutionResponse}
+  parent: System.Threading.Tasks
+  definition: System.Threading.Tasks.Task`1
+  href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  name: Task<AnalyzeSolutionResponse>
+  nameWithType: Task<AnalyzeSolutionResponse>
+  fullName: System.Threading.Tasks.Task<RoselineMCP.Models.AnalyzeSolutionResponse>
+  nameWithType.vb: Task(Of AnalyzeSolutionResponse)
+  fullName.vb: System.Threading.Tasks.Task(Of RoselineMCP.Models.AnalyzeSolutionResponse)
+  name.vb: Task(Of AnalyzeSolutionResponse)
+  spec.csharp:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: <
+  - uid: RoselineMCP.Models.AnalyzeSolutionResponse
+    name: AnalyzeSolutionResponse
+    href: RoselineMCP.Models.AnalyzeSolutionResponse.html
+  - name: '>'
+  spec.vb:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: RoselineMCP.Models.AnalyzeSolutionResponse
+    name: AnalyzeSolutionResponse
+    href: RoselineMCP.Models.AnalyzeSolutionResponse.html
+  - name: )
+- uid: System.Threading.Tasks.Task`1
+  commentId: T:System.Threading.Tasks.Task`1
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  name: Task<TResult>
+  nameWithType: Task<TResult>
+  fullName: System.Threading.Tasks.Task<TResult>
+  nameWithType.vb: Task(Of TResult)
+  fullName.vb: System.Threading.Tasks.Task(Of TResult)
+  name.vb: Task(Of TResult)
+  spec.csharp:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: <
+  - name: TResult
+  - name: '>'
+  spec.vb:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: (
+  - name: Of
+  - name: " "
+  - name: TResult
+  - name: )
+- uid: System.Threading.Tasks
+  commentId: N:System.Threading.Tasks
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System.Threading.Tasks
+  nameWithType: System.Threading.Tasks
+  fullName: System.Threading.Tasks
+  spec.csharp:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Threading
+    name: Threading
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading
+  - name: .
+  - uid: System.Threading.Tasks
+    name: Tasks
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks
+  spec.vb:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Threading
+    name: Threading
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading
+  - name: .
+  - uid: System.Threading.Tasks
+    name: Tasks
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks
+- uid: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync*
+  commentId: Overload:RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync
+  href: RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService_ListDiagnosticsAsync_System_String_System_Collections_Generic_List_System_String__System_Collections_Generic_List_System_String__System_Int32_
+  name: ListDiagnosticsAsync
+  nameWithType: SolutionAnalyzerService.ListDiagnosticsAsync
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  commentId: M:RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  parent: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  isExternal: true
+  href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_ListDiagnosticsAsync_System_String_System_Collections_Generic_List_System_String__System_Collections_Generic_List_System_String__System_Int32_
+  name: ListDiagnosticsAsync(string, List<string>, List<string>, int)
+  nameWithType: ISolutionAnalyzerService.ListDiagnosticsAsync(string, List<string>, List<string>, int)
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(string, System.Collections.Generic.List<string>, System.Collections.Generic.List<string>, int)
+  nameWithType.vb: ISolutionAnalyzerService.ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+  fullName.vb: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(String, System.Collections.Generic.List(Of String), System.Collections.Generic.List(Of String), Integer)
+  name.vb: ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+    name: ListDiagnosticsAsync
+    href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_ListDiagnosticsAsync_System_String_System_Collections_Generic_List_System_String__System_Collections_Generic_List_System_String__System_Int32_
+  - name: (
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  - name: ','
+  - name: " "
+  - uid: System.Int32
+    name: int
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.int32
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+    name: ListDiagnosticsAsync
+    href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_ListDiagnosticsAsync_System_String_System_Collections_Generic_List_System_String__System_Collections_Generic_List_System_String__System_Int32_
+  - name: (
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  - name: ','
+  - name: " "
+  - uid: System.Int32
+    name: Integer
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.int32
+  - name: )
+- uid: System.Collections.Generic.List{System.String}
+  commentId: T:System.Collections.Generic.List{System.String}
+  parent: System.Collections.Generic
+  definition: System.Collections.Generic.List`1
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  name: List<string>
+  nameWithType: List<string>
+  fullName: System.Collections.Generic.List<string>
+  nameWithType.vb: List(Of String)
+  fullName.vb: System.Collections.Generic.List(Of String)
+  name.vb: List(Of String)
+  spec.csharp:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+- uid: System.Threading.Tasks.Task{RoselineMCP.Models.ListDiagnosticsResponse}
+  commentId: T:System.Threading.Tasks.Task{RoselineMCP.Models.ListDiagnosticsResponse}
+  parent: System.Threading.Tasks
+  definition: System.Threading.Tasks.Task`1
+  href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  name: Task<ListDiagnosticsResponse>
+  nameWithType: Task<ListDiagnosticsResponse>
+  fullName: System.Threading.Tasks.Task<RoselineMCP.Models.ListDiagnosticsResponse>
+  nameWithType.vb: Task(Of ListDiagnosticsResponse)
+  fullName.vb: System.Threading.Tasks.Task(Of RoselineMCP.Models.ListDiagnosticsResponse)
+  name.vb: Task(Of ListDiagnosticsResponse)
+  spec.csharp:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: <
+  - uid: RoselineMCP.Models.ListDiagnosticsResponse
+    name: ListDiagnosticsResponse
+    href: RoselineMCP.Models.ListDiagnosticsResponse.html
+  - name: '>'
+  spec.vb:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: RoselineMCP.Models.ListDiagnosticsResponse
+    name: ListDiagnosticsResponse
+    href: RoselineMCP.Models.ListDiagnosticsResponse.html
+  - name: )
+- uid: System.Collections.Generic.List`1
+  commentId: T:System.Collections.Generic.List`1
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  name: List<T>
+  nameWithType: List<T>
+  fullName: System.Collections.Generic.List<T>
+  nameWithType.vb: List(Of T)
+  fullName.vb: System.Collections.Generic.List(Of T)
+  name.vb: List(Of T)
+  spec.csharp:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - name: T
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - name: T
+  - name: )
+- uid: System.Collections.Generic
+  commentId: N:System.Collections.Generic
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System.Collections.Generic
+  nameWithType: System.Collections.Generic
+  fullName: System.Collections.Generic
+  spec.csharp:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic
+  spec.vb:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic

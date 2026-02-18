@@ -1,0 +1,309 @@
+### YamlMime:ManagedReference
+items:
+- uid: RoselineMCP.Interfaces.IPatchService
+  commentId: T:RoselineMCP.Interfaces.IPatchService
+  id: IPatchService
+  parent: RoselineMCP.Interfaces
+  children:
+  - RoselineMCP.Interfaces.IPatchService.ApplyPatch(System.String,System.String)
+  - RoselineMCP.Interfaces.IPatchService.CreatePatch(System.String,System.String,System.String)
+  - RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(System.String,System.String)
+  - RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  langs:
+  - csharp
+  - vb
+  name: IPatchService
+  nameWithType: IPatchService
+  fullName: RoselineMCP.Interfaces.IPatchService
+  type: Interface
+  source:
+    id: IPatchService
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/IPatchService.cs
+    startLine: 7
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Interface for generating unified diff patches between text versions.
+  example: []
+  syntax:
+    content: public interface IPatchService
+    content.vb: Public Interface IPatchService
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatch(System.String,System.String,System.String)
+  commentId: M:RoselineMCP.Interfaces.IPatchService.CreatePatch(System.String,System.String,System.String)
+  id: CreatePatch(System.String,System.String,System.String)
+  parent: RoselineMCP.Interfaces.IPatchService
+  langs:
+  - csharp
+  - vb
+  name: CreatePatch(string, string, string?)
+  nameWithType: IPatchService.CreatePatch(string, string, string?)
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatch(string, string, string?)
+  type: Method
+  source:
+    id: CreatePatch
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/IPatchService.cs
+    startLine: 16
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Creates a unified diff patch between two text strings.
+  example: []
+  syntax:
+    content: CreatePatchResponse CreatePatch(string before, string after, string? fileName = null)
+    parameters:
+    - id: before
+      type: System.String
+      description: The original text content.
+    - id: after
+      type: System.String
+      description: The modified text content.
+    - id: fileName
+      type: System.String
+      description: Optional file name for the patch header.
+    return:
+      type: RoselineMCP.Models.CreatePatchResponse
+      description: A response containing the patch and change statistics.
+    content.vb: Function CreatePatch(before As String, after As String, fileName As String = Nothing) As CreatePatchResponse
+  overload: RoselineMCP.Interfaces.IPatchService.CreatePatch*
+  nameWithType.vb: IPatchService.CreatePatch(String, String, String)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.CreatePatch(String, String, String)
+  name.vb: CreatePatch(String, String, String)
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(System.String,System.String)
+  commentId: M:RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(System.String,System.String)
+  id: CreatePatchFromFiles(System.String,System.String)
+  parent: RoselineMCP.Interfaces.IPatchService
+  langs:
+  - csharp
+  - vb
+  name: CreatePatchFromFiles(string, string)
+  nameWithType: IPatchService.CreatePatchFromFiles(string, string)
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(string, string)
+  type: Method
+  source:
+    id: CreatePatchFromFiles
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/IPatchService.cs
+    startLine: 24
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Creates a unified diff patch from two file paths.
+  example: []
+  syntax:
+    content: CreatePatchResponse CreatePatchFromFiles(string beforePath, string afterPath)
+    parameters:
+    - id: beforePath
+      type: System.String
+      description: Path to the original file.
+    - id: afterPath
+      type: System.String
+      description: Path to the modified file.
+    return:
+      type: RoselineMCP.Models.CreatePatchResponse
+      description: A response containing the patch and change statistics.
+    content.vb: Function CreatePatchFromFiles(beforePath As String, afterPath As String) As CreatePatchResponse
+  overload: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles*
+  nameWithType.vb: IPatchService.CreatePatchFromFiles(String, String)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(String, String)
+  name.vb: CreatePatchFromFiles(String, String)
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  commentId: M:RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  id: CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  parent: RoselineMCP.Interfaces.IPatchService
+  langs:
+  - csharp
+  - vb
+  name: CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  nameWithType: IPatchService.CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  type: Method
+  source:
+    id: CreatePatchWithOptions
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/IPatchService.cs
+    startLine: 36
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Creates a unified diff patch with additional options.
+  example: []
+  syntax:
+    content: CreatePatchResponse CreatePatchWithOptions(string before, string after, string? fileName = null, int contextLines = 3, bool ignoreWhitespace = false, bool ignoreCase = false)
+    parameters:
+    - id: before
+      type: System.String
+      description: The original text content.
+    - id: after
+      type: System.String
+      description: The modified text content.
+    - id: fileName
+      type: System.String
+      description: Optional file name for the patch header.
+    - id: contextLines
+      type: System.Int32
+      description: Number of context lines to include.
+    - id: ignoreWhitespace
+      type: System.Boolean
+      description: Whether to ignore whitespace differences.
+    - id: ignoreCase
+      type: System.Boolean
+      description: Whether to ignore case differences.
+    return:
+      type: RoselineMCP.Models.CreatePatchResponse
+      description: A response containing the patch and change statistics.
+    content.vb: Function CreatePatchWithOptions(before As String, after As String, fileName As String = Nothing, contextLines As Integer = 3, ignoreWhitespace As Boolean = False, ignoreCase As Boolean = False) As CreatePatchResponse
+  overload: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions*
+  nameWithType.vb: IPatchService.CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+  name.vb: CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+- uid: RoselineMCP.Interfaces.IPatchService.ApplyPatch(System.String,System.String)
+  commentId: M:RoselineMCP.Interfaces.IPatchService.ApplyPatch(System.String,System.String)
+  id: ApplyPatch(System.String,System.String)
+  parent: RoselineMCP.Interfaces.IPatchService
+  langs:
+  - csharp
+  - vb
+  name: ApplyPatch(string, string)
+  nameWithType: IPatchService.ApplyPatch(string, string)
+  fullName: RoselineMCP.Interfaces.IPatchService.ApplyPatch(string, string)
+  type: Method
+  source:
+    id: ApplyPatch
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/IPatchService.cs
+    startLine: 50
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Applies a unified diff patch to a file.
+  example: []
+  syntax:
+    content: bool ApplyPatch(string filePath, string patch)
+    parameters:
+    - id: filePath
+      type: System.String
+      description: Path to the file to patch.
+    - id: patch
+      type: System.String
+      description: The unified diff patch to apply.
+    return:
+      type: System.Boolean
+      description: True if the patch was applied successfully, false otherwise.
+    content.vb: Function ApplyPatch(filePath As String, patch As String) As Boolean
+  overload: RoselineMCP.Interfaces.IPatchService.ApplyPatch*
+  nameWithType.vb: IPatchService.ApplyPatch(String, String)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.ApplyPatch(String, String)
+  name.vb: ApplyPatch(String, String)
+references:
+- uid: RoselineMCP.Interfaces
+  commentId: N:RoselineMCP.Interfaces
+  href: RoselineMCP.html
+  name: RoselineMCP.Interfaces
+  nameWithType: RoselineMCP.Interfaces
+  fullName: RoselineMCP.Interfaces
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatch*
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.CreatePatch
+  href: RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatch_System_String_System_String_System_String_
+  name: CreatePatch
+  nameWithType: IPatchService.CreatePatch
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatch
+- uid: System.String
+  commentId: T:System.String
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.string
+  name: string
+  nameWithType: string
+  fullName: string
+  nameWithType.vb: String
+  fullName.vb: String
+  name.vb: String
+- uid: RoselineMCP.Models.CreatePatchResponse
+  commentId: T:RoselineMCP.Models.CreatePatchResponse
+  parent: RoselineMCP.Models
+  href: RoselineMCP.Models.CreatePatchResponse.html
+  name: CreatePatchResponse
+  nameWithType: CreatePatchResponse
+  fullName: RoselineMCP.Models.CreatePatchResponse
+- uid: System
+  commentId: N:System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System
+  nameWithType: System
+  fullName: System
+- uid: RoselineMCP.Models
+  commentId: N:RoselineMCP.Models
+  href: RoselineMCP.html
+  name: RoselineMCP.Models
+  nameWithType: RoselineMCP.Models
+  fullName: RoselineMCP.Models
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Models
+    name: Models
+    href: RoselineMCP.Models.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Models
+    name: Models
+    href: RoselineMCP.Models.html
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles*
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles
+  href: RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatchFromFiles_System_String_System_String_
+  name: CreatePatchFromFiles
+  nameWithType: IPatchService.CreatePatchFromFiles
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions*
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions
+  href: RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatchWithOptions_System_String_System_String_System_String_System_Int32_System_Boolean_System_Boolean_
+  name: CreatePatchWithOptions
+  nameWithType: IPatchService.CreatePatchWithOptions
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions
+- uid: System.Int32
+  commentId: T:System.Int32
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.int32
+  name: int
+  nameWithType: int
+  fullName: int
+  nameWithType.vb: Integer
+  fullName.vb: Integer
+  name.vb: Integer
+- uid: System.Boolean
+  commentId: T:System.Boolean
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.boolean
+  name: bool
+  nameWithType: bool
+  fullName: bool
+  nameWithType.vb: Boolean
+  fullName.vb: Boolean
+  name.vb: Boolean
+- uid: RoselineMCP.Interfaces.IPatchService.ApplyPatch*
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.ApplyPatch
+  href: RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_ApplyPatch_System_String_System_String_
+  name: ApplyPatch
+  nameWithType: IPatchService.ApplyPatch
+  fullName: RoselineMCP.Interfaces.IPatchService.ApplyPatch

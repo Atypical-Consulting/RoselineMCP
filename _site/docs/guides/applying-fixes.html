@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Applying Fixes | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Applying Fixes | RoselineMCP ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="applying-fixes">Applying Fixes</h1>
+
+<p>Learn how to safely apply automated code fixes with RoselineMCP.</p>
+<h2 id="overview">Overview</h2>
+<p>The <code>applyFixes</code> tool automatically fixes code issues identified by analyzers. Always preview changes before applying.</p>
+<h2 id="basic-usage">Basic Usage</h2>
+<h3 id="preview-mode-recommended-first-step">Preview Mode (Recommended First Step)</h3>
+<pre><code class="lang-json">{
+  &quot;tool&quot;: &quot;applyFixes&quot;,
+  &quot;parameters&quot;: {
+    &quot;project&quot;: &quot;MyApp.Core&quot;,
+    &quot;ids&quot;: [&quot;CS0168&quot;],
+    &quot;previewOnly&quot;: true
+  }
+}
+</code></pre>
+<h3 id="apply-fixes">Apply Fixes</h3>
+<pre><code class="lang-json">{
+  &quot;tool&quot;: &quot;applyFixes&quot;,
+  &quot;parameters&quot;: {
+    &quot;project&quot;: &quot;MyApp.Core&quot;,
+    &quot;ids&quot;: [&quot;CS0168&quot;, &quot;IDE0005&quot;],
+    &quot;previewOnly&quot;: false
+  }
+}
+</code></pre>
+<h2 id="common-fix-scenarios">Common Fix Scenarios</h2>
+<h3 id="remove-unused-code">Remove Unused Code</h3>
+<pre><code class="lang-json">{
+  &quot;ids&quot;: [&quot;CS0168&quot;, &quot;CS0219&quot;, &quot;IDE0051&quot;, &quot;IDE0052&quot;, &quot;RCS1213&quot;]
+}
+</code></pre>
+<h3 id="fix-code-style">Fix Code Style</h3>
+<pre><code class="lang-json">{
+  &quot;ids&quot;: [&quot;SA1101&quot;, &quot;SA1200&quot;, &quot;SA1210&quot;, &quot;SA1309&quot;]
+}
+</code></pre>
+<h3 id="modernize-code">Modernize Code</h3>
+<pre><code class="lang-json">{
+  &quot;ids&quot;: [&quot;IDE0017&quot;, &quot;IDE0028&quot;, &quot;IDE0031&quot;, &quot;IDE0041&quot;, &quot;IDE0090&quot;]
+}
+</code></pre>
+<h2 id="understanding-the-response">Understanding the Response</h2>
+<pre><code class="lang-json">{
+  &quot;project&quot;: &quot;MyApp.Core&quot;,
+  &quot;fixesApplied&quot;: 15,
+  &quot;filesChanged&quot;: [
+    &quot;Services/UserService.cs&quot;,
+    &quot;Models/Product.cs&quot;
+  ],
+  &quot;patch&quot;: &quot;--- a/Services/UserService.cs\n+++ b/Services/UserService.cs\n...&quot;,
+  &quot;appliedFixers&quot;: [
+    {
+      &quot;diagnosticId&quot;: &quot;CS0168&quot;,
+      &quot;fixerName&quot;: &quot;Remove Unused Variable&quot;,
+      &quot;count&quot;: 8
+    }
+  ]
+}
+</code></pre>
+<h2 id="safe-fix-workflow">Safe Fix Workflow</h2>
+<ol>
+<li><strong>List diagnostics</strong> to identify fixable issues</li>
+<li><strong>Preview fixes</strong> with <code>previewOnly: true</code></li>
+<li><strong>Review the patch</strong> to understand changes</li>
+<li><strong>Apply fixes</strong> if satisfied</li>
+<li><strong>Test your code</strong> after applying</li>
+</ol>
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+<li>Always preview first</li>
+<li>Fix one diagnostic type at a time</li>
+<li>Commit before applying fixes</li>
+<li>Run tests after fixes</li>
+<li>Review patches carefully</li>
+</ul>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="creating-patches.html">Creating Patches</a></li>
+<li><a href="listing-diagnostics.html">Listing Diagnostics</a></li>
+<li><a href="../../api/index.html">API Reference</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

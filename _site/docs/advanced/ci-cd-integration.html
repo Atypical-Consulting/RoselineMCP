@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>CI/CD Integration | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="CI/CD Integration | RoselineMCP ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="cicd-integration">CI/CD Integration</h1>
+
+<p>Integrate RoselineMCP into your continuous integration and deployment pipelines.</p>
+<h2 id="github-actions">GitHub Actions</h2>
+<h3 id="code-quality-check">Code Quality Check</h3>
+<pre><code class="lang-yaml">name: Code Quality
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Install RoselineMCP
+      run: |
+        git clone https://github.com/phmatray/RoselineMCP.git
+        cd RoselineMCP
+        dotnet build -c Release
+    
+    - name: Analyze Solution
+      run: |
+        dotnet run --project RoselineMCP/RoselineMCP/RoselineMCP.csproj -- \
+          analyzeSolution \
+          --path ${{ github.workspace }}/YourSolution.sln \
+          --severity error
+    
+    - name: Check for Errors
+      run: |
+        if [ $? -ne 0 ]; then
+          echo &quot;Code analysis found errors&quot;
+          exit 1
+        fi
+</code></pre>
+<h3 id="automated-fixes">Automated Fixes</h3>
+<pre><code class="lang-yaml">name: Auto-fix Code Issues
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.PAT }}  # Personal access token for pushing
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Run RoselineMCP Fixes
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/workspace \
+          phmatray/roseline-mcp:latest \
+          applyFixes \
+          --project /workspace/YourProject.csproj \
+          --ids CS0168,IDE0005,RCS1213
+    
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        title: 'Auto-fix code issues'
+        body: 'Automated fixes applied by RoselineMCP'
+        branch: auto-fix/code-issues
+</code></pre>
+<h2 id="azure-devops">Azure DevOps</h2>
+<h3 id="pipeline-task">Pipeline Task</h3>
+<pre><code class="lang-yaml">trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '9.0.x'
+
+- script: |
+    docker pull phmatray/roseline-mcp:latest
+  displayName: 'Pull RoselineMCP'
+
+- script: |
+    docker run --rm \
+      -v $(Build.SourcesDirectory):/workspace:ro \
+      phmatray/roseline-mcp:latest \
+      analyzeSolution \
+      --path /workspace/Solution.sln \
+      --severity warning \
+      &gt; analysis-report.json
+  displayName: 'Analyze Code'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: 'analysis-report.json'
+    artifactName: 'CodeAnalysis'
+</code></pre>
+<h2 id="gitlab-ci">GitLab CI</h2>
+<pre><code class="lang-yaml">stages:
+  - analysis
+  - fix
+
+analyze:
+  stage: analysis
+  image: mcr.microsoft.com/dotnet/sdk:9.0
+  script:
+    - git clone https://github.com/phmatray/RoselineMCP.git
+    - cd RoselineMCP &amp;&amp; dotnet build -c Release
+    - dotnet run --project RoselineMCP/RoselineMCP.csproj -- \
+        analyzeSolution \
+        --path $CI_PROJECT_DIR/Solution.sln \
+        --exclude Test
+  artifacts:
+    reports:
+      dotnet: analysis-report.json
+
+apply-fixes:
+  stage: fix
+  image: phmatray/roseline-mcp:latest
+  script:
+    - applyFixes \
+        --project $CI_PROJECT_DIR/Project.csproj \
+        --ids CS0168,IDE0005 \
+        --previewOnly
+  only:
+    - merge_requests
+</code></pre>
+<h2 id="jenkins">Jenkins</h2>
+<pre><code class="lang-groovy">pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Analysis') {
+            steps {
+                script {
+                    docker.image('phmatray/roseline-mcp:latest').inside {
+                        sh '''
+                            analyzeSolution \
+                              --path ${WORKSPACE}/Solution.sln \
+                              --severity error \
+                              &gt; analysis.json
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Report') {
+            steps {
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: '.',
+                    reportFiles: 'analysis.json',
+                    reportName: 'Code Analysis'
+                ])
+            }
+        }
+    }
+    
+    post {
+        failure {
+            emailext subject: 'Code Analysis Failed',
+                     body: 'Check the analysis report',
+                     to: 'team@example.com'
+        }
+    }
+}
+</code></pre>
+<h2 id="quality-gates">Quality Gates</h2>
+<h3 id="fail-on-errors">Fail on Errors</h3>
+<pre><code class="lang-bash">#!/bin/bash
+RESULT=$(analyzeSolution --path Solution.sln)
+ERRORS=$(echo $RESULT | jq '.diagnosticSummary.error')
+
+if [ &quot;$ERRORS&quot; -gt 0 ]; then
+    echo &quot;Build failed: $ERRORS errors found&quot;
+    exit 1
+fi
+</code></pre>
+<h3 id="warning-threshold">Warning Threshold</h3>
+<pre><code class="lang-bash">#!/bin/bash
+MAX_WARNINGS=50
+RESULT=$(analyzeSolution --path Solution.sln)
+WARNINGS=$(echo $RESULT | jq '.diagnosticSummary.warning')
+
+if [ &quot;$WARNINGS&quot; -gt &quot;$MAX_WARNINGS&quot; ]; then
+    echo &quot;Too many warnings: $WARNINGS (max: $MAX_WARNINGS)&quot;
+    exit 1
+fi
+</code></pre>
+<h2 id="integration-with-sonarqube">Integration with SonarQube</h2>
+<pre><code class="lang-bash"># Export RoselineMCP results to SonarQube format
+analyze_and_convert() {
+    RESULT=$(analyzeSolution --path Solution.sln)
+    
+    # Convert to SonarQube generic issue format
+    echo $RESULT | jq '{
+        issues: .topDiagnostics | map({
+            engineId: &quot;RoselineMCP&quot;,
+            ruleId: .id,
+            severity: .severity | ascii_upcase,
+            type: &quot;CODE_SMELL&quot;,
+            primaryLocation: {
+                message: .message,
+                filePath: .file,
+                textRange: {
+                    startLine: .line,
+                    startColumn: .column
+                }
+            }
+        })
+    }' &gt; sonar-report.json
+    
+    # Import to SonarQube
+    sonar-scanner \
+        -Dsonar.externalIssuesReportPaths=sonar-report.json
+}
+</code></pre>
+<h2 id="notifications">Notifications</h2>
+<h3 id="slack-integration">Slack Integration</h3>
+<pre><code class="lang-bash"># Send analysis results to Slack
+RESULT=$(analyzeSolution --path Solution.sln)
+ERRORS=$(echo $RESULT | jq '.diagnosticSummary.error')
+WARNINGS=$(echo $RESULT | jq '.diagnosticSummary.warning')
+
+curl -X POST $SLACK_WEBHOOK_URL \
+  -H 'Content-Type: application/json' \
+  -d &quot;{
+    \&quot;text\&quot;: \&quot;Code Analysis Complete\&quot;,
+    \&quot;attachments\&quot;: [{
+      \&quot;color\&quot;: $([ $ERRORS -eq 0 ] &amp;&amp; echo '\&quot;good\&quot;' || echo '\&quot;danger\&quot;'),
+      \&quot;fields\&quot;: [
+        {\&quot;title\&quot;: \&quot;Errors\&quot;, \&quot;value\&quot;: \&quot;$ERRORS\&quot;, \&quot;short\&quot;: true},
+        {\&quot;title\&quot;: \&quot;Warnings\&quot;, \&quot;value\&quot;: \&quot;$WARNINGS\&quot;, \&quot;short\&quot;: true}
+      ]
+    }]
+  }&quot;
+</code></pre>
+<h2 id="best-practices">Best Practices</h2>
+<ol>
+<li><strong>Run on Every PR</strong>: Catch issues before merge</li>
+<li><strong>Set Quality Gates</strong>: Define acceptable thresholds</li>
+<li><strong>Automate Fixes</strong>: Schedule regular cleanup</li>
+<li><strong>Track Metrics</strong>: Monitor trends over time</li>
+<li><strong>Integrate with Tools</strong>: Connect to existing workflows</li>
+</ol>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="docker-deployment.html">Docker Deployment</a></li>
+<li><a href="../getting-started/configuration.html">Configuration</a></li>
+<li><a href="../../api/index.html">API Reference</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Docker Deployment | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Docker Deployment | RoselineMCP ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="docker-deployment">Docker Deployment</h1>
+
+<p>Deploy RoselineMCP using Docker containers.</p>
+<h2 id="quick-start">Quick Start</h2>
+<h3 id="pull-and-run">Pull and Run</h3>
+<pre><code class="lang-bash"># Pull latest image
+docker pull phmatray/roseline-mcp:latest
+
+# Run container
+docker run --rm -it phmatray/roseline-mcp:latest
+</code></pre>
+<h2 id="multi-architecture-support">Multi-Architecture Support</h2>
+<h3 id="platform-specific-images">Platform-Specific Images</h3>
+<pre><code class="lang-bash"># AMD64/x64
+docker pull phmatray/roseline-mcp:latest --platform linux/amd64
+
+# ARM64 (Apple Silicon, AWS Graviton)
+docker pull phmatray/roseline-mcp:latest --platform linux/arm64
+</code></pre>
+<h2 id="building-images">Building Images</h2>
+<h3 id="using-net-sdk-container-support">Using .NET SDK Container Support</h3>
+<pre><code class="lang-bash"># Build for x64
+dotnet publish RoselineMCP/RoselineMCP.csproj \
+  --os linux --arch x64 \
+  /t:PublishContainer -c Release
+
+# Build for ARM64
+dotnet publish RoselineMCP/RoselineMCP.csproj \
+  --os linux --arch arm64 \
+  /t:PublishContainer -c Release
+</code></pre>
+<h3 id="using-the-publish-script">Using the Publish Script</h3>
+<pre><code class="lang-bash"># Publish with version tag
+./publish-docker.sh --version 1.0.0 --latest
+
+# Build only (no push)
+./publish-docker.sh --version 1.0.0 --no-push
+</code></pre>
+<h2 id="docker-compose">Docker Compose</h2>
+<pre><code class="lang-yaml">version: '3.8'
+
+services:
+  roseline-mcp:
+    image: phmatray/roseline-mcp:latest
+    container_name: roseline-mcp
+    environment:
+      - ROSELINE_LOG_LEVEL=Information
+      - ASPNETCORE_ENVIRONMENT=Production
+    volumes:
+      - ./solutions:/workspace:ro
+    restart: unless-stopped
+</code></pre>
+<h2 id="kubernetes-deployment">Kubernetes Deployment</h2>
+<pre><code class="lang-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: roseline-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: roseline-mcp
+  template:
+    metadata:
+      labels:
+        app: roseline-mcp
+    spec:
+      containers:
+      - name: roseline-mcp
+        image: phmatray/roseline-mcp:latest
+        env:
+        - name: ROSELINE_LOG_LEVEL
+          value: &quot;Information&quot;
+        resources:
+          limits:
+            memory: &quot;2Gi&quot;
+            cpu: &quot;1000m&quot;
+          requests:
+            memory: &quot;512Mi&quot;
+            cpu: &quot;250m&quot;
+</code></pre>
+<h2 id="volume-mounting">Volume Mounting</h2>
+<h3 id="analyzing-local-solutions">Analyzing Local Solutions</h3>
+<pre><code class="lang-bash">docker run --rm -it \
+  -v /path/to/solution:/workspace:ro \
+  phmatray/roseline-mcp:latest \
+  analyzeSolution --path /workspace/Solution.sln
+</code></pre>
+<h3 id="with-configuration">With Configuration</h3>
+<pre><code class="lang-bash">docker run --rm -it \
+  -v ./appsettings.json:/app/appsettings.json:ro \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  phmatray/roseline-mcp:latest
+</code></pre>
+<h2 id="environment-variables">Environment Variables</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ROSELINE_LOG_LEVEL</code></td>
+<td>Logging level</td>
+<td>Information</td>
+</tr>
+<tr>
+<td><code>ASPNETCORE_ENVIRONMENT</code></td>
+<td>Environment</td>
+<td>Production</td>
+</tr>
+<tr>
+<td><code>DOTNET_SYSTEM_GLOBALIZATION_INVARIANT</code></td>
+<td>Globalization</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<h2 id="health-checks">Health Checks</h2>
+<pre><code class="lang-dockerfile">HEALTHCHECK --interval=30s --timeout=3s \
+  CMD dotnet RoselineMCP.dll --health || exit 1
+</code></pre>
+<h2 id="resource-requirements">Resource Requirements</h2>
+<h3 id="minimum">Minimum</h3>
+<ul>
+<li>CPU: 0.25 cores</li>
+<li>Memory: 512MB</li>
+<li>Storage: 100MB</li>
+</ul>
+<h3 id="recommended">Recommended</h3>
+<ul>
+<li>CPU: 1 core</li>
+<li>Memory: 2GB</li>
+<li>Storage: 500MB</li>
+</ul>
+<h2 id="security-best-practices">Security Best Practices</h2>
+<ol>
+<li>Run as non-root user</li>
+<li>Use read-only volumes</li>
+<li>Limit resource consumption</li>
+<li>Scan images for vulnerabilities</li>
+<li>Use specific version tags</li>
+</ol>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="container-exits-immediately">Container Exits Immediately</h3>
+<pre><code class="lang-bash"># Check logs
+docker logs roseline-mcp
+
+# Run with shell
+docker run --rm -it --entrypoint /bin/sh phmatray/roseline-mcp:latest
+</code></pre>
+<h3 id="permission-denied">Permission Denied</h3>
+<pre><code class="lang-bash"># Fix volume permissions
+docker run --rm -it \
+  --user $(id -u):$(id -g) \
+  -v /path/to/solution:/workspace:ro \
+  phmatray/roseline-mcp:latest
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="ci-cd-integration.html">CI/CD Integration</a></li>
+<li><a href="../getting-started/configuration.html">Configuration</a></li>
+<li><a href="../../api/index.html">API Reference</a></li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

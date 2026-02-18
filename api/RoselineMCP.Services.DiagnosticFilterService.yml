@@ -1,0 +1,1060 @@
+### YamlMime:ManagedReference
+items:
+- uid: RoselineMCP.Services.DiagnosticFilterService
+  commentId: T:RoselineMCP.Services.DiagnosticFilterService
+  id: DiagnosticFilterService
+  parent: RoselineMCP.Services
+  children:
+  - RoselineMCP.Services.DiagnosticFilterService.#ctor
+  - RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  - RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  - RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(System.String)
+  - RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(System.String)
+  - RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  - RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  langs:
+  - csharp
+  - vb
+  name: DiagnosticFilterService
+  nameWithType: DiagnosticFilterService
+  fullName: RoselineMCP.Services.DiagnosticFilterService
+  type: Class
+  source:
+    id: DiagnosticFilterService
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 8
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Service for filtering diagnostics based on various criteria.
+  example: []
+  syntax:
+    content: 'public class DiagnosticFilterService : IDiagnosticFilterService'
+    content.vb: Public Class DiagnosticFilterService Implements IDiagnosticFilterService
+  inheritance:
+  - System.Object
+  implements:
+  - RoselineMCP.Interfaces.IDiagnosticFilterService
+  inheritedMembers:
+  - System.Object.Equals(System.Object)
+  - System.Object.Equals(System.Object,System.Object)
+  - System.Object.GetHashCode
+  - System.Object.GetType
+  - System.Object.MemberwiseClone
+  - System.Object.ReferenceEquals(System.Object,System.Object)
+  - System.Object.ToString
+- uid: RoselineMCP.Services.DiagnosticFilterService.#ctor
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.#ctor
+  id: '#ctor'
+  parent: RoselineMCP.Services.DiagnosticFilterService
+  langs:
+  - csharp
+  - vb
+  name: DiagnosticFilterService()
+  nameWithType: DiagnosticFilterService.DiagnosticFilterService()
+  fullName: RoselineMCP.Services.DiagnosticFilterService.DiagnosticFilterService()
+  type: Constructor
+  source:
+    id: .ctor
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 12
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  syntax:
+    content: public DiagnosticFilterService()
+    content.vb: Public Sub New()
+  overload: RoselineMCP.Services.DiagnosticFilterService.#ctor*
+  nameWithType.vb: DiagnosticFilterService.New()
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.New()
+  name.vb: New()
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  id: ShouldAnalyzeProject(System.String,System.String,System.String)
+  parent: RoselineMCP.Services.DiagnosticFilterService
+  langs:
+  - csharp
+  - vb
+  name: ShouldAnalyzeProject(string, string?, string?)
+  nameWithType: DiagnosticFilterService.ShouldAnalyzeProject(string, string?, string?)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(string, string?, string?)
+  type: Method
+  source:
+    id: ShouldAnalyzeProject
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 18
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Determines if a project should be analyzed based on include/exclude patterns.
+  example: []
+  syntax:
+    content: public bool ShouldAnalyzeProject(string projectName, string? includePattern, string? excludePattern)
+    parameters:
+    - id: projectName
+      type: System.String
+    - id: includePattern
+      type: System.String
+    - id: excludePattern
+      type: System.String
+    return:
+      type: System.Boolean
+    content.vb: Public Function ShouldAnalyzeProject(projectName As String, includePattern As String, excludePattern As String) As Boolean
+  overload: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject*
+  implements:
+  - RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  nameWithType.vb: DiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+  name.vb: ShouldAnalyzeProject(String, String, String)
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  id: ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  parent: RoselineMCP.Services.DiagnosticFilterService
+  langs:
+  - csharp
+  - vb
+  name: ShouldIncludeDiagnostic(Diagnostic, string?)
+  nameWithType: DiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, string?)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, string?)
+  type: Method
+  source:
+    id: ShouldIncludeDiagnostic
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 34
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Determines if a diagnostic should be included based on severity filter.
+  example: []
+  syntax:
+    content: public bool ShouldIncludeDiagnostic(Diagnostic diagnostic, string? severityFilter)
+    parameters:
+    - id: diagnostic
+      type: Microsoft.CodeAnalysis.Diagnostic
+    - id: severityFilter
+      type: System.String
+    return:
+      type: System.Boolean
+    content.vb: Public Function ShouldIncludeDiagnostic(diagnostic As Diagnostic, severityFilter As String) As Boolean
+  overload: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic*
+  implements:
+  - RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  nameWithType.vb: DiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, String)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, String)
+  name.vb: ShouldIncludeDiagnostic(Diagnostic, String)
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  id: FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  parent: RoselineMCP.Services.DiagnosticFilterService
+  langs:
+  - csharp
+  - vb
+  name: FilterByIds(Diagnostic, List<string>?)
+  nameWithType: DiagnosticFilterService.FilterByIds(Diagnostic, List<string>?)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>?)
+  type: Method
+  source:
+    id: FilterByIds
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 56
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Filters diagnostics by diagnostic IDs.
+  example: []
+  syntax:
+    content: public bool FilterByIds(Diagnostic diagnostic, List<string>? ids)
+    parameters:
+    - id: diagnostic
+      type: Microsoft.CodeAnalysis.Diagnostic
+    - id: ids
+      type: System.Collections.Generic.List{System.String}
+    return:
+      type: System.Boolean
+    content.vb: Public Function FilterByIds(diagnostic As Diagnostic, ids As List(Of String)) As Boolean
+  overload: RoselineMCP.Services.DiagnosticFilterService.FilterByIds*
+  implements:
+  - RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  nameWithType.vb: DiagnosticFilterService.FilterByIds(Diagnostic, List(Of String))
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  name.vb: FilterByIds(Diagnostic, List(Of String))
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  id: FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  parent: RoselineMCP.Services.DiagnosticFilterService
+  langs:
+  - csharp
+  - vb
+  name: FilterByFiles(Diagnostic, List<string>?)
+  nameWithType: DiagnosticFilterService.FilterByFiles(Diagnostic, List<string>?)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>?)
+  type: Method
+  source:
+    id: FilterByFiles
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 65
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Filters diagnostics by file patterns.
+  example: []
+  syntax:
+    content: public bool FilterByFiles(Diagnostic diagnostic, List<string>? files)
+    parameters:
+    - id: diagnostic
+      type: Microsoft.CodeAnalysis.Diagnostic
+    - id: files
+      type: System.Collections.Generic.List{System.String}
+    return:
+      type: System.Boolean
+    content.vb: Public Function FilterByFiles(diagnostic As Diagnostic, files As List(Of String)) As Boolean
+  overload: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles*
+  implements:
+  - RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  nameWithType.vb: DiagnosticFilterService.FilterByFiles(Diagnostic, List(Of String))
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  name.vb: FilterByFiles(Diagnostic, List(Of String))
+- uid: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(System.String)
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(System.String)
+  id: GetSeverityPriority(System.String)
+  parent: RoselineMCP.Services.DiagnosticFilterService
+  langs:
+  - csharp
+  - vb
+  name: GetSeverityPriority(string)
+  nameWithType: DiagnosticFilterService.GetSeverityPriority(string)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(string)
+  type: Method
+  source:
+    id: GetSeverityPriority
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 78
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Gets the priority value for a severity level.
+  example: []
+  syntax:
+    content: public int GetSeverityPriority(string severity)
+    parameters:
+    - id: severity
+      type: System.String
+    return:
+      type: System.Int32
+    content.vb: Public Function GetSeverityPriority(severity As String) As Integer
+  overload: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority*
+  implements:
+  - RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(System.String)
+  nameWithType.vb: DiagnosticFilterService.GetSeverityPriority(String)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(String)
+  name.vb: GetSeverityPriority(String)
+- uid: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(System.String)
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(System.String)
+  id: IsFixableDiagnostic(System.String)
+  parent: RoselineMCP.Services.DiagnosticFilterService
+  langs:
+  - csharp
+  - vb
+  name: IsFixableDiagnostic(string)
+  nameWithType: DiagnosticFilterService.IsFixableDiagnostic(string)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(string)
+  type: Method
+  source:
+    id: IsFixableDiagnostic
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Services/DiagnosticFilterService.cs
+    startLine: 90
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Services
+  summary: Determines if a diagnostic ID is fixable.
+  example: []
+  syntax:
+    content: public bool IsFixableDiagnostic(string id)
+    parameters:
+    - id: id
+      type: System.String
+    return:
+      type: System.Boolean
+    content.vb: Public Function IsFixableDiagnostic(id As String) As Boolean
+  overload: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic*
+  implements:
+  - RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(System.String)
+  nameWithType.vb: DiagnosticFilterService.IsFixableDiagnostic(String)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(String)
+  name.vb: IsFixableDiagnostic(String)
+references:
+- uid: RoselineMCP.Services
+  commentId: N:RoselineMCP.Services
+  href: RoselineMCP.html
+  name: RoselineMCP.Services
+  nameWithType: RoselineMCP.Services
+  fullName: RoselineMCP.Services
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Services
+    name: Services
+    href: RoselineMCP.Services.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Services
+    name: Services
+    href: RoselineMCP.Services.html
+- uid: System.Object
+  commentId: T:System.Object
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object
+  name: object
+  nameWithType: object
+  fullName: object
+  nameWithType.vb: Object
+  fullName.vb: Object
+  name.vb: Object
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService
+  commentId: T:RoselineMCP.Interfaces.IDiagnosticFilterService
+  parent: RoselineMCP.Interfaces
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html
+  name: IDiagnosticFilterService
+  nameWithType: IDiagnosticFilterService
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService
+- uid: System.Object.Equals(System.Object)
+  commentId: M:System.Object.Equals(System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  name: Equals(object)
+  nameWithType: object.Equals(object)
+  fullName: object.Equals(object)
+  nameWithType.vb: Object.Equals(Object)
+  fullName.vb: Object.Equals(Object)
+  name.vb: Equals(Object)
+  spec.csharp:
+  - uid: System.Object.Equals(System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.Equals(System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object)
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.Equals(System.Object,System.Object)
+  commentId: M:System.Object.Equals(System.Object,System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  name: Equals(object, object)
+  nameWithType: object.Equals(object, object)
+  fullName: object.Equals(object, object)
+  nameWithType.vb: Object.Equals(Object, Object)
+  fullName.vb: Object.Equals(Object, Object)
+  name.vb: Equals(Object, Object)
+  spec.csharp:
+  - uid: System.Object.Equals(System.Object,System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.Equals(System.Object,System.Object)
+    name: Equals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.equals#system-object-equals(system-object-system-object)
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.GetHashCode
+  commentId: M:System.Object.GetHashCode
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  name: GetHashCode()
+  nameWithType: object.GetHashCode()
+  fullName: object.GetHashCode()
+  nameWithType.vb: Object.GetHashCode()
+  fullName.vb: Object.GetHashCode()
+  spec.csharp:
+  - uid: System.Object.GetHashCode
+    name: GetHashCode
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.GetHashCode
+    name: GetHashCode
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gethashcode
+  - name: (
+  - name: )
+- uid: System.Object.GetType
+  commentId: M:System.Object.GetType
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  name: GetType()
+  nameWithType: object.GetType()
+  fullName: object.GetType()
+  nameWithType.vb: Object.GetType()
+  fullName.vb: Object.GetType()
+  spec.csharp:
+  - uid: System.Object.GetType
+    name: GetType
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.GetType
+    name: GetType
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.gettype
+  - name: (
+  - name: )
+- uid: System.Object.MemberwiseClone
+  commentId: M:System.Object.MemberwiseClone
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  name: MemberwiseClone()
+  nameWithType: object.MemberwiseClone()
+  fullName: object.MemberwiseClone()
+  nameWithType.vb: Object.MemberwiseClone()
+  fullName.vb: Object.MemberwiseClone()
+  spec.csharp:
+  - uid: System.Object.MemberwiseClone
+    name: MemberwiseClone
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.MemberwiseClone
+    name: MemberwiseClone
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.memberwiseclone
+  - name: (
+  - name: )
+- uid: System.Object.ReferenceEquals(System.Object,System.Object)
+  commentId: M:System.Object.ReferenceEquals(System.Object,System.Object)
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  name: ReferenceEquals(object, object)
+  nameWithType: object.ReferenceEquals(object, object)
+  fullName: object.ReferenceEquals(object, object)
+  nameWithType.vb: Object.ReferenceEquals(Object, Object)
+  fullName.vb: Object.ReferenceEquals(Object, Object)
+  name.vb: ReferenceEquals(Object, Object)
+  spec.csharp:
+  - uid: System.Object.ReferenceEquals(System.Object,System.Object)
+    name: ReferenceEquals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  - name: (
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+  spec.vb:
+  - uid: System.Object.ReferenceEquals(System.Object,System.Object)
+    name: ReferenceEquals
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.referenceequals
+  - name: (
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: ','
+  - name: " "
+  - uid: System.Object
+    name: Object
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object
+  - name: )
+- uid: System.Object.ToString
+  commentId: M:System.Object.ToString
+  parent: System.Object
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  name: ToString()
+  nameWithType: object.ToString()
+  fullName: object.ToString()
+  nameWithType.vb: Object.ToString()
+  fullName.vb: Object.ToString()
+  spec.csharp:
+  - uid: System.Object.ToString
+    name: ToString
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  - name: (
+  - name: )
+  spec.vb:
+  - uid: System.Object.ToString
+    name: ToString
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.object.tostring
+  - name: (
+  - name: )
+- uid: System
+  commentId: N:System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System
+  nameWithType: System
+  fullName: System
+- uid: RoselineMCP.Interfaces
+  commentId: N:RoselineMCP.Interfaces
+  href: RoselineMCP.html
+  name: RoselineMCP.Interfaces
+  nameWithType: RoselineMCP.Interfaces
+  fullName: RoselineMCP.Interfaces
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+- uid: RoselineMCP.Services.DiagnosticFilterService.#ctor*
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.#ctor
+  href: RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService__ctor
+  name: DiagnosticFilterService
+  nameWithType: DiagnosticFilterService.DiagnosticFilterService
+  fullName: RoselineMCP.Services.DiagnosticFilterService.DiagnosticFilterService
+  nameWithType.vb: DiagnosticFilterService.New
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.New
+  name.vb: New
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject*
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject
+  href: RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_ShouldAnalyzeProject_System_String_System_String_System_String_
+  name: ShouldAnalyzeProject
+  nameWithType: DiagnosticFilterService.ShouldAnalyzeProject
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  parent: RoselineMCP.Interfaces.IDiagnosticFilterService
+  isExternal: true
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldAnalyzeProject_System_String_System_String_System_String_
+  name: ShouldAnalyzeProject(string, string, string)
+  nameWithType: IDiagnosticFilterService.ShouldAnalyzeProject(string, string, string)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(string, string, string)
+  nameWithType.vb: IDiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+  name.vb: ShouldAnalyzeProject(String, String, String)
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+    name: ShouldAnalyzeProject
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldAnalyzeProject_System_String_System_String_System_String_
+  - name: (
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+    name: ShouldAnalyzeProject
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldAnalyzeProject_System_String_System_String_System_String_
+  - name: (
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+- uid: System.String
+  commentId: T:System.String
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.string
+  name: string
+  nameWithType: string
+  fullName: string
+  nameWithType.vb: String
+  fullName.vb: String
+  name.vb: String
+- uid: System.Boolean
+  commentId: T:System.Boolean
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.boolean
+  name: bool
+  nameWithType: bool
+  fullName: bool
+  nameWithType.vb: Boolean
+  fullName.vb: Boolean
+  name.vb: Boolean
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic*
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic
+  href: RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_ShouldIncludeDiagnostic_Microsoft_CodeAnalysis_Diagnostic_System_String_
+  name: ShouldIncludeDiagnostic
+  nameWithType: DiagnosticFilterService.ShouldIncludeDiagnostic
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  parent: RoselineMCP.Interfaces.IDiagnosticFilterService
+  isExternal: true
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldIncludeDiagnostic_Microsoft_CodeAnalysis_Diagnostic_System_String_
+  name: ShouldIncludeDiagnostic(Diagnostic, string)
+  nameWithType: IDiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, string)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, string)
+  nameWithType.vb: IDiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, String)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, String)
+  name.vb: ShouldIncludeDiagnostic(Diagnostic, String)
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+    name: ShouldIncludeDiagnostic
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldIncludeDiagnostic_Microsoft_CodeAnalysis_Diagnostic_System_String_
+  - name: (
+  - uid: Microsoft.CodeAnalysis.Diagnostic
+    name: Diagnostic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.diagnostic
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+    name: ShouldIncludeDiagnostic
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldIncludeDiagnostic_Microsoft_CodeAnalysis_Diagnostic_System_String_
+  - name: (
+  - uid: Microsoft.CodeAnalysis.Diagnostic
+    name: Diagnostic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.diagnostic
+  - name: ','
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+- uid: Microsoft.CodeAnalysis.Diagnostic
+  commentId: T:Microsoft.CodeAnalysis.Diagnostic
+  parent: Microsoft.CodeAnalysis
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.diagnostic
+  name: Diagnostic
+  nameWithType: Diagnostic
+  fullName: Microsoft.CodeAnalysis.Diagnostic
+- uid: Microsoft.CodeAnalysis
+  commentId: N:Microsoft.CodeAnalysis
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/microsoft
+  name: Microsoft.CodeAnalysis
+  nameWithType: Microsoft.CodeAnalysis
+  fullName: Microsoft.CodeAnalysis
+  spec.csharp:
+  - uid: Microsoft
+    name: Microsoft
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft
+  - name: .
+  - uid: Microsoft.CodeAnalysis
+    name: CodeAnalysis
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis
+  spec.vb:
+  - uid: Microsoft
+    name: Microsoft
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft
+  - name: .
+  - uid: Microsoft.CodeAnalysis
+    name: CodeAnalysis
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByIds*
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.FilterByIds
+  href: RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_FilterByIds_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  name: FilterByIds
+  nameWithType: DiagnosticFilterService.FilterByIds
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByIds
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  parent: RoselineMCP.Interfaces.IDiagnosticFilterService
+  isExternal: true
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByIds_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  name: FilterByIds(Diagnostic, List<string>)
+  nameWithType: IDiagnosticFilterService.FilterByIds(Diagnostic, List<string>)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>)
+  nameWithType.vb: IDiagnosticFilterService.FilterByIds(Diagnostic, List(Of String))
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  name.vb: FilterByIds(Diagnostic, List(Of String))
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+    name: FilterByIds
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByIds_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  - name: (
+  - uid: Microsoft.CodeAnalysis.Diagnostic
+    name: Diagnostic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.diagnostic
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+    name: FilterByIds
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByIds_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  - name: (
+  - uid: Microsoft.CodeAnalysis.Diagnostic
+    name: Diagnostic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.diagnostic
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  - name: )
+- uid: System.Collections.Generic.List{System.String}
+  commentId: T:System.Collections.Generic.List{System.String}
+  parent: System.Collections.Generic
+  definition: System.Collections.Generic.List`1
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  name: List<string>
+  nameWithType: List<string>
+  fullName: System.Collections.Generic.List<string>
+  nameWithType.vb: List(Of String)
+  fullName.vb: System.Collections.Generic.List(Of String)
+  name.vb: List(Of String)
+  spec.csharp:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+- uid: System.Collections.Generic.List`1
+  commentId: T:System.Collections.Generic.List`1
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  name: List<T>
+  nameWithType: List<T>
+  fullName: System.Collections.Generic.List<T>
+  nameWithType.vb: List(Of T)
+  fullName.vb: System.Collections.Generic.List(Of T)
+  name.vb: List(Of T)
+  spec.csharp:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - name: T
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - name: T
+  - name: )
+- uid: System.Collections.Generic
+  commentId: N:System.Collections.Generic
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System.Collections.Generic
+  nameWithType: System.Collections.Generic
+  fullName: System.Collections.Generic
+  spec.csharp:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic
+  spec.vb:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles*
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.FilterByFiles
+  href: RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_FilterByFiles_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  name: FilterByFiles
+  nameWithType: DiagnosticFilterService.FilterByFiles
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  parent: RoselineMCP.Interfaces.IDiagnosticFilterService
+  isExternal: true
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByFiles_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  name: FilterByFiles(Diagnostic, List<string>)
+  nameWithType: IDiagnosticFilterService.FilterByFiles(Diagnostic, List<string>)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>)
+  nameWithType.vb: IDiagnosticFilterService.FilterByFiles(Diagnostic, List(Of String))
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  name.vb: FilterByFiles(Diagnostic, List(Of String))
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+    name: FilterByFiles
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByFiles_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  - name: (
+  - uid: Microsoft.CodeAnalysis.Diagnostic
+    name: Diagnostic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.diagnostic
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+    name: FilterByFiles
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByFiles_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  - name: (
+  - uid: Microsoft.CodeAnalysis.Diagnostic
+    name: Diagnostic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/microsoft.codeanalysis.diagnostic
+  - name: ','
+  - name: " "
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  - name: )
+- uid: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority*
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority
+  href: RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_GetSeverityPriority_System_String_
+  name: GetSeverityPriority
+  nameWithType: DiagnosticFilterService.GetSeverityPriority
+  fullName: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(System.String)
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(System.String)
+  parent: RoselineMCP.Interfaces.IDiagnosticFilterService
+  isExternal: true
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_GetSeverityPriority_System_String_
+  name: GetSeverityPriority(string)
+  nameWithType: IDiagnosticFilterService.GetSeverityPriority(string)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(string)
+  nameWithType.vb: IDiagnosticFilterService.GetSeverityPriority(String)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(String)
+  name.vb: GetSeverityPriority(String)
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(System.String)
+    name: GetSeverityPriority
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_GetSeverityPriority_System_String_
+  - name: (
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(System.String)
+    name: GetSeverityPriority
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_GetSeverityPriority_System_String_
+  - name: (
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+- uid: System.Int32
+  commentId: T:System.Int32
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.int32
+  name: int
+  nameWithType: int
+  fullName: int
+  nameWithType.vb: Integer
+  fullName.vb: Integer
+  name.vb: Integer
+- uid: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic*
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic
+  href: RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_IsFixableDiagnostic_System_String_
+  name: IsFixableDiagnostic
+  nameWithType: DiagnosticFilterService.IsFixableDiagnostic
+  fullName: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(System.String)
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(System.String)
+  parent: RoselineMCP.Interfaces.IDiagnosticFilterService
+  isExternal: true
+  href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_IsFixableDiagnostic_System_String_
+  name: IsFixableDiagnostic(string)
+  nameWithType: IDiagnosticFilterService.IsFixableDiagnostic(string)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(string)
+  nameWithType.vb: IDiagnosticFilterService.IsFixableDiagnostic(String)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(String)
+  name.vb: IsFixableDiagnostic(String)
+  spec.csharp:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(System.String)
+    name: IsFixableDiagnostic
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_IsFixableDiagnostic_System_String_
+  - name: (
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+  spec.vb:
+  - uid: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(System.String)
+    name: IsFixableDiagnostic
+    href: RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_IsFixableDiagnostic_System_String_
+  - name: (
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )

@@ -1,0 +1,90 @@
+### YamlMime:ManagedReference
+items:
+- uid: RoselineMCP.Models
+  commentId: N:RoselineMCP.Models
+  id: RoselineMCP.Models
+  children:
+  - RoselineMCP.Models.AnalyzeSolutionResponse
+  - RoselineMCP.Models.ApplyFixesResponse
+  - RoselineMCP.Models.CreatePatchResponse
+  - RoselineMCP.Models.DiagnosticDetail
+  - RoselineMCP.Models.DiagnosticStats
+  - RoselineMCP.Models.DiagnosticSummary
+  - RoselineMCP.Models.ListDiagnosticsResponse
+  langs:
+  - csharp
+  - vb
+  name: RoselineMCP.Models
+  nameWithType: RoselineMCP.Models
+  fullName: RoselineMCP.Models
+  type: Namespace
+  assemblies:
+  - RoselineMCP
+references:
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse
+  commentId: T:RoselineMCP.Models.AnalyzeSolutionResponse
+  href: RoselineMCP.Models.AnalyzeSolutionResponse.html
+  name: AnalyzeSolutionResponse
+  nameWithType: AnalyzeSolutionResponse
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse
+- uid: RoselineMCP.Models.ApplyFixesResponse
+  commentId: T:RoselineMCP.Models.ApplyFixesResponse
+  href: RoselineMCP.Models.ApplyFixesResponse.html
+  name: ApplyFixesResponse
+  nameWithType: ApplyFixesResponse
+  fullName: RoselineMCP.Models.ApplyFixesResponse
+- uid: RoselineMCP.Models.CreatePatchResponse
+  commentId: T:RoselineMCP.Models.CreatePatchResponse
+  parent: RoselineMCP.Models
+  href: RoselineMCP.Models.CreatePatchResponse.html
+  name: CreatePatchResponse
+  nameWithType: CreatePatchResponse
+  fullName: RoselineMCP.Models.CreatePatchResponse
+- uid: RoselineMCP.Models.DiagnosticDetail
+  commentId: T:RoselineMCP.Models.DiagnosticDetail
+  href: RoselineMCP.Models.DiagnosticDetail.html
+  name: DiagnosticDetail
+  nameWithType: DiagnosticDetail
+  fullName: RoselineMCP.Models.DiagnosticDetail
+- uid: RoselineMCP.Models.DiagnosticStats
+  commentId: T:RoselineMCP.Models.DiagnosticStats
+  parent: RoselineMCP.Models
+  href: RoselineMCP.Models.DiagnosticStats.html
+  name: DiagnosticStats
+  nameWithType: DiagnosticStats
+  fullName: RoselineMCP.Models.DiagnosticStats
+- uid: RoselineMCP.Models.DiagnosticSummary
+  commentId: T:RoselineMCP.Models.DiagnosticSummary
+  parent: RoselineMCP.Models
+  href: RoselineMCP.Models.DiagnosticSummary.html
+  name: DiagnosticSummary
+  nameWithType: DiagnosticSummary
+  fullName: RoselineMCP.Models.DiagnosticSummary
+- uid: RoselineMCP.Models.ListDiagnosticsResponse
+  commentId: T:RoselineMCP.Models.ListDiagnosticsResponse
+  href: RoselineMCP.Models.ListDiagnosticsResponse.html
+  name: ListDiagnosticsResponse
+  nameWithType: ListDiagnosticsResponse
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse
+- uid: RoselineMCP.Models
+  commentId: N:RoselineMCP.Models
+  href: RoselineMCP.html
+  name: RoselineMCP.Models
+  nameWithType: RoselineMCP.Models
+  fullName: RoselineMCP.Models
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Models
+    name: Models
+    href: RoselineMCP.Models.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Models
+    name: Models
+    href: RoselineMCP.Models.html

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>Basic Usage | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="Basic Usage | RoselineMCP ">
+      
+      
+      <link rel="icon" href="../../favicon.ico">
+      <link rel="stylesheet" href="../../public/docfx.min.css">
+      <link rel="stylesheet" href="../../public/main.css">
+      <meta name="docfx:navrel" content="../../toc.html">
+      <meta name="docfx:tocrel" content="../toc.html">
+      
+      <meta name="docfx:rel" content="../../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../../index.html">
+            <img id="logo" class="svg" src="../../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="basic-usage">Basic Usage</h1>
+
+<p>Learn the fundamentals of using RoselineMCP to analyze and improve your C# code.</p>
+<h2 id="overview">Overview</h2>
+<p>RoselineMCP provides four main tools:</p>
+<ol>
+<li><strong>AnalyzeSolution</strong> - Analyze entire solutions</li>
+<li><strong>ListDiagnostics</strong> - Get detailed project diagnostics</li>
+<li><strong>ApplyFixes</strong> - Apply automated code fixes</li>
+<li><strong>CreatePatch</strong> - Generate diff patches</li>
+</ol>
+<h2 id="quick-examples">Quick Examples</h2>
+<h3 id="analyzing-a-solution">Analyzing a Solution</h3>
+<pre><code class="lang-bash"># Analyze a solution file
+mcp call analyzeSolution '{
+  &quot;pathOrGit&quot;: &quot;/path/to/MySolution.sln&quot;
+}'
+</code></pre>
+<h3 id="listing-project-diagnostics">Listing Project Diagnostics</h3>
+<pre><code class="lang-bash"># List diagnostics for a specific project
+mcp call listDiagnostics '{
+  &quot;project&quot;: &quot;MyProject.Core&quot;
+}'
+</code></pre>
+<h3 id="applying-fixes">Applying Fixes</h3>
+<pre><code class="lang-bash"># Preview fixes without applying
+mcp call applyFixes '{
+  &quot;project&quot;: &quot;MyProject.Core&quot;,
+  &quot;ids&quot;: [&quot;CS0168&quot;, &quot;IDE0005&quot;],
+  &quot;previewOnly&quot;: true
+}'
+</code></pre>
+<h3 id="creating-patches">Creating Patches</h3>
+<pre><code class="lang-bash"># Generate a diff patch
+mcp call createPatch '{
+  &quot;before&quot;: &quot;old code&quot;,
+  &quot;after&quot;: &quot;new code&quot;,
+  &quot;fileName&quot;: &quot;Example.cs&quot;
+}'
+</code></pre>
+<h2 id="understanding-diagnostics">Understanding Diagnostics</h2>
+<h3 id="diagnostic-ids">Diagnostic IDs</h3>
+<p>RoselineMCP supports various diagnostic ID patterns:</p>
+<ul>
+<li><strong>CS####</strong> - C# compiler warnings and errors</li>
+<li><strong>IDE####</strong> - IDE suggestions and refactorings</li>
+<li><strong>RCS####</strong> - Roslynator analyzer diagnostics</li>
+<li><strong>SA####</strong> - StyleCop analyzer rules</li>
+<li><strong>CA####</strong> - Code Analysis rules</li>
+</ul>
+<h3 id="severity-levels">Severity Levels</h3>
+<p>Diagnostics are categorized by severity:</p>
+<ul>
+<li><strong>Error</strong> - Code that won't compile</li>
+<li><strong>Warning</strong> - Potential issues or bad practices</li>
+<li><strong>Info</strong> - Suggestions for improvement</li>
+<li><strong>Hidden</strong> - Silent diagnostics (usually for IDE features)</li>
+</ul>
+<h2 id="filtering-options">Filtering Options</h2>
+<h3 id="by-severity">By Severity</h3>
+<p>Filter diagnostics by minimum severity:</p>
+<pre><code class="lang-json">{
+  &quot;severity&quot;: &quot;warning&quot;  // Shows warnings and errors only
+}
+</code></pre>
+<h3 id="by-project-pattern">By Project Pattern</h3>
+<p>Include or exclude projects by name pattern:</p>
+<pre><code class="lang-json">{
+  &quot;include&quot;: &quot;Core&quot;,     // Only projects containing &quot;Core&quot;
+  &quot;exclude&quot;: &quot;Test&quot;      // Exclude projects containing &quot;Test&quot;
+}
+</code></pre>
+<h3 id="by-diagnostic-id">By Diagnostic ID</h3>
+<p>Focus on specific diagnostic types:</p>
+<pre><code class="lang-json">{
+  &quot;ids&quot;: [&quot;CS0168&quot;, &quot;CS0219&quot;, &quot;IDE0005&quot;]
+}
+</code></pre>
+<h3 id="by-file-pattern">By File Pattern</h3>
+<p>Filter by file paths:</p>
+<pre><code class="lang-json">{
+  &quot;files&quot;: [&quot;**/Controllers/**&quot;, &quot;**/Services/**&quot;]
+}
+</code></pre>
+<h2 id="working-with-results">Working with Results</h2>
+<h3 id="solution-analysis-response">Solution Analysis Response</h3>
+<pre><code class="lang-json">{
+  &quot;solution&quot;: &quot;MySolution.sln&quot;,
+  &quot;projects&quot;: 5,
+  &quot;diagnosticSummary&quot;: {
+    &quot;error&quot;: 2,
+    &quot;warning&quot;: 45,
+    &quot;info&quot;: 12
+  },
+  &quot;topDiagnostics&quot;: [...]
+}
+</code></pre>
+<h3 id="diagnostic-details">Diagnostic Details</h3>
+<p>Each diagnostic includes:</p>
+<pre><code class="lang-json">{
+  &quot;project&quot;: &quot;MyProject&quot;,
+  &quot;file&quot;: &quot;Program.cs&quot;,
+  &quot;line&quot;: 42,
+  &quot;column&quot;: 12,
+  &quot;id&quot;: &quot;CS0168&quot;,
+  &quot;severity&quot;: &quot;warning&quot;,
+  &quot;message&quot;: &quot;The variable 'x' is declared but never used&quot;
+}
+</code></pre>
+<h3 id="fix-application-response">Fix Application Response</h3>
+<pre><code class="lang-json">{
+  &quot;project&quot;: &quot;MyProject&quot;,
+  &quot;fixesApplied&quot;: 12,
+  &quot;filesChanged&quot;: [&quot;File1.cs&quot;, &quot;File2.cs&quot;],
+  &quot;patch&quot;: &quot;--- a/File1.cs\n+++ b/File1.cs\n...&quot;,
+  &quot;appliedFixers&quot;: [...]
+}
+</code></pre>
+<h2 id="best-practices">Best Practices</h2>
+<h3 id="1-start-with-analysis">1. Start with Analysis</h3>
+<p>Always analyze first to understand the scope:</p>
+<pre><code class="lang-bash"># Get an overview
+analyzeSolution --severity warning --maxDiagnostics 50
+</code></pre>
+<h3 id="2-use-preview-mode">2. Use Preview Mode</h3>
+<p>Preview fixes before applying:</p>
+<pre><code class="lang-bash"># Preview without changing files
+applyFixes --previewOnly true
+</code></pre>
+<h3 id="3-filter-strategically">3. Filter Strategically</h3>
+<p>Focus on what matters:</p>
+<pre><code class="lang-bash"># Only production code errors
+analyzeSolution --exclude &quot;Test&quot; --severity error
+</code></pre>
+<h3 id="4-apply-fixes-incrementally">4. Apply Fixes Incrementally</h3>
+<p>Fix issues in batches:</p>
+<pre><code class="lang-bash"># Fix one type at a time
+applyFixes --ids [&quot;CS0168&quot;]  # Unused variables
+applyFixes --ids [&quot;IDE0005&quot;]  # Unnecessary usings
+</code></pre>
+<h3 id="5-document-changes">5. Document Changes</h3>
+<p>Generate patches for review:</p>
+<pre><code class="lang-bash"># Create a patch for documentation
+createPatch --fileName &quot;Changes.cs&quot;
+</code></pre>
+<h2 id="integration-examples">Integration Examples</h2>
+<h3 id="with-claude-desktop">With Claude Desktop</h3>
+<p>Once configured, you can ask Claude:</p>
+<ul>
+<li>&quot;Analyze my solution at /path/to/solution.sln&quot;</li>
+<li>&quot;List all unused variable warnings in MyProject&quot;</li>
+<li>&quot;Fix all StyleCop issues in the Core project&quot;</li>
+<li>&quot;Show me what would change if we fix all IDE suggestions&quot;</li>
+</ul>
+<h3 id="in-scripts">In Scripts</h3>
+<p>Automate analysis in your build pipeline:</p>
+<pre><code class="lang-bash">#!/bin/bash
+# analyze.sh
+
+SOLUTION=&quot;/path/to/solution.sln&quot;
+RESULT=$(mcp call analyzeSolution &quot;{\&quot;pathOrGit\&quot;: \&quot;$SOLUTION\&quot;}&quot;)
+
+if [[ $RESULT == *&quot;\&quot;error\&quot;: 0&quot;* ]]; then
+  echo &quot;✅ No errors found&quot;
+else
+  echo &quot;❌ Errors detected&quot;
+  exit 1
+fi
+</code></pre>
+<h3 id="in-cicd">In CI/CD</h3>
+<p>Add to your GitHub Actions:</p>
+<pre><code class="lang-yaml">- name: Analyze Code
+  run: |
+    dotnet run --project RoselineMCP \
+      analyzeSolution --path ${{ github.workspace }}/Solution.sln \
+      --severity error
+</code></pre>
+<h2 id="common-workflows">Common Workflows</h2>
+<h3 id="code-review-preparation">Code Review Preparation</h3>
+<ol>
+<li>Analyze the solution</li>
+<li>List fixable diagnostics</li>
+<li>Apply style fixes</li>
+<li>Generate patch for review</li>
+</ol>
+<h3 id="technical-debt-reduction">Technical Debt Reduction</h3>
+<ol>
+<li>Analyze with all severities</li>
+<li>Group by diagnostic ID</li>
+<li>Fix most common issues first</li>
+<li>Track progress over time</li>
+</ol>
+<h3 id="pre-commit-cleanup">Pre-commit Cleanup</h3>
+<ol>
+<li>List diagnostics in changed files</li>
+<li>Apply automated fixes</li>
+<li>Review the patch</li>
+<li>Commit the improvements</li>
+</ol>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="no-diagnostics-found">No Diagnostics Found</h3>
+<ul>
+<li>Verify the project builds successfully</li>
+<li>Check if analyzers are installed</li>
+<li>Try without filters first</li>
+</ul>
+<h3 id="fixes-not-applied">Fixes Not Applied</h3>
+<ul>
+<li>Ensure the diagnostic ID is fixable</li>
+<li>Check file permissions</li>
+<li>Verify no compilation errors</li>
+</ul>
+<h3 id="performance-issues">Performance Issues</h3>
+<ul>
+<li>Use <code>maxDiagnostics</code> to limit results</li>
+<li>Filter by specific projects</li>
+<li>Process in smaller batches</li>
+</ul>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="first-analysis.html">Your First Analysis</a> - Detailed walkthrough</li>
+<li><a href="../guides/analyzing-solutions.html">Analyzing Solutions</a> - Advanced techniques</li>
+<li><a href="../../api/index.html">API Reference</a> - Complete API documentation</li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

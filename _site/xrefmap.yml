@@ -1,0 +1,1426 @@
+### YamlMime:XRefMap
+sorted: true
+references:
+- uid: RoselineMCP.Interfaces
+  name: RoselineMCP.Interfaces
+  href: api/RoselineMCP.Interfaces.html
+  commentId: N:RoselineMCP.Interfaces
+  fullName: RoselineMCP.Interfaces
+  nameWithType: RoselineMCP.Interfaces
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory
+  name: ICodeFixProviderFactory
+  href: api/RoselineMCP.Interfaces.ICodeFixProviderFactory.html
+  commentId: T:RoselineMCP.Interfaces.ICodeFixProviderFactory
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory
+  nameWithType: ICodeFixProviderFactory
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  name: GetFixableDiagnosticIds()
+  href: api/RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_GetFixableDiagnosticIds
+  commentId: M:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds()
+  nameWithType: ICodeFixProviderFactory.GetFixableDiagnosticIds()
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds*
+  name: GetFixableDiagnosticIds
+  href: api/RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_GetFixableDiagnosticIds_
+  commentId: Overload:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetFixableDiagnosticIds
+  nameWithType: ICodeFixProviderFactory.GetFixableDiagnosticIds
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(System.String)
+  name: GetProviderForDiagnostic(string)
+  href: api/RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_GetProviderForDiagnostic_System_String_
+  commentId: M:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(System.String)
+  name.vb: GetProviderForDiagnostic(String)
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(string)
+  fullName.vb: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic(String)
+  nameWithType: ICodeFixProviderFactory.GetProviderForDiagnostic(string)
+  nameWithType.vb: ICodeFixProviderFactory.GetProviderForDiagnostic(String)
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic*
+  name: GetProviderForDiagnostic
+  href: api/RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_GetProviderForDiagnostic_
+  commentId: Overload:RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.GetProviderForDiagnostic
+  nameWithType: ICodeFixProviderFactory.GetProviderForDiagnostic
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  name: LoadProviders()
+  href: api/RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_LoadProviders
+  commentId: M:RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders()
+  nameWithType: ICodeFixProviderFactory.LoadProviders()
+- uid: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders*
+  name: LoadProviders
+  href: api/RoselineMCP.Interfaces.ICodeFixProviderFactory.html#RoselineMCP_Interfaces_ICodeFixProviderFactory_LoadProviders_
+  commentId: Overload:RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.ICodeFixProviderFactory.LoadProviders
+  nameWithType: ICodeFixProviderFactory.LoadProviders
+- uid: RoselineMCP.Interfaces.ICodeFixService
+  name: ICodeFixService
+  href: api/RoselineMCP.Interfaces.ICodeFixService.html
+  commentId: T:RoselineMCP.Interfaces.ICodeFixService
+  fullName: RoselineMCP.Interfaces.ICodeFixService
+  nameWithType: ICodeFixService
+- uid: RoselineMCP.Interfaces.ICodeFixService.ApplyFixesAsync(System.String,System.Collections.Generic.List{System.String},System.Boolean)
+  name: ApplyFixesAsync(string, List<string>, bool)
+  href: api/RoselineMCP.Interfaces.ICodeFixService.html#RoselineMCP_Interfaces_ICodeFixService_ApplyFixesAsync_System_String_System_Collections_Generic_List_System_String__System_Boolean_
+  commentId: M:RoselineMCP.Interfaces.ICodeFixService.ApplyFixesAsync(System.String,System.Collections.Generic.List{System.String},System.Boolean)
+  name.vb: ApplyFixesAsync(String, List(Of String), Boolean)
+  fullName: RoselineMCP.Interfaces.ICodeFixService.ApplyFixesAsync(string, System.Collections.Generic.List<string>, bool)
+  fullName.vb: RoselineMCP.Interfaces.ICodeFixService.ApplyFixesAsync(String, System.Collections.Generic.List(Of String), Boolean)
+  nameWithType: ICodeFixService.ApplyFixesAsync(string, List<string>, bool)
+  nameWithType.vb: ICodeFixService.ApplyFixesAsync(String, List(Of String), Boolean)
+- uid: RoselineMCP.Interfaces.ICodeFixService.ApplyFixesAsync*
+  name: ApplyFixesAsync
+  href: api/RoselineMCP.Interfaces.ICodeFixService.html#RoselineMCP_Interfaces_ICodeFixService_ApplyFixesAsync_
+  commentId: Overload:RoselineMCP.Interfaces.ICodeFixService.ApplyFixesAsync
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.ICodeFixService.ApplyFixesAsync
+  nameWithType: ICodeFixService.ApplyFixesAsync
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService
+  name: IDiagnosticFilterService
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html
+  commentId: T:RoselineMCP.Interfaces.IDiagnosticFilterService
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService
+  nameWithType: IDiagnosticFilterService
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name: FilterByFiles(Diagnostic, List<string>?)
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByFiles_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name.vb: FilterByFiles(Diagnostic, List(Of String))
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>?)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  nameWithType: IDiagnosticFilterService.FilterByFiles(Diagnostic, List<string>?)
+  nameWithType.vb: IDiagnosticFilterService.FilterByFiles(Diagnostic, List(Of String))
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles*
+  name: FilterByFiles
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByFiles_
+  commentId: Overload:RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByFiles
+  nameWithType: IDiagnosticFilterService.FilterByFiles
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name: FilterByIds(Diagnostic, List<string>?)
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByIds_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name.vb: FilterByIds(Diagnostic, List(Of String))
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>?)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  nameWithType: IDiagnosticFilterService.FilterByIds(Diagnostic, List<string>?)
+  nameWithType.vb: IDiagnosticFilterService.FilterByIds(Diagnostic, List(Of String))
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds*
+  name: FilterByIds
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_FilterByIds_
+  commentId: Overload:RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.FilterByIds
+  nameWithType: IDiagnosticFilterService.FilterByIds
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(System.String)
+  name: GetSeverityPriority(string)
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_GetSeverityPriority_System_String_
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(System.String)
+  name.vb: GetSeverityPriority(String)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(string)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority(String)
+  nameWithType: IDiagnosticFilterService.GetSeverityPriority(string)
+  nameWithType.vb: IDiagnosticFilterService.GetSeverityPriority(String)
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority*
+  name: GetSeverityPriority
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_GetSeverityPriority_
+  commentId: Overload:RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.GetSeverityPriority
+  nameWithType: IDiagnosticFilterService.GetSeverityPriority
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(System.String)
+  name: IsFixableDiagnostic(string)
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_IsFixableDiagnostic_System_String_
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(System.String)
+  name.vb: IsFixableDiagnostic(String)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(string)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic(String)
+  nameWithType: IDiagnosticFilterService.IsFixableDiagnostic(string)
+  nameWithType.vb: IDiagnosticFilterService.IsFixableDiagnostic(String)
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic*
+  name: IsFixableDiagnostic
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_IsFixableDiagnostic_
+  commentId: Overload:RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.IsFixableDiagnostic
+  nameWithType: IDiagnosticFilterService.IsFixableDiagnostic
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  name: ShouldAnalyzeProject(string, string?, string?)
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldAnalyzeProject_System_String_System_String_System_String_
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  name.vb: ShouldAnalyzeProject(String, String, String)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(string, string?, string?)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+  nameWithType: IDiagnosticFilterService.ShouldAnalyzeProject(string, string?, string?)
+  nameWithType.vb: IDiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject*
+  name: ShouldAnalyzeProject
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldAnalyzeProject_
+  commentId: Overload:RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldAnalyzeProject
+  nameWithType: IDiagnosticFilterService.ShouldAnalyzeProject
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  name: ShouldIncludeDiagnostic(Diagnostic, string?)
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldIncludeDiagnostic_Microsoft_CodeAnalysis_Diagnostic_System_String_
+  commentId: M:RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  name.vb: ShouldIncludeDiagnostic(Diagnostic, String)
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, string?)
+  fullName.vb: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, String)
+  nameWithType: IDiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, string?)
+  nameWithType.vb: IDiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, String)
+- uid: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic*
+  name: ShouldIncludeDiagnostic
+  href: api/RoselineMCP.Interfaces.IDiagnosticFilterService.html#RoselineMCP_Interfaces_IDiagnosticFilterService_ShouldIncludeDiagnostic_
+  commentId: Overload:RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiagnosticFilterService.ShouldIncludeDiagnostic
+  nameWithType: IDiagnosticFilterService.ShouldIncludeDiagnostic
+- uid: RoselineMCP.Interfaces.IDiffService
+  name: IDiffService
+  href: api/RoselineMCP.Interfaces.IDiffService.html
+  commentId: T:RoselineMCP.Interfaces.IDiffService
+  fullName: RoselineMCP.Interfaces.IDiffService
+  nameWithType: IDiffService
+- uid: RoselineMCP.Interfaces.IDiffService.GenerateUnifiedDiff(System.String,System.String,System.String,System.String)
+  name: GenerateUnifiedDiff(string, string, string, string)
+  href: api/RoselineMCP.Interfaces.IDiffService.html#RoselineMCP_Interfaces_IDiffService_GenerateUnifiedDiff_System_String_System_String_System_String_System_String_
+  commentId: M:RoselineMCP.Interfaces.IDiffService.GenerateUnifiedDiff(System.String,System.String,System.String,System.String)
+  name.vb: GenerateUnifiedDiff(String, String, String, String)
+  fullName: RoselineMCP.Interfaces.IDiffService.GenerateUnifiedDiff(string, string, string, string)
+  fullName.vb: RoselineMCP.Interfaces.IDiffService.GenerateUnifiedDiff(String, String, String, String)
+  nameWithType: IDiffService.GenerateUnifiedDiff(string, string, string, string)
+  nameWithType.vb: IDiffService.GenerateUnifiedDiff(String, String, String, String)
+- uid: RoselineMCP.Interfaces.IDiffService.GenerateUnifiedDiff*
+  name: GenerateUnifiedDiff
+  href: api/RoselineMCP.Interfaces.IDiffService.html#RoselineMCP_Interfaces_IDiffService_GenerateUnifiedDiff_
+  commentId: Overload:RoselineMCP.Interfaces.IDiffService.GenerateUnifiedDiff
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiffService.GenerateUnifiedDiff
+  nameWithType: IDiffService.GenerateUnifiedDiff
+- uid: RoselineMCP.Interfaces.IDiffService.NormalizeWhitespace(System.String)
+  name: NormalizeWhitespace(string)
+  href: api/RoselineMCP.Interfaces.IDiffService.html#RoselineMCP_Interfaces_IDiffService_NormalizeWhitespace_System_String_
+  commentId: M:RoselineMCP.Interfaces.IDiffService.NormalizeWhitespace(System.String)
+  name.vb: NormalizeWhitespace(String)
+  fullName: RoselineMCP.Interfaces.IDiffService.NormalizeWhitespace(string)
+  fullName.vb: RoselineMCP.Interfaces.IDiffService.NormalizeWhitespace(String)
+  nameWithType: IDiffService.NormalizeWhitespace(string)
+  nameWithType.vb: IDiffService.NormalizeWhitespace(String)
+- uid: RoselineMCP.Interfaces.IDiffService.NormalizeWhitespace*
+  name: NormalizeWhitespace
+  href: api/RoselineMCP.Interfaces.IDiffService.html#RoselineMCP_Interfaces_IDiffService_NormalizeWhitespace_
+  commentId: Overload:RoselineMCP.Interfaces.IDiffService.NormalizeWhitespace
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IDiffService.NormalizeWhitespace
+  nameWithType: IDiffService.NormalizeWhitespace
+- uid: RoselineMCP.Interfaces.IMSBuildService
+  name: IMSBuildService
+  href: api/RoselineMCP.Interfaces.IMSBuildService.html
+  commentId: T:RoselineMCP.Interfaces.IMSBuildService
+  fullName: RoselineMCP.Interfaces.IMSBuildService
+  nameWithType: IMSBuildService
+- uid: RoselineMCP.Interfaces.IMSBuildService.CreateWorkspace
+  name: CreateWorkspace()
+  href: api/RoselineMCP.Interfaces.IMSBuildService.html#RoselineMCP_Interfaces_IMSBuildService_CreateWorkspace
+  commentId: M:RoselineMCP.Interfaces.IMSBuildService.CreateWorkspace
+  fullName: RoselineMCP.Interfaces.IMSBuildService.CreateWorkspace()
+  nameWithType: IMSBuildService.CreateWorkspace()
+- uid: RoselineMCP.Interfaces.IMSBuildService.CreateWorkspace*
+  name: CreateWorkspace
+  href: api/RoselineMCP.Interfaces.IMSBuildService.html#RoselineMCP_Interfaces_IMSBuildService_CreateWorkspace_
+  commentId: Overload:RoselineMCP.Interfaces.IMSBuildService.CreateWorkspace
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IMSBuildService.CreateWorkspace
+  nameWithType: IMSBuildService.CreateWorkspace
+- uid: RoselineMCP.Interfaces.IMSBuildService.EnsureMSBuildRegistered
+  name: EnsureMSBuildRegistered()
+  href: api/RoselineMCP.Interfaces.IMSBuildService.html#RoselineMCP_Interfaces_IMSBuildService_EnsureMSBuildRegistered
+  commentId: M:RoselineMCP.Interfaces.IMSBuildService.EnsureMSBuildRegistered
+  fullName: RoselineMCP.Interfaces.IMSBuildService.EnsureMSBuildRegistered()
+  nameWithType: IMSBuildService.EnsureMSBuildRegistered()
+- uid: RoselineMCP.Interfaces.IMSBuildService.EnsureMSBuildRegistered*
+  name: EnsureMSBuildRegistered
+  href: api/RoselineMCP.Interfaces.IMSBuildService.html#RoselineMCP_Interfaces_IMSBuildService_EnsureMSBuildRegistered_
+  commentId: Overload:RoselineMCP.Interfaces.IMSBuildService.EnsureMSBuildRegistered
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IMSBuildService.EnsureMSBuildRegistered
+  nameWithType: IMSBuildService.EnsureMSBuildRegistered
+- uid: RoselineMCP.Interfaces.IPatchService
+  name: IPatchService
+  href: api/RoselineMCP.Interfaces.IPatchService.html
+  commentId: T:RoselineMCP.Interfaces.IPatchService
+  fullName: RoselineMCP.Interfaces.IPatchService
+  nameWithType: IPatchService
+- uid: RoselineMCP.Interfaces.IPatchService.ApplyPatch(System.String,System.String)
+  name: ApplyPatch(string, string)
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_ApplyPatch_System_String_System_String_
+  commentId: M:RoselineMCP.Interfaces.IPatchService.ApplyPatch(System.String,System.String)
+  name.vb: ApplyPatch(String, String)
+  fullName: RoselineMCP.Interfaces.IPatchService.ApplyPatch(string, string)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.ApplyPatch(String, String)
+  nameWithType: IPatchService.ApplyPatch(string, string)
+  nameWithType.vb: IPatchService.ApplyPatch(String, String)
+- uid: RoselineMCP.Interfaces.IPatchService.ApplyPatch*
+  name: ApplyPatch
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_ApplyPatch_
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.ApplyPatch
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IPatchService.ApplyPatch
+  nameWithType: IPatchService.ApplyPatch
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatch(System.String,System.String,System.String)
+  name: CreatePatch(string, string, string?)
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatch_System_String_System_String_System_String_
+  commentId: M:RoselineMCP.Interfaces.IPatchService.CreatePatch(System.String,System.String,System.String)
+  name.vb: CreatePatch(String, String, String)
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatch(string, string, string?)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.CreatePatch(String, String, String)
+  nameWithType: IPatchService.CreatePatch(string, string, string?)
+  nameWithType.vb: IPatchService.CreatePatch(String, String, String)
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatch*
+  name: CreatePatch
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatch_
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.CreatePatch
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatch
+  nameWithType: IPatchService.CreatePatch
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(System.String,System.String)
+  name: CreatePatchFromFiles(string, string)
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatchFromFiles_System_String_System_String_
+  commentId: M:RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(System.String,System.String)
+  name.vb: CreatePatchFromFiles(String, String)
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(string, string)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles(String, String)
+  nameWithType: IPatchService.CreatePatchFromFiles(string, string)
+  nameWithType.vb: IPatchService.CreatePatchFromFiles(String, String)
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles*
+  name: CreatePatchFromFiles
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatchFromFiles_
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchFromFiles
+  nameWithType: IPatchService.CreatePatchFromFiles
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  name: CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatchWithOptions_System_String_System_String_System_String_System_Int32_System_Boolean_System_Boolean_
+  commentId: M:RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  name.vb: CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  fullName.vb: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+  nameWithType: IPatchService.CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  nameWithType.vb: IPatchService.CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+- uid: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions*
+  name: CreatePatchWithOptions
+  href: api/RoselineMCP.Interfaces.IPatchService.html#RoselineMCP_Interfaces_IPatchService_CreatePatchWithOptions_
+  commentId: Overload:RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.IPatchService.CreatePatchWithOptions
+  nameWithType: IPatchService.CreatePatchWithOptions
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  name: ISolutionAnalyzerService
+  href: api/RoselineMCP.Interfaces.ISolutionAnalyzerService.html
+  commentId: T:RoselineMCP.Interfaces.ISolutionAnalyzerService
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  nameWithType: ISolutionAnalyzerService
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  name: AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  href: api/RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_AnalyzeSolutionAsync_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  commentId: M:RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  name.vb: AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  fullName.vb: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  nameWithType: ISolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  nameWithType.vb: ISolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync*
+  name: AnalyzeSolutionAsync
+  href: api/RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_AnalyzeSolutionAsync_
+  commentId: Overload:RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync
+  nameWithType: ISolutionAnalyzerService.AnalyzeSolutionAsync
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  name: ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  href: api/RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_ListDiagnosticsAsync_System_String_System_Collections_Generic_List_System_String__System_Collections_Generic_List_System_String__System_Int32_
+  commentId: M:RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  name.vb: ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(string, System.Collections.Generic.List<string>?, System.Collections.Generic.List<string>?, int)
+  fullName.vb: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(String, System.Collections.Generic.List(Of String), System.Collections.Generic.List(Of String), Integer)
+  nameWithType: ISolutionAnalyzerService.ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  nameWithType.vb: ISolutionAnalyzerService.ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync*
+  name: ListDiagnosticsAsync
+  href: api/RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_ListDiagnosticsAsync_
+  commentId: Overload:RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync
+  isSpec: "True"
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync
+  nameWithType: ISolutionAnalyzerService.ListDiagnosticsAsync
+- uid: RoselineMCP.Models
+  name: RoselineMCP.Models
+  href: api/RoselineMCP.Models.html
+  commentId: N:RoselineMCP.Models
+  fullName: RoselineMCP.Models
+  nameWithType: RoselineMCP.Models
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse
+  name: AnalyzeSolutionResponse
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html
+  commentId: T:RoselineMCP.Models.AnalyzeSolutionResponse
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse
+  nameWithType: AnalyzeSolutionResponse
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.DiagnosticSummary
+  name: DiagnosticSummary
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_DiagnosticSummary
+  commentId: P:RoselineMCP.Models.AnalyzeSolutionResponse.DiagnosticSummary
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.DiagnosticSummary
+  nameWithType: AnalyzeSolutionResponse.DiagnosticSummary
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.DiagnosticSummary*
+  name: DiagnosticSummary
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_DiagnosticSummary_
+  commentId: Overload:RoselineMCP.Models.AnalyzeSolutionResponse.DiagnosticSummary
+  isSpec: "True"
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.DiagnosticSummary
+  nameWithType: AnalyzeSolutionResponse.DiagnosticSummary
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.Projects
+  name: Projects
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_Projects
+  commentId: P:RoselineMCP.Models.AnalyzeSolutionResponse.Projects
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.Projects
+  nameWithType: AnalyzeSolutionResponse.Projects
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.Projects*
+  name: Projects
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_Projects_
+  commentId: Overload:RoselineMCP.Models.AnalyzeSolutionResponse.Projects
+  isSpec: "True"
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.Projects
+  nameWithType: AnalyzeSolutionResponse.Projects
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.Solution
+  name: Solution
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_Solution
+  commentId: P:RoselineMCP.Models.AnalyzeSolutionResponse.Solution
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.Solution
+  nameWithType: AnalyzeSolutionResponse.Solution
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.Solution*
+  name: Solution
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_Solution_
+  commentId: Overload:RoselineMCP.Models.AnalyzeSolutionResponse.Solution
+  isSpec: "True"
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.Solution
+  nameWithType: AnalyzeSolutionResponse.Solution
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.TopDiagnostics
+  name: TopDiagnostics
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_TopDiagnostics
+  commentId: P:RoselineMCP.Models.AnalyzeSolutionResponse.TopDiagnostics
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.TopDiagnostics
+  nameWithType: AnalyzeSolutionResponse.TopDiagnostics
+- uid: RoselineMCP.Models.AnalyzeSolutionResponse.TopDiagnostics*
+  name: TopDiagnostics
+  href: api/RoselineMCP.Models.AnalyzeSolutionResponse.html#RoselineMCP_Models_AnalyzeSolutionResponse_TopDiagnostics_
+  commentId: Overload:RoselineMCP.Models.AnalyzeSolutionResponse.TopDiagnostics
+  isSpec: "True"
+  fullName: RoselineMCP.Models.AnalyzeSolutionResponse.TopDiagnostics
+  nameWithType: AnalyzeSolutionResponse.TopDiagnostics
+- uid: RoselineMCP.Models.ApplyFixesResponse
+  name: ApplyFixesResponse
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html
+  commentId: T:RoselineMCP.Models.ApplyFixesResponse
+  fullName: RoselineMCP.Models.ApplyFixesResponse
+  nameWithType: ApplyFixesResponse
+- uid: RoselineMCP.Models.ApplyFixesResponse.ChangedFiles
+  name: ChangedFiles
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_ChangedFiles
+  commentId: P:RoselineMCP.Models.ApplyFixesResponse.ChangedFiles
+  fullName: RoselineMCP.Models.ApplyFixesResponse.ChangedFiles
+  nameWithType: ApplyFixesResponse.ChangedFiles
+- uid: RoselineMCP.Models.ApplyFixesResponse.ChangedFiles*
+  name: ChangedFiles
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_ChangedFiles_
+  commentId: Overload:RoselineMCP.Models.ApplyFixesResponse.ChangedFiles
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ApplyFixesResponse.ChangedFiles
+  nameWithType: ApplyFixesResponse.ChangedFiles
+- uid: RoselineMCP.Models.ApplyFixesResponse.FixedCount
+  name: FixedCount
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_FixedCount
+  commentId: P:RoselineMCP.Models.ApplyFixesResponse.FixedCount
+  fullName: RoselineMCP.Models.ApplyFixesResponse.FixedCount
+  nameWithType: ApplyFixesResponse.FixedCount
+- uid: RoselineMCP.Models.ApplyFixesResponse.FixedCount*
+  name: FixedCount
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_FixedCount_
+  commentId: Overload:RoselineMCP.Models.ApplyFixesResponse.FixedCount
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ApplyFixesResponse.FixedCount
+  nameWithType: ApplyFixesResponse.FixedCount
+- uid: RoselineMCP.Models.ApplyFixesResponse.FixersApplied
+  name: FixersApplied
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_FixersApplied
+  commentId: P:RoselineMCP.Models.ApplyFixesResponse.FixersApplied
+  fullName: RoselineMCP.Models.ApplyFixesResponse.FixersApplied
+  nameWithType: ApplyFixesResponse.FixersApplied
+- uid: RoselineMCP.Models.ApplyFixesResponse.FixersApplied*
+  name: FixersApplied
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_FixersApplied_
+  commentId: Overload:RoselineMCP.Models.ApplyFixesResponse.FixersApplied
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ApplyFixesResponse.FixersApplied
+  nameWithType: ApplyFixesResponse.FixersApplied
+- uid: RoselineMCP.Models.ApplyFixesResponse.Notes
+  name: Notes
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_Notes
+  commentId: P:RoselineMCP.Models.ApplyFixesResponse.Notes
+  fullName: RoselineMCP.Models.ApplyFixesResponse.Notes
+  nameWithType: ApplyFixesResponse.Notes
+- uid: RoselineMCP.Models.ApplyFixesResponse.Notes*
+  name: Notes
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_Notes_
+  commentId: Overload:RoselineMCP.Models.ApplyFixesResponse.Notes
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ApplyFixesResponse.Notes
+  nameWithType: ApplyFixesResponse.Notes
+- uid: RoselineMCP.Models.ApplyFixesResponse.Patch
+  name: Patch
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_Patch
+  commentId: P:RoselineMCP.Models.ApplyFixesResponse.Patch
+  fullName: RoselineMCP.Models.ApplyFixesResponse.Patch
+  nameWithType: ApplyFixesResponse.Patch
+- uid: RoselineMCP.Models.ApplyFixesResponse.Patch*
+  name: Patch
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_Patch_
+  commentId: Overload:RoselineMCP.Models.ApplyFixesResponse.Patch
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ApplyFixesResponse.Patch
+  nameWithType: ApplyFixesResponse.Patch
+- uid: RoselineMCP.Models.ApplyFixesResponse.PreviewOnly
+  name: PreviewOnly
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_PreviewOnly
+  commentId: P:RoselineMCP.Models.ApplyFixesResponse.PreviewOnly
+  fullName: RoselineMCP.Models.ApplyFixesResponse.PreviewOnly
+  nameWithType: ApplyFixesResponse.PreviewOnly
+- uid: RoselineMCP.Models.ApplyFixesResponse.PreviewOnly*
+  name: PreviewOnly
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_PreviewOnly_
+  commentId: Overload:RoselineMCP.Models.ApplyFixesResponse.PreviewOnly
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ApplyFixesResponse.PreviewOnly
+  nameWithType: ApplyFixesResponse.PreviewOnly
+- uid: RoselineMCP.Models.ApplyFixesResponse.Project
+  name: Project
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_Project
+  commentId: P:RoselineMCP.Models.ApplyFixesResponse.Project
+  fullName: RoselineMCP.Models.ApplyFixesResponse.Project
+  nameWithType: ApplyFixesResponse.Project
+- uid: RoselineMCP.Models.ApplyFixesResponse.Project*
+  name: Project
+  href: api/RoselineMCP.Models.ApplyFixesResponse.html#RoselineMCP_Models_ApplyFixesResponse_Project_
+  commentId: Overload:RoselineMCP.Models.ApplyFixesResponse.Project
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ApplyFixesResponse.Project
+  nameWithType: ApplyFixesResponse.Project
+- uid: RoselineMCP.Models.CreatePatchResponse
+  name: CreatePatchResponse
+  href: api/RoselineMCP.Models.CreatePatchResponse.html
+  commentId: T:RoselineMCP.Models.CreatePatchResponse
+  fullName: RoselineMCP.Models.CreatePatchResponse
+  nameWithType: CreatePatchResponse
+- uid: RoselineMCP.Models.CreatePatchResponse.FileName
+  name: FileName
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_FileName
+  commentId: P:RoselineMCP.Models.CreatePatchResponse.FileName
+  fullName: RoselineMCP.Models.CreatePatchResponse.FileName
+  nameWithType: CreatePatchResponse.FileName
+- uid: RoselineMCP.Models.CreatePatchResponse.FileName*
+  name: FileName
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_FileName_
+  commentId: Overload:RoselineMCP.Models.CreatePatchResponse.FileName
+  isSpec: "True"
+  fullName: RoselineMCP.Models.CreatePatchResponse.FileName
+  nameWithType: CreatePatchResponse.FileName
+- uid: RoselineMCP.Models.CreatePatchResponse.HasChanges
+  name: HasChanges
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_HasChanges
+  commentId: P:RoselineMCP.Models.CreatePatchResponse.HasChanges
+  fullName: RoselineMCP.Models.CreatePatchResponse.HasChanges
+  nameWithType: CreatePatchResponse.HasChanges
+- uid: RoselineMCP.Models.CreatePatchResponse.HasChanges*
+  name: HasChanges
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_HasChanges_
+  commentId: Overload:RoselineMCP.Models.CreatePatchResponse.HasChanges
+  isSpec: "True"
+  fullName: RoselineMCP.Models.CreatePatchResponse.HasChanges
+  nameWithType: CreatePatchResponse.HasChanges
+- uid: RoselineMCP.Models.CreatePatchResponse.LinesAdded
+  name: LinesAdded
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_LinesAdded
+  commentId: P:RoselineMCP.Models.CreatePatchResponse.LinesAdded
+  fullName: RoselineMCP.Models.CreatePatchResponse.LinesAdded
+  nameWithType: CreatePatchResponse.LinesAdded
+- uid: RoselineMCP.Models.CreatePatchResponse.LinesAdded*
+  name: LinesAdded
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_LinesAdded_
+  commentId: Overload:RoselineMCP.Models.CreatePatchResponse.LinesAdded
+  isSpec: "True"
+  fullName: RoselineMCP.Models.CreatePatchResponse.LinesAdded
+  nameWithType: CreatePatchResponse.LinesAdded
+- uid: RoselineMCP.Models.CreatePatchResponse.LinesRemoved
+  name: LinesRemoved
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_LinesRemoved
+  commentId: P:RoselineMCP.Models.CreatePatchResponse.LinesRemoved
+  fullName: RoselineMCP.Models.CreatePatchResponse.LinesRemoved
+  nameWithType: CreatePatchResponse.LinesRemoved
+- uid: RoselineMCP.Models.CreatePatchResponse.LinesRemoved*
+  name: LinesRemoved
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_LinesRemoved_
+  commentId: Overload:RoselineMCP.Models.CreatePatchResponse.LinesRemoved
+  isSpec: "True"
+  fullName: RoselineMCP.Models.CreatePatchResponse.LinesRemoved
+  nameWithType: CreatePatchResponse.LinesRemoved
+- uid: RoselineMCP.Models.CreatePatchResponse.Patch
+  name: Patch
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_Patch
+  commentId: P:RoselineMCP.Models.CreatePatchResponse.Patch
+  fullName: RoselineMCP.Models.CreatePatchResponse.Patch
+  nameWithType: CreatePatchResponse.Patch
+- uid: RoselineMCP.Models.CreatePatchResponse.Patch*
+  name: Patch
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_Patch_
+  commentId: Overload:RoselineMCP.Models.CreatePatchResponse.Patch
+  isSpec: "True"
+  fullName: RoselineMCP.Models.CreatePatchResponse.Patch
+  nameWithType: CreatePatchResponse.Patch
+- uid: RoselineMCP.Models.CreatePatchResponse.Summary
+  name: Summary
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_Summary
+  commentId: P:RoselineMCP.Models.CreatePatchResponse.Summary
+  fullName: RoselineMCP.Models.CreatePatchResponse.Summary
+  nameWithType: CreatePatchResponse.Summary
+- uid: RoselineMCP.Models.CreatePatchResponse.Summary*
+  name: Summary
+  href: api/RoselineMCP.Models.CreatePatchResponse.html#RoselineMCP_Models_CreatePatchResponse_Summary_
+  commentId: Overload:RoselineMCP.Models.CreatePatchResponse.Summary
+  isSpec: "True"
+  fullName: RoselineMCP.Models.CreatePatchResponse.Summary
+  nameWithType: CreatePatchResponse.Summary
+- uid: RoselineMCP.Models.DiagnosticDetail
+  name: DiagnosticDetail
+  href: api/RoselineMCP.Models.DiagnosticDetail.html
+  commentId: T:RoselineMCP.Models.DiagnosticDetail
+  fullName: RoselineMCP.Models.DiagnosticDetail
+  nameWithType: DiagnosticDetail
+- uid: RoselineMCP.Models.DiagnosticDetail.Column
+  name: Column
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Column
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Column
+  fullName: RoselineMCP.Models.DiagnosticDetail.Column
+  nameWithType: DiagnosticDetail.Column
+- uid: RoselineMCP.Models.DiagnosticDetail.Column*
+  name: Column
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Column_
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Column
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticDetail.Column
+  nameWithType: DiagnosticDetail.Column
+- uid: RoselineMCP.Models.DiagnosticDetail.File
+  name: File
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_File
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.File
+  fullName: RoselineMCP.Models.DiagnosticDetail.File
+  nameWithType: DiagnosticDetail.File
+- uid: RoselineMCP.Models.DiagnosticDetail.File*
+  name: File
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_File_
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.File
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticDetail.File
+  nameWithType: DiagnosticDetail.File
+- uid: RoselineMCP.Models.DiagnosticDetail.Id
+  name: Id
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Id
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Id
+  fullName: RoselineMCP.Models.DiagnosticDetail.Id
+  nameWithType: DiagnosticDetail.Id
+- uid: RoselineMCP.Models.DiagnosticDetail.Id*
+  name: Id
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Id_
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Id
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticDetail.Id
+  nameWithType: DiagnosticDetail.Id
+- uid: RoselineMCP.Models.DiagnosticDetail.Line
+  name: Line
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Line
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Line
+  fullName: RoselineMCP.Models.DiagnosticDetail.Line
+  nameWithType: DiagnosticDetail.Line
+- uid: RoselineMCP.Models.DiagnosticDetail.Line*
+  name: Line
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Line_
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Line
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticDetail.Line
+  nameWithType: DiagnosticDetail.Line
+- uid: RoselineMCP.Models.DiagnosticDetail.Message
+  name: Message
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Message
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Message
+  fullName: RoselineMCP.Models.DiagnosticDetail.Message
+  nameWithType: DiagnosticDetail.Message
+- uid: RoselineMCP.Models.DiagnosticDetail.Message*
+  name: Message
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Message_
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Message
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticDetail.Message
+  nameWithType: DiagnosticDetail.Message
+- uid: RoselineMCP.Models.DiagnosticDetail.Project
+  name: Project
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Project
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Project
+  fullName: RoselineMCP.Models.DiagnosticDetail.Project
+  nameWithType: DiagnosticDetail.Project
+- uid: RoselineMCP.Models.DiagnosticDetail.Project*
+  name: Project
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Project_
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Project
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticDetail.Project
+  nameWithType: DiagnosticDetail.Project
+- uid: RoselineMCP.Models.DiagnosticDetail.Severity
+  name: Severity
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Severity
+  commentId: P:RoselineMCP.Models.DiagnosticDetail.Severity
+  fullName: RoselineMCP.Models.DiagnosticDetail.Severity
+  nameWithType: DiagnosticDetail.Severity
+- uid: RoselineMCP.Models.DiagnosticDetail.Severity*
+  name: Severity
+  href: api/RoselineMCP.Models.DiagnosticDetail.html#RoselineMCP_Models_DiagnosticDetail_Severity_
+  commentId: Overload:RoselineMCP.Models.DiagnosticDetail.Severity
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticDetail.Severity
+  nameWithType: DiagnosticDetail.Severity
+- uid: RoselineMCP.Models.DiagnosticStats
+  name: DiagnosticStats
+  href: api/RoselineMCP.Models.DiagnosticStats.html
+  commentId: T:RoselineMCP.Models.DiagnosticStats
+  fullName: RoselineMCP.Models.DiagnosticStats
+  nameWithType: DiagnosticStats
+- uid: RoselineMCP.Models.DiagnosticStats.ById
+  name: ById
+  href: api/RoselineMCP.Models.DiagnosticStats.html#RoselineMCP_Models_DiagnosticStats_ById
+  commentId: P:RoselineMCP.Models.DiagnosticStats.ById
+  fullName: RoselineMCP.Models.DiagnosticStats.ById
+  nameWithType: DiagnosticStats.ById
+- uid: RoselineMCP.Models.DiagnosticStats.ById*
+  name: ById
+  href: api/RoselineMCP.Models.DiagnosticStats.html#RoselineMCP_Models_DiagnosticStats_ById_
+  commentId: Overload:RoselineMCP.Models.DiagnosticStats.ById
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticStats.ById
+  nameWithType: DiagnosticStats.ById
+- uid: RoselineMCP.Models.DiagnosticStats.BySeverity
+  name: BySeverity
+  href: api/RoselineMCP.Models.DiagnosticStats.html#RoselineMCP_Models_DiagnosticStats_BySeverity
+  commentId: P:RoselineMCP.Models.DiagnosticStats.BySeverity
+  fullName: RoselineMCP.Models.DiagnosticStats.BySeverity
+  nameWithType: DiagnosticStats.BySeverity
+- uid: RoselineMCP.Models.DiagnosticStats.BySeverity*
+  name: BySeverity
+  href: api/RoselineMCP.Models.DiagnosticStats.html#RoselineMCP_Models_DiagnosticStats_BySeverity_
+  commentId: Overload:RoselineMCP.Models.DiagnosticStats.BySeverity
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticStats.BySeverity
+  nameWithType: DiagnosticStats.BySeverity
+- uid: RoselineMCP.Models.DiagnosticSummary
+  name: DiagnosticSummary
+  href: api/RoselineMCP.Models.DiagnosticSummary.html
+  commentId: T:RoselineMCP.Models.DiagnosticSummary
+  fullName: RoselineMCP.Models.DiagnosticSummary
+  nameWithType: DiagnosticSummary
+- uid: RoselineMCP.Models.DiagnosticSummary.Error
+  name: Error
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Error
+  commentId: P:RoselineMCP.Models.DiagnosticSummary.Error
+  fullName: RoselineMCP.Models.DiagnosticSummary.Error
+  nameWithType: DiagnosticSummary.Error
+- uid: RoselineMCP.Models.DiagnosticSummary.Error*
+  name: Error
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Error_
+  commentId: Overload:RoselineMCP.Models.DiagnosticSummary.Error
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticSummary.Error
+  nameWithType: DiagnosticSummary.Error
+- uid: RoselineMCP.Models.DiagnosticSummary.Hidden
+  name: Hidden
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Hidden
+  commentId: P:RoselineMCP.Models.DiagnosticSummary.Hidden
+  fullName: RoselineMCP.Models.DiagnosticSummary.Hidden
+  nameWithType: DiagnosticSummary.Hidden
+- uid: RoselineMCP.Models.DiagnosticSummary.Hidden*
+  name: Hidden
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Hidden_
+  commentId: Overload:RoselineMCP.Models.DiagnosticSummary.Hidden
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticSummary.Hidden
+  nameWithType: DiagnosticSummary.Hidden
+- uid: RoselineMCP.Models.DiagnosticSummary.Info
+  name: Info
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Info
+  commentId: P:RoselineMCP.Models.DiagnosticSummary.Info
+  fullName: RoselineMCP.Models.DiagnosticSummary.Info
+  nameWithType: DiagnosticSummary.Info
+- uid: RoselineMCP.Models.DiagnosticSummary.Info*
+  name: Info
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Info_
+  commentId: Overload:RoselineMCP.Models.DiagnosticSummary.Info
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticSummary.Info
+  nameWithType: DiagnosticSummary.Info
+- uid: RoselineMCP.Models.DiagnosticSummary.Warning
+  name: Warning
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Warning
+  commentId: P:RoselineMCP.Models.DiagnosticSummary.Warning
+  fullName: RoselineMCP.Models.DiagnosticSummary.Warning
+  nameWithType: DiagnosticSummary.Warning
+- uid: RoselineMCP.Models.DiagnosticSummary.Warning*
+  name: Warning
+  href: api/RoselineMCP.Models.DiagnosticSummary.html#RoselineMCP_Models_DiagnosticSummary_Warning_
+  commentId: Overload:RoselineMCP.Models.DiagnosticSummary.Warning
+  isSpec: "True"
+  fullName: RoselineMCP.Models.DiagnosticSummary.Warning
+  nameWithType: DiagnosticSummary.Warning
+- uid: RoselineMCP.Models.ListDiagnosticsResponse
+  name: ListDiagnosticsResponse
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html
+  commentId: T:RoselineMCP.Models.ListDiagnosticsResponse
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse
+  nameWithType: ListDiagnosticsResponse
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.Diagnostics
+  name: Diagnostics
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_Diagnostics
+  commentId: P:RoselineMCP.Models.ListDiagnosticsResponse.Diagnostics
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.Diagnostics
+  nameWithType: ListDiagnosticsResponse.Diagnostics
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.Diagnostics*
+  name: Diagnostics
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_Diagnostics_
+  commentId: Overload:RoselineMCP.Models.ListDiagnosticsResponse.Diagnostics
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.Diagnostics
+  nameWithType: ListDiagnosticsResponse.Diagnostics
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.Project
+  name: Project
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_Project
+  commentId: P:RoselineMCP.Models.ListDiagnosticsResponse.Project
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.Project
+  nameWithType: ListDiagnosticsResponse.Project
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.Project*
+  name: Project
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_Project_
+  commentId: Overload:RoselineMCP.Models.ListDiagnosticsResponse.Project
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.Project
+  nameWithType: ListDiagnosticsResponse.Project
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.Stats
+  name: Stats
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_Stats
+  commentId: P:RoselineMCP.Models.ListDiagnosticsResponse.Stats
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.Stats
+  nameWithType: ListDiagnosticsResponse.Stats
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.Stats*
+  name: Stats
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_Stats_
+  commentId: Overload:RoselineMCP.Models.ListDiagnosticsResponse.Stats
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.Stats
+  nameWithType: ListDiagnosticsResponse.Stats
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.SuggestedFixableIds
+  name: SuggestedFixableIds
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_SuggestedFixableIds
+  commentId: P:RoselineMCP.Models.ListDiagnosticsResponse.SuggestedFixableIds
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.SuggestedFixableIds
+  nameWithType: ListDiagnosticsResponse.SuggestedFixableIds
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.SuggestedFixableIds*
+  name: SuggestedFixableIds
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_SuggestedFixableIds_
+  commentId: Overload:RoselineMCP.Models.ListDiagnosticsResponse.SuggestedFixableIds
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.SuggestedFixableIds
+  nameWithType: ListDiagnosticsResponse.SuggestedFixableIds
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.TotalDiagnostics
+  name: TotalDiagnostics
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_TotalDiagnostics
+  commentId: P:RoselineMCP.Models.ListDiagnosticsResponse.TotalDiagnostics
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.TotalDiagnostics
+  nameWithType: ListDiagnosticsResponse.TotalDiagnostics
+- uid: RoselineMCP.Models.ListDiagnosticsResponse.TotalDiagnostics*
+  name: TotalDiagnostics
+  href: api/RoselineMCP.Models.ListDiagnosticsResponse.html#RoselineMCP_Models_ListDiagnosticsResponse_TotalDiagnostics_
+  commentId: Overload:RoselineMCP.Models.ListDiagnosticsResponse.TotalDiagnostics
+  isSpec: "True"
+  fullName: RoselineMCP.Models.ListDiagnosticsResponse.TotalDiagnostics
+  nameWithType: ListDiagnosticsResponse.TotalDiagnostics
+- uid: RoselineMCP.Services
+  name: RoselineMCP.Services
+  href: api/RoselineMCP.Services.html
+  commentId: N:RoselineMCP.Services
+  fullName: RoselineMCP.Services
+  nameWithType: RoselineMCP.Services
+- uid: RoselineMCP.Services.CodeFixProviderFactory
+  name: CodeFixProviderFactory
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html
+  commentId: T:RoselineMCP.Services.CodeFixProviderFactory
+  fullName: RoselineMCP.Services.CodeFixProviderFactory
+  nameWithType: CodeFixProviderFactory
+- uid: RoselineMCP.Services.CodeFixProviderFactory.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.CodeFixProviderFactory})
+  name: CodeFixProviderFactory(ILogger<CodeFixProviderFactory>)
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory__ctor_Microsoft_Extensions_Logging_ILogger_RoselineMCP_Services_CodeFixProviderFactory__
+  commentId: M:RoselineMCP.Services.CodeFixProviderFactory.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.CodeFixProviderFactory})
+  name.vb: New(ILogger(Of CodeFixProviderFactory))
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.CodeFixProviderFactory(Microsoft.Extensions.Logging.ILogger<RoselineMCP.Services.CodeFixProviderFactory>)
+  fullName.vb: RoselineMCP.Services.CodeFixProviderFactory.New(Microsoft.Extensions.Logging.ILogger(Of RoselineMCP.Services.CodeFixProviderFactory))
+  nameWithType: CodeFixProviderFactory.CodeFixProviderFactory(ILogger<CodeFixProviderFactory>)
+  nameWithType.vb: CodeFixProviderFactory.New(ILogger(Of CodeFixProviderFactory))
+- uid: RoselineMCP.Services.CodeFixProviderFactory.#ctor*
+  name: CodeFixProviderFactory
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory__ctor_
+  commentId: Overload:RoselineMCP.Services.CodeFixProviderFactory.#ctor
+  isSpec: "True"
+  name.vb: New
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.CodeFixProviderFactory
+  fullName.vb: RoselineMCP.Services.CodeFixProviderFactory.New
+  nameWithType: CodeFixProviderFactory.CodeFixProviderFactory
+  nameWithType.vb: CodeFixProviderFactory.New
+- uid: RoselineMCP.Services.CodeFixProviderFactory.GetFixableDiagnosticIds
+  name: GetFixableDiagnosticIds()
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory_GetFixableDiagnosticIds
+  commentId: M:RoselineMCP.Services.CodeFixProviderFactory.GetFixableDiagnosticIds
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.GetFixableDiagnosticIds()
+  nameWithType: CodeFixProviderFactory.GetFixableDiagnosticIds()
+- uid: RoselineMCP.Services.CodeFixProviderFactory.GetFixableDiagnosticIds*
+  name: GetFixableDiagnosticIds
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory_GetFixableDiagnosticIds_
+  commentId: Overload:RoselineMCP.Services.CodeFixProviderFactory.GetFixableDiagnosticIds
+  isSpec: "True"
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.GetFixableDiagnosticIds
+  nameWithType: CodeFixProviderFactory.GetFixableDiagnosticIds
+- uid: RoselineMCP.Services.CodeFixProviderFactory.GetProviderForDiagnostic(System.String)
+  name: GetProviderForDiagnostic(string)
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory_GetProviderForDiagnostic_System_String_
+  commentId: M:RoselineMCP.Services.CodeFixProviderFactory.GetProviderForDiagnostic(System.String)
+  name.vb: GetProviderForDiagnostic(String)
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.GetProviderForDiagnostic(string)
+  fullName.vb: RoselineMCP.Services.CodeFixProviderFactory.GetProviderForDiagnostic(String)
+  nameWithType: CodeFixProviderFactory.GetProviderForDiagnostic(string)
+  nameWithType.vb: CodeFixProviderFactory.GetProviderForDiagnostic(String)
+- uid: RoselineMCP.Services.CodeFixProviderFactory.GetProviderForDiagnostic*
+  name: GetProviderForDiagnostic
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory_GetProviderForDiagnostic_
+  commentId: Overload:RoselineMCP.Services.CodeFixProviderFactory.GetProviderForDiagnostic
+  isSpec: "True"
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.GetProviderForDiagnostic
+  nameWithType: CodeFixProviderFactory.GetProviderForDiagnostic
+- uid: RoselineMCP.Services.CodeFixProviderFactory.LoadProviders
+  name: LoadProviders()
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory_LoadProviders
+  commentId: M:RoselineMCP.Services.CodeFixProviderFactory.LoadProviders
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.LoadProviders()
+  nameWithType: CodeFixProviderFactory.LoadProviders()
+- uid: RoselineMCP.Services.CodeFixProviderFactory.LoadProviders*
+  name: LoadProviders
+  href: api/RoselineMCP.Services.CodeFixProviderFactory.html#RoselineMCP_Services_CodeFixProviderFactory_LoadProviders_
+  commentId: Overload:RoselineMCP.Services.CodeFixProviderFactory.LoadProviders
+  isSpec: "True"
+  fullName: RoselineMCP.Services.CodeFixProviderFactory.LoadProviders
+  nameWithType: CodeFixProviderFactory.LoadProviders
+- uid: RoselineMCP.Services.CodeFixService
+  name: CodeFixService
+  href: api/RoselineMCP.Services.CodeFixService.html
+  commentId: T:RoselineMCP.Services.CodeFixService
+  fullName: RoselineMCP.Services.CodeFixService
+  nameWithType: CodeFixService
+- uid: RoselineMCP.Services.CodeFixService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.CodeFixService},RoselineMCP.Interfaces.ISolutionAnalyzerService,RoselineMCP.Interfaces.ICodeFixProviderFactory,RoselineMCP.Interfaces.IDiffService,RoselineMCP.Interfaces.IMSBuildService)
+  name: CodeFixService(ILogger<CodeFixService>, ISolutionAnalyzerService, ICodeFixProviderFactory, IDiffService, IMSBuildService)
+  href: api/RoselineMCP.Services.CodeFixService.html#RoselineMCP_Services_CodeFixService__ctor_Microsoft_Extensions_Logging_ILogger_RoselineMCP_Services_CodeFixService__RoselineMCP_Interfaces_ISolutionAnalyzerService_RoselineMCP_Interfaces_ICodeFixProviderFactory_RoselineMCP_Interfaces_IDiffService_RoselineMCP_Interfaces_IMSBuildService_
+  commentId: M:RoselineMCP.Services.CodeFixService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.CodeFixService},RoselineMCP.Interfaces.ISolutionAnalyzerService,RoselineMCP.Interfaces.ICodeFixProviderFactory,RoselineMCP.Interfaces.IDiffService,RoselineMCP.Interfaces.IMSBuildService)
+  name.vb: New(ILogger(Of CodeFixService), ISolutionAnalyzerService, ICodeFixProviderFactory, IDiffService, IMSBuildService)
+  fullName: RoselineMCP.Services.CodeFixService.CodeFixService(Microsoft.Extensions.Logging.ILogger<RoselineMCP.Services.CodeFixService>, RoselineMCP.Interfaces.ISolutionAnalyzerService, RoselineMCP.Interfaces.ICodeFixProviderFactory, RoselineMCP.Interfaces.IDiffService, RoselineMCP.Interfaces.IMSBuildService)
+  fullName.vb: RoselineMCP.Services.CodeFixService.New(Microsoft.Extensions.Logging.ILogger(Of RoselineMCP.Services.CodeFixService), RoselineMCP.Interfaces.ISolutionAnalyzerService, RoselineMCP.Interfaces.ICodeFixProviderFactory, RoselineMCP.Interfaces.IDiffService, RoselineMCP.Interfaces.IMSBuildService)
+  nameWithType: CodeFixService.CodeFixService(ILogger<CodeFixService>, ISolutionAnalyzerService, ICodeFixProviderFactory, IDiffService, IMSBuildService)
+  nameWithType.vb: CodeFixService.New(ILogger(Of CodeFixService), ISolutionAnalyzerService, ICodeFixProviderFactory, IDiffService, IMSBuildService)
+- uid: RoselineMCP.Services.CodeFixService.#ctor*
+  name: CodeFixService
+  href: api/RoselineMCP.Services.CodeFixService.html#RoselineMCP_Services_CodeFixService__ctor_
+  commentId: Overload:RoselineMCP.Services.CodeFixService.#ctor
+  isSpec: "True"
+  name.vb: New
+  fullName: RoselineMCP.Services.CodeFixService.CodeFixService
+  fullName.vb: RoselineMCP.Services.CodeFixService.New
+  nameWithType: CodeFixService.CodeFixService
+  nameWithType.vb: CodeFixService.New
+- uid: RoselineMCP.Services.CodeFixService.ApplyFixesAsync(System.String,System.Collections.Generic.List{System.String},System.Boolean)
+  name: ApplyFixesAsync(string, List<string>, bool)
+  href: api/RoselineMCP.Services.CodeFixService.html#RoselineMCP_Services_CodeFixService_ApplyFixesAsync_System_String_System_Collections_Generic_List_System_String__System_Boolean_
+  commentId: M:RoselineMCP.Services.CodeFixService.ApplyFixesAsync(System.String,System.Collections.Generic.List{System.String},System.Boolean)
+  name.vb: ApplyFixesAsync(String, List(Of String), Boolean)
+  fullName: RoselineMCP.Services.CodeFixService.ApplyFixesAsync(string, System.Collections.Generic.List<string>, bool)
+  fullName.vb: RoselineMCP.Services.CodeFixService.ApplyFixesAsync(String, System.Collections.Generic.List(Of String), Boolean)
+  nameWithType: CodeFixService.ApplyFixesAsync(string, List<string>, bool)
+  nameWithType.vb: CodeFixService.ApplyFixesAsync(String, List(Of String), Boolean)
+- uid: RoselineMCP.Services.CodeFixService.ApplyFixesAsync*
+  name: ApplyFixesAsync
+  href: api/RoselineMCP.Services.CodeFixService.html#RoselineMCP_Services_CodeFixService_ApplyFixesAsync_
+  commentId: Overload:RoselineMCP.Services.CodeFixService.ApplyFixesAsync
+  isSpec: "True"
+  fullName: RoselineMCP.Services.CodeFixService.ApplyFixesAsync
+  nameWithType: CodeFixService.ApplyFixesAsync
+- uid: RoselineMCP.Services.DiagnosticFilterService
+  name: DiagnosticFilterService
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html
+  commentId: T:RoselineMCP.Services.DiagnosticFilterService
+  fullName: RoselineMCP.Services.DiagnosticFilterService
+  nameWithType: DiagnosticFilterService
+- uid: RoselineMCP.Services.DiagnosticFilterService.#ctor
+  name: DiagnosticFilterService()
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService__ctor
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.#ctor
+  name.vb: New()
+  fullName: RoselineMCP.Services.DiagnosticFilterService.DiagnosticFilterService()
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.New()
+  nameWithType: DiagnosticFilterService.DiagnosticFilterService()
+  nameWithType.vb: DiagnosticFilterService.New()
+- uid: RoselineMCP.Services.DiagnosticFilterService.#ctor*
+  name: DiagnosticFilterService
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService__ctor_
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.#ctor
+  isSpec: "True"
+  name.vb: New
+  fullName: RoselineMCP.Services.DiagnosticFilterService.DiagnosticFilterService
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.New
+  nameWithType: DiagnosticFilterService.DiagnosticFilterService
+  nameWithType.vb: DiagnosticFilterService.New
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name: FilterByFiles(Diagnostic, List<string>?)
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_FilterByFiles_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name.vb: FilterByFiles(Diagnostic, List(Of String))
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>?)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  nameWithType: DiagnosticFilterService.FilterByFiles(Diagnostic, List<string>?)
+  nameWithType.vb: DiagnosticFilterService.FilterByFiles(Diagnostic, List(Of String))
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles*
+  name: FilterByFiles
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_FilterByFiles_
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.FilterByFiles
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByFiles
+  nameWithType: DiagnosticFilterService.FilterByFiles
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name: FilterByIds(Diagnostic, List<string>?)
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_FilterByIds_Microsoft_CodeAnalysis_Diagnostic_System_Collections_Generic_List_System_String__
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic,System.Collections.Generic.List{System.String})
+  name.vb: FilterByIds(Diagnostic, List(Of String))
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List<string>?)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.FilterByIds(Microsoft.CodeAnalysis.Diagnostic, System.Collections.Generic.List(Of String))
+  nameWithType: DiagnosticFilterService.FilterByIds(Diagnostic, List<string>?)
+  nameWithType.vb: DiagnosticFilterService.FilterByIds(Diagnostic, List(Of String))
+- uid: RoselineMCP.Services.DiagnosticFilterService.FilterByIds*
+  name: FilterByIds
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_FilterByIds_
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.FilterByIds
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiagnosticFilterService.FilterByIds
+  nameWithType: DiagnosticFilterService.FilterByIds
+- uid: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(System.String)
+  name: GetSeverityPriority(string)
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_GetSeverityPriority_System_String_
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(System.String)
+  name.vb: GetSeverityPriority(String)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(string)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority(String)
+  nameWithType: DiagnosticFilterService.GetSeverityPriority(string)
+  nameWithType.vb: DiagnosticFilterService.GetSeverityPriority(String)
+- uid: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority*
+  name: GetSeverityPriority
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_GetSeverityPriority_
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiagnosticFilterService.GetSeverityPriority
+  nameWithType: DiagnosticFilterService.GetSeverityPriority
+- uid: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(System.String)
+  name: IsFixableDiagnostic(string)
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_IsFixableDiagnostic_System_String_
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(System.String)
+  name.vb: IsFixableDiagnostic(String)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(string)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic(String)
+  nameWithType: DiagnosticFilterService.IsFixableDiagnostic(string)
+  nameWithType.vb: DiagnosticFilterService.IsFixableDiagnostic(String)
+- uid: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic*
+  name: IsFixableDiagnostic
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_IsFixableDiagnostic_
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiagnosticFilterService.IsFixableDiagnostic
+  nameWithType: DiagnosticFilterService.IsFixableDiagnostic
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  name: ShouldAnalyzeProject(string, string?, string?)
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_ShouldAnalyzeProject_System_String_System_String_System_String_
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(System.String,System.String,System.String)
+  name.vb: ShouldAnalyzeProject(String, String, String)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(string, string?, string?)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+  nameWithType: DiagnosticFilterService.ShouldAnalyzeProject(string, string?, string?)
+  nameWithType.vb: DiagnosticFilterService.ShouldAnalyzeProject(String, String, String)
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject*
+  name: ShouldAnalyzeProject
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_ShouldAnalyzeProject_
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldAnalyzeProject
+  nameWithType: DiagnosticFilterService.ShouldAnalyzeProject
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  name: ShouldIncludeDiagnostic(Diagnostic, string?)
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_ShouldIncludeDiagnostic_Microsoft_CodeAnalysis_Diagnostic_System_String_
+  commentId: M:RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic,System.String)
+  name.vb: ShouldIncludeDiagnostic(Diagnostic, String)
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, string?)
+  fullName.vb: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic(Microsoft.CodeAnalysis.Diagnostic, String)
+  nameWithType: DiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, string?)
+  nameWithType.vb: DiagnosticFilterService.ShouldIncludeDiagnostic(Diagnostic, String)
+- uid: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic*
+  name: ShouldIncludeDiagnostic
+  href: api/RoselineMCP.Services.DiagnosticFilterService.html#RoselineMCP_Services_DiagnosticFilterService_ShouldIncludeDiagnostic_
+  commentId: Overload:RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiagnosticFilterService.ShouldIncludeDiagnostic
+  nameWithType: DiagnosticFilterService.ShouldIncludeDiagnostic
+- uid: RoselineMCP.Services.DiffService
+  name: DiffService
+  href: api/RoselineMCP.Services.DiffService.html
+  commentId: T:RoselineMCP.Services.DiffService
+  fullName: RoselineMCP.Services.DiffService
+  nameWithType: DiffService
+- uid: RoselineMCP.Services.DiffService.GenerateUnifiedDiff(System.String,System.String,System.String,System.String)
+  name: GenerateUnifiedDiff(string, string, string, string)
+  href: api/RoselineMCP.Services.DiffService.html#RoselineMCP_Services_DiffService_GenerateUnifiedDiff_System_String_System_String_System_String_System_String_
+  commentId: M:RoselineMCP.Services.DiffService.GenerateUnifiedDiff(System.String,System.String,System.String,System.String)
+  name.vb: GenerateUnifiedDiff(String, String, String, String)
+  fullName: RoselineMCP.Services.DiffService.GenerateUnifiedDiff(string, string, string, string)
+  fullName.vb: RoselineMCP.Services.DiffService.GenerateUnifiedDiff(String, String, String, String)
+  nameWithType: DiffService.GenerateUnifiedDiff(string, string, string, string)
+  nameWithType.vb: DiffService.GenerateUnifiedDiff(String, String, String, String)
+- uid: RoselineMCP.Services.DiffService.GenerateUnifiedDiff*
+  name: GenerateUnifiedDiff
+  href: api/RoselineMCP.Services.DiffService.html#RoselineMCP_Services_DiffService_GenerateUnifiedDiff_
+  commentId: Overload:RoselineMCP.Services.DiffService.GenerateUnifiedDiff
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiffService.GenerateUnifiedDiff
+  nameWithType: DiffService.GenerateUnifiedDiff
+- uid: RoselineMCP.Services.DiffService.NormalizeWhitespace(System.String)
+  name: NormalizeWhitespace(string)
+  href: api/RoselineMCP.Services.DiffService.html#RoselineMCP_Services_DiffService_NormalizeWhitespace_System_String_
+  commentId: M:RoselineMCP.Services.DiffService.NormalizeWhitespace(System.String)
+  name.vb: NormalizeWhitespace(String)
+  fullName: RoselineMCP.Services.DiffService.NormalizeWhitespace(string)
+  fullName.vb: RoselineMCP.Services.DiffService.NormalizeWhitespace(String)
+  nameWithType: DiffService.NormalizeWhitespace(string)
+  nameWithType.vb: DiffService.NormalizeWhitespace(String)
+- uid: RoselineMCP.Services.DiffService.NormalizeWhitespace*
+  name: NormalizeWhitespace
+  href: api/RoselineMCP.Services.DiffService.html#RoselineMCP_Services_DiffService_NormalizeWhitespace_
+  commentId: Overload:RoselineMCP.Services.DiffService.NormalizeWhitespace
+  isSpec: "True"
+  fullName: RoselineMCP.Services.DiffService.NormalizeWhitespace
+  nameWithType: DiffService.NormalizeWhitespace
+- uid: RoselineMCP.Services.MSBuildService
+  name: MSBuildService
+  href: api/RoselineMCP.Services.MSBuildService.html
+  commentId: T:RoselineMCP.Services.MSBuildService
+  fullName: RoselineMCP.Services.MSBuildService
+  nameWithType: MSBuildService
+- uid: RoselineMCP.Services.MSBuildService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.MSBuildService})
+  name: MSBuildService(ILogger<MSBuildService>)
+  href: api/RoselineMCP.Services.MSBuildService.html#RoselineMCP_Services_MSBuildService__ctor_Microsoft_Extensions_Logging_ILogger_RoselineMCP_Services_MSBuildService__
+  commentId: M:RoselineMCP.Services.MSBuildService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.MSBuildService})
+  name.vb: New(ILogger(Of MSBuildService))
+  fullName: RoselineMCP.Services.MSBuildService.MSBuildService(Microsoft.Extensions.Logging.ILogger<RoselineMCP.Services.MSBuildService>)
+  fullName.vb: RoselineMCP.Services.MSBuildService.New(Microsoft.Extensions.Logging.ILogger(Of RoselineMCP.Services.MSBuildService))
+  nameWithType: MSBuildService.MSBuildService(ILogger<MSBuildService>)
+  nameWithType.vb: MSBuildService.New(ILogger(Of MSBuildService))
+- uid: RoselineMCP.Services.MSBuildService.#ctor*
+  name: MSBuildService
+  href: api/RoselineMCP.Services.MSBuildService.html#RoselineMCP_Services_MSBuildService__ctor_
+  commentId: Overload:RoselineMCP.Services.MSBuildService.#ctor
+  isSpec: "True"
+  name.vb: New
+  fullName: RoselineMCP.Services.MSBuildService.MSBuildService
+  fullName.vb: RoselineMCP.Services.MSBuildService.New
+  nameWithType: MSBuildService.MSBuildService
+  nameWithType.vb: MSBuildService.New
+- uid: RoselineMCP.Services.MSBuildService.CreateWorkspace
+  name: CreateWorkspace()
+  href: api/RoselineMCP.Services.MSBuildService.html#RoselineMCP_Services_MSBuildService_CreateWorkspace
+  commentId: M:RoselineMCP.Services.MSBuildService.CreateWorkspace
+  fullName: RoselineMCP.Services.MSBuildService.CreateWorkspace()
+  nameWithType: MSBuildService.CreateWorkspace()
+- uid: RoselineMCP.Services.MSBuildService.CreateWorkspace*
+  name: CreateWorkspace
+  href: api/RoselineMCP.Services.MSBuildService.html#RoselineMCP_Services_MSBuildService_CreateWorkspace_
+  commentId: Overload:RoselineMCP.Services.MSBuildService.CreateWorkspace
+  isSpec: "True"
+  fullName: RoselineMCP.Services.MSBuildService.CreateWorkspace
+  nameWithType: MSBuildService.CreateWorkspace
+- uid: RoselineMCP.Services.MSBuildService.EnsureMSBuildRegistered
+  name: EnsureMSBuildRegistered()
+  href: api/RoselineMCP.Services.MSBuildService.html#RoselineMCP_Services_MSBuildService_EnsureMSBuildRegistered
+  commentId: M:RoselineMCP.Services.MSBuildService.EnsureMSBuildRegistered
+  fullName: RoselineMCP.Services.MSBuildService.EnsureMSBuildRegistered()
+  nameWithType: MSBuildService.EnsureMSBuildRegistered()
+- uid: RoselineMCP.Services.MSBuildService.EnsureMSBuildRegistered*
+  name: EnsureMSBuildRegistered
+  href: api/RoselineMCP.Services.MSBuildService.html#RoselineMCP_Services_MSBuildService_EnsureMSBuildRegistered_
+  commentId: Overload:RoselineMCP.Services.MSBuildService.EnsureMSBuildRegistered
+  isSpec: "True"
+  fullName: RoselineMCP.Services.MSBuildService.EnsureMSBuildRegistered
+  nameWithType: MSBuildService.EnsureMSBuildRegistered
+- uid: RoselineMCP.Services.PatchService
+  name: PatchService
+  href: api/RoselineMCP.Services.PatchService.html
+  commentId: T:RoselineMCP.Services.PatchService
+  fullName: RoselineMCP.Services.PatchService
+  nameWithType: PatchService
+- uid: RoselineMCP.Services.PatchService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.PatchService},RoselineMCP.Interfaces.IDiffService)
+  name: PatchService(ILogger<PatchService>, IDiffService)
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService__ctor_Microsoft_Extensions_Logging_ILogger_RoselineMCP_Services_PatchService__RoselineMCP_Interfaces_IDiffService_
+  commentId: M:RoselineMCP.Services.PatchService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.PatchService},RoselineMCP.Interfaces.IDiffService)
+  name.vb: New(ILogger(Of PatchService), IDiffService)
+  fullName: RoselineMCP.Services.PatchService.PatchService(Microsoft.Extensions.Logging.ILogger<RoselineMCP.Services.PatchService>, RoselineMCP.Interfaces.IDiffService)
+  fullName.vb: RoselineMCP.Services.PatchService.New(Microsoft.Extensions.Logging.ILogger(Of RoselineMCP.Services.PatchService), RoselineMCP.Interfaces.IDiffService)
+  nameWithType: PatchService.PatchService(ILogger<PatchService>, IDiffService)
+  nameWithType.vb: PatchService.New(ILogger(Of PatchService), IDiffService)
+- uid: RoselineMCP.Services.PatchService.#ctor*
+  name: PatchService
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService__ctor_
+  commentId: Overload:RoselineMCP.Services.PatchService.#ctor
+  isSpec: "True"
+  name.vb: New
+  fullName: RoselineMCP.Services.PatchService.PatchService
+  fullName.vb: RoselineMCP.Services.PatchService.New
+  nameWithType: PatchService.PatchService
+  nameWithType.vb: PatchService.New
+- uid: RoselineMCP.Services.PatchService.ApplyPatch(System.String,System.String)
+  name: ApplyPatch(string, string)
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_ApplyPatch_System_String_System_String_
+  commentId: M:RoselineMCP.Services.PatchService.ApplyPatch(System.String,System.String)
+  name.vb: ApplyPatch(String, String)
+  fullName: RoselineMCP.Services.PatchService.ApplyPatch(string, string)
+  fullName.vb: RoselineMCP.Services.PatchService.ApplyPatch(String, String)
+  nameWithType: PatchService.ApplyPatch(string, string)
+  nameWithType.vb: PatchService.ApplyPatch(String, String)
+- uid: RoselineMCP.Services.PatchService.ApplyPatch*
+  name: ApplyPatch
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_ApplyPatch_
+  commentId: Overload:RoselineMCP.Services.PatchService.ApplyPatch
+  isSpec: "True"
+  fullName: RoselineMCP.Services.PatchService.ApplyPatch
+  nameWithType: PatchService.ApplyPatch
+- uid: RoselineMCP.Services.PatchService.CreatePatch(System.String,System.String,System.String)
+  name: CreatePatch(string, string, string?)
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_CreatePatch_System_String_System_String_System_String_
+  commentId: M:RoselineMCP.Services.PatchService.CreatePatch(System.String,System.String,System.String)
+  name.vb: CreatePatch(String, String, String)
+  fullName: RoselineMCP.Services.PatchService.CreatePatch(string, string, string?)
+  fullName.vb: RoselineMCP.Services.PatchService.CreatePatch(String, String, String)
+  nameWithType: PatchService.CreatePatch(string, string, string?)
+  nameWithType.vb: PatchService.CreatePatch(String, String, String)
+- uid: RoselineMCP.Services.PatchService.CreatePatch*
+  name: CreatePatch
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_CreatePatch_
+  commentId: Overload:RoselineMCP.Services.PatchService.CreatePatch
+  isSpec: "True"
+  fullName: RoselineMCP.Services.PatchService.CreatePatch
+  nameWithType: PatchService.CreatePatch
+- uid: RoselineMCP.Services.PatchService.CreatePatchFromFiles(System.String,System.String)
+  name: CreatePatchFromFiles(string, string)
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_CreatePatchFromFiles_System_String_System_String_
+  commentId: M:RoselineMCP.Services.PatchService.CreatePatchFromFiles(System.String,System.String)
+  name.vb: CreatePatchFromFiles(String, String)
+  fullName: RoselineMCP.Services.PatchService.CreatePatchFromFiles(string, string)
+  fullName.vb: RoselineMCP.Services.PatchService.CreatePatchFromFiles(String, String)
+  nameWithType: PatchService.CreatePatchFromFiles(string, string)
+  nameWithType.vb: PatchService.CreatePatchFromFiles(String, String)
+- uid: RoselineMCP.Services.PatchService.CreatePatchFromFiles*
+  name: CreatePatchFromFiles
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_CreatePatchFromFiles_
+  commentId: Overload:RoselineMCP.Services.PatchService.CreatePatchFromFiles
+  isSpec: "True"
+  fullName: RoselineMCP.Services.PatchService.CreatePatchFromFiles
+  nameWithType: PatchService.CreatePatchFromFiles
+- uid: RoselineMCP.Services.PatchService.CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  name: CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_CreatePatchWithOptions_System_String_System_String_System_String_System_Int32_System_Boolean_System_Boolean_
+  commentId: M:RoselineMCP.Services.PatchService.CreatePatchWithOptions(System.String,System.String,System.String,System.Int32,System.Boolean,System.Boolean)
+  name.vb: CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+  fullName: RoselineMCP.Services.PatchService.CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  fullName.vb: RoselineMCP.Services.PatchService.CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+  nameWithType: PatchService.CreatePatchWithOptions(string, string, string?, int, bool, bool)
+  nameWithType.vb: PatchService.CreatePatchWithOptions(String, String, String, Integer, Boolean, Boolean)
+- uid: RoselineMCP.Services.PatchService.CreatePatchWithOptions*
+  name: CreatePatchWithOptions
+  href: api/RoselineMCP.Services.PatchService.html#RoselineMCP_Services_PatchService_CreatePatchWithOptions_
+  commentId: Overload:RoselineMCP.Services.PatchService.CreatePatchWithOptions
+  isSpec: "True"
+  fullName: RoselineMCP.Services.PatchService.CreatePatchWithOptions
+  nameWithType: PatchService.CreatePatchWithOptions
+- uid: RoselineMCP.Services.SolutionAnalyzerService
+  name: SolutionAnalyzerService
+  href: api/RoselineMCP.Services.SolutionAnalyzerService.html
+  commentId: T:RoselineMCP.Services.SolutionAnalyzerService
+  fullName: RoselineMCP.Services.SolutionAnalyzerService
+  nameWithType: SolutionAnalyzerService
+- uid: RoselineMCP.Services.SolutionAnalyzerService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService},RoselineMCP.Interfaces.IMSBuildService,RoselineMCP.Interfaces.IDiagnosticFilterService)
+  name: SolutionAnalyzerService(ILogger<SolutionAnalyzerService>, IMSBuildService, IDiagnosticFilterService)
+  href: api/RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService__ctor_Microsoft_Extensions_Logging_ILogger_RoselineMCP_Services_SolutionAnalyzerService__RoselineMCP_Interfaces_IMSBuildService_RoselineMCP_Interfaces_IDiagnosticFilterService_
+  commentId: M:RoselineMCP.Services.SolutionAnalyzerService.#ctor(Microsoft.Extensions.Logging.ILogger{RoselineMCP.Services.SolutionAnalyzerService},RoselineMCP.Interfaces.IMSBuildService,RoselineMCP.Interfaces.IDiagnosticFilterService)
+  name.vb: New(ILogger(Of SolutionAnalyzerService), IMSBuildService, IDiagnosticFilterService)
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.SolutionAnalyzerService(Microsoft.Extensions.Logging.ILogger<RoselineMCP.Services.SolutionAnalyzerService>, RoselineMCP.Interfaces.IMSBuildService, RoselineMCP.Interfaces.IDiagnosticFilterService)
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.New(Microsoft.Extensions.Logging.ILogger(Of RoselineMCP.Services.SolutionAnalyzerService), RoselineMCP.Interfaces.IMSBuildService, RoselineMCP.Interfaces.IDiagnosticFilterService)
+  nameWithType: SolutionAnalyzerService.SolutionAnalyzerService(ILogger<SolutionAnalyzerService>, IMSBuildService, IDiagnosticFilterService)
+  nameWithType.vb: SolutionAnalyzerService.New(ILogger(Of SolutionAnalyzerService), IMSBuildService, IDiagnosticFilterService)
+- uid: RoselineMCP.Services.SolutionAnalyzerService.#ctor*
+  name: SolutionAnalyzerService
+  href: api/RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService__ctor_
+  commentId: Overload:RoselineMCP.Services.SolutionAnalyzerService.#ctor
+  isSpec: "True"
+  name.vb: New
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.SolutionAnalyzerService
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.New
+  nameWithType: SolutionAnalyzerService.SolutionAnalyzerService
+  nameWithType.vb: SolutionAnalyzerService.New
+- uid: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  name: AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  href: api/RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService_AnalyzeSolutionAsync_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  commentId: M:RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  name.vb: AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  nameWithType: SolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  nameWithType.vb: SolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+- uid: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync*
+  name: AnalyzeSolutionAsync
+  href: api/RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService_AnalyzeSolutionAsync_
+  commentId: Overload:RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync
+  isSpec: "True"
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.AnalyzeSolutionAsync
+  nameWithType: SolutionAnalyzerService.AnalyzeSolutionAsync
+- uid: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  name: ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  href: api/RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService_ListDiagnosticsAsync_System_String_System_Collections_Generic_List_System_String__System_Collections_Generic_List_System_String__System_Int32_
+  commentId: M:RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  name.vb: ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(string, System.Collections.Generic.List<string>?, System.Collections.Generic.List<string>?, int)
+  fullName.vb: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync(String, System.Collections.Generic.List(Of String), System.Collections.Generic.List(Of String), Integer)
+  nameWithType: SolutionAnalyzerService.ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  nameWithType.vb: SolutionAnalyzerService.ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+- uid: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync*
+  name: ListDiagnosticsAsync
+  href: api/RoselineMCP.Services.SolutionAnalyzerService.html#RoselineMCP_Services_SolutionAnalyzerService_ListDiagnosticsAsync_
+  commentId: Overload:RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync
+  isSpec: "True"
+  fullName: RoselineMCP.Services.SolutionAnalyzerService.ListDiagnosticsAsync
+  nameWithType: SolutionAnalyzerService.ListDiagnosticsAsync
+- uid: RoselineMCP.Tools
+  name: RoselineMCP.Tools
+  href: api/RoselineMCP.Tools.html
+  commentId: N:RoselineMCP.Tools
+  fullName: RoselineMCP.Tools
+  nameWithType: RoselineMCP.Tools
+- uid: RoselineMCP.Tools.AnalyzeSolutionTool
+  name: AnalyzeSolutionTool
+  href: api/RoselineMCP.Tools.AnalyzeSolutionTool.html
+  commentId: T:RoselineMCP.Tools.AnalyzeSolutionTool
+  fullName: RoselineMCP.Tools.AnalyzeSolutionTool
+  nameWithType: AnalyzeSolutionTool
+- uid: RoselineMCP.Tools.AnalyzeSolutionTool.AnalyzeSolution(RoselineMCP.Interfaces.ISolutionAnalyzerService,System.String,System.String,System.String,System.String,System.String,System.Int32)
+  name: AnalyzeSolution(ISolutionAnalyzerService, string, string?, string?, string?, string?, int)
+  href: api/RoselineMCP.Tools.AnalyzeSolutionTool.html#RoselineMCP_Tools_AnalyzeSolutionTool_AnalyzeSolution_RoselineMCP_Interfaces_ISolutionAnalyzerService_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  commentId: M:RoselineMCP.Tools.AnalyzeSolutionTool.AnalyzeSolution(RoselineMCP.Interfaces.ISolutionAnalyzerService,System.String,System.String,System.String,System.String,System.String,System.Int32)
+  name.vb: AnalyzeSolution(ISolutionAnalyzerService, String, String, String, String, String, Integer)
+  fullName: RoselineMCP.Tools.AnalyzeSolutionTool.AnalyzeSolution(RoselineMCP.Interfaces.ISolutionAnalyzerService, string, string?, string?, string?, string?, int)
+  fullName.vb: RoselineMCP.Tools.AnalyzeSolutionTool.AnalyzeSolution(RoselineMCP.Interfaces.ISolutionAnalyzerService, String, String, String, String, String, Integer)
+  nameWithType: AnalyzeSolutionTool.AnalyzeSolution(ISolutionAnalyzerService, string, string?, string?, string?, string?, int)
+  nameWithType.vb: AnalyzeSolutionTool.AnalyzeSolution(ISolutionAnalyzerService, String, String, String, String, String, Integer)
+- uid: RoselineMCP.Tools.AnalyzeSolutionTool.AnalyzeSolution*
+  name: AnalyzeSolution
+  href: api/RoselineMCP.Tools.AnalyzeSolutionTool.html#RoselineMCP_Tools_AnalyzeSolutionTool_AnalyzeSolution_
+  commentId: Overload:RoselineMCP.Tools.AnalyzeSolutionTool.AnalyzeSolution
+  isSpec: "True"
+  fullName: RoselineMCP.Tools.AnalyzeSolutionTool.AnalyzeSolution
+  nameWithType: AnalyzeSolutionTool.AnalyzeSolution
+- uid: RoselineMCP.Tools.ApplyFixesTool
+  name: ApplyFixesTool
+  href: api/RoselineMCP.Tools.ApplyFixesTool.html
+  commentId: T:RoselineMCP.Tools.ApplyFixesTool
+  fullName: RoselineMCP.Tools.ApplyFixesTool
+  nameWithType: ApplyFixesTool
+- uid: RoselineMCP.Tools.ApplyFixesTool.ApplyFixes(RoselineMCP.Interfaces.ICodeFixService,System.String,System.String[],System.Boolean)
+  name: ApplyFixes(ICodeFixService, string, string[], bool)
+  href: api/RoselineMCP.Tools.ApplyFixesTool.html#RoselineMCP_Tools_ApplyFixesTool_ApplyFixes_RoselineMCP_Interfaces_ICodeFixService_System_String_System_String___System_Boolean_
+  commentId: M:RoselineMCP.Tools.ApplyFixesTool.ApplyFixes(RoselineMCP.Interfaces.ICodeFixService,System.String,System.String[],System.Boolean)
+  name.vb: ApplyFixes(ICodeFixService, String, String(), Boolean)
+  fullName: RoselineMCP.Tools.ApplyFixesTool.ApplyFixes(RoselineMCP.Interfaces.ICodeFixService, string, string[], bool)
+  fullName.vb: RoselineMCP.Tools.ApplyFixesTool.ApplyFixes(RoselineMCP.Interfaces.ICodeFixService, String, String(), Boolean)
+  nameWithType: ApplyFixesTool.ApplyFixes(ICodeFixService, string, string[], bool)
+  nameWithType.vb: ApplyFixesTool.ApplyFixes(ICodeFixService, String, String(), Boolean)
+- uid: RoselineMCP.Tools.ApplyFixesTool.ApplyFixes*
+  name: ApplyFixes
+  href: api/RoselineMCP.Tools.ApplyFixesTool.html#RoselineMCP_Tools_ApplyFixesTool_ApplyFixes_
+  commentId: Overload:RoselineMCP.Tools.ApplyFixesTool.ApplyFixes
+  isSpec: "True"
+  fullName: RoselineMCP.Tools.ApplyFixesTool.ApplyFixes
+  nameWithType: ApplyFixesTool.ApplyFixes
+- uid: RoselineMCP.Tools.CreatePatchTool
+  name: CreatePatchTool
+  href: api/RoselineMCP.Tools.CreatePatchTool.html
+  commentId: T:RoselineMCP.Tools.CreatePatchTool
+  fullName: RoselineMCP.Tools.CreatePatchTool
+  nameWithType: CreatePatchTool
+- uid: RoselineMCP.Tools.CreatePatchTool.CreatePatch(RoselineMCP.Interfaces.IPatchService,System.String,System.String,System.String)
+  name: CreatePatch(IPatchService, string, string, string?)
+  href: api/RoselineMCP.Tools.CreatePatchTool.html#RoselineMCP_Tools_CreatePatchTool_CreatePatch_RoselineMCP_Interfaces_IPatchService_System_String_System_String_System_String_
+  commentId: M:RoselineMCP.Tools.CreatePatchTool.CreatePatch(RoselineMCP.Interfaces.IPatchService,System.String,System.String,System.String)
+  name.vb: CreatePatch(IPatchService, String, String, String)
+  fullName: RoselineMCP.Tools.CreatePatchTool.CreatePatch(RoselineMCP.Interfaces.IPatchService, string, string, string?)
+  fullName.vb: RoselineMCP.Tools.CreatePatchTool.CreatePatch(RoselineMCP.Interfaces.IPatchService, String, String, String)
+  nameWithType: CreatePatchTool.CreatePatch(IPatchService, string, string, string?)
+  nameWithType.vb: CreatePatchTool.CreatePatch(IPatchService, String, String, String)
+- uid: RoselineMCP.Tools.CreatePatchTool.CreatePatch*
+  name: CreatePatch
+  href: api/RoselineMCP.Tools.CreatePatchTool.html#RoselineMCP_Tools_CreatePatchTool_CreatePatch_
+  commentId: Overload:RoselineMCP.Tools.CreatePatchTool.CreatePatch
+  isSpec: "True"
+  fullName: RoselineMCP.Tools.CreatePatchTool.CreatePatch
+  nameWithType: CreatePatchTool.CreatePatch
+- uid: RoselineMCP.Tools.ListDiagnosticsTool
+  name: ListDiagnosticsTool
+  href: api/RoselineMCP.Tools.ListDiagnosticsTool.html
+  commentId: T:RoselineMCP.Tools.ListDiagnosticsTool
+  fullName: RoselineMCP.Tools.ListDiagnosticsTool
+  nameWithType: ListDiagnosticsTool
+- uid: RoselineMCP.Tools.ListDiagnosticsTool.ListDiagnostics(RoselineMCP.Interfaces.ISolutionAnalyzerService,System.String,System.String[],System.String[],System.Int32)
+  name: ListDiagnostics(ISolutionAnalyzerService, string, string[]?, string[]?, int)
+  href: api/RoselineMCP.Tools.ListDiagnosticsTool.html#RoselineMCP_Tools_ListDiagnosticsTool_ListDiagnostics_RoselineMCP_Interfaces_ISolutionAnalyzerService_System_String_System_String___System_String___System_Int32_
+  commentId: M:RoselineMCP.Tools.ListDiagnosticsTool.ListDiagnostics(RoselineMCP.Interfaces.ISolutionAnalyzerService,System.String,System.String[],System.String[],System.Int32)
+  name.vb: ListDiagnostics(ISolutionAnalyzerService, String, String(), String(), Integer)
+  fullName: RoselineMCP.Tools.ListDiagnosticsTool.ListDiagnostics(RoselineMCP.Interfaces.ISolutionAnalyzerService, string, string[]?, string[]?, int)
+  fullName.vb: RoselineMCP.Tools.ListDiagnosticsTool.ListDiagnostics(RoselineMCP.Interfaces.ISolutionAnalyzerService, String, String(), String(), Integer)
+  nameWithType: ListDiagnosticsTool.ListDiagnostics(ISolutionAnalyzerService, string, string[]?, string[]?, int)
+  nameWithType.vb: ListDiagnosticsTool.ListDiagnostics(ISolutionAnalyzerService, String, String(), String(), Integer)
+- uid: RoselineMCP.Tools.ListDiagnosticsTool.ListDiagnostics*
+  name: ListDiagnostics
+  href: api/RoselineMCP.Tools.ListDiagnosticsTool.html#RoselineMCP_Tools_ListDiagnosticsTool_ListDiagnostics_
+  commentId: Overload:RoselineMCP.Tools.ListDiagnosticsTool.ListDiagnostics
+  isSpec: "True"
+  fullName: RoselineMCP.Tools.ListDiagnosticsTool.ListDiagnostics
+  nameWithType: ListDiagnosticsTool.ListDiagnostics

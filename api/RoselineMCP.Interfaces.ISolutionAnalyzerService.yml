@@ -1,0 +1,415 @@
+### YamlMime:ManagedReference
+items:
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  commentId: T:RoselineMCP.Interfaces.ISolutionAnalyzerService
+  id: ISolutionAnalyzerService
+  parent: RoselineMCP.Interfaces
+  children:
+  - RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  - RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  langs:
+  - csharp
+  - vb
+  name: ISolutionAnalyzerService
+  nameWithType: ISolutionAnalyzerService
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  type: Interface
+  source:
+    id: ISolutionAnalyzerService
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/ISolutionAnalyzerService.cs
+    startLine: 7
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Interface for analyzing C# solutions and projects for diagnostics.
+  example: []
+  syntax:
+    content: public interface ISolutionAnalyzerService
+    content.vb: Public Interface ISolutionAnalyzerService
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  commentId: M:RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  id: AnalyzeSolutionAsync(System.String,System.String,System.String,System.String,System.String,System.Int32)
+  parent: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  langs:
+  - csharp
+  - vb
+  name: AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  nameWithType: ISolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(string, string?, string?, string?, string?, int)
+  type: Method
+  source:
+    id: AnalyzeSolutionAsync
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/ISolutionAnalyzerService.cs
+    startLine: 19
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Analyzes a C# solution for diagnostics with filtering options.
+  example: []
+  syntax:
+    content: Task<AnalyzeSolutionResponse> AnalyzeSolutionAsync(string pathOrGit, string? branch = null, string? includePattern = null, string? excludePattern = null, string? severity = null, int maxDiagnostics = 100)
+    parameters:
+    - id: pathOrGit
+      type: System.String
+      description: Path to solution file, directory containing .sln file, or Git repository URL.
+    - id: branch
+      type: System.String
+      description: Git branch name (only used if pathOrGit is a Git URL).
+    - id: includePattern
+      type: System.String
+      description: Include pattern for project names.
+    - id: excludePattern
+      type: System.String
+      description: Exclude pattern for project names.
+    - id: severity
+      type: System.String
+      description: Minimum severity level to include.
+    - id: maxDiagnostics
+      type: System.Int32
+      description: Maximum number of diagnostics to return.
+    return:
+      type: System.Threading.Tasks.Task{RoselineMCP.Models.AnalyzeSolutionResponse}
+      description: Analysis response containing diagnostics summary and details.
+    content.vb: Function AnalyzeSolutionAsync(pathOrGit As String, branch As String = Nothing, includePattern As String = Nothing, excludePattern As String = Nothing, severity As String = Nothing, maxDiagnostics As Integer = 100) As Task(Of AnalyzeSolutionResponse)
+  overload: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync*
+  nameWithType.vb: ISolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  fullName.vb: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+  name.vb: AnalyzeSolutionAsync(String, String, String, String, String, Integer)
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  commentId: M:RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  id: ListDiagnosticsAsync(System.String,System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String},System.Int32)
+  parent: RoselineMCP.Interfaces.ISolutionAnalyzerService
+  langs:
+  - csharp
+  - vb
+  name: ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  nameWithType: ISolutionAnalyzerService.ListDiagnosticsAsync(string, List<string>?, List<string>?, int)
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(string, System.Collections.Generic.List<string>?, System.Collections.Generic.List<string>?, int)
+  type: Method
+  source:
+    id: ListDiagnosticsAsync
+    path: /Users/phmatray/Repositories/github-phm/RoselineMCP/RoselineMCP/Interfaces/ISolutionAnalyzerService.cs
+    startLine: 35
+  assemblies:
+  - RoselineMCP
+  namespace: RoselineMCP.Interfaces
+  summary: Lists detailed diagnostics for a specific project.
+  example: []
+  syntax:
+    content: Task<ListDiagnosticsResponse> ListDiagnosticsAsync(string project, List<string>? ids = null, List<string>? files = null, int max = 100)
+    parameters:
+    - id: project
+      type: System.String
+      description: Project name or path to .csproj file.
+    - id: ids
+      type: System.Collections.Generic.List{System.String}
+      description: Optional list of diagnostic IDs to filter.
+    - id: files
+      type: System.Collections.Generic.List{System.String}
+      description: Optional list of file patterns to filter.
+    - id: max
+      type: System.Int32
+      description: Maximum number of diagnostic details to return.
+    return:
+      type: System.Threading.Tasks.Task{RoselineMCP.Models.ListDiagnosticsResponse}
+      description: Response containing diagnostics list and statistics.
+    content.vb: Function ListDiagnosticsAsync(project As String, ids As List(Of String) = Nothing, files As List(Of String) = Nothing, max As Integer = 100) As Task(Of ListDiagnosticsResponse)
+  overload: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync*
+  nameWithType.vb: ISolutionAnalyzerService.ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+  fullName.vb: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync(String, System.Collections.Generic.List(Of String), System.Collections.Generic.List(Of String), Integer)
+  name.vb: ListDiagnosticsAsync(String, List(Of String), List(Of String), Integer)
+references:
+- uid: RoselineMCP.Interfaces
+  commentId: N:RoselineMCP.Interfaces
+  href: RoselineMCP.html
+  name: RoselineMCP.Interfaces
+  nameWithType: RoselineMCP.Interfaces
+  fullName: RoselineMCP.Interfaces
+  spec.csharp:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+  spec.vb:
+  - uid: RoselineMCP
+    name: RoselineMCP
+    href: RoselineMCP.html
+  - name: .
+  - uid: RoselineMCP.Interfaces
+    name: Interfaces
+    href: RoselineMCP.Interfaces.html
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync*
+  commentId: Overload:RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync
+  href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_AnalyzeSolutionAsync_System_String_System_String_System_String_System_String_System_String_System_Int32_
+  name: AnalyzeSolutionAsync
+  nameWithType: ISolutionAnalyzerService.AnalyzeSolutionAsync
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.AnalyzeSolutionAsync
+- uid: System.String
+  commentId: T:System.String
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.string
+  name: string
+  nameWithType: string
+  fullName: string
+  nameWithType.vb: String
+  fullName.vb: String
+  name.vb: String
+- uid: System.Int32
+  commentId: T:System.Int32
+  parent: System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.int32
+  name: int
+  nameWithType: int
+  fullName: int
+  nameWithType.vb: Integer
+  fullName.vb: Integer
+  name.vb: Integer
+- uid: System.Threading.Tasks.Task{RoselineMCP.Models.AnalyzeSolutionResponse}
+  commentId: T:System.Threading.Tasks.Task{RoselineMCP.Models.AnalyzeSolutionResponse}
+  parent: System.Threading.Tasks
+  definition: System.Threading.Tasks.Task`1
+  href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  name: Task<AnalyzeSolutionResponse>
+  nameWithType: Task<AnalyzeSolutionResponse>
+  fullName: System.Threading.Tasks.Task<RoselineMCP.Models.AnalyzeSolutionResponse>
+  nameWithType.vb: Task(Of AnalyzeSolutionResponse)
+  fullName.vb: System.Threading.Tasks.Task(Of RoselineMCP.Models.AnalyzeSolutionResponse)
+  name.vb: Task(Of AnalyzeSolutionResponse)
+  spec.csharp:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: <
+  - uid: RoselineMCP.Models.AnalyzeSolutionResponse
+    name: AnalyzeSolutionResponse
+    href: RoselineMCP.Models.AnalyzeSolutionResponse.html
+  - name: '>'
+  spec.vb:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: RoselineMCP.Models.AnalyzeSolutionResponse
+    name: AnalyzeSolutionResponse
+    href: RoselineMCP.Models.AnalyzeSolutionResponse.html
+  - name: )
+- uid: System
+  commentId: N:System
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System
+  nameWithType: System
+  fullName: System
+- uid: System.Threading.Tasks.Task`1
+  commentId: T:System.Threading.Tasks.Task`1
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  name: Task<TResult>
+  nameWithType: Task<TResult>
+  fullName: System.Threading.Tasks.Task<TResult>
+  nameWithType.vb: Task(Of TResult)
+  fullName.vb: System.Threading.Tasks.Task(Of TResult)
+  name.vb: Task(Of TResult)
+  spec.csharp:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: <
+  - name: TResult
+  - name: '>'
+  spec.vb:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: (
+  - name: Of
+  - name: " "
+  - name: TResult
+  - name: )
+- uid: System.Threading.Tasks
+  commentId: N:System.Threading.Tasks
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System.Threading.Tasks
+  nameWithType: System.Threading.Tasks
+  fullName: System.Threading.Tasks
+  spec.csharp:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Threading
+    name: Threading
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading
+  - name: .
+  - uid: System.Threading.Tasks
+    name: Tasks
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks
+  spec.vb:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Threading
+    name: Threading
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading
+  - name: .
+  - uid: System.Threading.Tasks
+    name: Tasks
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks
+- uid: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync*
+  commentId: Overload:RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync
+  href: RoselineMCP.Interfaces.ISolutionAnalyzerService.html#RoselineMCP_Interfaces_ISolutionAnalyzerService_ListDiagnosticsAsync_System_String_System_Collections_Generic_List_System_String__System_Collections_Generic_List_System_String__System_Int32_
+  name: ListDiagnosticsAsync
+  nameWithType: ISolutionAnalyzerService.ListDiagnosticsAsync
+  fullName: RoselineMCP.Interfaces.ISolutionAnalyzerService.ListDiagnosticsAsync
+- uid: System.Collections.Generic.List{System.String}
+  commentId: T:System.Collections.Generic.List{System.String}
+  parent: System.Collections.Generic
+  definition: System.Collections.Generic.List`1
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  name: List<string>
+  nameWithType: List<string>
+  fullName: System.Collections.Generic.List<string>
+  nameWithType.vb: List(Of String)
+  fullName.vb: System.Collections.Generic.List(Of String)
+  name.vb: List(Of String)
+  spec.csharp:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - uid: System.String
+    name: string
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: System.String
+    name: String
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.string
+  - name: )
+- uid: System.Threading.Tasks.Task{RoselineMCP.Models.ListDiagnosticsResponse}
+  commentId: T:System.Threading.Tasks.Task{RoselineMCP.Models.ListDiagnosticsResponse}
+  parent: System.Threading.Tasks
+  definition: System.Threading.Tasks.Task`1
+  href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  name: Task<ListDiagnosticsResponse>
+  nameWithType: Task<ListDiagnosticsResponse>
+  fullName: System.Threading.Tasks.Task<RoselineMCP.Models.ListDiagnosticsResponse>
+  nameWithType.vb: Task(Of ListDiagnosticsResponse)
+  fullName.vb: System.Threading.Tasks.Task(Of RoselineMCP.Models.ListDiagnosticsResponse)
+  name.vb: Task(Of ListDiagnosticsResponse)
+  spec.csharp:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: <
+  - uid: RoselineMCP.Models.ListDiagnosticsResponse
+    name: ListDiagnosticsResponse
+    href: RoselineMCP.Models.ListDiagnosticsResponse.html
+  - name: '>'
+  spec.vb:
+  - uid: System.Threading.Tasks.Task`1
+    name: Task
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.threading.tasks.task-1
+  - name: (
+  - name: Of
+  - name: " "
+  - uid: RoselineMCP.Models.ListDiagnosticsResponse
+    name: ListDiagnosticsResponse
+    href: RoselineMCP.Models.ListDiagnosticsResponse.html
+  - name: )
+- uid: System.Collections.Generic.List`1
+  commentId: T:System.Collections.Generic.List`1
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  name: List<T>
+  nameWithType: List<T>
+  fullName: System.Collections.Generic.List<T>
+  nameWithType.vb: List(Of T)
+  fullName.vb: System.Collections.Generic.List(Of T)
+  name.vb: List(Of T)
+  spec.csharp:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: <
+  - name: T
+  - name: '>'
+  spec.vb:
+  - uid: System.Collections.Generic.List`1
+    name: List
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic.list-1
+  - name: (
+  - name: Of
+  - name: " "
+  - name: T
+  - name: )
+- uid: System.Collections.Generic
+  commentId: N:System.Collections.Generic
+  isExternal: true
+  href: https://learn.microsoft.com/dotnet/api/system
+  name: System.Collections.Generic
+  nameWithType: System.Collections.Generic
+  fullName: System.Collections.Generic
+  spec.csharp:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic
+  spec.vb:
+  - uid: System
+    name: System
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system
+  - name: .
+  - uid: System.Collections
+    name: Collections
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections
+  - name: .
+  - uid: System.Collections.Generic
+    name: Generic
+    isExternal: true
+    href: https://learn.microsoft.com/dotnet/api/system.collections.generic

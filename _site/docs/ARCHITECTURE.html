@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>RoselineMCP Architecture Documentation | RoselineMCP </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="RoselineMCP Architecture Documentation | RoselineMCP ">
+      
+      
+      <link rel="icon" href="../favicon.ico">
+      <link rel="stylesheet" href="../public/docfx.min.css">
+      <link rel="stylesheet" href="../public/main.css">
+      <meta name="docfx:navrel" content="../toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="../">
+      
+      
+      
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./../public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="../index.html">
+            <img id="logo" class="svg" src="../images/logo.svg" alt="RoselineMCP">
+            RoselineMCP
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+      <div class="toc-offcanvas">
+        <div class="offcanvas-md offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="tocOffcanvasLabel">Table of Contents</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#tocOffcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <nav class="toc" id="toc"></nav>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="actionbar">
+          <button class="btn btn-lg border-0 d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" aria-controls="tocOffcanvas" aria-expanded="false" aria-label="Show table of contents">
+            <i class="bi bi-list"></i>
+          </button>
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="roselinemcp-architecture-documentation">RoselineMCP Architecture Documentation</h1>
+
+<h2 id="overview">Overview</h2>
+<p>RoselineMCP is built on a layered architecture that separates concerns and promotes testability, maintainability, and extensibility. The system uses dependency injection throughout and follows SOLID principles.</p>
+<h2 id="architecture-diagram">Architecture Diagram</h2>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│                    MCP Client (Claude, etc.)            │
+└─────────────────┬───────────────────────────────────────┘
+                  │ stdio (JSON-RPC)
+┌─────────────────▼───────────────────────────────────────┐
+│                    MCP Server Layer                      │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │               Tool Registration                   │  │
+│  │         (WithToolsFromAssembly())                │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────┐
+│                    Tools Layer                          │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  AnalysisTools  │  [McpServerTool] Attributes   │  │
+│  │  - AnalyzeSolution                               │  │
+│  │  - ListDiagnostics                               │  │
+│  │  - ApplyFixes                                    │  │
+│  │  - CreatePatch                                   │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────┬───────────────────────────────────────┘
+                  │ Dependency Injection
+┌─────────────────▼───────────────────────────────────────┐
+│                   Service Layer                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │         Business Logic Services                  │  │
+│  ├──────────────────────────────────────────────────┤  │
+│  │  • SolutionAnalyzerService                       │  │
+│  │  • CodeFixService                                │  │
+│  │  • DiagnosticFilterService                       │  │
+│  │  • CodeFixProviderFactory                        │  │
+│  │  • PatchService / DiffService                    │  │
+│  │  • MSBuildService                                │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────┐
+│                   External Dependencies                 │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  • Roslyn (Microsoft.CodeAnalysis.*)             │  │
+│  │  • MSBuild (Microsoft.Build.*)                   │  │
+│  │  • Roslynator (Analyzers &amp; CodeFixes)            │  │
+│  │  • DiffPlex (Diff Generation)                    │  │
+│  └──────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="core-components">Core Components</h2>
+<h3 id="1-programcs---application-entry-point">1. Program.cs - Application Entry Point</h3>
+<p>Responsibilities:</p>
+<ul>
+<li>Host configuration and startup</li>
+<li>Service registration via DI</li>
+<li>MCP server configuration</li>
+<li>Global exception handling</li>
+<li>Logging configuration</li>
+</ul>
+<p>Key features:</p>
+<ul>
+<li>Uses <code>Microsoft.Extensions.Hosting</code> for application lifecycle</li>
+<li>Configures stderr logging to avoid stdio conflicts</li>
+<li>Registers all services as singletons for performance</li>
+<li>Sets up environment-specific configurations</li>
+</ul>
+<h3 id="2-tool-layer">2. Tool Layer</h3>
+<p>Location: <code>Tools/</code></p>
+<p>The tool layer provides the bridge between MCP protocol and internal services.</p>
+<h4 id="tool-registration">Tool Registration</h4>
+<p>Tools are automatically discovered using:</p>
+<pre><code class="lang-csharp">services.AddMcpServer()
+    .WithStdioServerTransport()
+    .WithToolsFromAssembly();
+</code></pre>
+<h4 id="tool-implementation-pattern">Tool Implementation Pattern</h4>
+<pre><code class="lang-csharp">[McpServerTool]
+[Description(&quot;Tool description&quot;)]
+public static async Task&lt;string&gt; ToolMethod(
+    IService1 service1,  // Injected automatically
+    IService2 service2,  // Injected automatically
+    [Description(&quot;...&quot;)] string userParam1,
+    [Description(&quot;...&quot;)] string? userParam2 = null)
+{
+    // Services are injected before user parameters
+    // Return JSON response
+}
+</code></pre>
+<h3 id="3-service-layer">3. Service Layer</h3>
+<p>Location: <code>Services/</code> and <code>Interfaces/</code></p>
+<h4 id="core-services">Core Services</h4>
+<p><strong>SolutionAnalyzerService</strong></p>
+<ul>
+<li>Analyzes C# solutions and projects</li>
+<li>Collects diagnostics from Roslyn compilation</li>
+<li>Filters and aggregates results</li>
+<li>Manages MSBuildWorkspace lifecycle</li>
+</ul>
+<p><strong>CodeFixService</strong></p>
+<ul>
+<li>Applies automated code fixes</li>
+<li>Manages code fix providers</li>
+<li>Generates before/after patches</li>
+<li>Handles multi-file fixes</li>
+</ul>
+<p><strong>DiagnosticFilterService</strong></p>
+<ul>
+<li>Filters diagnostics by severity, ID, and file patterns</li>
+<li>Determines fixable diagnostics</li>
+<li>Project inclusion/exclusion logic</li>
+<li>Severity prioritization</li>
+</ul>
+<p><strong>CodeFixProviderFactory</strong></p>
+<ul>
+<li>Dynamically loads code fix providers</li>
+<li>Caches provider instances</li>
+<li>Maps diagnostic IDs to fixers</li>
+<li>Supports Roslyn and Roslynator providers</li>
+</ul>
+<p><strong>MSBuildService</strong></p>
+<ul>
+<li>Creates MSBuildWorkspace instances</li>
+<li>Manages MSBuild locator</li>
+<li>Handles workspace configuration</li>
+<li>Ensures proper cleanup</li>
+</ul>
+<p><strong>PatchService / DiffService</strong></p>
+<ul>
+<li>Generates unified diff patches</li>
+<li>Line-by-line diff computation</li>
+<li>Supports side-by-side and inline diffs</li>
+<li>Handles large file comparisons</li>
+</ul>
+<h3 id="4-model-layer">4. Model Layer</h3>
+<p>Location: <code>Models/</code></p>
+<p>Data transfer objects (DTOs) for structured communication:</p>
+<ul>
+<li><strong>Request Models</strong>: Parameters for tool operations</li>
+<li><strong>Response Models</strong>: Structured results from operations</li>
+<li><strong>Domain Models</strong>: Internal representations of diagnostics, fixes, etc.</li>
+</ul>
+<h2 id="design-patterns">Design Patterns</h2>
+<h3 id="dependency-injection">Dependency Injection</h3>
+<p>All services are registered in the DI container and injected where needed:</p>
+<pre><code class="lang-csharp">services.AddSingleton&lt;ISolutionAnalyzerService, SolutionAnalyzerService&gt;();
+services.AddSingleton&lt;ICodeFixService, CodeFixService&gt;();
+// ... etc
+</code></pre>
+<p>Benefits:</p>
+<ul>
+<li>Testability through interface mocking</li>
+<li>Loose coupling between components</li>
+<li>Easy service replacement/decoration</li>
+<li>Lifetime management</li>
+</ul>
+<h3 id="repository-pattern-implicit">Repository Pattern (Implicit)</h3>
+<p>Services act as repositories for their respective domains:</p>
+<ul>
+<li><code>SolutionAnalyzerService</code> manages solution/project access</li>
+<li><code>CodeFixProviderFactory</code> manages fix provider instances</li>
+</ul>
+<h3 id="factory-pattern">Factory Pattern</h3>
+<p><code>CodeFixProviderFactory</code> implements the factory pattern for creating code fix providers:</p>
+<ul>
+<li>Lazy initialization</li>
+<li>Caching of instances</li>
+<li>Dynamic type loading</li>
+</ul>
+<h3 id="strategy-pattern">Strategy Pattern</h3>
+<p><code>DiagnosticFilterService</code> implements filtering strategies:</p>
+<ul>
+<li>Different filters for severity, IDs, files</li>
+<li>Composable filter chains</li>
+<li>Extensible filter types</li>
+</ul>
+<h2 id="data-flow">Data Flow</h2>
+<h3 id="analyzing-a-solution">Analyzing a Solution</h3>
+<pre><code>1. MCP Client → AnalyzeSolution tool
+2. Tool → SolutionAnalyzerService.AnalyzeSolutionAsync()
+3. Service → MSBuildService.CreateWorkspace()
+4. Service → Load solution via MSBuildWorkspace
+5. For each project:
+   a. Get compilation
+   b. Get diagnostics
+   c. Filter via DiagnosticFilterService
+   d. Aggregate results
+6. Return AnalyzeSolutionResponse
+7. Tool → Serialize to JSON
+8. MCP Server → Return to client
+</code></pre>
+<h3 id="applying-fixes">Applying Fixes</h3>
+<pre><code>1. MCP Client → ApplyFixes tool
+2. Tool → CodeFixService.ApplyFixesAsync()
+3. Service → Load project
+4. Service → Get diagnostics for specified IDs
+5. Service → CodeFixProviderFactory.GetFixProviders()
+6. For each diagnostic:
+   a. Find applicable fix provider
+   b. Get code actions
+   c. Apply changes to solution
+7. Service → Generate unified diff
+8. Service → Optionally save changes
+9. Return ApplyFixesResponse
+10. Tool → Serialize to JSON
+11. MCP Server → Return to client
+</code></pre>
+<h2 id="workspace-management">Workspace Management</h2>
+<h3 id="msbuildworkspace-lifecycle">MSBuildWorkspace Lifecycle</h3>
+<ol>
+<li><strong>Creation</strong>: New workspace per operation</li>
+<li><strong>Configuration</strong>: Set up MSBuild properties</li>
+<li><strong>Loading</strong>: Load solution/project</li>
+<li><strong>Operation</strong>: Perform analysis/fixes</li>
+<li><strong>Cleanup</strong>: Dispose workspace</li>
+</ol>
+<h3 id="temporary-workspace-pattern">Temporary Workspace Pattern</h3>
+<p>For safety, operations use temporary workspaces:</p>
+<ul>
+<li>Original files never modified directly</li>
+<li>Changes computed in memory</li>
+<li>Patches generated for review</li>
+<li>Explicit save operation required</li>
+</ul>
+<h2 id="error-handling-strategy">Error Handling Strategy</h2>
+<h3 id="layered-error-handling">Layered Error Handling</h3>
+<ol>
+<li><strong>Tool Layer</strong>: Catches all exceptions, returns JSON error</li>
+<li><strong>Service Layer</strong>: Throws domain-specific exceptions</li>
+<li><strong>External Layer</strong>: Wraps external library exceptions</li>
+</ol>
+<h3 id="error-response-format">Error Response Format</h3>
+<pre><code class="lang-json">{
+  &quot;error&quot;: &quot;Human-readable message&quot;,
+  &quot;type&quot;: &quot;ExceptionTypeName&quot;,
+  &quot;details&quot;: { /* optional context */ }
+}
+</code></pre>
+<h2 id="performance-considerations">Performance Considerations</h2>
+<h3 id="caching-strategies">Caching Strategies</h3>
+<ol>
+<li><strong>Code Fix Providers</strong>: Cached after first load</li>
+<li><strong>MSBuild Location</strong>: Located once at startup</li>
+<li><strong>Compilation Results</strong>: Reused within operations</li>
+</ol>
+<h3 id="parallel-processing">Parallel Processing</h3>
+<ul>
+<li>Projects analyzed concurrently where possible</li>
+<li>Diagnostics collected in parallel</li>
+<li>Fix applications batched by file</li>
+</ul>
+<h3 id="memory-management">Memory Management</h3>
+<ul>
+<li>Large solutions processed incrementally</li>
+<li>Workspaces disposed after use</li>
+<li>Results streamed when possible</li>
+</ul>
+<h2 id="security-architecture">Security Architecture</h2>
+<h3 id="input-validation">Input Validation</h3>
+<ul>
+<li>Path traversal prevention</li>
+<li>Regex pattern validation</li>
+<li>ID whitelist validation</li>
+</ul>
+<h3 id="isolation">Isolation</h3>
+<ul>
+<li>No code execution from analyzed projects</li>
+<li>Read-only operations by default</li>
+<li>Temporary workspace isolation</li>
+</ul>
+<h3 id="output-sanitization">Output Sanitization</h3>
+<ul>
+<li>Error messages sanitized</li>
+<li>Paths normalized</li>
+<li>Sensitive data excluded</li>
+</ul>
+<h2 id="extension-points">Extension Points</h2>
+<h3 id="adding-new-tools">Adding New Tools</h3>
+<ol>
+<li>Create tool class in <code>Tools/</code></li>
+<li>Add <code>[McpServerTool]</code> attribute</li>
+<li>Implement tool logic</li>
+<li>Auto-discovered at startup</li>
+</ol>
+<h3 id="adding-new-services">Adding New Services</h3>
+<ol>
+<li>Define interface in <code>Interfaces/</code></li>
+<li>Implement service in <code>Services/</code></li>
+<li>Register in DI container</li>
+<li>Inject where needed</li>
+</ol>
+<h3 id="adding-new-analyzers">Adding New Analyzers</h3>
+<ol>
+<li>Add analyzer NuGet package</li>
+<li>Automatically discovered by Roslyn</li>
+<li>Fix providers loaded dynamically</li>
+</ol>
+<h2 id="configuration">Configuration</h2>
+<h3 id="environment-variables">Environment Variables</h3>
+<ul>
+<li><code>ROSELINE_*</code>: Custom configuration</li>
+<li><code>ASPNETCORE_ENVIRONMENT</code>: Development/Production</li>
+<li><code>DOTNET_*</code>: Runtime configuration</li>
+</ul>
+<h3 id="configuration-files">Configuration Files</h3>
+<ul>
+<li><code>appsettings.json</code>: Base configuration</li>
+<li><code>appsettings.{Environment}.json</code>: Environment overrides</li>
+<li>Command-line arguments: Highest priority</li>
+</ul>
+<h3 id="logging-configuration">Logging Configuration</h3>
+<pre><code class="lang-json">{
+  &quot;Logging&quot;: {
+    &quot;LogLevel&quot;: {
+      &quot;Default&quot;: &quot;Information&quot;,
+      &quot;RoselineMCP&quot;: &quot;Debug&quot;,
+      &quot;Microsoft&quot;: &quot;Warning&quot;
+    }
+  }
+}
+</code></pre>
+<h2 id="testing-architecture">Testing Architecture</h2>
+<h3 id="unit-test-structure">Unit Test Structure</h3>
+<pre><code>RoselineMCP.Tests/
+├── Services/
+│   ├── SolutionAnalyzerServiceTests.cs
+│   ├── CodeFixServiceTests.cs
+│   └── ...
+├── Tools/
+│   └── AnalysisToolsTests.cs
+└── TestUtilities/
+    ├── MockFactory.cs
+    └── TestData.cs
+</code></pre>
+<h3 id="test-patterns">Test Patterns</h3>
+<ul>
+<li><strong>Arrange-Act-Assert</strong>: Standard test structure</li>
+<li><strong>Mock Dependencies</strong>: Interface-based mocking</li>
+<li><strong>Test Data Builders</strong>: Fluent test data creation</li>
+<li><strong>Integration Tests</strong>: End-to-end tool testing</li>
+</ul>
+<h2 id="deployment-architecture">Deployment Architecture</h2>
+<h3 id="docker-support-future">Docker Support (Future)</h3>
+<pre><code class="lang-dockerfile">FROM mcr.microsoft.com/dotnet/runtime:9.0
+WORKDIR /app
+COPY published/ .
+ENTRYPOINT [&quot;dotnet&quot;, &quot;RoselineMCP.dll&quot;]
+</code></pre>
+<h3 id="cicd-pipeline">CI/CD Pipeline</h3>
+<ol>
+<li>Build → Test → Package → Publish</li>
+<li>Automated testing on PR</li>
+<li>Release builds on tags</li>
+<li>NuGet package publication</li>
+</ol>
+<h2 id="monitoring-and-diagnostics">Monitoring and Diagnostics</h2>
+<h3 id="logging-levels">Logging Levels</h3>
+<ul>
+<li><strong>Trace</strong>: Detailed diagnostic info</li>
+<li><strong>Debug</strong>: Development debugging</li>
+<li><strong>Information</strong>: General flow</li>
+<li><strong>Warning</strong>: Recoverable issues</li>
+<li><strong>Error</strong>: Errors requiring attention</li>
+<li><strong>Critical</strong>: System failures</li>
+</ul>
+<h3 id="health-checks-future">Health Checks (Future)</h3>
+<ul>
+<li>Workspace availability</li>
+<li>MSBuild availability</li>
+<li>Memory usage monitoring</li>
+<li>Response time tracking</li>
+</ul>
+<h2 id="future-architecture-considerations">Future Architecture Considerations</h2>
+<h3 id="scalability">Scalability</h3>
+<ul>
+<li>Worker process pool for parallel analysis</li>
+<li>Distributed caching for large solutions</li>
+<li>Streaming results for massive outputs</li>
+</ul>
+<h3 id="extensibility">Extensibility</h3>
+<ul>
+<li>Plugin architecture for custom analyzers</li>
+<li>Custom tool providers</li>
+<li>External service integrations</li>
+</ul>
+<h3 id="performance">Performance</h3>
+<ul>
+<li>Incremental compilation caching</li>
+<li>Persistent workspace pools</li>
+<li>Optimized diff algorithms</li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Copyright © 2024 RoselineMCP - Built with DocFX
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
