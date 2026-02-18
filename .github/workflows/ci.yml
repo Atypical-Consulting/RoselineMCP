@@ -23,8 +23,33 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release
 
-      - name: Test
-        run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx"
+      - name: Test with Coverage
+        run: |
+          dotnet test --no-build -c Release \
+            /p:CollectCoverage=true \
+            /p:CoverletOutputFormat=cobertura \
+            /p:CoverletOutput=./TestResults/coverage.cobertura.xml \
+            "/p:Include=[RoselineMCP]*" \
+            "/p:Exclude=[RoselineMCP.Tests]*" \
+            /p:ExcludeByFile="**/Program.cs" \
+            --logger "trx;LogFileName=test-results.trx"
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE_FILE=$(find . -name "coverage.cobertura.xml" | head -1)
+          if [ -z "$COVERAGE_FILE" ]; then
+            echo "❌ No coverage report found"
+            exit 1
+          fi
+          echo "Found coverage report: $COVERAGE_FILE"
+          COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' "$COVERAGE_FILE" | head -1)
+          PERCENT=$(echo "$COVERAGE * 100" | bc)
+          echo "Coverage: $PERCENT%"
+          if (( $(echo "$PERCENT < 80" | bc -l) )); then
+            echo "❌ Coverage $PERCENT% is below the 80% threshold"
+            exit 1
+          fi
+          echo "✅ Coverage $PERCENT% meets the 80% threshold"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -32,3 +57,10 @@ jobs:
         with:
           name: test-results
           path: "**/*.trx"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: "**/coverage.cobertura.xml"

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Formatting;
@@ -43,6 +44,8 @@ public class CodeFixService : ICodeFixService
 
 
     /// <inheritdoc/>
+    [ExcludeFromCodeCoverage(Justification =
+        "Roslyn MSBuild workspace integration code — requires full integration tests with a real .NET project")]
     public async Task<ApplyFixesResponse> ApplyFixesAsync(
         string project,
         List<string> ids,
