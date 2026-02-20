@@ -36,6 +36,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
     <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" />
     <PackageReference Include="Microsoft.Build" Version="17.7.2" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.7.2" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="Roslynator.CodeFixes" Version="4.14.0" />
