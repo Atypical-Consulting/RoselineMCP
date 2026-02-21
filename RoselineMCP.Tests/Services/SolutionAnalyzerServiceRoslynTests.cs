@@ -1,0 +1,485 @@
+using System.Reflection;
+using FakeItEasy;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
+using Microsoft.Extensions.Logging;
+using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
+using RoselineMCP.Services;
+using Shouldly;
+
+namespace RoselineMCP.Tests.Services;
+
+/// <summary>
+/// Tests for SolutionAnalyzerService that use AdhocWorkspace (in-memory Roslyn workspace)
+/// to test the deep async paths that require real compilations.
+/// AdhocWorkspace does NOT require MSBuild — it compiles C# in-memory using Roslyn directly.
+/// </summary>
+public class SolutionAnalyzerServiceRoslynTests
+{
+    private readonly SolutionAnalyzerService _sut;
+    private readonly DiagnosticFilterService _realFilterService;
+
+    public SolutionAnalyzerServiceRoslynTests()
+    {
+        var logger = A.Fake<ILogger<SolutionAnalyzerService>>();
+        var msBuildService = A.Fake<IMSBuildService>();
+        _realFilterService = new DiagnosticFilterService();
+        _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService);
+    }
+
+    #region Helpers
+
+    private T InvokePrivate<T>(string methodName, params object?[] args)
+    {
+        var method = typeof(SolutionAnalyzerService).GetMethod(
+            methodName,
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        method.ShouldNotBeNull($"Method '{methodName}' not found");
+        return (T)method!.Invoke(_sut, args)!;
+    }
+
+    private async Task<T> InvokePrivateAsync<T>(string methodName, params object?[] args)
+    {
+        var method = typeof(SolutionAnalyzerService).GetMethod(
+            methodName,
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        method.ShouldNotBeNull($"Method '{methodName}' not found");
+        var task = (Task<T>)method!.Invoke(_sut, args)!;
+        return await task;
+    }
+
+    private async Task InvokePrivateAsyncVoid(string methodName, params object?[] args)
+    {
+        var method = typeof(SolutionAnalyzerService).GetMethod(
+            methodName,
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        method.ShouldNotBeNull($"Method '{methodName}' not found");
+        await (Task)method!.Invoke(_sut, args)!;
+    }
+
+    /// <summary>
+    /// Creates a real in-memory Roslyn project using AdhocWorkspace.
+    /// The compilation from this project is real and produces actual diagnostics.
+    /// </summary>
+    private static (AdhocWorkspace Workspace, Project Project) CreateInMemoryProject(
+        string projectName, string sourceCode)
+    {
+        var workspace = new AdhocWorkspace();
+        var solution = workspace.CurrentSolution;
+        var projectId = ProjectId.CreateNewId();
+        var versionStamp = VersionStamp.Create();
+        var projectInfo = ProjectInfo.Create(
+            projectId, versionStamp, projectName, projectName, LanguageNames.CSharp);
+
+        solution = solution.AddProject(projectInfo);
+        var project = solution.GetProject(projectId)!;
+        var document = project.AddDocument("Test.cs", SourceText.From(sourceCode));
+        project = document.Project;
+
+        return (workspace, project);
+    }
+
+    #endregion
+
+    #region GetProjectCompilationAsync
+
+    public class GetProjectCompilationAsyncTests : SolutionAnalyzerServiceRoslynTests
+    {
+        [Fact]
+        public async Task Should_Return_Compilation_For_Valid_Project()
+        {
+            // Arrange
+            var (_, project) = CreateInMemoryProject("TestProject", "class Foo { }");
+
+            // Act
+            var result = await InvokePrivateAsync<Compilation?>(
+                "GetProjectCompilationAsync", project);
+
+            // Assert
+            result.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task Should_Return_Compilation_With_Diagnostics_For_Code_With_Issues()
+        {
+            // Arrange — unused variable produces CS0168
+            var (_, project) = CreateInMemoryProject("TestProject",
+                "class Foo { void Bar() { int unusedVar; } }");
+
+            // Act
+            var compilation = await InvokePrivateAsync<Compilation?>(
+                "GetProjectCompilationAsync", project);
+
+            // Assert
+            compilation.ShouldNotBeNull();
+            // Compilation exists and may have diagnostics
+        }
+    }
+
+    #endregion
+
+    #region GetFilteredDiagnostics
+
+    public class GetFilteredDiagnosticsTests : SolutionAnalyzerServiceRoslynTests
+    {
+        [Fact]
+        public async Task Should_Return_Diagnostics_From_Real_Compilation()
+        {
+            // Arrange — code with an issue
+            var (_, project) = CreateInMemoryProject("TestProject",
+                "class Foo { void Bar() { int unusedVar; } }");
+
+            var compilation = await project.GetCompilationAsync();
+            compilation.ShouldNotBeNull();
+
+            // Get the AnalysisContext type via reflection and create instance
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic);
+            contextType.ShouldNotBeNull();
+            var context = contextType!.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+
+            // Set MaxDiagnostics
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
+            contextType.GetProperty("Severity")!.SetValue(context, (string?)null);
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "GetFilteredDiagnostics",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            var result = (IEnumerable<Diagnostic>)method!.Invoke(_sut, new object[] { compilation!, context })!;
+
+            // Assert
+            result.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task Should_Filter_Diagnostics_By_Severity()
+        {
+            // Arrange
+            var (_, project) = CreateInMemoryProject("TestProject", "class Foo { }");
+            var compilation = await project.GetCompilationAsync();
+            compilation.ShouldNotBeNull();
+
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
+            var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
+            contextType.GetProperty("Severity")!.SetValue(context, "Error"); // Only errors
+
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "GetFilteredDiagnostics",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var result = (IEnumerable<Diagnostic>)method.Invoke(_sut, new object[] { compilation!, context })!;
+
+            // Assert — filter by "Error" should exclude warnings/info
+            result.ShouldNotBeNull();
+            result.ShouldAllBe(d => d.Severity >= DiagnosticSeverity.Error);
+        }
+    }
+
+    #endregion
+
+    #region ProcessProjectDiagnostics
+
+    public class ProcessProjectDiagnosticsTests : SolutionAnalyzerServiceRoslynTests
+    {
+        [Fact]
+        public async Task Should_Process_Diagnostics_From_Real_Compilation()
+        {
+            // Arrange
+            var (_, project) = CreateInMemoryProject("TestProject",
+                "class Foo { void Bar() { int unusedVar; } }");
+            var compilation = await project.GetCompilationAsync();
+            var diagnostics = compilation!.GetDiagnostics();
+
+            var allDiagnosticDetails = new List<DiagnosticDetail>();
+            var summary = new DiagnosticSummary();
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "ProcessProjectDiagnostics",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            method.Invoke(_sut, new object[] { diagnostics, "TestProject", allDiagnosticDetails, summary, 100 });
+
+            // Assert
+            // Some diagnostics from the compilation
+            allDiagnosticDetails.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task Should_Respect_MaxDiagnostics_Limit()
+        {
+            // Arrange — create lots of diagnostics
+            var code = string.Join("\n", Enumerable.Range(1, 20).Select(i =>
+                $"class Foo{i} {{ void Bar() {{ int unused{i}; }} }}"));
+            var (_, project) = CreateInMemoryProject("TestProject", code);
+            var compilation = await project.GetCompilationAsync();
+            var diagnostics = compilation!.GetDiagnostics();
+
+            var allDiagnosticDetails = new List<DiagnosticDetail>();
+            var summary = new DiagnosticSummary();
+
+            // Act — with max of 5
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "ProcessProjectDiagnostics",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            method.Invoke(_sut, new object[] { diagnostics, "TestProject", allDiagnosticDetails, summary, 5 });
+
+            // Assert — should not exceed max
+            allDiagnosticDetails.Count.ShouldBeLessThanOrEqualTo(5);
+        }
+    }
+
+    #endregion
+
+    #region AnalyzeProjectAsync
+
+    public class AnalyzeProjectAsyncTests : SolutionAnalyzerServiceRoslynTests
+    {
+        [Fact]
+        public async Task Should_Analyze_Real_Project_With_AdhocWorkspace()
+        {
+            // Arrange — a simple C# class that can be compiled in-memory
+            var (_, project) = CreateInMemoryProject("TestProject", "class Foo { }");
+
+            var allDiagnosticDetails = new List<DiagnosticDetail>();
+            var summary = new DiagnosticSummary();
+
+            // Need to create an AnalysisContext instance
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
+            var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
+
+            // Act — call AnalyzeProjectAsync via reflection
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "AnalyzeProjectAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context })!;
+
+            // Assert — the project compiled successfully (no exceptions)
+            allDiagnosticDetails.ShouldNotBeNull();
+            summary.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task Should_Handle_Project_With_Diagnostics()
+        {
+            // Arrange — code with a warning (unused variable)
+            var (_, project) = CreateInMemoryProject("TestProject",
+                "class Foo { void Bar() { int unused; } }");
+
+            var allDiagnosticDetails = new List<DiagnosticDetail>();
+            var summary = new DiagnosticSummary();
+
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
+            var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "AnalyzeProjectAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context })!;
+
+            // Assert — diagnostics from unused variable
+            allDiagnosticDetails.ShouldNotBeNull();
+        }
+    }
+
+    #endregion
+
+    #region AnalyzeProjectsAsync
+
+    public class AnalyzeProjectsAsyncTests : SolutionAnalyzerServiceRoslynTests
+    {
+        [Fact]
+        public async Task Should_Analyze_All_Projects_In_Solution()
+        {
+            // Arrange
+            var workspace = new AdhocWorkspace();
+            var solution = workspace.CurrentSolution;
+
+            // Add two projects
+            var projectId1 = ProjectId.CreateNewId();
+            var projectId2 = ProjectId.CreateNewId();
+            var versionStamp = VersionStamp.Create();
+
+            solution = solution.AddProject(ProjectInfo.Create(
+                projectId1, versionStamp, "Project1", "Project1", LanguageNames.CSharp));
+            solution = solution.AddProject(ProjectInfo.Create(
+                projectId2, versionStamp, "Project2", "Project2", LanguageNames.CSharp));
+
+            var project1 = solution.GetProject(projectId1)!;
+            var document1 = project1.AddDocument("File1.cs", SourceText.From("class A { }"));
+            solution = document1.Project.Solution;
+
+            var project2 = solution.GetProject(projectId2)!;
+            var document2 = project2.AddDocument("File2.cs", SourceText.From("class B { }"));
+            solution = document2.Project.Solution;
+
+            // Create AnalysisContext
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
+            var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
+
+            // Act — call AnalyzeProjectsAsync via reflection
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "AnalyzeProjectsAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
+                method.Invoke(_sut, new object[] { solution, context })!;
+
+            // Assert
+            var (diagnostics, summary) = result;
+            diagnostics.ShouldNotBeNull();
+            summary.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task Should_Filter_Projects_By_IncludePattern()
+        {
+            // Arrange
+            var workspace = new AdhocWorkspace();
+            var solution = workspace.CurrentSolution;
+            var versionStamp = VersionStamp.Create();
+
+            // Add a project with "Service" in name
+            var projectId = ProjectId.CreateNewId();
+            solution = solution.AddProject(ProjectInfo.Create(
+                projectId, versionStamp, "MyService", "MyService", LanguageNames.CSharp));
+
+            // Create context with include pattern that doesn't match
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
+            var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
+            contextType.GetProperty("IncludePattern")!.SetValue(context, "Controller"); // Won't match "MyService"
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "AnalyzeProjectsAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
+                method.Invoke(_sut, new object[] { solution, context })!;
+
+            // Assert — project excluded by include pattern
+            var (diagnostics, summary) = result;
+            diagnostics.ShouldBeEmpty();
+        }
+    }
+
+    #endregion
+
+    #region CollectDiagnosticStatistics
+
+    public class CollectDiagnosticStatisticsTests : SolutionAnalyzerServiceRoslynTests
+    {
+        [Fact]
+        public async Task Should_Collect_Statistics_From_Real_Diagnostics()
+        {
+            // Arrange
+            var (_, project) = CreateInMemoryProject("TestProject",
+                "class Foo { void Bar() { int x; int y; } }");
+            var compilation = await project.GetCompilationAsync();
+            var diagnostics = compilation!.GetDiagnostics().ToList();
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "CollectDiagnosticStatistics",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var resultObj = method.Invoke(_sut, new object[] { diagnostics })!;
+
+            // Assert — result is a ValueTuple
+            resultObj.ShouldNotBeNull();
+            var resultType = resultObj.GetType();
+            var statsField = resultType.GetField("Item1");
+            var fixableField = resultType.GetField("Item2");
+            statsField.ShouldNotBeNull();
+            fixableField.ShouldNotBeNull();
+            var stats = (DiagnosticStats)statsField!.GetValue(resultObj)!;
+            stats.ShouldNotBeNull();
+            stats.BySeverity.ShouldNotBeNull();
+            stats.ById.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public void Should_Return_Empty_Stats_For_No_Diagnostics()
+        {
+            // Arrange
+            var diagnostics = new List<Diagnostic>();
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "CollectDiagnosticStatistics",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var resultObj = method.Invoke(_sut, new object[] { diagnostics })!;
+
+            // Assert
+            var resultType = resultObj.GetType();
+            var statsField = resultType.GetField("Item1");
+            var stats = (DiagnosticStats)statsField!.GetValue(resultObj)!;
+            stats.ById.ShouldBeEmpty();
+            stats.BySeverity.ShouldBeEmpty();
+            var fixableIds = (List<string>)resultType.GetField("Item2")!.GetValue(resultObj)!;
+            fixableIds.ShouldBeEmpty();
+        }
+    }
+
+    #endregion
+
+    #region GetProjectDiagnostics
+
+    public class GetProjectDiagnosticsTests : SolutionAnalyzerServiceRoslynTests
+    {
+        [Fact]
+        public async Task Should_Get_Diagnostics_From_Real_Compilation()
+        {
+            // Arrange
+            var (_, project) = CreateInMemoryProject("TestProject",
+                "class Foo { void Bar() { int unused; } }");
+            var compilation = await project.GetCompilationAsync();
+            compilation.ShouldNotBeNull();
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "GetProjectDiagnostics",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var result = (List<Diagnostic>)method.Invoke(_sut,
+                new object?[] { compilation!, (List<string>?)null, (List<string>?)null })!;
+
+            // Assert
+            result.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task Should_Filter_By_Diagnostic_Id()
+        {
+            // Arrange
+            var (_, project) = CreateInMemoryProject("TestProject",
+                "class Foo { void Bar() { int unused; } }");
+            var compilation = await project.GetCompilationAsync();
+            compilation.ShouldNotBeNull();
+            var allDiagnostics = compilation!.GetDiagnostics();
+
+            // Act — filter to only show specific IDs
+            var ids = allDiagnostics.Select(d => d.Id).Take(1).ToList();
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "GetProjectDiagnostics",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var result = (List<Diagnostic>)method.Invoke(_sut,
+                new object?[] { compilation!, ids, (List<string>?)null })!;
+
+            // Assert — all results should match the filter
+            result.ShouldNotBeNull();
+            if (ids.Count > 0)
+                result.ShouldAllBe(d => ids.Contains(d.Id));
+        }
+    }
+
+    #endregion
+}

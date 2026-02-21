@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -94,6 +95,7 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
         });
 
 // Minimal Program class for dependency injection
+[ExcludeFromCodeCoverage]
 public partial class Program
 {
     // Configure global exception handlers

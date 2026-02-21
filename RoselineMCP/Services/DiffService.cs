@@ -115,6 +115,8 @@ public class DiffService : IDiffService
                     sb.AppendLine($"+{line.Text}");
                     break;
                 case ChangeType.Modified:
+                    // DiffPlex InlineDiffBuilder does not produce Modified in practice;
+                    // this is defensive code for future compatibility.
                     sb.AppendLine($"-{line.Text}");
                     sb.AppendLine($"+{line.Text}");
                     break;

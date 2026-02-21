@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
@@ -75,6 +76,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         }
     }
 
+    [ExcludeFromCodeCoverage(Justification = "Requires real MSBuild workspace — integration test territory")]
     private async Task<Solution> LoadSolutionAsync(MSBuildWorkspace workspace, string solutionPath)
     {
         _logger.LogInformation("Loading solution: {Path}", solutionPath);
@@ -186,6 +188,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             .ToList();
     }
 
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     private class AnalysisContext
     {
         public string? IncludePattern { get; set; }
