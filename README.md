@@ -1,5 +1,10 @@
 # RoselineMCP
 
+[![CI](https://github.com/phmatray/RoselineMCP/actions/workflows/ci.yml/badge.svg)](https://github.com/phmatray/RoselineMCP/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/RoselineMCP.svg)](https://www.nuget.org/packages/RoselineMCP/)
+[![Docker](https://img.shields.io/docker/v/phmatray/roseline-mcp?label=docker)](https://hub.docker.com/r/phmatray/roseline-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A high-performance MCP (Model Context Protocol) server that provides comprehensive code analysis and automated fixing capabilities for C# solutions using Roslyn analyzers and code fix providers.
 
 ## Features
@@ -17,7 +22,7 @@ Choose the installation method that best fits your workflow:
 
 ### Option 1 — NuGet Global Tool (recommended)
 
-Requires .NET 9.0 SDK or later.
+Requires .NET 10.0 SDK or later.
 
 ```bash
 dotnet tool install -g RoselineMCP
@@ -106,9 +111,9 @@ dotnet test
 
 ### Prerequisites
 
-- **NuGet global tool**: .NET 9.0 SDK or later
+- **NuGet global tool**: .NET 10.0 SDK or later
 - **Docker**: Docker Desktop or Docker Engine
-- **Build from source**: .NET 9.0 SDK + MSBuild (included with Visual Studio or .NET SDK)
+- **Build from source**: .NET 10.0 SDK + MSBuild (included with Visual Studio or .NET SDK)
 - **MCP client**: Claude Desktop or any MCP-compatible client
 
 ## Available Tools
