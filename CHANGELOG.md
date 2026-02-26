@@ -7,15 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-02-26
+
 ### Added
 - README badges for CI, NuGet, Docker, and License
 - CHANGELOG.md to track version history
+- "Getting Started with Claude Desktop" section in README for all installation methods (NuGet global tool, Docker, build from source)
 
 ### Changed
-- Upgraded to .NET 10.0
-- Updated ModelContextProtocol to 0.9.0-preview.2 (from 0.3.0-preview.4)
-- Updated Microsoft.Extensions.Hosting to 10.0.1 (from 9.0.2)
+- Upgraded to .NET 10.0 (from .NET 9.0)
+- Updated `ModelContextProtocol` SDK to `0.9.0-preview.2` (from `0.3.0-preview.4`)
+- Updated `Microsoft.Extensions.Hosting` to `10.0.1` (from `9.0.2`)
 - Updated documentation to reflect .NET 10.0 requirement
+- All 213 tests passing on .NET 10.0
+
+### Notes
+- `ModelContextProtocol` SDK 1.0.0 (stable) is now available on NuGet — upgrade is tracked for next release
 
 ## [1.0.0] - (Initial Release)
 
@@ -37,5 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ApplyFixes**: Apply automated code fixes
 - **CreatePatch**: Generate unified diffs
 
-[Unreleased]: https://github.com/phmatray/RoselineMCP/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/phmatray/RoselineMCP/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/Atypical-Consulting/RoselineMCP/releases/tag/v1.0.0
