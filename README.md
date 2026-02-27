@@ -1,26 +1,99 @@
 # RoselineMCP
 
-[![CI](https://github.com/phmatray/RoselineMCP/actions/workflows/ci.yml/badge.svg)](https://github.com/phmatray/RoselineMCP/actions/workflows/ci.yml)
+> **Expose Roslyn code analysis as an MCP server so AI assistants can analyze and fix C# quality issues directly.**
+
+<!-- Badges: Row 1 — Identity -->
+[![Atypical-Consulting - RoselineMCP](https://img.shields.io/static/v1?label=Atypical-Consulting&message=RoselineMCP&color=blue&logo=github)](https://github.com/Atypical-Consulting/RoselineMCP)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-purple?logo=dotnet)](https://dotnet.microsoft.com/)
+[![stars - RoselineMCP](https://img.shields.io/github/stars/Atypical-Consulting/RoselineMCP?style=social)](https://github.com/Atypical-Consulting/RoselineMCP)
+[![forks - RoselineMCP](https://img.shields.io/github/forks/Atypical-Consulting/RoselineMCP?style=social)](https://github.com/Atypical-Consulting/RoselineMCP)
+
+<!-- Badges: Row 2 — Activity -->
+[![GitHub tag](https://img.shields.io/github/tag/Atypical-Consulting/RoselineMCP?include_prereleases=&sort=semver&color=blue)](https://github.com/Atypical-Consulting/RoselineMCP/releases/)
+[![issues - RoselineMCP](https://img.shields.io/github/issues/Atypical-Consulting/RoselineMCP)](https://github.com/Atypical-Consulting/RoselineMCP/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/Atypical-Consulting/RoselineMCP)](https://github.com/Atypical-Consulting/RoselineMCP/pulls)
+[![GitHub last commit](https://img.shields.io/github/last-commit/Atypical-Consulting/RoselineMCP)](https://github.com/Atypical-Consulting/RoselineMCP/commits/main)
+
+<!-- Badges: Row 3 — Quality -->
+[![CI](https://github.com/Atypical-Consulting/RoselineMCP/actions/workflows/ci.yml/badge.svg)](https://github.com/Atypical-Consulting/RoselineMCP/actions/workflows/ci.yml)
+
+<!-- Badges: Row 4 — Distribution -->
 [![NuGet](https://img.shields.io/nuget/v/RoselineMCP.svg)](https://www.nuget.org/packages/RoselineMCP/)
 [![Docker](https://img.shields.io/docker/v/phmatray/roseline-mcp?label=docker)](https://hub.docker.com/r/phmatray/roseline-mcp)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A high-performance MCP (Model Context Protocol) server that provides comprehensive code analysis and automated fixing capabilities for C# solutions using Roslyn analyzers and code fix providers.
+---
+
+## Table of Contents
+
+- [The Problem](#the-problem)
+- [The Solution](#the-solution)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Available Tools](#available-tools)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+## The Problem
+
+C# codebases accumulate quality issues silently -- inconsistent naming, missing nullable annotations, unused usings, suboptimal patterns. Manual code reviews catch some, but Roslyn analyzers can catch them all automatically. The problem: setting up and running analyzers across large codebases is tedious, and the results are not easily actionable from an AI assistant workflow.
+
+## The Solution
+
+**RoselineMCP** exposes Roslyn analysis as an MCP server so AI assistants can analyze and fix C# code quality issues directly. Connect it to Claude Desktop or any MCP-compatible client and get comprehensive diagnostics, automated fixes, and reviewable patches -- all without leaving your AI workflow.
+
+```csharp
+// In your Claude Desktop config, just add:
+{
+  "mcpServers": {
+    "roseline": {
+      "command": "roseline-mcp"
+    }
+  }
+}
+// Then ask Claude: "Analyze my solution at /path/to/MySolution.sln"
+```
 
 ## Features
 
-- **Comprehensive Code Analysis**: Analyze entire C# solutions for code quality issues, potential bugs, and style violations
-- **Automated Code Fixes**: Apply automated fixes for hundreds of diagnostic rules from Roslyn and Roslynator
-- **Unified Diff Generation**: Generate reviewable patches before applying changes
-- **Flexible Filtering**: Filter diagnostics by severity, ID, file patterns, and project names
-- **Safe Operations**: All operations use temporary workspaces to prevent accidental modifications
-- **MCP Protocol Support**: Full integration with the Model Context Protocol for AI assistant usage
+- [x] **Comprehensive Code Analysis** -- Analyze entire C# solutions for code quality issues, potential bugs, and style violations
+- [x] **Automated Code Fixes** -- Apply automated fixes for hundreds of diagnostic rules from Roslyn and Roslynator
+- [x] **Unified Diff Generation** -- Generate reviewable patches before applying changes
+- [x] **Flexible Filtering** -- Filter diagnostics by severity, ID, file patterns, and project names
+- [x] **Safe Operations** -- All operations use temporary workspaces to prevent accidental modifications
+- [x] **MCP Protocol Support** -- Full integration with the Model Context Protocol for AI assistant usage
+- [x] **Docker Support** -- Run without any SDK installation via Docker
+- [x] **NuGet Global Tool** -- Install with a single `dotnet tool install` command
 
-## Installation
+## Tech Stack
 
-Choose the installation method that best fits your workflow:
+| Layer | Technology |
+|-------|-----------|
+| Runtime | .NET 10.0 |
+| Compiler Platform | Roslyn (Microsoft.CodeAnalysis) 4.14.0 |
+| Analyzers | Roslynator 4.14.0 |
+| MCP SDK | ModelContextProtocol 0.9.0-preview.2 |
+| Diff Engine | DiffPlex 1.9.0 |
+| Build System | MSBuild 17.7.2 |
+| Hosting | Microsoft.Extensions.Hosting 10.0.1 |
 
-### Option 1 — NuGet Global Tool (recommended)
+## Getting Started
+
+### Prerequisites
+
+- **NuGet global tool**: .NET 10.0 SDK or later
+- **Docker**: Docker Desktop or Docker Engine
+- **Build from source**: .NET 10.0 SDK + MSBuild (included with Visual Studio or .NET SDK)
+- **MCP client**: Claude Desktop or any MCP-compatible client
+
+### Installation
+
+**Option 1 -- NuGet Global Tool** *(recommended)*
 
 Requires .NET 10.0 SDK or later.
 
@@ -50,7 +123,7 @@ Add to your Claude Desktop configuration file (`claude_desktop_config.json`):
 
 ---
 
-### Option 2 — Docker
+**Option 2 -- Docker**
 
 No SDK required. Works on any platform with Docker installed.
 
@@ -80,17 +153,12 @@ docker run -i --rm phmatray/roseline-mcp:latest
 
 ---
 
-### Option 3 — Build from Source
+**Option 3 -- Build from Source**
 
 ```bash
-# Clone the repository
 git clone https://github.com/Atypical-Consulting/RoselineMCP.git
 cd RoselineMCP
-
-# Build the project
 dotnet build
-
-# Run tests
 dotnet test
 ```
 
@@ -106,15 +174,6 @@ dotnet test
   }
 }
 ```
-
----
-
-### Prerequisites
-
-- **NuGet global tool**: .NET 10.0 SDK or later
-- **Docker**: Docker Desktop or Docker Engine
-- **Build from source**: .NET 10.0 SDK + MSBuild (included with Visual Studio or .NET SDK)
-- **MCP client**: Claude Desktop or any MCP-compatible client
 
 ## Available Tools
 
@@ -173,10 +232,10 @@ createPatch({
 
 RoselineMCP includes support for:
 
-- **Roslyn Analyzers**: Built-in C# compiler diagnostics
-- **Roslynator**: 500+ analyzers, refactorings, and fixes for C#
-- **StyleCop Analyzers**: Code style and consistency rules
-- **Custom Analyzers**: Any Roslyn-based analyzer in your solution
+- **Roslyn Analyzers** -- Built-in C# compiler diagnostics
+- **Roslynator** -- 500+ analyzers, refactorings, and fixes for C#
+- **StyleCop Analyzers** -- Code style and consistency rules
+- **Custom Analyzers** -- Any Roslyn-based analyzer in your solution
 
 ## Examples
 
@@ -247,43 +306,75 @@ Configure logging and other settings:
 }
 ```
 
-## Development
+## Architecture
 
-### Project Structure
+```
+┌─────────────────────┐
+│   MCP Client        │
+│  (Claude Desktop,   │
+│   AI Assistants)    │
+└────────┬────────────┘
+         │ MCP Protocol (stdio)
+         ▼
+┌─────────────────────┐
+│   RoselineMCP       │
+│   MCP Server        │
+│                     │
+│  ┌───────────────┐  │
+│  │  Tool Layer   │  │
+│  │  (Analyze,    │  │
+│  │   Fix, Patch) │  │
+│  └───────┬───────┘  │
+│          ▼          │
+│  ┌───────────────┐  │
+│  │ Service Layer │  │
+│  │ (Workspace,   │  │
+│  │  Diagnostics) │  │
+│  └───────┬───────┘  │
+│          ▼          │
+│  ┌───────────────┐  │
+│  │ Roslyn +      │  │
+│  │ Roslynator    │  │
+│  │ Analyzers     │  │
+│  └───────────────┘  │
+└─────────────────────┘
+         │
+         ▼
+┌─────────────────────┐
+│  C# Source Code     │
+│  (.sln / .csproj)   │
+└─────────────────────┘
+```
+
+## Project Structure
 
 ```
 RoselineMCP/
 ├── RoselineMCP/
 │   ├── Interfaces/       # Service interfaces
 │   ├── Services/         # Core business logic
-│   ├── Tools/           # MCP tool implementations
-│   ├── Models/          # Data transfer objects
-│   └── Program.cs       # Application entry point
-└── RoselineMCP.Tests/   # Unit tests
+│   ├── Tools/            # MCP tool implementations
+│   ├── Models/           # Data transfer objects
+│   └── Program.cs        # Application entry point
+├── RoselineMCP.Tests/    # Unit tests
+├── .github/workflows/    # CI/CD pipelines
+├── Dockerfile            # Container build
+└── RoselineMCP.sln       # Solution file
 ```
-
-### Adding New Tools
-
-1. Create a new tool class in `Tools/`
-2. Add the `[McpServerTool]` attribute
-3. Implement the tool logic
-4. Add corresponding tests
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Performance
 
-- **Workspace Caching**: MSBuild workspaces are reused when possible
-- **Parallel Analysis**: Projects analyzed concurrently
-- **Streaming Results**: Large result sets streamed to prevent memory issues
-- **Lazy Loading**: Diagnostics computed on-demand
+- **Workspace Caching** -- MSBuild workspaces are reused when possible
+- **Parallel Analysis** -- Projects analyzed concurrently
+- **Streaming Results** -- Large result sets streamed to prevent memory issues
+- **Lazy Loading** -- Diagnostics computed on-demand
 
 ## Security
 
-- **No Code Execution**: Never executes code from analyzed projects
-- **Sandboxed Operations**: All changes made in temporary workspaces
-- **Path Validation**: Protection against path traversal attacks
-- **Read-Only by Default**: Explicit confirmation required for modifications
+- **No Code Execution** -- Never executes code from analyzed projects
+- **Sandboxed Operations** -- All changes made in temporary workspaces
+- **Path Validation** -- Protection against path traversal attacks
+- **Read-Only by Default** -- Explicit confirmation required for modifications
 
 ## Troubleshooting
 
@@ -302,22 +393,45 @@ Enable detailed logging:
 ROSELINE_LOG_LEVEL=Debug dotnet run --project RoselineMCP/RoselineMCP.csproj
 ```
 
-## License
+## Roadmap
 
-MIT License - see [LICENSE](LICENSE) file for details.
+- [ ] Additional analyzer rule sets (SonarAnalyzer, FxCop)
+- [ ] Auto-fix suggestions with confidence scoring
+- [ ] CI/CD integration for automated analysis pipelines
+- [ ] Multi-solution support in a single session
+- [ ] Incremental analysis (only changed files)
+- [ ] Custom analyzer rule configuration via MCP
+
+> Want to contribute? Pick any roadmap item and open a PR!
+
+## Stats
+
+<!-- Get your hash from https://repobeats.axiom.co -->
+![Alt](https://repobeats.axiom.co/api/embed/00000000000000000000000000000000000000000000.svg "Repobeats analytics image")
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
-## Support
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit using [conventional commits](https://www.conventionalcommits.org/) (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-- **Issues**: [GitHub Issues](https://github.com/phmatray/RoselineMCP/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/phmatray/RoselineMCP/discussions)
+## License
+
+[MIT](LICENSE) © 2025 [Atypical Consulting](https://atypical.garry-ai.cloud)
 
 ## Acknowledgments
 
-- Built on [Roslyn](https://github.com/dotnet/roslyn) - The .NET Compiler Platform
-- Powered by [Roslynator](https://github.com/JosefPihrt/Roslynator) - C# analyzers and refactorings
-- Uses [DiffPlex](https://github.com/mmanela/diffplex) - Diff generation library
-- Implements [Model Context Protocol](https://modelcontextprotocol.io) - AI assistant integration protocol
+- Built on [Roslyn](https://github.com/dotnet/roslyn) -- The .NET Compiler Platform
+- Powered by [Roslynator](https://github.com/JosefPihrt/Roslynator) -- C# analyzers and refactorings
+- Uses [DiffPlex](https://github.com/mmanela/diffplex) -- Diff generation library
+- Implements [Model Context Protocol](https://modelcontextprotocol.io) -- AI assistant integration protocol
+
+---
+
+Built with care by [Atypical Consulting](https://atypical.garry-ai.cloud) -- opinionated, production-grade open source.
+
+[![Contributors](https://contrib.rocks/image?repo=Atypical-Consulting/RoselineMCP)](https://github.com/Atypical-Consulting/RoselineMCP/graphs/contributors)
