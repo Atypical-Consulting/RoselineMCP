@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Updated `ModelContextProtocol` SDK to `1.1.0`
+- Updated `Microsoft.Extensions.Hosting` to `10.0.5`
+- Updated `Microsoft.CodeAnalysis.*` to `5.3.0` (Roslyn)
+- Updated `Roslynator.*` to `4.15.0`
+- Updated MSBuild packages to `18.4.0`
+- Updated `FakeItEasy` to `9.0.1`
+- Updated `Microsoft.NET.Test.Sdk` to `18.3.0`
+- Updated `coverlet.msbuild` and `coverlet.collector` to `8.0.1`
+- Updated GitHub Actions: `upload-artifact` to v7, Docker actions to latest
+
+### Documentation
+- Fixed stale Tech Stack table in README (versions now match actual csproj)
+- Fixed CLAUDE.md runtime reference (.NET 9.0 → .NET 10.0, MCP SDK version)
+- Removed broken RepoBeats analytics placeholder
+- Added architecture note clarifying stdio transport as intentional design decision
+
 ## [1.1.0] - 2026-02-26
 
 ### Added
