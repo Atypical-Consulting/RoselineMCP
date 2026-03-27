@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**RoselineMCP** is a .NET 9.0 MCP (Model Context Protocol) server that provides comprehensive code analysis and automated fixing capabilities for C# solutions using Roslyn analyzers and code fix providers.
+**RoselineMCP** is a .NET 10.0 MCP (Model Context Protocol) server that provides comprehensive code analysis and automated fixing capabilities for C# solutions using Roslyn analyzers and code fix providers.
 
 ## Architecture
 
@@ -149,7 +149,7 @@ dotnet test --logger html
 ## Dependencies
 
 ### Core MCP and Hosting
-- **ModelContextProtocol** (0.3.0-preview.4): MCP server implementation
+- **ModelContextProtocol** (1.1.0): MCP server implementation
 - **Microsoft.Extensions.Hosting**: Application hosting and DI
 - **Microsoft.Extensions.DependencyInjection**: Service registration
 

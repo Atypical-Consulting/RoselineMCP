@@ -75,12 +75,12 @@ C# codebases accumulate quality issues silently -- inconsistent naming, missing 
 | Layer | Technology |
 |-------|-----------|
 | Runtime | .NET 10.0 |
-| Compiler Platform | Roslyn (Microsoft.CodeAnalysis) 4.14.0 |
-| Analyzers | Roslynator 4.14.0 |
-| MCP SDK | ModelContextProtocol 0.9.0-preview.2 |
+| Compiler Platform | Roslyn (Microsoft.CodeAnalysis) 5.3.0 |
+| Analyzers | Roslynator 4.15.0 |
+| MCP SDK | ModelContextProtocol 1.1.0 |
 | Diff Engine | DiffPlex 1.9.0 |
-| Build System | MSBuild 17.7.2 |
-| Hosting | Microsoft.Extensions.Hosting 10.0.1 |
+| Build System | MSBuild 18.4.0 |
+| Hosting | Microsoft.Extensions.Hosting 10.0.5 |
 
 ## Getting Started
 
@@ -308,6 +308,8 @@ Configure logging and other settings:
 
 ## Architecture
 
+RoselineMCP uses **stdio transport** — this is an intentional design decision. The server runs as a local process launched by the MCP client (Claude Desktop, AI agents), communicates over stdin/stdout, and exits when the client disconnects. This makes it perfectly suited for distribution as a NuGet global tool (`dotnet tool install -g RoselineMCP`) or Docker image — no port binding, no HTTP server, no infrastructure to manage.
+
 ```
 ┌─────────────────────┐
 │   MCP Client        │
@@ -405,9 +407,6 @@ ROSELINE_LOG_LEVEL=Debug dotnet run --project RoselineMCP/RoselineMCP.csproj
 > Want to contribute? Pick any roadmap item and open a PR!
 
 ## Stats
-
-<!-- Get your hash from https://repobeats.axiom.co -->
-![Alt](https://repobeats.axiom.co/api/embed/00000000000000000000000000000000000000000000.svg "Repobeats analytics image")
 
 ## Contributing
 
