@@ -1,6 +1,6 @@
 # RoselineMCP
 
-> **Expose Roslyn code analysis as an MCP server so AI assistants can analyze and fix C# quality issues directly.**
+> **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 81% fewer tokens →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
 
 <!-- Badges: Row 1 — Identity -->
 [![Atypical-Consulting - RoselineMCP](https://img.shields.io/static/v1?label=Atypical-Consulting&message=RoselineMCP&color=blue&logo=github)](https://github.com/Atypical-Consulting/RoselineMCP)
@@ -22,12 +22,18 @@
 [![NuGet](https://img.shields.io/nuget/v/RoselineMCP.svg)](https://www.nuget.org/packages/RoselineMCP/)
 [![Docker](https://img.shields.io/docker/v/phmatray/roseline-mcp?label=docker)](https://hub.docker.com/r/phmatray/roseline-mcp)
 
+<!-- Badges: Row 5 — Docs & result -->
+[![Docs & Benchmark](https://img.shields.io/badge/docs-site-e01e5a)](https://atypical-consulting.github.io/RoselineMCP/)
+[![Tokens saved](https://img.shields.io/badge/tokens-81%25_fewer-1baf7a)](https://atypical-consulting.github.io/RoselineMCP/benchmark)
+
+**📖 [Documentation, tool reference & the honest benchmark →](https://atypical-consulting.github.io/RoselineMCP/)**
+
 ---
 
 ## Table of Contents
 
-- [The Problem](#the-problem)
-- [The Solution](#the-solution)
+- [Why RoselineMCP](#why-roselinemcp)
+- [Quick Start](#quick-start)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
@@ -44,38 +50,49 @@
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
 
-## The Problem
+## Why RoselineMCP
 
-C# codebases accumulate quality issues silently -- inconsistent naming, missing nullable annotations, unused usings, suboptimal patterns. Manual code reviews catch some, but Roslyn analyzers can catch them all automatically. The problem: setting up and running analyzers across large codebases is tedious, and the results are not easily actionable from an AI assistant workflow.
+Your coding agent shouldn't read a 700-line file to change one method. Source code dominates an
+agent's token budget, so the cheapest win is to stop feeding it whole files.
 
-## The Solution
+RoselineMCP wraps the [Roslyn](https://github.com/dotnet/roslyn) compiler platform as an MCP server.
+Instead of dumping source into the model, it answers *structural* questions precisely — where is
+this symbol used, what implements this interface, who calls this method, what's the shape of this
+file — and it edits **surgically**: a member-level diff, not a whole-file rewrite.
 
-**RoselineMCP** exposes Roslyn analysis as an MCP server so AI assistants can analyze and fix C# code quality issues directly. Connect it to Claude Desktop or any MCP-compatible client and get comprehensive diagnostics, automated fixes, and reviewable patches -- all without leaving your AI workflow.
+On RoselineMCP's own source, the read-only navigation tools returned a **pooled 81% (median 74%)
+fewer tokens** than reading the corresponding files —
+[measured honestly, weak cases included](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 
-```csharp
-// In your Claude Desktop config, just add:
+> `search_symbols` on `Program.cs`: **1,154 tokens → 125** (−89%). The agent gets the shape of the
+> file; you skip the wall.
+
+## Quick Start
+
+Any MCP client that speaks `dnx` (the .NET equivalent of `npx`) runs it on demand — no install step.
+Requires the .NET 10 SDK.
+
+```jsonc
+// claude_desktop_config.json  ·  .vscode/mcp.json  ·  ~/.cursor/mcp.json
 {
   "mcpServers": {
-    "roseline": {
-      "command": "roseline-mcp"
-    }
+    "roseline": { "command": "dnx", "args": ["RoselineMCP", "--yes"] }
   }
 }
-// Then ask Claude: "Analyze my solution at /path/to/MySolution.sln"
 ```
+
+Then ask your agent to *"find every caller of `OrderService.Checkout`"* or *"rename `Foo` to `Bar`
+across the solution."* Prefer a pinned NuGet install or Docker? See
+[Getting Started](#getting-started).
 
 ## Features
 
-- [x] **Comprehensive Code Analysis** -- Analyze entire C# solutions for code quality issues, potential bugs, and style violations
-- [x] **Automated Code Fixes** -- Apply automated fixes for hundreds of diagnostic rules from Roslyn and Roslynator
-- [x] **Token-Efficient Code Navigation** -- Retrieve symbols, signatures, references, call graphs, and type hierarchies via Roslyn instead of reading whole files, so an AI agent spends far fewer tokens orienting in a codebase (a measured pooled **81%** / median **74%** token reduction on RoselineMCP's own source -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark))
-- [x] **Surgical Code Edits** -- Replace/add/delete a single member or rename a symbol solution-wide, emitting a diff rather than a whole-file rewrite (preview by default)
-- [x] **Unified Diff Generation** -- Generate reviewable patches before applying changes
-- [x] **Flexible Filtering** -- Filter diagnostics by severity, ID, file patterns, and project names
-- [x] **Safe Operations** -- All operations use temporary workspaces to prevent accidental modifications
-- [x] **MCP Protocol Support** -- Full integration with the Model Context Protocol for AI assistant usage
-- [x] **Docker Support** -- Run without any SDK installation via Docker
-- [x] **NuGet Global Tool** -- Install with a single `dotnet tool install` command
+- [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **81% pooled / 74% median** token reduction -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
+- [x] **Surgical code edits** -- replace/add/delete a member or rename a symbol solution-wide, emitting a unified diff instead of a whole-file rewrite. Preview by default.
+- [x] **Comprehensive analysis & auto-fix** -- diagnostics across a solution (Roslyn + Roslynator) with automated fixes and reviewable patches.
+- [x] **Read-only by default** -- the six navigation tools and the diagnostics/patch tools never touch disk; the three write tools require an explicit `previewOnly: false`.
+- [x] **Works with your client** -- Claude Desktop, VS Code (Copilot / MCP), Cursor. Install via `dnx`, NuGet global tool, or Docker.
+- [x] **Honest, reproducible benchmark** -- run it against your own solution: `dotnet run --project RoselineMCP.TokenBenchmark -c Release`.
 
 ## Tech Stack
 
