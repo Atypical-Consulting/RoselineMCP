@@ -68,6 +68,8 @@ C# codebases accumulate quality issues silently -- inconsistent naming, missing 
 
 - [x] **Comprehensive Code Analysis** -- Analyze entire C# solutions for code quality issues, potential bugs, and style violations
 - [x] **Automated Code Fixes** -- Apply automated fixes for hundreds of diagnostic rules from Roslyn and Roslynator
+- [x] **Token-Efficient Code Navigation** -- Retrieve symbols, signatures, references, call graphs, and type hierarchies via Roslyn instead of reading whole files, so an AI agent spends far fewer tokens orienting in a codebase
+- [x] **Surgical Code Edits** -- Replace/add/delete a single member or rename a symbol solution-wide, emitting a diff rather than a whole-file rewrite (preview by default)
 - [x] **Unified Diff Generation** -- Generate reviewable patches before applying changes
 - [x] **Flexible Filtering** -- Filter diagnostics by severity, ID, file patterns, and project names
 - [x] **Safe Operations** -- All operations use temporary workspaces to prevent accidental modifications
@@ -327,6 +329,128 @@ createPatch({
 **Returns:** the unified diff `patch`, `hasChanges`, `linesAdded`, `linesRemoved`, and the
 `fileName`/`summary` used in the diff header.
 
+### Code Navigation Tools (read-only)
+
+These tools return **precise structure instead of whole files**, so an AI agent can orient itself
+in a codebase while spending far fewer tokens than reading source directly. All are read-only and
+operate on a `project` (name, directory, or `.csproj` path); when the project belongs to a
+solution, the whole solution is loaded so references/renames span projects. Full request/response
+shapes are in [docs/API.md](docs/API.md).
+
+> **Tool names on the wire are `snake_case`.** The section headings below use friendly
+> PascalCase/`camelCase` for readability, but the actual MCP tool names returned by `tools/list`
+> (and expected by `tools/call`) are: `search_symbols`, `get_symbol_info`, `find_references`,
+> `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `edit_member`, `rename_symbol`
+> (matching the existing `analyze_solution` / `list_diagnostics` / `apply_fixes` / `create_patch`).
+
+#### 5. SearchSymbols
+
+Find symbols by wildcard/substring name pattern, or outline a single file.
+
+```typescript
+searchSymbols({
+  project: "MyApp.Core",
+  query: "*Service",             // Substring, or wildcard with * and ? — omit to outline a file
+  file: "UserService.cs",        // Optional: restrict to one file, or outline it when query omitted
+  kinds: ["class", "method"],    // Optional: filter by kind (also accepts "type" / "member")
+  max: 50                        // Optional (default: 50)
+})
+```
+
+**Returns:** `symbols` (name, fullName, kind, signature, accessibility, file, line, containingType), `totalFound`, `truncated`.
+
+#### 6. GetSymbolInfo
+
+The compact "go to definition": a symbol's declaration metadata and (optionally) its source.
+
+```typescript
+getSymbolInfo({
+  project: "MyApp.Core",
+  symbol: "Acme.Users.UserService.GetUser",  // Simple or fully-qualified name
+  includeSource: true                          // Optional (default: true)
+})
+```
+
+**Returns:** name, fullName, kind, accessibility, modifiers, signature, baseTypes, interfaces, documentation, definitionFile/Line, and (optionally) source.
+
+#### 7. FindReferences
+
+Every use site of a symbol across the solution, as location + one-line snippet.
+
+```typescript
+findReferences({ project: "MyApp.Core", symbol: "GetUser", includeDefinition: false, max: 100 })
+```
+
+**Returns:** `references` (file, line, column, snippet), `totalReferences`, `truncated`.
+
+#### 8. FindImplementations
+
+Implementations of an interface/member, overrides of a virtual/abstract member, or derived types of a class.
+
+```typescript
+findImplementations({ project: "MyApp.Core", symbol: "IRepository", max: 100 })
+```
+
+**Returns:** `implementations` (symbol summaries), `totalFound`, `truncated`.
+
+#### 9. GetCallGraph
+
+A depth-bounded caller and/or callee graph for a method, with cycle detection.
+
+```typescript
+getCallGraph({
+  project: "MyApp.Core",
+  method: "Handle",
+  direction: "callers",   // "callers" (default) | "callees" | "both"
+  depth: 1,               // 1-3 (default: 1)
+  max: 50                 // Optional: nodes expanded per direction
+})
+```
+
+**Returns:** `callers`/`callees` trees of nodes (fullName, signature, file, line, truncated, children).
+
+#### 10. GetTypeHierarchy
+
+A type's base-class chain, implemented interfaces, and/or derived types.
+
+```typescript
+getTypeHierarchy({ project: "MyApp.Core", type: "SqlRepository", direction: "both" }) // "base" | "derived" | "both"
+```
+
+**Returns:** `baseTypes`, `interfaces`, `derivedTypes` (as symbol summaries).
+
+### Code Editing Tools (preview by default)
+
+Surgical edits that emit a member-level change rather than a whole-file rewrite. Like `ApplyFixes`,
+both **default to preview mode** (`previewOnly: true`) — nothing is written to disk unless you pass
+`previewOnly: false` explicitly.
+
+#### 11. EditMember
+
+Replace, add, or delete a single type member; returns a unified diff.
+
+```typescript
+editMember({
+  project: "MyApp.Core",
+  symbol: "Acme.UserService.GetUser",  // The member (replace/delete), or the container type (add)
+  operation: "replace",                 // "replace" | "add" | "delete"
+  newSource: "public User GetUser(int id) => _repo.Find(id);",  // Required for replace/add
+  previewOnly: false                    // Optional (default: true). Set false to write to disk.
+})
+```
+
+**Returns:** operation, target, `changedFiles`, `patch`, `previewOnly`, `applied`, `notes`.
+
+#### 12. RenameSymbol
+
+Rename a symbol and update every reference across the solution (Roslyn rename); returns a unified diff.
+
+```typescript
+renameSymbol({ project: "MyApp.Core", symbol: "GetUser", newName: "GetUserById", previewOnly: false })
+```
+
+**Returns:** symbol, newName, `changedFiles`, `patch`, `previewOnly`, `applied`, `notes`.
+
 ## Tool Annotations
 
 RoselineMCP's SDK (`ModelContextProtocol` 1.4.0) supports the standard MCP tool
@@ -340,6 +464,14 @@ RoselineMCP's SDK (`ModelContextProtocol` 1.4.0) supports the standard MCP tool
 | `ListDiagnostics` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `ApplyFixes` | ❌ false | ⚠️ true | ❌ false | `destructiveHint` is a static, worst-case annotation: it's `true` because the tool *can* write files when `previewOnly: false` is passed, even though the default call (`previewOnly` unset, i.e. `true`) writes nothing. The SDK's annotation model has no way to express "destructive only for a specific parameter value" — see the doc comment on `ApplyFixesTool.ApplyFixes` in source. |
 | `CreatePatch` | ✅ true | ❌ false | ✅ true | Operates purely on the two provided strings; never touches the filesystem. |
+| `SearchSymbols` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `GetSymbolInfo` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `FindReferences` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `FindImplementations` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `GetCallGraph` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `GetTypeHierarchy` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `EditMember` | ❌ false | ⚠️ true | ❌ false | Same worst-case `destructiveHint` rationale as `ApplyFixes`: writes a file only when `previewOnly: false` is passed; the default call writes nothing. |
+| `RenameSymbol` | ❌ false | ⚠️ true | ❌ false | Same worst-case `destructiveHint` rationale as `ApplyFixes`: writes files only when `previewOnly: false` is passed; the default call writes nothing. |
 
 These hints are static per-tool metadata for MCP clients that surface them (e.g. to warn a user
 before an agent invokes a destructive tool) — they describe the tool's worst-case behavior, not
@@ -517,9 +649,11 @@ RoselineMCP/
 
 ## Security
 
-- **Read-Only by Default** -- `AnalyzeSolution`, `ListDiagnostics`, and `CreatePatch` never write
-  to disk. `ApplyFixes` defaults to `previewOnly: true`; writing requires the caller to pass
-  `previewOnly: false` explicitly.
+- **Read-Only by Default** -- `AnalyzeSolution`, `ListDiagnostics`, `CreatePatch`, and all six code
+  navigation tools (`SearchSymbols`, `GetSymbolInfo`, `FindReferences`, `FindImplementations`,
+  `GetCallGraph`, `GetTypeHierarchy`) never write to disk. The three write-capable tools —
+  `ApplyFixes`, `EditMember`, and `RenameSymbol` — each default to `previewOnly: true`; writing
+  requires the caller to pass `previewOnly: false` explicitly.
 - **Real, Read-Only Git Cloning** -- `pathOrGit` accepts `http(s)://` Git URLs, which are
   shallow-cloned (`git clone --depth 1`) into a temp directory that's deleted after the operation.
   No other URL scheme is treated as a Git remote.

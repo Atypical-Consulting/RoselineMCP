@@ -78,11 +78,14 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
             services.AddSingleton<IDiagnosticFilterService, DiagnosticFilterService>();
             services.AddSingleton<ICodeFixProviderFactory, CodeFixProviderFactory>();
             services.AddSingleton<IDiffService, DiffService>();
+            services.AddSingleton<IProjectLoader, ProjectLoader>();
 
             // Add Business Services
             services.AddSingleton<ISolutionAnalyzerService, SolutionAnalyzerService>();
             services.AddSingleton<ICodeFixService, CodeFixService>();
             services.AddSingleton<IPatchService, PatchService>();
+            services.AddSingleton<ICodeNavigationService, CodeNavigationService>();
+            services.AddSingleton<ICodeEditService, CodeEditService>();
         })
         .ConfigureLogging((context, logging) =>
         {

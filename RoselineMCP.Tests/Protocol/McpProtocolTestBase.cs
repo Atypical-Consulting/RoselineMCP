@@ -26,6 +26,10 @@ public abstract class McpProtocolTestBase : IAsyncLifetime
 
     protected ICodeFixService CodeFixService { get; } = A.Fake<ICodeFixService>();
 
+    protected ICodeNavigationService NavigationService { get; } = A.Fake<ICodeNavigationService>();
+
+    protected ICodeEditService EditService { get; } = A.Fake<ICodeEditService>();
+
     protected McpClient Client => _host?.Client
         ?? throw new InvalidOperationException($"{nameof(Client)} is only available once {nameof(InitializeAsync)} has completed.");
 
@@ -35,6 +39,8 @@ public abstract class McpProtocolTestBase : IAsyncLifetime
         {
             services.AddSingleton(AnalyzerService);
             services.AddSingleton(CodeFixService);
+            services.AddSingleton(NavigationService);
+            services.AddSingleton(EditService);
             services.AddSingleton<IDiffService, DiffService>();
             services.AddSingleton<IPatchService, PatchService>();
         });

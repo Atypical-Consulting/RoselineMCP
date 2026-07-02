@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Token-efficient code navigation tools** — six new read-only MCP tools that let an AI agent
+  retrieve precise structural/semantic information via Roslyn instead of reading whole files
+  (source code typically dominates an agent's token budget):
+  - `search_symbols` — find symbols by wildcard/substring name pattern, or outline a single file
+  - `get_symbol_info` — a symbol's kind, accessibility, modifiers, signature, base types,
+    interfaces, XML docs, and definition location (optionally its source) — the compact
+    "go to definition" payload
+  - `find_references` — every use site of a symbol across the solution, as location + snippet
+  - `find_implementations` — implementations of an interface/member, overrides, or derived types
+  - `get_call_graph` — a depth-bounded caller/callee graph with cycle detection
+  - `get_type_hierarchy` — a type's base-class chain, interfaces, and derived types
+- **Surgical code-editing tools** — two new write tools that emit a member-level change (not a
+  whole-file rewrite), keeping the tokens an agent produces proportional to the change. Both
+  default to preview mode (`previewOnly: true`) like `ApplyFixes`, so nothing is written to disk
+  unless the caller passes `previewOnly: false` explicitly:
+  - `edit_member` — replace, add, or delete a single type member
+  - `rename_symbol` — rename a symbol and update every reference across the solution (Roslyn rename)
+- `IProjectLoader`/`ProjectLoader` service that loads a project — and its containing solution when
+  present, so references and renames span projects — into a fresh workspace per call, plus
+  `ICodeNavigationService` and `ICodeEditService` and their response models.
+
 ## [1.2.1] - 2026-07-02
 
 ### Fixed

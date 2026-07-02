@@ -9,6 +9,14 @@ Complete API reference for RoselineMCP tools and services.
   - [ListDiagnostics](#listdiagnostics)
   - [ApplyFixes](#applyfixes)
   - [CreatePatch](#createpatch)
+  - [SearchSymbols](#searchsymbols)
+  - [GetSymbolInfo](#getsymbolinfo)
+  - [FindReferences](#findreferences)
+  - [FindImplementations](#findimplementations)
+  - [GetCallGraph](#getcallgraph)
+  - [GetTypeHierarchy](#gettypehierarchy)
+  - [EditMember](#editmember)
+  - [RenameSymbol](#renamesymbol)
 - [Tool Annotations](#tool-annotations)
 - [Service Interfaces](#service-interfaces)
 - [Models](#models)
@@ -223,6 +231,286 @@ mcp call createPatch '{
 }'
 ```
 
+---
+
+The remaining tools are **code navigation and editing** tools backed by Roslyn. They exist to save
+tokens: rather than reading whole files into an agent's context, they return only the structure
+(symbols, signatures, references, graphs) or a member-level diff. They all take a `project`
+argument (a project name, a directory, or a path to a `.csproj`). Local paths only — unlike
+`AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a solution, the whole
+solution is loaded so cross-project references and renames are complete.
+
+**Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
+(e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
+disambiguate. If a simple name matches more than one symbol, the tool returns a `ValidationError`
+listing the candidate fully-qualified names.
+
+### SearchSymbols
+
+Find symbols by name pattern, or outline a single file. **Read-only.**
+
+#### Request
+
+```typescript
+{
+  project: string;    // Project name, directory, or path to .csproj
+  query?: string;     // Substring, or wildcard with * and ?. Omit to outline via `file`.
+  file?: string;      // Restrict to a file (name or path suffix); outlines it when `query` is omitted
+  kinds?: string[];   // Filter, e.g. ["class","interface","method","property","field","enum"]; also "type"/"member"
+  max?: number;       // Maximum symbols (default: 50)
+}
+```
+
+At least one of `query` or `file` is required (otherwise `ValidationError`).
+
+#### Response
+
+```typescript
+{
+  project: string;
+  query: string | null;
+  file: string | null;
+  totalFound: number;    // Count before `max` was applied
+  truncated: boolean;    // Whether the list was capped
+  symbols: Array<{
+    name: string;
+    fullName: string;
+    kind: string;             // e.g. "class", "method", "property"
+    signature: string;
+    accessibility: string;    // e.g. "public", "internal"
+    file: string | null;
+    line: number | null;      // 1-based
+    containingType: string | null;
+  }>;
+}
+```
+
+### GetSymbolInfo
+
+Declaration metadata, signature, and (optionally) the source of a single symbol. **Read-only.**
+
+#### Request
+
+```typescript
+{
+  project: string;
+  symbol: string;          // Simple or fully-qualified name
+  includeSource?: boolean; // Include the declaration's source text (default: true)
+}
+```
+
+#### Response
+
+```typescript
+{
+  name: string;
+  fullName: string;
+  kind: string;
+  accessibility: string;
+  modifiers: string[];         // e.g. ["static","async"]
+  signature: string;
+  baseTypes: string[];         // Base-class chain (types only)
+  interfaces: string[];        // Directly-implemented interfaces (types only)
+  documentation: string | null;  // XML <summary> text, whitespace-collapsed
+  definitionFile: string | null;
+  definitionLine: number | null; // 1-based
+  source: string | null;          // Present only when includeSource is true
+}
+```
+
+### FindReferences
+
+Every use site of a symbol across the solution. **Read-only.**
+
+#### Request
+
+```typescript
+{
+  project: string;
+  symbol: string;
+  includeDefinition?: boolean; // Also include the declaration (default: false)
+  max?: number;                // Maximum references (default: 100)
+}
+```
+
+#### Response
+
+```typescript
+{
+  symbol: string;
+  fullName: string;
+  totalReferences: number;   // Count before `max`
+  truncated: boolean;
+  references: Array<{
+    file: string;
+    line: number;    // 1-based
+    column: number;  // 1-based
+    snippet: string; // Trimmed source line
+  }>;
+}
+```
+
+### FindImplementations
+
+Implementations of an interface/member, overrides of a virtual/abstract member, or derived types
+of a class. **Read-only.**
+
+#### Request
+
+```typescript
+{
+  project: string;
+  symbol: string;  // Interface, class, or member
+  max?: number;    // Maximum results (default: 100)
+}
+```
+
+#### Response
+
+```typescript
+{
+  symbol: string;
+  fullName: string;
+  kind: string;
+  totalFound: number;
+  truncated: boolean;
+  implementations: SymbolSummary[]; // Same shape as SearchSymbols' `symbols`
+}
+```
+
+### GetCallGraph
+
+A depth-bounded caller and/or callee graph for a method, with cycle detection. **Read-only.**
+
+#### Request
+
+```typescript
+{
+  project: string;
+  method: string;
+  direction?: string; // "callers" (default) | "callees" | "both"
+  depth?: number;     // Traversal depth, clamped to 1-3 (default: 1)
+  max?: number;       // Maximum nodes expanded per direction (default: 50)
+}
+```
+
+#### Response
+
+```typescript
+{
+  method: string;
+  fullName: string;
+  direction: string;
+  depth: number;
+  callers?: CallGraphNode[]; // Present for "callers"/"both"
+  callees?: CallGraphNode[]; // Present for "callees"/"both"
+}
+
+// CallGraphNode
+{
+  fullName: string;
+  signature: string;
+  file: string | null;
+  line: number | null;
+  truncated: boolean;          // Cycle detected, or depth/budget stopped expansion
+  children?: CallGraphNode[];  // Next level, when expanded
+}
+```
+
+### GetTypeHierarchy
+
+A type's base-class chain, implemented interfaces, and/or derived types. **Read-only.**
+
+#### Request
+
+```typescript
+{
+  project: string;
+  type: string;
+  direction?: string; // "base" | "derived" | "both" (default)
+  max?: number;       // Maximum derived types to return (default: 100)
+}
+```
+
+#### Response
+
+```typescript
+{
+  type: string;
+  fullName: string;
+  direction: string;
+  baseTypes?: SymbolSummary[];      // Present for "base"/"both" — nearest base first, excluding object
+  interfaces?: SymbolSummary[];     // Present for "base"/"both" — all implemented interfaces
+  derivedTypes?: SymbolSummary[];   // Present for "derived"/"both" (capped at max)
+  derivedTypesTruncated: boolean;   // True when more derived types exist than were returned
+}
+```
+
+### EditMember
+
+Replace, add, or delete a single type member; returns a unified diff. **Defaults to preview mode**
+(`previewOnly: true`) — no files are written unless you pass `previewOnly: false`
+(`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation).
+
+#### Request
+
+```typescript
+{
+  project: string;
+  symbol: string;      // The member (replace/delete), or the container type (add)
+  operation: string;   // "replace" | "add" | "delete"
+  newSource?: string;  // C# member declaration — required for "replace" and "add"
+  previewOnly?: boolean; // If true (default), only return a diff; pass false to write
+}
+```
+
+#### Response
+
+```typescript
+{
+  project: string;
+  operation: string;
+  target: string;          // Fully-qualified name of the member/type edited
+  changedFiles: string[];  // Relative path(s) modified (or that would be)
+  patch: string;           // Unified diff
+  previewOnly: boolean;
+  applied: boolean;        // True only when previewOnly was false and there were changes
+  notes: string[];
+}
+```
+
+### RenameSymbol
+
+Rename a symbol and update every reference across the solution using Roslyn's rename engine;
+returns a unified diff. **Defaults to preview mode** (`previewOnly: true`)
+(`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation).
+
+#### Request
+
+```typescript
+{
+  project: string;
+  symbol: string;
+  newName: string;       // Must be a valid C# identifier
+  previewOnly?: boolean; // If true (default), only return a diff; pass false to write
+}
+```
+
+#### Response
+
+```typescript
+{
+  project: string;
+  symbol: string;          // Fully-qualified name that was renamed
+  newName: string;
+  changedFiles: string[];
+  patch: string;           // Unified diff across all changed files
+  previewOnly: boolean;
+  applied: boolean;
+  notes: string[];
+}
+```
+
 ## Tool Annotations
 
 Every tool declares the standard MCP annotation hints (`readOnlyHint`, `destructiveHint`,
@@ -234,8 +522,16 @@ Every tool declares the standard MCP annotation hints (`readOnlyHint`, `destruct
 | `ListDiagnostics` | `true` | `false` | `true` |
 | `ApplyFixes` | `false` | `true`\* | `false` |
 | `CreatePatch` | `true` | `false` | `true` |
+| `SearchSymbols` | `true` | `false` | `true` |
+| `GetSymbolInfo` | `true` | `false` | `true` |
+| `FindReferences` | `true` | `false` | `true` |
+| `FindImplementations` | `true` | `false` | `true` |
+| `GetCallGraph` | `true` | `false` | `true` |
+| `GetTypeHierarchy` | `true` | `false` | `true` |
+| `EditMember` | `false` | `true`\* | `false` |
+| `RenameSymbol` | `false` | `true`\* | `false` |
 
-\* `ApplyFixes`' `destructiveHint` is a static, worst-case annotation: it is `true` because the
+\* The `destructiveHint` on `ApplyFixes`, `EditMember`, and `RenameSymbol` is a static, worst-case annotation: it is `true` because the
 tool *can* write files when `previewOnly: false` is passed, even though the default call
 (`previewOnly` unset, i.e. `true`) writes nothing. The MCP SDK's annotation model has no way to
 express "destructive only for a specific parameter value" — see the doc comment on
@@ -320,6 +616,68 @@ public interface IDiagnosticFilterService
 }
 ```
 
+### ICodeNavigationService
+
+Read-only structural/semantic navigation (backs the six navigation tools).
+
+```csharp
+public interface ICodeNavigationService
+{
+    Task<SymbolSearchResponse> SearchSymbolsAsync(
+        string project, string? query, string? file, string[]? kinds, int max,
+        CancellationToken cancellationToken = default);
+
+    Task<SymbolInfoResponse> GetSymbolInfoAsync(
+        string project, string symbol, bool includeSource,
+        CancellationToken cancellationToken = default);
+
+    Task<ReferencesResponse> FindReferencesAsync(
+        string project, string symbol, bool includeDefinition, int max,
+        CancellationToken cancellationToken = default);
+
+    Task<ImplementationsResponse> FindImplementationsAsync(
+        string project, string symbol, int max,
+        CancellationToken cancellationToken = default);
+
+    Task<CallGraphResponse> GetCallGraphAsync(
+        string project, string method, string direction, int depth, int max,
+        CancellationToken cancellationToken = default);
+
+    Task<TypeHierarchyResponse> GetTypeHierarchyAsync(
+        string project, string type, string direction,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### ICodeEditService
+
+Surgical, symbol-aware edits (backs `EditMember` and `RenameSymbol`). Preview by default — writes
+only when `previewOnly` is `false`.
+
+```csharp
+public interface ICodeEditService
+{
+    Task<EditMemberResponse> EditMemberAsync(
+        string project, string symbol, string operation, string? newSource, bool previewOnly,
+        CancellationToken cancellationToken = default);
+
+    Task<RenameSymbolResponse> RenameSymbolAsync(
+        string project, string symbol, string newName, bool previewOnly,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### IProjectLoader
+
+Loads a project (and its solution, when found) into a fresh workspace for navigation/edits.
+
+```csharp
+public interface IProjectLoader
+{
+    Task<LoadedProject> LoadAsync(string project, CancellationToken cancellationToken = default);
+}
+```
+
 ## Models
 
 ### DiagnosticDetail
@@ -387,6 +745,39 @@ public class CreatePatchResponse
     public string Summary { get; set; }
 }
 ```
+
+### SymbolSummary
+
+The compact per-symbol shape shared by `SearchSymbols`, `FindImplementations`, and
+`GetTypeHierarchy` (JSON property names in `camelCase`).
+
+```csharp
+public class SymbolSummary
+{
+    public string Name { get; set; }
+    public string FullName { get; set; }
+    public string Kind { get; set; }            // "class", "method", ...
+    public string Signature { get; set; }
+    public string Accessibility { get; set; }   // "public", "internal", ...
+    public string? File { get; set; }
+    public int? Line { get; set; }              // 1-based
+    public string? ContainingType { get; set; }
+}
+```
+
+### Navigation & edit response models
+
+All navigation/edit responses use `camelCase` JSON property names. Their fields are documented in
+the [MCP Tools](#mcp-tools) sections above; the C# types are:
+
+- `SymbolSearchResponse` — `project`, `query`, `file`, `totalFound`, `truncated`, `symbols: SymbolSummary[]`
+- `SymbolInfoResponse` — `name`, `fullName`, `kind`, `accessibility`, `modifiers[]`, `signature`, `baseTypes[]`, `interfaces[]`, `documentation`, `definitionFile`, `definitionLine`, `source`
+- `ReferencesResponse` — `symbol`, `fullName`, `totalReferences`, `truncated`, `references: ReferenceLocation[]` (`file`, `line`, `column`, `snippet`)
+- `ImplementationsResponse` — `symbol`, `fullName`, `kind`, `totalFound`, `truncated`, `implementations: SymbolSummary[]`
+- `CallGraphResponse` — `method`, `fullName`, `direction`, `depth`, `callers?`, `callees?` of `CallGraphNode` (`fullName`, `signature`, `file`, `line`, `truncated`, `children?`)
+- `TypeHierarchyResponse` — `type`, `fullName`, `direction`, `baseTypes?`, `interfaces?`, `derivedTypes?` (all `SymbolSummary[]`), `derivedTypesTruncated`
+- `EditMemberResponse` — `project`, `operation`, `target`, `changedFiles[]`, `patch`, `previewOnly`, `applied`, `notes[]`
+- `RenameSymbolResponse` — `project`, `symbol`, `newName`, `changedFiles[]`, `patch`, `previewOnly`, `applied`, `notes[]`
 
 ## Error Handling
 
