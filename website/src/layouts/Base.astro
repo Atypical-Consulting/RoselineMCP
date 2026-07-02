@@ -16,6 +16,9 @@ const nav = [
   { href: base + 'tools', label: 'Tools', id: 'tools' },
 ];
 const repo = 'https://github.com/Atypical-Consulting/RoselineMCP';
+const site = Astro.site ?? new URL('https://atypical-consulting.github.io');
+const canonical = new URL(Astro.url.pathname, site).href;
+const ogImage = new URL(base + 'og.png', site).href;
 ---
 <!doctype html>
 <html lang="en">
@@ -23,7 +26,24 @@ const repo = 'https://github.com/Atypical-Consulting/RoselineMCP';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
     <link rel="icon" href={base + 'favicon.svg'} type="image/svg+xml" />
+    <meta name="theme-color" content="#e01e5a" />
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RoselineMCP" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="2400" />
+    <meta property="og:image:height" content="1260" />
+    <meta property="og:image:alt" content="RoselineMCP — Roslyn code intelligence for AI agents. 81% fewer tokens." />
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
     <title>{title}</title>
     <style is:global>
       :root {
