@@ -1,47 +1,79 @@
 ---
 import Base from '../layouts/Base.astro';
 import { tools, groups } from '../data/tools.ts';
+const base = import.meta.env.BASE_URL;
 const kindLabel: Record<string, string> = { read: 'read-only', write: 'write · preview', diagnostics: 'read-only' };
+const groupBlurb: Record<string, string> = {
+  'Code navigation': 'Return precise structure instead of source — the token-saving surface.',
+  'Code editing': 'Emit a member-level diff, never a whole-file rewrite. Preview by default.',
+  'Diagnostics & fixes': 'The original surface: analyze a solution and apply automated fixes.',
+};
 ---
 <Base title="Tool reference — RoselineMCP" active="tools"
       description="The 12 MCP tools RoselineMCP exposes: code navigation, code editing, and diagnostics.">
-  <h1>Tool reference</h1>
-  <p class="lede">
-    Twelve MCP tools. All take a <code>project</code> (name, directory, or <code>.csproj</code>
-    path); a <code>symbol</code> can be a simple or fully-qualified name (add a parameter list to
-    pick an overload). Wire names are <code>snake_case</code>. Full request/response shapes are in
-    <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/docs/API.md">docs/API.md</a>.
-  </p>
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Reference</span>
+      <h1 style="margin:1rem 0">Twelve tools</h1>
+      <p class="lede">All take a <code>project</code> (name, directory, or <code>.csproj</code> path);
+        a <code>symbol</code> is a simple or fully-qualified name — add a parameter list to pick an
+        overload. Wire names are <code>snake_case</code>. Full request/response shapes live in
+        <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/docs/API.md">docs/API.md</a>.</p>
 
-  <div class="note">
-    <p style="margin:0"><strong>Read-only by default.</strong> The six navigation tools and the
-      diagnostics/patch tools never write to disk. The three write-capable tools
-      (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
-      <code>previewOnly: true</code> — they return a diff and touch nothing unless you pass
-      <code>previewOnly: false</code>.</p>
-  </div>
-
-  {groups.map((g) => (
-    <section>
-      <h2>{g}</h2>
-      <div class="grid" style="gap:.9rem">
-        {tools.filter((t) => t.group === g).map((t) => (
-          <div class="card">
-            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-              <h3 style="margin:0"><code>{t.name}</code></h3>
-              <span class={`pill ${t.kind === 'write' ? 'write' : 'read'}`}>{kindLabel[t.kind]}</span>
-              {t.isNew && <span class="pill" style="color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))">new</span>}
-            </div>
-            <p style="margin:.55rem 0 .7rem">{t.summary}</p>
-            <div style="font-size:.85rem"><span class="muted">params</span> <code>{t.params}</code></div>
-            <div style="font-size:.85rem;margin-top:.35rem"><span class="muted">returns</span> <span class="mono" style="color:var(--ink-2)">{t.returns}</span></div>
-          </div>
-        ))}
+      <div class="note" style="margin:1.6rem 0">
+        <p style="margin:0"><strong>Read-only by default.</strong> The six navigation tools and the
+          diagnostics/patch tools never touch disk. The three write-capable tools
+          (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
+          <code>previewOnly: true</code> — they return a diff and write nothing unless you pass
+          <code>previewOnly: false</code>.</p>
       </div>
-    </section>
-  ))}
 
-  <h2>How much do they save?</h2>
-  <p>The read tools exist to spend fewer tokens than reading source. See the
-    <a href={import.meta.env.BASE_URL + 'benchmark'}>benchmark</a> for the measured, honest numbers.</p>
+      {groups.map((g) => (
+        <div class="rgroup">
+          <div class="rg-head"><h2>{g}</h2><span class="rg-blurb">{groupBlurb[g]}</span></div>
+          <div class="rgrid">
+            {tools.filter((t) => t.group === g).map((t) => (
+              <div class="rcard">
+                <div class="rc-top">
+                  <code class="rc-name">{t.name}</code>
+                  <span class={`pill ${t.kind === 'write' ? 'write' : 'read'}`}>{kindLabel[t.kind]}</span>
+                  {t.isNew && <span class="pill new">new</span>}
+                </div>
+                <p class="rc-sum">{t.summary}</p>
+                <dl class="rc-io">
+                  <dt>params</dt><dd class="mono">{t.params}</dd>
+                  <dt>returns</dt><dd class="mono">{t.returns}</dd>
+                </dl>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <div class="sec-head" style="margin-top:2.5rem">
+        <span class="eyebrow">Proof</span>
+        <h2>How much do they save?</h2>
+        <p>The read tools exist to spend fewer tokens than reading source. See the
+          <a href={base + 'benchmark'}>measured, honest benchmark →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <style>
+    .rgroup { margin: 2.2rem 0; }
+    .rg-head { display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; margin-bottom: 1rem;
+      padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
+    .rg-head h2 { margin: 0; font-size: 1.35rem; }
+    .rg-blurb { color: var(--muted); font-size: .88rem; }
+    .rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+    .rcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.15rem; box-shadow: var(--shadow); transition: border-color .12s ease, transform .12s ease; }
+    .rcard:hover { border-color: color-mix(in srgb, var(--rose) 26%, var(--line)); transform: translateY(-2px); }
+    .rc-top { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
+    .rc-name { background: none; border: none; padding: 0; color: var(--ink); font-size: 1rem; font-weight: 500; }
+    .pill.new { color: var(--rose-ink); border-color: color-mix(in srgb, var(--rose) 40%, var(--line)); }
+    .rc-sum { margin: 0 0 .8rem; font-size: .92rem; }
+    .rc-io { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .25rem .7rem; align-items: baseline; }
+    .rc-io dt { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .rc-io dd { margin: 0; font-size: .78rem; color: var(--ink-2); line-height: 1.5; }
+  </style>
 </Base>

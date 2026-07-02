@@ -9,6 +9,9 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.2.10",
+    "@fontsource-variable/hanken-grotesk": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "astro": "^5.18.2"
   }
 }
