@@ -285,6 +285,12 @@ At least one of `query` or `file` is required (otherwise `ValidationError`).
 }
 ```
 
+When outlining a single file (`file` set, `query` omitted), each symbol is returned as a **lean
+projection** — `name`, `kind`, `signature`, `line`, and `containingType` — omitting the per-symbol
+`file` (it is on the response), `fullName` (reconstructable from `containingType` + `name`), and
+`accessibility` (already inside `signature`). Project-wide search returns the full shape above.
+Null fields are omitted from the JSON throughout.
+
 ### GetSymbolInfo
 
 Declaration metadata, signature, and (optionally) the source of a single symbol. **Read-only.**

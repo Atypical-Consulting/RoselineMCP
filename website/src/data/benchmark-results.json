@@ -1,7 +1,7 @@
 {
   "metadata": {
     "generatedAt": "2026-07-02",
-    "commit": "777ec9a",
+    "commit": "8671449",
     "solution": "RoselineMCP.sln",
     "targetProject": "RoselineMCP",
     "tokenizer": "cl100k_base (Microsoft.ML.Tokenizers, gpt-4) \u2014 a proxy for Claude\u0027s tokenizer",
@@ -25,11 +25,11 @@
     "Results are specific to this codebase and its file sizes. A repo of tiny files saves less; a repo of large files saves more. Re-run on your own solution to get your numbers: dotnet run --project RoselineMCP.TokenBenchmark."
   ],
   "headline": {
-    "pooledSavingsReadTools": 0.7886,
-    "medianSavingsReadTools": 0.7415,
-    "totalBaselineTokens": 1268045,
-    "totalToolTokens": 268069,
-    "statement": "Across 477 navigation tasks over RoselineMCP\u0027s own source, the read-only tools returned 268,069 tokens where reading the corresponding files would take 1,268,045 \u2014 a pooled 79 % reduction (median per-task 74 %)."
+    "pooledSavingsReadTools": 0.8115,
+    "medianSavingsReadTools": 0.7442,
+    "totalBaselineTokens": 1281187,
+    "totalToolTokens": 241503,
+    "statement": "Across 477 navigation tasks over RoselineMCP\u0027s own source, the read-only tools returned 241,503 tokens where reading the corresponding files would take 1,281,187 \u2014 a pooled 81 % reduction (median per-task 74 %)."
   },
   "suites": [
     {
@@ -48,10 +48,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1537,
-            "tokens": 428
+            "chars": 712,
+            "tokens": 205
           },
-          "savingsVsWholeFilePct": -0.30487804878048785,
+          "savingsVsWholeFilePct": 0.375,
           "savingsVsTargetedPct": null
         },
         {
@@ -62,10 +62,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3441,
-            "tokens": 938
+            "chars": 1578,
+            "tokens": 442
           },
-          "savingsVsWholeFilePct": -0.07568807339449535,
+          "savingsVsWholeFilePct": 0.49311926605504586,
           "savingsVsTargetedPct": null
         },
         {
@@ -76,10 +76,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1812,
-            "tokens": 474
+            "chars": 1022,
+            "tokens": 258
           },
-          "savingsVsWholeFilePct": -0.5906040268456376,
+          "savingsVsWholeFilePct": 0.13422818791946312,
           "savingsVsTargetedPct": null
         },
         {
@@ -90,10 +90,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 2120,
-            "tokens": 571
+            "chars": 1003,
+            "tokens": 276
           },
-          "savingsVsWholeFilePct": -2.0698924731182795,
+          "savingsVsWholeFilePct": -0.4838709677419355,
           "savingsVsTargetedPct": null
         },
         {
@@ -104,10 +104,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1163,
-            "tokens": 327
+            "chars": 637,
+            "tokens": 181
           },
-          "savingsVsWholeFilePct": -0.25769230769230766,
+          "savingsVsWholeFilePct": 0.3038461538461539,
           "savingsVsTargetedPct": null
         },
         {
@@ -118,10 +118,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 4434,
-            "tokens": 1082
+            "chars": 2503,
+            "tokens": 584
           },
-          "savingsVsWholeFilePct": -1.117416829745597,
+          "savingsVsWholeFilePct": -0.1428571428571428,
           "savingsVsTargetedPct": null
         },
         {
@@ -132,10 +132,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3753,
-            "tokens": 988
+            "chars": 1806,
+            "tokens": 477
           },
-          "savingsVsWholeFilePct": -2.9838709677419355,
+          "savingsVsWholeFilePct": -0.9233870967741935,
           "savingsVsTargetedPct": null
         },
         {
@@ -146,10 +146,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1522,
-            "tokens": 414
+            "chars": 750,
+            "tokens": 206
           },
-          "savingsVsWholeFilePct": -0.9714285714285715,
+          "savingsVsWholeFilePct": 0.01904761904761909,
           "savingsVsTargetedPct": null
         },
         {
@@ -160,10 +160,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1490,
-            "tokens": 412
+            "chars": 700,
+            "tokens": 199
           },
-          "savingsVsWholeFilePct": -2.814814814814815,
+          "savingsVsWholeFilePct": -0.8425925925925926,
           "savingsVsTargetedPct": null
         },
         {
@@ -174,10 +174,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1783,
-            "tokens": 453
+            "chars": 1010,
+            "tokens": 248
           },
-          "savingsVsWholeFilePct": -0.20799999999999996,
+          "savingsVsWholeFilePct": 0.33866666666666667,
           "savingsVsTargetedPct": null
         },
         {
@@ -188,10 +188,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3714,
-            "tokens": 990
+            "chars": 1697,
+            "tokens": 451
           },
-          "savingsVsWholeFilePct": -0.9001919385796544,
+          "savingsVsWholeFilePct": 0.13435700575815734,
           "savingsVsTargetedPct": null
         },
         {
@@ -202,10 +202,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 2034,
-            "tokens": 519
+            "chars": 1188,
+            "tokens": 302
           },
-          "savingsVsWholeFilePct": -0.13815789473684204,
+          "savingsVsWholeFilePct": 0.3377192982456141,
           "savingsVsTargetedPct": null
         },
         {
@@ -216,10 +216,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 2465,
-            "tokens": 663
+            "chars": 1144,
+            "tokens": 310
           },
-          "savingsVsWholeFilePct": -2.234146341463415,
+          "savingsVsWholeFilePct": -0.5121951219512195,
           "savingsVsTargetedPct": null
         },
         {
@@ -230,10 +230,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3682,
-            "tokens": 1039
+            "chars": 1678,
+            "tokens": 478
           },
-          "savingsVsWholeFilePct": -2.1295180722891565,
+          "savingsVsWholeFilePct": -0.43975903614457823,
           "savingsVsTargetedPct": null
         },
         {
@@ -244,10 +244,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 6139,
-            "tokens": 1685
+            "chars": 2707,
+            "tokens": 749
           },
-          "savingsVsWholeFilePct": -1.4815905743740796,
+          "savingsVsWholeFilePct": -0.10309278350515472,
           "savingsVsTargetedPct": null
         },
         {
@@ -258,10 +258,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3206,
-            "tokens": 859
+            "chars": 1438,
+            "tokens": 393
           },
-          "savingsVsWholeFilePct": -2.1465201465201464,
+          "savingsVsWholeFilePct": -0.43956043956043955,
           "savingsVsTargetedPct": null
         },
         {
@@ -272,10 +272,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3506,
-            "tokens": 971
+            "chars": 1559,
+            "tokens": 434
           },
-          "savingsVsWholeFilePct": -2.034375,
+          "savingsVsWholeFilePct": -0.35624999999999996,
           "savingsVsTargetedPct": null
         },
         {
@@ -286,10 +286,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1438,
-            "tokens": 412
+            "chars": 696,
+            "tokens": 205
           },
-          "savingsVsWholeFilePct": -2.2698412698412698,
+          "savingsVsWholeFilePct": -0.626984126984127,
           "savingsVsTargetedPct": null
         },
         {
@@ -300,10 +300,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 2242,
-            "tokens": 621
+            "chars": 1006,
+            "tokens": 284
           },
-          "savingsVsWholeFilePct": -2.5084745762711864,
+          "savingsVsWholeFilePct": -0.6045197740112995,
           "savingsVsTargetedPct": null
         },
         {
@@ -314,10 +314,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 4080,
-            "tokens": 1104
+            "chars": 1838,
+            "tokens": 505
           },
-          "savingsVsWholeFilePct": -1.4424778761061945,
+          "savingsVsWholeFilePct": -0.11725663716814161,
           "savingsVsTargetedPct": null
         },
         {
@@ -328,10 +328,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3325,
-            "tokens": 887
+            "chars": 1501,
+            "tokens": 407
           },
-          "savingsVsWholeFilePct": -1.3653333333333335,
+          "savingsVsWholeFilePct": -0.08533333333333326,
           "savingsVsTargetedPct": null
         },
         {
@@ -342,10 +342,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 2942,
-            "tokens": 792
+            "chars": 1361,
+            "tokens": 376
           },
-          "savingsVsWholeFilePct": -2.168,
+          "savingsVsWholeFilePct": -0.504,
           "savingsVsTargetedPct": null
         },
         {
@@ -356,10 +356,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 4897,
-            "tokens": 1306
+            "chars": 2146,
+            "tokens": 578
           },
-          "savingsVsWholeFilePct": -1.8766519823788546,
+          "savingsVsWholeFilePct": -0.27312775330396466,
           "savingsVsTargetedPct": null
         },
         {
@@ -370,10 +370,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 4132,
-            "tokens": 1133
+            "chars": 1856,
+            "tokens": 515
           },
-          "savingsVsWholeFilePct": -1.6721698113207548,
+          "savingsVsWholeFilePct": -0.2146226415094339,
           "savingsVsTargetedPct": null
         },
         {
@@ -384,10 +384,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 5912,
-            "tokens": 1590
+            "chars": 2663,
+            "tokens": 716
           },
-          "savingsVsWholeFilePct": -1.4423963133640552,
+          "savingsVsWholeFilePct": -0.09984639016897079,
           "savingsVsTargetedPct": null
         },
         {
@@ -398,24 +398,24 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3226,
-            "tokens": 871
+            "chars": 1454,
+            "tokens": 399
           },
-          "savingsVsWholeFilePct": -1.4397759103641459,
+          "savingsVsWholeFilePct": -0.11764705882352944,
           "savingsVsTargetedPct": null
         },
         {
           "target": "RoselineMCP/Models/SymbolSummary.cs",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": null,
           "tool": {
-            "chars": 3899,
-            "tokens": 1067
+            "chars": 1749,
+            "tokens": 480
           },
-          "savingsVsWholeFilePct": -0.8752196836555359,
+          "savingsVsWholeFilePct": 0.3296089385474861,
           "savingsVsTargetedPct": null
         },
         {
@@ -426,10 +426,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3815,
-            "tokens": 1015
+            "chars": 1753,
+            "tokens": 471
           },
-          "savingsVsWholeFilePct": -1.4635922330097086,
+          "savingsVsWholeFilePct": -0.14320388349514568,
           "savingsVsTargetedPct": null
         },
         {
@@ -440,10 +440,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 826,
-            "tokens": 242
+            "chars": 407,
+            "tokens": 125
           },
-          "savingsVsWholeFilePct": 0.7902946273830156,
+          "savingsVsWholeFilePct": 0.891681109185442,
           "savingsVsTargetedPct": null
         },
         {
@@ -454,10 +454,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 7323,
-            "tokens": 1903
+            "chars": 3795,
+            "tokens": 950
           },
-          "savingsVsWholeFilePct": 0.28592870544090054,
+          "savingsVsWholeFilePct": 0.6435272045028142,
           "savingsVsTargetedPct": null
         },
         {
@@ -468,10 +468,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 6156,
-            "tokens": 1616
+            "chars": 2918,
+            "tokens": 768
           },
-          "savingsVsWholeFilePct": -1.0559796437659035,
+          "savingsVsWholeFilePct": 0.022900763358778664,
           "savingsVsTargetedPct": null
         },
         {
@@ -482,24 +482,24 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 5369,
-            "tokens": 1428
+            "chars": 2833,
+            "tokens": 735
           },
-          "savingsVsWholeFilePct": 0.5291790306627102,
+          "savingsVsWholeFilePct": 0.7576656775469832,
           "savingsVsTargetedPct": null
         },
         {
           "target": "RoselineMCP/Services/CodeNavigationService.cs",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": null,
           "tool": {
-            "chars": 15686,
-            "tokens": 3913
+            "chars": 8487,
+            "tokens": 2057
           },
-          "savingsVsWholeFilePct": 0.15595340811044,
+          "savingsVsWholeFilePct": 0.5800326663944467,
           "savingsVsTargetedPct": null
         },
         {
@@ -510,10 +510,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 4780,
-            "tokens": 1235
+            "chars": 2322,
+            "tokens": 595
           },
-          "savingsVsWholeFilePct": -0.8627450980392157,
+          "savingsVsWholeFilePct": 0.10256410256410253,
           "savingsVsTargetedPct": null
         },
         {
@@ -524,10 +524,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 4802,
-            "tokens": 1305
+            "chars": 2317,
+            "tokens": 633
           },
-          "savingsVsWholeFilePct": -0.44839067702552726,
+          "savingsVsWholeFilePct": 0.2974472807991121,
           "savingsVsTargetedPct": null
         },
         {
@@ -538,10 +538,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3335,
-            "tokens": 931
+            "chars": 1569,
+            "tokens": 440
           },
-          "savingsVsWholeFilePct": -1.4959785522788205,
+          "savingsVsWholeFilePct": -0.17962466487935647,
           "savingsVsTargetedPct": null
         },
         {
@@ -552,10 +552,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 3163,
-            "tokens": 835
+            "chars": 1682,
+            "tokens": 430
           },
-          "savingsVsWholeFilePct": 0,
+          "savingsVsWholeFilePct": 0.4850299401197605,
           "savingsVsTargetedPct": null
         },
         {
@@ -566,10 +566,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 4451,
-            "tokens": 1169
+            "chars": 2210,
+            "tokens": 572
           },
-          "savingsVsWholeFilePct": -0.24097664543524422,
+          "savingsVsWholeFilePct": 0.39278131634819535,
           "savingsVsTargetedPct": null
         },
         {
@@ -580,10 +580,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 29172,
-            "tokens": 7233
+            "chars": 14874,
+            "tokens": 3595
           },
-          "savingsVsWholeFilePct": -0.38113423715867856,
+          "savingsVsWholeFilePct": 0.3135382852778308,
           "savingsVsTargetedPct": null
         },
         {
@@ -594,10 +594,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 5462,
-            "tokens": 1421
+            "chars": 2707,
+            "tokens": 692
           },
-          "savingsVsWholeFilePct": 0.34334565619223656,
+          "savingsVsWholeFilePct": 0.6802218114602587,
           "savingsVsTargetedPct": null
         },
         {
@@ -608,10 +608,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1860,
-            "tokens": 505
+            "chars": 1083,
+            "tokens": 289
           },
-          "savingsVsWholeFilePct": 0.2659883720930233,
+          "savingsVsWholeFilePct": 0.5799418604651163,
           "savingsVsTargetedPct": null
         },
         {
@@ -622,10 +622,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1220,
-            "tokens": 349
+            "chars": 723,
+            "tokens": 204
           },
-          "savingsVsWholeFilePct": 0.5615577889447236,
+          "savingsVsWholeFilePct": 0.7437185929648241,
           "savingsVsTargetedPct": null
         },
         {
@@ -636,10 +636,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1265,
-            "tokens": 337
+            "chars": 763,
+            "tokens": 199
           },
-          "savingsVsWholeFilePct": 0.3405088062622309,
+          "savingsVsWholeFilePct": 0.6105675146771037,
           "savingsVsTargetedPct": null
         },
         {
@@ -650,10 +650,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1741,
-            "tokens": 470
+            "chars": 999,
+            "tokens": 266
           },
-          "savingsVsWholeFilePct": 0.41542288557213936,
+          "savingsVsWholeFilePct": 0.6691542288557214,
           "savingsVsTargetedPct": null
         },
         {
@@ -664,10 +664,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1320,
-            "tokens": 347
+            "chars": 778,
+            "tokens": 202
           },
-          "savingsVsWholeFilePct": 0.2845360824742268,
+          "savingsVsWholeFilePct": 0.5835051546391752,
           "savingsVsTargetedPct": null
         },
         {
@@ -678,10 +678,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1297,
-            "tokens": 342
+            "chars": 780,
+            "tokens": 202
           },
-          "savingsVsWholeFilePct": 0.33849129593810445,
+          "savingsVsWholeFilePct": 0.609284332688588,
           "savingsVsTargetedPct": null
         },
         {
@@ -692,10 +692,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1297,
-            "tokens": 366
+            "chars": 790,
+            "tokens": 221
           },
-          "savingsVsWholeFilePct": 0.3171641791044776,
+          "savingsVsWholeFilePct": 0.5876865671641791,
           "savingsVsTargetedPct": null
         },
         {
@@ -706,10 +706,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1266,
-            "tokens": 347
+            "chars": 754,
+            "tokens": 202
           },
-          "savingsVsWholeFilePct": 0.34651600753295664,
+          "savingsVsWholeFilePct": 0.6195856873822976,
           "savingsVsTargetedPct": null
         },
         {
@@ -720,10 +720,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1322,
-            "tokens": 348
+            "chars": 795,
+            "tokens": 208
           },
-          "savingsVsWholeFilePct": 0.30400000000000005,
+          "savingsVsWholeFilePct": 0.5840000000000001,
           "savingsVsTargetedPct": null
         },
         {
@@ -734,10 +734,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1305,
-            "tokens": 354
+            "chars": 783,
+            "tokens": 211
           },
-          "savingsVsWholeFilePct": 0.29058116232464926,
+          "savingsVsWholeFilePct": 0.5771543086172345,
           "savingsVsTargetedPct": null
         },
         {
@@ -748,10 +748,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1257,
-            "tokens": 343
+            "chars": 750,
+            "tokens": 200
           },
-          "savingsVsWholeFilePct": 0.5085959885386819,
+          "savingsVsWholeFilePct": 0.7134670487106017,
           "savingsVsTargetedPct": null
         },
         {
@@ -762,10 +762,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1302,
-            "tokens": 347
+            "chars": 790,
+            "tokens": 209
           },
-          "savingsVsWholeFilePct": 0.4956395348837209,
+          "savingsVsWholeFilePct": 0.6962209302325582,
           "savingsVsTargetedPct": null
         },
         {
@@ -776,23 +776,23 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 11440,
-            "tokens": 3019
+            "chars": 5433,
+            "tokens": 1404
           },
-          "savingsVsWholeFilePct": -0.3429715302491103,
+          "savingsVsWholeFilePct": 0.3754448398576512,
           "savingsVsTargetedPct": null
         }
       ],
       "aggregate": {
         "count": 53,
-        "weakOrNegativeCount": 37,
-        "medianSavingsVsWholeFile": -0.4484,
-        "meanSavingsVsWholeFile": -0.7403,
-        "minSavingsVsWholeFile": -2.9839,
-        "maxSavingsVsWholeFile": 0.7903,
-        "totalWholeFileTokens": 43319,
-        "totalToolTokens": 54316,
-        "pooledSavingsVsWholeFile": -0.2539,
+        "weakOrNegativeCount": 25,
+        "medianSavingsVsWholeFile": 0.3038,
+        "meanSavingsVsWholeFile": 0.158,
+        "minSavingsVsWholeFile": -0.9234,
+        "maxSavingsVsWholeFile": 0.8917,
+        "totalWholeFileTokens": 43728,
+        "totalToolTokens": 26738,
+        "pooledSavingsVsWholeFile": 0.3885,
         "medianSavingsVsTargeted": null,
         "pooledSavingsVsTargeted": null
       }
@@ -3613,25 +3613,25 @@
         {
           "target": "RoselineMCP.Models.SymbolSummary",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 1776,
-            "tokens": 465
+            "chars": 2078,
+            "tokens": 496
           },
           "tool": {
-            "chars": 820,
-            "tokens": 207
+            "chars": 784,
+            "tokens": 201
           },
-          "savingsVsWholeFilePct": 0.6362038664323375,
-          "savingsVsTargetedPct": 0.5548387096774193
+          "savingsVsWholeFilePct": 0.7192737430167597,
+          "savingsVsTargetedPct": 0.594758064516129
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Name",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
             "chars": 79,
@@ -3641,31 +3641,31 @@
             "chars": 487,
             "tokens": 140
           },
-          "savingsVsWholeFilePct": 0.7539543057996485,
+          "savingsVsWholeFilePct": 0.8044692737430168,
           "savingsVsTargetedPct": -6
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.FullName",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 87,
-            "tokens": 20
+            "chars": 138,
+            "tokens": 30
           },
           "tool": {
-            "chars": 544,
-            "tokens": 144
+            "chars": 536,
+            "tokens": 142
           },
-          "savingsVsWholeFilePct": 0.7469244288224957,
-          "savingsVsTargetedPct": -6.2
+          "savingsVsWholeFilePct": 0.8016759776536313,
+          "savingsVsTargetedPct": -3.7333333333333334
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Kind",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
             "chars": 79,
@@ -3675,14 +3675,14 @@
             "chars": 512,
             "tokens": 145
           },
-          "savingsVsWholeFilePct": 0.7451669595782073,
+          "savingsVsWholeFilePct": 0.797486033519553,
           "savingsVsTargetedPct": -6.25
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Signature",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
             "chars": 89,
@@ -3692,76 +3692,76 @@
             "chars": 571,
             "tokens": 154
           },
-          "savingsVsWholeFilePct": 0.7293497363796133,
+          "savingsVsWholeFilePct": 0.7849162011173184,
           "savingsVsTargetedPct": -6.7
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Accessibility",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 97,
-            "tokens": 21
+            "chars": 148,
+            "tokens": 31
           },
           "tool": {
-            "chars": 546,
+            "chars": 550,
             "tokens": 145
           },
-          "savingsVsWholeFilePct": 0.7451669595782073,
-          "savingsVsTargetedPct": -5.904761904761905
+          "savingsVsWholeFilePct": 0.797486033519553,
+          "savingsVsTargetedPct": -3.67741935483871
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.File",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 64,
-            "tokens": 17
+            "chars": 130,
+            "tokens": 30
           },
           "tool": {
-            "chars": 537,
-            "tokens": 144
+            "chars": 570,
+            "tokens": 154
           },
-          "savingsVsWholeFilePct": 0.7469244288224957,
-          "savingsVsTargetedPct": -7.470588235294118
+          "savingsVsWholeFilePct": 0.7849162011173184,
+          "savingsVsTargetedPct": -4.133333333333334
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Line",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 61,
-            "tokens": 17
+            "chars": 127,
+            "tokens": 30
           },
           "tool": {
-            "chars": 519,
+            "chars": 522,
             "tokens": 146
           },
-          "savingsVsWholeFilePct": 0.7434094903339192,
-          "savingsVsTargetedPct": -7.588235294117647
+          "savingsVsWholeFilePct": 0.7960893854748603,
+          "savingsVsTargetedPct": -3.8666666666666663
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.ContainingType",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 84,
-            "tokens": 21
+            "chars": 150,
+            "tokens": 34
           },
           "tool": {
-            "chars": 562,
+            "chars": 565,
             "tokens": 152
           },
-          "savingsVsWholeFilePct": 0.7328646748681897,
-          "savingsVsTargetedPct": -6.238095238095238
+          "savingsVsWholeFilePct": 0.7877094972067039,
+          "savingsVsTargetedPct": -3.4705882352941178
         },
         {
           "target": "RoselineMCP.Models.TypeHierarchyResponse",
@@ -4055,42 +4055,42 @@
         {
           "target": "RoselineMCP.Services.CodeNavigationService",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
-            "chars": 24151,
-            "tokens": 4507
+            "chars": 25413,
+            "tokens": 4769
           },
           "tool": {
             "chars": 750,
             "tokens": 185
           },
-          "savingsVsWholeFilePct": 0.9600949094046591,
-          "savingsVsTargetedPct": 0.9589527401819392
+          "savingsVsWholeFilePct": 0.9622294814209882,
+          "savingsVsTargetedPct": 0.9612078003774376
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
-            "chars": 1480,
-            "tokens": 283
+            "chars": 1829,
+            "tokens": 356
           },
           "tool": {
             "chars": 674,
             "tokens": 171
           },
-          "savingsVsWholeFilePct": 0.9631147540983607,
-          "savingsVsTargetedPct": 0.39575971731448767
+          "savingsVsWholeFilePct": 0.9650877909350756,
+          "savingsVsTargetedPct": 0.5196629213483146
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetSymbolInfoAsync(string, string, bool, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 1944,
@@ -4100,14 +4100,14 @@
             "chars": 656,
             "tokens": 168
           },
-          "savingsVsWholeFilePct": 0.9637618636755824,
+          "savingsVsWholeFilePct": 0.9657002858309514,
           "savingsVsTargetedPct": 0.5087719298245614
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.FindReferencesAsync(string, string, bool, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 1553,
@@ -4117,14 +4117,14 @@
             "chars": 672,
             "tokens": 167
           },
-          "savingsVsWholeFilePct": 0.9639775668679896,
+          "savingsVsWholeFilePct": 0.9659044507962433,
           "savingsVsTargetedPct": 0.40569395017793597
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.FindImplementationsAsync(string, string, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 2385,
@@ -4134,14 +4134,14 @@
             "chars": 668,
             "tokens": 167
           },
-          "savingsVsWholeFilePct": 0.9639775668679896,
+          "savingsVsWholeFilePct": 0.9659044507962433,
           "savingsVsTargetedPct": 0.6116279069767442
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetCallGraphAsync(string, string, string, int, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 1899,
@@ -4151,14 +4151,14 @@
             "chars": 670,
             "tokens": 173
           },
-          "savingsVsWholeFilePct": 0.9626833477135461,
+          "savingsVsWholeFilePct": 0.9646794610044916,
           "savingsVsTargetedPct": 0.5386666666666666
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetTypeHierarchyAsync(string, string, string, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 2821,
@@ -4168,14 +4168,14 @@
             "chars": 673,
             "tokens": 167
           },
-          "savingsVsWholeFilePct": 0.9639775668679896,
+          "savingsVsWholeFilePct": 0.9659044507962433,
           "savingsVsTargetedPct": 0.6769825918762089
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.Counter",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 83,
@@ -4185,14 +4185,14 @@
             "chars": 539,
             "tokens": 142
           },
-          "savingsVsWholeFilePct": 0.9693701466781708,
+          "savingsVsWholeFilePct": 0.9710085749285423,
           "savingsVsTargetedPct": -6.473684210526316
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.Counter.Remaining",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 34,
@@ -4202,7 +4202,7 @@
             "chars": 476,
             "tokens": 130
           },
-          "savingsVsWholeFilePct": 0.9719585849870578,
+          "savingsVsWholeFilePct": 0.9734585545120458,
           "savingsVsTargetedPct": -13.444444444444445
         },
         {
@@ -5603,15 +5603,15 @@
       "aggregate": {
         "count": 282,
         "weakOrNegativeCount": 17,
-        "medianSavingsVsWholeFile": 0.6878,
-        "meanSavingsVsWholeFile": 0.6612,
+        "medianSavingsVsWholeFile": 0.6902,
+        "meanSavingsVsWholeFile": 0.663,
         "minSavingsVsWholeFile": -0.4352,
         "maxSavingsVsWholeFile": 0.9748,
-        "totalWholeFileTokens": 273348,
-        "totalToolTokens": 44982,
-        "pooledSavingsVsWholeFile": 0.8354,
-        "medianSavingsVsTargeted": -5.6293,
-        "pooledSavingsVsTargeted": 0.1976
+        "totalWholeFileTokens": 277029,
+        "totalToolTokens": 44984,
+        "pooledSavingsVsWholeFile": 0.8376,
+        "medianSavingsVsTargeted": -5.3623,
+        "pooledSavingsVsTargeted": 0.2036
       }
     },
     {
@@ -8430,25 +8430,25 @@
         {
           "target": "RoselineMCP.Models.SymbolSummary",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 1776,
-            "tokens": 465
+            "chars": 2078,
+            "tokens": 496
           },
           "tool": {
-            "chars": 3202,
-            "tokens": 1002
+            "chars": 3333,
+            "tokens": 977
           },
-          "savingsVsWholeFilePct": -0.7609841827768014,
-          "savingsVsTargetedPct": -1.1548387096774193
+          "savingsVsWholeFilePct": -0.3645251396648044,
+          "savingsVsTargetedPct": -0.969758064516129
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Name",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
             "chars": 79,
@@ -8458,31 +8458,31 @@
             "chars": 575,
             "tokens": 166
           },
-          "savingsVsWholeFilePct": 0.7082601054481547,
+          "savingsVsWholeFilePct": 0.7681564245810055,
           "savingsVsTargetedPct": -7.300000000000001
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.FullName",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 87,
-            "tokens": 20
+            "chars": 138,
+            "tokens": 30
           },
           "tool": {
-            "chars": 640,
-            "tokens": 170
+            "chars": 684,
+            "tokens": 181
           },
-          "savingsVsWholeFilePct": 0.7012302284710017,
-          "savingsVsTargetedPct": -7.5
+          "savingsVsWholeFilePct": 0.7472067039106145,
+          "savingsVsTargetedPct": -5.033333333333333
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Kind",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
             "chars": 79,
@@ -8492,14 +8492,14 @@
             "chars": 600,
             "tokens": 171
           },
-          "savingsVsWholeFilePct": 0.6994727592267136,
+          "savingsVsWholeFilePct": 0.7611731843575419,
           "savingsVsTargetedPct": -7.550000000000001
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Signature",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
             "chars": 89,
@@ -8509,76 +8509,76 @@
             "chars": 669,
             "tokens": 180
           },
-          "savingsVsWholeFilePct": 0.6836555360281196,
+          "savingsVsWholeFilePct": 0.7486033519553073,
           "savingsVsTargetedPct": -8
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Accessibility",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 97,
-            "tokens": 21
+            "chars": 148,
+            "tokens": 31
           },
           "tool": {
-            "chars": 652,
-            "tokens": 172
+            "chars": 708,
+            "tokens": 185
           },
-          "savingsVsWholeFilePct": 0.6977152899824253,
-          "savingsVsTargetedPct": -7.19047619047619
+          "savingsVsWholeFilePct": 0.7416201117318435,
+          "savingsVsTargetedPct": -4.967741935483871
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.File",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 64,
-            "tokens": 17
+            "chars": 130,
+            "tokens": 30
           },
           "tool": {
-            "chars": 610,
-            "tokens": 168
+            "chars": 710,
+            "tokens": 193
           },
-          "savingsVsWholeFilePct": 0.7047451669595782,
-          "savingsVsTargetedPct": -8.882352941176471
+          "savingsVsWholeFilePct": 0.7304469273743017,
+          "savingsVsTargetedPct": -5.433333333333334
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.Line",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 61,
-            "tokens": 17
+            "chars": 127,
+            "tokens": 30
           },
           "tool": {
-            "chars": 589,
-            "tokens": 170
+            "chars": 659,
+            "tokens": 185
           },
-          "savingsVsWholeFilePct": 0.7012302284710017,
-          "savingsVsTargetedPct": -9
+          "savingsVsWholeFilePct": 0.7416201117318435,
+          "savingsVsTargetedPct": -5.166666666666667
         },
         {
           "target": "RoselineMCP.Models.SymbolSummary.ContainingType",
           "wholeFile": {
-            "chars": 2268,
-            "tokens": 569
+            "chars": 3071,
+            "tokens": 716
           },
           "targeted": {
-            "chars": 84,
-            "tokens": 21
+            "chars": 150,
+            "tokens": 34
           },
           "tool": {
-            "chars": 655,
-            "tokens": 180
+            "chars": 725,
+            "tokens": 195
           },
-          "savingsVsWholeFilePct": 0.6836555360281196,
-          "savingsVsTargetedPct": -7.571428571428571
+          "savingsVsWholeFilePct": 0.7276536312849162,
+          "savingsVsTargetedPct": -4.735294117647059
         },
         {
           "target": "RoselineMCP.Models.TypeHierarchyResponse",
@@ -8872,42 +8872,42 @@
         {
           "target": "RoselineMCP.Services.CodeNavigationService",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
-            "chars": 24151,
-            "tokens": 4507
+            "chars": 25413,
+            "tokens": 4769
           },
           "tool": {
-            "chars": 26938,
-            "tokens": 6208
+            "chars": 28293,
+            "tokens": 6525
           },
-          "savingsVsWholeFilePct": -0.3390854184641934,
-          "savingsVsTargetedPct": -0.37741291324606174
+          "savingsVsWholeFilePct": -0.33217639853001235,
+          "savingsVsTargetedPct": -0.3682113650660517
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
-            "chars": 1480,
-            "tokens": 283
+            "chars": 1829,
+            "tokens": 356
           },
           "tool": {
-            "chars": 2260,
-            "tokens": 535
+            "chars": 2628,
+            "tokens": 617
           },
-          "savingsVsWholeFilePct": 0.8845987920621226,
-          "savingsVsTargetedPct": -0.8904593639575973
+          "savingsVsWholeFilePct": 0.8740302164148632,
+          "savingsVsTargetedPct": -0.7331460674157304
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetSymbolInfoAsync(string, string, bool, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 1944,
@@ -8917,14 +8917,14 @@
             "chars": 2669,
             "tokens": 579
           },
-          "savingsVsWholeFilePct": 0.8751078515962036,
+          "savingsVsWholeFilePct": 0.8817884850959575,
           "savingsVsTargetedPct": -0.6929824561403508
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.FindReferencesAsync(string, string, bool, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 1553,
@@ -8934,14 +8934,14 @@
             "chars": 2330,
             "tokens": 536
           },
-          "savingsVsWholeFilePct": 0.8843830888697153,
+          "savingsVsWholeFilePct": 0.8905675786035117,
           "savingsVsTargetedPct": -0.907473309608541
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.FindImplementationsAsync(string, string, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 2385,
@@ -8951,14 +8951,14 @@
             "chars": 3163,
             "tokens": 690
           },
-          "savingsVsWholeFilePct": 0.8511647972389991,
+          "savingsVsWholeFilePct": 0.8591261739485504,
           "savingsVsTargetedPct": -0.6046511627906976
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetCallGraphAsync(string, string, string, int, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 1899,
@@ -8968,14 +8968,14 @@
             "chars": 2747,
             "tokens": 672
           },
-          "savingsVsWholeFilePct": 0.8550474547023296,
+          "savingsVsWholeFilePct": 0.8628011433238056,
           "savingsVsTargetedPct": -0.792
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetTypeHierarchyAsync(string, string, string, int, System.Threading.CancellationToken)",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 2821,
@@ -8985,14 +8985,14 @@
             "chars": 3716,
             "tokens": 847
           },
-          "savingsVsWholeFilePct": 0.8172993960310613,
+          "savingsVsWholeFilePct": 0.8270722743977134,
           "savingsVsTargetedPct": -0.6382978723404256
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.Counter",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 83,
@@ -9002,14 +9002,14 @@
             "chars": 623,
             "tokens": 163
           },
-          "savingsVsWholeFilePct": 0.9648403796376186,
+          "savingsVsWholeFilePct": 0.9667211106574112,
           "savingsVsTargetedPct": -7.578947368421053
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.Counter.Remaining",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": {
             "chars": 34,
@@ -9019,7 +9019,7 @@
             "chars": 508,
             "tokens": 139
           },
-          "savingsVsWholeFilePct": 0.9700172562553926,
+          "savingsVsWholeFilePct": 0.9716210698244181,
           "savingsVsTargetedPct": -14.444444444444445
         },
         {
@@ -10421,14 +10421,14 @@
         "count": 282,
         "weakOrNegativeCount": 91,
         "medianSavingsVsWholeFile": 0.5359,
-        "meanSavingsVsWholeFile": 0.3188,
+        "meanSavingsVsWholeFile": 0.3218,
         "minSavingsVsWholeFile": -1.5278,
         "maxSavingsVsWholeFile": 0.9725,
-        "totalWholeFileTokens": 273348,
-        "totalToolTokens": 122624,
-        "pooledSavingsVsWholeFile": 0.5514,
-        "medianSavingsVsTargeted": -6.95,
-        "pooledSavingsVsTargeted": -1.1873
+        "totalWholeFileTokens": 277029,
+        "totalToolTokens": 123077,
+        "pooledSavingsVsWholeFile": 0.5557,
+        "medianSavingsVsTargeted": -6.8872,
+        "pooledSavingsVsTargeted": -1.1789
       }
     },
     {
@@ -10542,27 +10542,27 @@
           "savingsVsTargetedPct": -0.6877799104286628
         },
         {
-          "target": "RoselineMCP.Interfaces.ICodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 11 refs / 3 files",
+          "target": "RoselineMCP.Interfaces.ICodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 13 refs / 3 files",
           "wholeFile": {
-            "chars": 27248,
-            "tokens": 5829
+            "chars": 28458,
+            "tokens": 6097
           },
           "targeted": {
-            "chars": 3738,
-            "tokens": 823
+            "chars": 4546,
+            "tokens": 996
           },
           "tool": {
-            "chars": 4287,
-            "tokens": 1347
+            "chars": 5011,
+            "tokens": 1558
           },
-          "savingsVsWholeFilePct": 0.7689140504374679,
-          "savingsVsTargetedPct": -0.6366950182260025
+          "savingsVsWholeFilePct": 0.7444644907331475,
+          "savingsVsTargetedPct": -0.5642570281124497
         },
         {
           "target": "RoselineMCP.Interfaces.ICodeNavigationService.GetSymbolInfoAsync(string, string, bool, System.Threading.CancellationToken) \u00B7 8 refs / 3 files",
           "wholeFile": {
-            "chars": 26527,
-            "tokens": 5672
+            "chars": 27737,
+            "tokens": 5940
           },
           "targeted": {
             "chars": 2816,
@@ -10572,14 +10572,14 @@
             "chars": 2999,
             "tokens": 915
           },
-          "savingsVsWholeFilePct": 0.8386812411847673,
+          "savingsVsWholeFilePct": 0.845959595959596,
           "savingsVsTargetedPct": -0.5074135090609555
         },
         {
           "target": "RoselineMCP.Interfaces.ICodeNavigationService.FindReferencesAsync(string, string, bool, int, System.Threading.CancellationToken) \u00B7 4 refs / 3 files",
           "wholeFile": {
-            "chars": 26488,
-            "tokens": 5658
+            "chars": 27698,
+            "tokens": 5926
           },
           "targeted": {
             "chars": 1518,
@@ -10589,14 +10589,14 @@
             "chars": 1621,
             "tokens": 495
           },
-          "savingsVsWholeFilePct": 0.9125132555673383,
+          "savingsVsWholeFilePct": 0.9164697941275735,
           "savingsVsTargetedPct": -0.5615141955835963
         },
         {
           "target": "RoselineMCP.Interfaces.ICodeNavigationService.FindImplementationsAsync(string, string, int, System.Threading.CancellationToken) \u00B7 3 refs / 3 files",
           "wholeFile": {
-            "chars": 26363,
-            "tokens": 5626
+            "chars": 27573,
+            "tokens": 5894
           },
           "targeted": {
             "chars": 1047,
@@ -10606,14 +10606,14 @@
             "chars": 1218,
             "tokens": 356
           },
-          "savingsVsWholeFilePct": 0.93672236046925,
+          "savingsVsWholeFilePct": 0.9395995928062436,
           "savingsVsTargetedPct": -0.7450980392156863
         },
         {
           "target": "RoselineMCP.Interfaces.ICodeNavigationService.GetCallGraphAsync(string, string, string, int, int, System.Threading.CancellationToken) \u00B7 7 refs / 3 files",
           "wholeFile": {
-            "chars": 26475,
-            "tokens": 5677
+            "chars": 27685,
+            "tokens": 5945
           },
           "targeted": {
             "chars": 2564,
@@ -10623,14 +10623,14 @@
             "chars": 2743,
             "tokens": 878
           },
-          "savingsVsWholeFilePct": 0.8453408490399859,
+          "savingsVsWholeFilePct": 0.8523128679562657,
           "savingsVsTargetedPct": -0.4682274247491638
         },
         {
           "target": "RoselineMCP.Interfaces.ICodeNavigationService.GetTypeHierarchyAsync(string, string, string, int, System.Threading.CancellationToken) \u00B7 4 refs / 3 files",
           "wholeFile": {
-            "chars": 26407,
-            "tokens": 5641
+            "chars": 27617,
+            "tokens": 5909
           },
           "targeted": {
             "chars": 1448,
@@ -10640,7 +10640,7 @@
             "chars": 1606,
             "tokens": 478
           },
-          "savingsVsWholeFilePct": 0.9152632511965964,
+          "savingsVsWholeFilePct": 0.9191064477915045,
           "savingsVsTargetedPct": -0.5933333333333333
         },
         {
@@ -10850,8 +10850,8 @@
         {
           "target": "RoselineMCP.Interfaces.IProjectLoader.LoadAsync(string, System.Threading.CancellationToken) \u00B7 10 refs / 4 files",
           "wholeFile": {
-            "chars": 43986,
-            "tokens": 8393
+            "chars": 45248,
+            "tokens": 8655
           },
           "targeted": {
             "chars": 3628,
@@ -10861,7 +10861,7 @@
             "chars": 3196,
             "tokens": 893
           },
-          "savingsVsWholeFilePct": 0.8936018110330037,
+          "savingsVsWholeFilePct": 0.8968226458694396,
           "savingsVsTargetedPct": -0.24895104895104891
         },
         {
@@ -10950,27 +10950,27 @@
           "savingsVsTargetedPct": -0.6871401151631478
         },
         {
-          "target": "RoselineMCP.Services.CodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 11 refs / 3 files",
+          "target": "RoselineMCP.Services.CodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 13 refs / 3 files",
           "wholeFile": {
-            "chars": 27248,
-            "tokens": 5829
+            "chars": 28458,
+            "tokens": 6097
           },
           "targeted": {
-            "chars": 3738,
-            "tokens": 823
+            "chars": 4546,
+            "tokens": 996
           },
           "tool": {
-            "chars": 4284,
-            "tokens": 1346
+            "chars": 5008,
+            "tokens": 1557
           },
-          "savingsVsWholeFilePct": 0.769085606450506,
-          "savingsVsTargetedPct": -0.6354799513973268
+          "savingsVsWholeFilePct": 0.7446285058225357,
+          "savingsVsTargetedPct": -0.5632530120481927
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetSymbolInfoAsync(string, string, bool, System.Threading.CancellationToken) \u00B7 8 refs / 3 files",
           "wholeFile": {
-            "chars": 26527,
-            "tokens": 5672
+            "chars": 27737,
+            "tokens": 5940
           },
           "targeted": {
             "chars": 2816,
@@ -10980,14 +10980,14 @@
             "chars": 2996,
             "tokens": 914
           },
-          "savingsVsWholeFilePct": 0.8388575458392101,
+          "savingsVsWholeFilePct": 0.8461279461279461,
           "savingsVsTargetedPct": -0.5057660626029654
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.FindReferencesAsync(string, string, bool, int, System.Threading.CancellationToken) \u00B7 4 refs / 3 files",
           "wholeFile": {
-            "chars": 26488,
-            "tokens": 5658
+            "chars": 27698,
+            "tokens": 5926
           },
           "targeted": {
             "chars": 1518,
@@ -10997,14 +10997,14 @@
             "chars": 1618,
             "tokens": 494
           },
-          "savingsVsWholeFilePct": 0.912689996465182,
+          "savingsVsWholeFilePct": 0.9166385420182248,
           "savingsVsTargetedPct": -0.5583596214511042
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.FindImplementationsAsync(string, string, int, System.Threading.CancellationToken) \u00B7 3 refs / 3 files",
           "wholeFile": {
-            "chars": 26363,
-            "tokens": 5626
+            "chars": 27573,
+            "tokens": 5894
           },
           "targeted": {
             "chars": 1047,
@@ -11014,14 +11014,14 @@
             "chars": 1215,
             "tokens": 355
           },
-          "savingsVsWholeFilePct": 0.9369001066477071,
+          "savingsVsWholeFilePct": 0.9397692568713947,
           "savingsVsTargetedPct": -0.7401960784313726
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetCallGraphAsync(string, string, string, int, int, System.Threading.CancellationToken) \u00B7 7 refs / 3 files",
           "wholeFile": {
-            "chars": 26475,
-            "tokens": 5677
+            "chars": 27685,
+            "tokens": 5945
           },
           "targeted": {
             "chars": 2564,
@@ -11031,14 +11031,14 @@
             "chars": 2740,
             "tokens": 877
           },
-          "savingsVsWholeFilePct": 0.8455169984146557,
+          "savingsVsWholeFilePct": 0.8524810765349033,
           "savingsVsTargetedPct": -0.4665551839464883
         },
         {
           "target": "RoselineMCP.Services.CodeNavigationService.GetTypeHierarchyAsync(string, string, string, int, System.Threading.CancellationToken) \u00B7 4 refs / 3 files",
           "wholeFile": {
-            "chars": 26407,
-            "tokens": 5641
+            "chars": 27617,
+            "tokens": 5909
           },
           "targeted": {
             "chars": 1448,
@@ -11048,7 +11048,7 @@
             "chars": 1603,
             "tokens": 477
           },
-          "savingsVsWholeFilePct": 0.9154405247296579,
+          "savingsVsWholeFilePct": 0.9192756811643256,
           "savingsVsTargetedPct": -0.5900000000000001
         },
         {
@@ -11293,15 +11293,15 @@
       "aggregate": {
         "count": 50,
         "weakOrNegativeCount": 2,
-        "medianSavingsVsWholeFile": 0.8439,
-        "meanSavingsVsWholeFile": 0.8147,
+        "medianSavingsVsWholeFile": 0.8492,
+        "meanSavingsVsWholeFile": 0.8148,
         "minSavingsVsWholeFile": 0.2027,
-        "maxSavingsVsWholeFile": 0.9369,
-        "totalWholeFileTokens": 378020,
-        "totalToolTokens": 60271,
-        "pooledSavingsVsWholeFile": 0.8406,
+        "maxSavingsVsWholeFile": 0.9398,
+        "totalWholeFileTokens": 381498,
+        "totalToolTokens": 60693,
+        "pooledSavingsVsWholeFile": 0.8409,
         "medianSavingsVsTargeted": -0.6971,
-        "pooledSavingsVsTargeted": -0.7465
+        "pooledSavingsVsTargeted": -0.7413
       }
     },
     {
@@ -11320,10 +11320,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 578,
-            "tokens": 167
+            "chars": 548,
+            "tokens": 159
           },
-          "savingsVsWholeFilePct": 0.9373358348968105,
+          "savingsVsWholeFilePct": 0.9403377110694184,
           "savingsVsTargetedPct": null
         },
         {
@@ -11334,10 +11334,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 620,
-            "tokens": 173
+            "chars": 590,
+            "tokens": 165
           },
-          "savingsVsWholeFilePct": 0.7798982188295165,
+          "savingsVsWholeFilePct": 0.7900763358778626,
           "savingsVsTargetedPct": null
         },
         {
@@ -11348,24 +11348,24 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 1610,
-            "tokens": 438
+            "chars": 1580,
+            "tokens": 430
           },
-          "savingsVsWholeFilePct": 0.9184661206254654,
+          "savingsVsWholeFilePct": 0.9199553239017126,
           "savingsVsTargetedPct": null
         },
         {
           "target": "RoselineMCP.Interfaces.ICodeNavigationService \u00B7 1 impls",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": null,
           "tool": {
-            "chars": 614,
-            "tokens": 167
+            "chars": 584,
+            "tokens": 159
           },
-          "savingsVsWholeFilePct": 0.9639775668679896,
+          "savingsVsWholeFilePct": 0.967537770518579,
           "savingsVsTargetedPct": null
         },
         {
@@ -11376,10 +11376,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 625,
-            "tokens": 171
+            "chars": 595,
+            "tokens": 163
           },
-          "savingsVsWholeFilePct": 0.7420814479638009,
+          "savingsVsWholeFilePct": 0.7541478129713424,
           "savingsVsTargetedPct": null
         },
         {
@@ -11390,10 +11390,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 554,
-            "tokens": 161
+            "chars": 524,
+            "tokens": 153
           },
-          "savingsVsWholeFilePct": 0.8213096559378468,
+          "savingsVsWholeFilePct": 0.8301886792452831,
           "savingsVsTargetedPct": null
         },
         {
@@ -11404,10 +11404,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 572,
-            "tokens": 167
+            "chars": 542,
+            "tokens": 159
           },
-          "savingsVsWholeFilePct": 0.552278820375335,
+          "savingsVsWholeFilePct": 0.5737265415549597,
           "savingsVsTargetedPct": null
         },
         {
@@ -11418,10 +11418,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 560,
-            "tokens": 162
+            "chars": 530,
+            "tokens": 154
           },
-          "savingsVsWholeFilePct": 0.8059880239520958,
+          "savingsVsWholeFilePct": 0.8155688622754491,
           "savingsVsTargetedPct": null
         },
         {
@@ -11432,10 +11432,10 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 566,
-            "tokens": 161
+            "chars": 536,
+            "tokens": 153
           },
-          "savingsVsWholeFilePct": 0.8290870488322718,
+          "savingsVsWholeFilePct": 0.8375796178343949,
           "savingsVsTargetedPct": null
         },
         {
@@ -11446,23 +11446,23 @@
           },
           "targeted": null,
           "tool": {
-            "chars": 626,
-            "tokens": 168
+            "chars": 596,
+            "tokens": 160
           },
-          "savingsVsWholeFilePct": 0.9679205652090892,
+          "savingsVsWholeFilePct": 0.9694481573419896,
           "savingsVsTargetedPct": null
         }
       ],
       "aggregate": {
         "count": 10,
         "weakOrNegativeCount": 0,
-        "medianSavingsVsWholeFile": 0.8252,
-        "meanSavingsVsWholeFile": 0.8318,
-        "minSavingsVsWholeFile": 0.5523,
-        "maxSavingsVsWholeFile": 0.9679,
-        "totalWholeFileTokens": 22410,
-        "totalToolTokens": 1935,
-        "pooledSavingsVsWholeFile": 0.9137,
+        "medianSavingsVsWholeFile": 0.8339,
+        "meanSavingsVsWholeFile": 0.8399,
+        "minSavingsVsWholeFile": 0.5737,
+        "maxSavingsVsWholeFile": 0.9694,
+        "totalWholeFileTokens": 22672,
+        "totalToolTokens": 1855,
+        "pooledSavingsVsWholeFile": 0.9182,
         "medianSavingsVsTargeted": null,
         "pooledSavingsVsTargeted": null
       }
@@ -11574,87 +11574,87 @@
           "savingsVsTargetedPct": null
         },
         {
-          "target": "callers of RoselineMCP.Interfaces.ICodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 10",
+          "target": "callers of RoselineMCP.Interfaces.ICodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 12",
           "wholeFile": {
-            "chars": 27248,
-            "tokens": 5829
+            "chars": 28458,
+            "tokens": 6097
           },
           "targeted": null,
           "tool": {
-            "chars": 5215,
-            "tokens": 1332
+            "chars": 6095,
+            "tokens": 1560
           },
-          "savingsVsWholeFilePct": 0.7714873906330417,
+          "savingsVsWholeFilePct": 0.744136460554371,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Interfaces.ICodeNavigationService.GetSymbolInfoAsync(string, string, bool, System.Threading.CancellationToken) \u00B7 8",
           "wholeFile": {
-            "chars": 26527,
-            "tokens": 5672
+            "chars": 27737,
+            "tokens": 5940
           },
           "targeted": null,
           "tool": {
             "chars": 4321,
             "tokens": 1108
           },
-          "savingsVsWholeFilePct": 0.8046544428772919,
+          "savingsVsWholeFilePct": 0.8134680134680135,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Interfaces.ICodeNavigationService.FindReferencesAsync(string, string, bool, int, System.Threading.CancellationToken) \u00B7 4",
           "wholeFile": {
-            "chars": 26488,
-            "tokens": 5658
+            "chars": 27698,
+            "tokens": 5926
           },
           "targeted": null,
           "tool": {
             "chars": 2434,
             "tokens": 612
           },
-          "savingsVsWholeFilePct": 0.8918345705196182,
+          "savingsVsWholeFilePct": 0.8967262909213635,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Interfaces.ICodeNavigationService.FindImplementationsAsync(string, string, int, System.Threading.CancellationToken) \u00B7 3",
           "wholeFile": {
-            "chars": 26363,
-            "tokens": 5626
+            "chars": 27573,
+            "tokens": 5894
           },
           "targeted": null,
           "tool": {
             "chars": 2025,
             "tokens": 499
           },
-          "savingsVsWholeFilePct": 0.9113046569498756,
+          "savingsVsWholeFilePct": 0.9153376314896505,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Interfaces.ICodeNavigationService.GetCallGraphAsync(string, string, string, int, int, System.Threading.CancellationToken) \u00B7 7",
           "wholeFile": {
-            "chars": 26475,
-            "tokens": 5677
+            "chars": 27685,
+            "tokens": 5945
           },
           "targeted": null,
           "tool": {
             "chars": 3788,
             "tokens": 998
           },
-          "savingsVsWholeFilePct": 0.8242029240796195,
+          "savingsVsWholeFilePct": 0.8321278385197646,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Interfaces.ICodeNavigationService.GetTypeHierarchyAsync(string, string, string, int, System.Threading.CancellationToken) \u00B7 4",
           "wholeFile": {
-            "chars": 26407,
-            "tokens": 5641
+            "chars": 27617,
+            "tokens": 5909
           },
           "targeted": null,
           "tool": {
             "chars": 2478,
             "tokens": 619
           },
-          "savingsVsWholeFilePct": 0.8902676830349229,
+          "savingsVsWholeFilePct": 0.8952445422237265,
           "savingsVsTargetedPct": null
         },
         {
@@ -11828,29 +11828,29 @@
         {
           "target": "callers of RoselineMCP.Interfaces.IProjectLoader.LoadAsync(string, System.Threading.CancellationToken) \u00B7 9",
           "wholeFile": {
-            "chars": 41652,
-            "tokens": 7872
+            "chars": 42914,
+            "tokens": 8134
           },
           "targeted": null,
           "tool": {
             "chars": 5434,
             "tokens": 1273
           },
-          "savingsVsWholeFilePct": 0.8382876016260162,
+          "savingsVsWholeFilePct": 0.8434964347184657,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Interfaces.LoadedProject.Dispose() \u00B7 11",
           "wholeFile": {
-            "chars": 61420,
-            "tokens": 11857
+            "chars": 62682,
+            "tokens": 12119
           },
           "targeted": null,
           "tool": {
             "chars": 5936,
             "tokens": 1437
           },
-          "savingsVsWholeFilePct": 0.8788057687442017,
+          "savingsVsWholeFilePct": 0.8814258602194901,
           "savingsVsTargetedPct": null
         },
         {
@@ -11966,87 +11966,87 @@
           "savingsVsTargetedPct": null
         },
         {
-          "target": "callers of RoselineMCP.Services.CodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 10",
+          "target": "callers of RoselineMCP.Services.CodeNavigationService.SearchSymbolsAsync(string, string, string, string[], int, System.Threading.CancellationToken) \u00B7 12",
           "wholeFile": {
-            "chars": 27248,
-            "tokens": 5829
+            "chars": 28458,
+            "tokens": 6097
           },
           "targeted": null,
           "tool": {
-            "chars": 5212,
-            "tokens": 1331
+            "chars": 6092,
+            "tokens": 1559
           },
-          "savingsVsWholeFilePct": 0.7716589466460799,
+          "savingsVsWholeFilePct": 0.7443004756437592,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Services.CodeNavigationService.GetSymbolInfoAsync(string, string, bool, System.Threading.CancellationToken) \u00B7 8",
           "wholeFile": {
-            "chars": 26527,
-            "tokens": 5672
+            "chars": 27737,
+            "tokens": 5940
           },
           "targeted": null,
           "tool": {
             "chars": 4318,
             "tokens": 1107
           },
-          "savingsVsWholeFilePct": 0.8048307475317349,
+          "savingsVsWholeFilePct": 0.8136363636363636,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Services.CodeNavigationService.FindReferencesAsync(string, string, bool, int, System.Threading.CancellationToken) \u00B7 4",
           "wholeFile": {
-            "chars": 26488,
-            "tokens": 5658
+            "chars": 27698,
+            "tokens": 5926
           },
           "targeted": null,
           "tool": {
             "chars": 2431,
             "tokens": 611
           },
-          "savingsVsWholeFilePct": 0.892011311417462,
+          "savingsVsWholeFilePct": 0.8968950388120148,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Services.CodeNavigationService.FindImplementationsAsync(string, string, int, System.Threading.CancellationToken) \u00B7 3",
           "wholeFile": {
-            "chars": 26363,
-            "tokens": 5626
+            "chars": 27573,
+            "tokens": 5894
           },
           "targeted": null,
           "tool": {
             "chars": 2022,
             "tokens": 498
           },
-          "savingsVsWholeFilePct": 0.9114824031283327,
+          "savingsVsWholeFilePct": 0.9155072955548015,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Services.CodeNavigationService.GetCallGraphAsync(string, string, string, int, int, System.Threading.CancellationToken) \u00B7 7",
           "wholeFile": {
-            "chars": 26475,
-            "tokens": 5677
+            "chars": 27685,
+            "tokens": 5945
           },
           "targeted": null,
           "tool": {
             "chars": 3785,
             "tokens": 997
           },
-          "savingsVsWholeFilePct": 0.8243790734542893,
+          "savingsVsWholeFilePct": 0.832296047098402,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Services.CodeNavigationService.GetTypeHierarchyAsync(string, string, string, int, System.Threading.CancellationToken) \u00B7 4",
           "wholeFile": {
-            "chars": 26407,
-            "tokens": 5641
+            "chars": 27617,
+            "tokens": 5909
           },
           "targeted": null,
           "tool": {
             "chars": 2475,
             "tokens": 618
           },
-          "savingsVsWholeFilePct": 0.8904449565679844,
+          "savingsVsWholeFilePct": 0.8954137755965477,
           "savingsVsTargetedPct": null
         },
         {
@@ -12220,15 +12220,15 @@
         {
           "target": "callers of RoselineMCP.Services.ProjectLoader.LoadAsync(string, System.Threading.CancellationToken) \u00B7 9",
           "wholeFile": {
-            "chars": 41652,
-            "tokens": 7872
+            "chars": 42914,
+            "tokens": 8134
           },
           "targeted": null,
           "tool": {
             "chars": 5431,
             "tokens": 1272
           },
-          "savingsVsWholeFilePct": 0.8384146341463414,
+          "savingsVsWholeFilePct": 0.8436193754610277,
           "savingsVsTargetedPct": null
         },
         {
@@ -12262,15 +12262,15 @@
         {
           "target": "callers of RoselineMCP.Services.SymbolResolver.ResolveOrThrowAsync(Microsoft.CodeAnalysis.Project, string, System.Threading.CancellationToken) \u00B7 7",
           "wholeFile": {
-            "chars": 38869,
-            "tokens": 7301
+            "chars": 40131,
+            "tokens": 7563
           },
           "targeted": null,
           "tool": {
             "chars": 4382,
             "tokens": 1020
           },
-          "savingsVsWholeFilePct": 0.8602931105328038,
+          "savingsVsWholeFilePct": 0.8651328837762793,
           "savingsVsTargetedPct": null
         },
         {
@@ -12290,57 +12290,57 @@
         {
           "target": "callers of RoselineMCP.Services.SymbolResolver.ToSummary(Microsoft.CodeAnalysis.ISymbol) \u00B7 3",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": null,
           "tool": {
             "chars": 1977,
             "tokens": 466
           },
-          "savingsVsWholeFilePct": 0.8994823123382226,
+          "savingsVsWholeFilePct": 0.9048591261739486,
           "savingsVsTargetedPct": null
         },
         {
-          "target": "callers of RoselineMCP.Services.SymbolResolver.KindOf(Microsoft.CodeAnalysis.ISymbol) \u00B7 7",
+          "target": "callers of RoselineMCP.Services.SymbolResolver.KindOf(Microsoft.CodeAnalysis.ISymbol) \u00B7 8",
           "wholeFile": {
-            "chars": 49644,
-            "tokens": 9465
+            "chars": 50906,
+            "tokens": 9727
           },
           "targeted": null,
           "tool": {
-            "chars": 3989,
-            "tokens": 960
+            "chars": 4421,
+            "tokens": 1066
           },
-          "savingsVsWholeFilePct": 0.8985736925515055,
+          "savingsVsWholeFilePct": 0.8904081422843632,
           "savingsVsTargetedPct": null
         },
         {
-          "target": "callers of RoselineMCP.Services.SymbolResolver.LocationOf(Microsoft.CodeAnalysis.ISymbol) \u00B7 4",
+          "target": "callers of RoselineMCP.Services.SymbolResolver.LocationOf(Microsoft.CodeAnalysis.ISymbol) \u00B7 5",
           "wholeFile": {
-            "chars": 35596,
-            "tokens": 6800
+            "chars": 36858,
+            "tokens": 7062
           },
           "targeted": null,
           "tool": {
-            "chars": 2188,
-            "tokens": 537
+            "chars": 2620,
+            "tokens": 643
           },
-          "savingsVsWholeFilePct": 0.9210294117647059,
+          "savingsVsWholeFilePct": 0.9089493061455678,
           "savingsVsTargetedPct": null
         },
         {
           "target": "callers of RoselineMCP.Services.SymbolResolver.ModifiersOf(Microsoft.CodeAnalysis.ISymbol) \u00B7 1",
           "wholeFile": {
-            "chars": 24821,
-            "tokens": 4636
+            "chars": 26083,
+            "tokens": 4898
           },
           "targeted": null,
           "tool": {
             "chars": 776,
             "tokens": 194
           },
-          "savingsVsWholeFilePct": 0.9581535806729939,
+          "savingsVsWholeFilePct": 0.9603919967333605,
           "savingsVsTargetedPct": null
         },
         {
@@ -12627,13 +12627,13 @@
       "aggregate": {
         "count": 82,
         "weakOrNegativeCount": 2,
-        "medianSavingsVsWholeFile": 0.8288,
-        "meanSavingsVsWholeFile": 0.7893,
+        "medianSavingsVsWholeFile": 0.8314,
+        "meanSavingsVsWholeFile": 0.7895,
         "minSavingsVsWholeFile": 0.0558,
-        "maxSavingsVsWholeFile": 0.9582,
-        "totalWholeFileTokens": 550948,
-        "totalToolTokens": 106565,
-        "pooledSavingsVsWholeFile": 0.8066,
+        "maxSavingsVsWholeFile": 0.9604,
+        "totalWholeFileTokens": 556260,
+        "totalToolTokens": 107233,
+        "pooledSavingsVsWholeFile": 0.8072,
         "medianSavingsVsTargeted": null,
         "pooledSavingsVsTargeted": null
       }
@@ -12663,15 +12663,15 @@
         {
           "target": "rename RoselineMCP.Services.SymbolResolver \u2192 SymbolLookup \u00B7 3 files",
           "wholeFile": {
-            "chars": 49644,
-            "tokens": 9465
+            "chars": 50906,
+            "tokens": 9727
           },
           "targeted": null,
           "tool": {
-            "chars": 13466,
-            "tokens": 2696
+            "chars": 14643,
+            "tokens": 2936
           },
-          "savingsVsWholeFilePct": 0.7151611199154781,
+          "savingsVsWholeFilePct": 0.6981597614886399,
           "savingsVsTargetedPct": null
         },
         {
@@ -12693,12 +12693,12 @@
         "count": 3,
         "weakOrNegativeCount": 0,
         "medianSavingsVsWholeFile": 0.8445,
-        "meanSavingsVsWholeFile": 0.8132,
-        "minSavingsVsWholeFile": 0.7152,
+        "meanSavingsVsWholeFile": 0.8076,
+        "minSavingsVsWholeFile": 0.6982,
         "maxSavingsVsWholeFile": 0.8801,
-        "totalWholeFileTokens": 26820,
-        "totalToolTokens": 4852,
-        "pooledSavingsVsWholeFile": 0.8191,
+        "totalWholeFileTokens": 27082,
+        "totalToolTokens": 5092,
+        "pooledSavingsVsWholeFile": 0.812,
         "medianSavingsVsTargeted": null,
         "pooledSavingsVsTargeted": null
       }

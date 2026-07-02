@@ -35,8 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation site** (`website/`, Astro) with an overview, the tool reference, and the honest
   benchmark (charts + methodology + limitations), deployed to GitHub Pages via
   `.github/workflows/deploy-docs.yml`. Across 477 navigation tasks the read-only tools showed a
-  pooled 79% / median 74% token reduction versus reading the corresponding files — with the one
-  net-loss case (`search_symbols` file outline) reported transparently rather than hidden.
+  pooled 81% / median 74% token reduction versus reading the corresponding files.
+
+### Changed
+- **`search_symbols` file outline is now token-lean.** The benchmark caught the outline *costing*
+  tokens (it repeated the file path and fully-qualified name on every symbol); it now returns a
+  lean projection (name, kind, signature, line), flipping its median from −45% to +30%.
+  `SymbolSummary` also omits null fields from its JSON. Project-wide search is unchanged.
 
 ## [1.2.1] - 2026-07-02
 

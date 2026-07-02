@@ -52,14 +52,19 @@ const editSuite = data.suites.find((s) => s.id === 'edit-output');
   <h2>Savings by tool</h2>
   <SavingsChart rows={chartRows} />
 
-  <div class="note warn">
-    <h3>The honest exception: <code>search_symbols</code> file outline</h3>
-    <p>Outlining a whole file is a <strong>net loss</strong> here — the indented JSON (a full
-      signature, fully-qualified name and path per symbol) is larger than the source for small,
-      symbol-dense files. It only wins on large files (e.g. <code>Program.cs</code>, +79%). This is
-      a real finding, not hidden: the outline serialization is verbose and should be trimmed
-      (drop the repeated per-symbol file path, don’t indent) to deliver on its promise. Every other
-      scenario saves 54–91%.</p>
+  <div class="note">
+    <h3>Where the file outline wins — and where it can’t</h3>
+    <p>The first run of this benchmark caught <code>search_symbols</code> outline <em>costing</em>
+      tokens: it repeated the identical file path and the fully-qualified name on every symbol. That
+      was fixed — the outline now returns a lean projection (name, kind, signature, line), and the
+      median went from <strong>−45%</strong> to <strong>+30%</strong>.</p>
+    <p>What remains is not a bug but a limit. Outline wins big on body-heavy files, where it strips
+      the implementations (<code>Program.cs</code> <span class="save-ink">+89%</span>,
+      <code>CodeFixService.cs</code> <span class="save-ink">+76%</span>). On a declaration-only file
+      — an interface or a DTO — it stays near break-even or slightly negative
+      (<code>IDiagnosticFilterService.cs</code> <span class="cost-ink">−92%</span>), because that
+      file <em>is</em> already just signatures: there is no body to strip, so a structured list of
+      the same signatures can’t be smaller. Read such files directly; use the outline on the big ones.</p>
   </div>
 
   <h2>Full results</h2>

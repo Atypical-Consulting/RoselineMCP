@@ -68,7 +68,7 @@ C# codebases accumulate quality issues silently -- inconsistent naming, missing 
 
 - [x] **Comprehensive Code Analysis** -- Analyze entire C# solutions for code quality issues, potential bugs, and style violations
 - [x] **Automated Code Fixes** -- Apply automated fixes for hundreds of diagnostic rules from Roslyn and Roslynator
-- [x] **Token-Efficient Code Navigation** -- Retrieve symbols, signatures, references, call graphs, and type hierarchies via Roslyn instead of reading whole files, so an AI agent spends far fewer tokens orienting in a codebase (a measured pooled **79%** / median **74%** token reduction on RoselineMCP's own source -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark))
+- [x] **Token-Efficient Code Navigation** -- Retrieve symbols, signatures, references, call graphs, and type hierarchies via Roslyn instead of reading whole files, so an AI agent spends far fewer tokens orienting in a codebase (a measured pooled **81%** / median **74%** token reduction on RoselineMCP's own source -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark))
 - [x] **Surgical Code Edits** -- Replace/add/delete a single member or rename a symbol solution-wide, emitting a diff rather than a whole-file rewrite (preview by default)
 - [x] **Unified Diff Generation** -- Generate reviewable patches before applying changes
 - [x] **Flexible Filtering** -- Filter diagnostics by severity, ID, file patterns, and project names
