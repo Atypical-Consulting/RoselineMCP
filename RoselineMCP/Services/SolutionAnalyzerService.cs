@@ -1,4 +1,8 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
@@ -12,6 +16,12 @@ namespace RoselineMCP.Services;
 /// </summary>
 public class SolutionAnalyzerService : ISolutionAnalyzerService
 {
+    /// <summary>
+    /// Maximum time to allow a shallow Git clone to run before it is aborted.
+    /// Prevents a slow or unresponsive remote from hanging the tool indefinitely.
+    /// </summary>
+    private static readonly TimeSpan GitCloneTimeout = TimeSpan.FromSeconds(120);
+
     private readonly ILogger<SolutionAnalyzerService> _logger;
     private readonly IMSBuildService _msBuildService;
     private readonly IDiagnosticFilterService _filterService;
@@ -39,15 +49,21 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         string? includePattern = null,
         string? excludePattern = null,
         string? severity = null,
-        int maxDiagnostics = 100)
+        int maxDiagnostics = 100,
+        CancellationToken cancellationToken = default)
     {
+        string? clonedDirectory = null;
+
         try
         {
-            var solutionPath = ResolveSolutionPath(pathOrGit, branch);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var (solutionPath, cloneDirectory) = await ResolveSolutionPathAsync(pathOrGit, branch, cancellationToken);
+            clonedDirectory = cloneDirectory;
             ValidateSolutionPath(solutionPath);
 
             using var workspace = _msBuildService.CreateWorkspace();
-            var solution = await LoadSolutionAsync(workspace, solutionPath);
+            var solution = await LoadSolutionAsync(workspace, solutionPath, cancellationToken);
 
             var analysisContext = new AnalysisContext
             {
@@ -57,7 +73,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 MaxDiagnostics = maxDiagnostics
             };
 
-            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext);
+            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, cancellationToken);
 
             return BuildAnalyzeSolutionResponse(solutionPath, solution, diagnostics, summary, maxDiagnostics);
         }
@@ -65,6 +81,13 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             _logger.LogError(ex, "Failed to analyze solution");
             throw;
+        }
+        finally
+        {
+            if (clonedDirectory != null)
+            {
+                SafeDeleteDirectory(clonedDirectory);
+            }
         }
     }
 
@@ -77,27 +100,30 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     }
 
     [ExcludeFromCodeCoverage(Justification = "Requires real MSBuild workspace — integration test territory")]
-    private async Task<Solution> LoadSolutionAsync(MSBuildWorkspace workspace, string solutionPath)
+    private async Task<Solution> LoadSolutionAsync(MSBuildWorkspace workspace, string solutionPath, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Loading solution: {Path}", solutionPath);
-        return await workspace.OpenSolutionAsync(solutionPath);
+        return await workspace.OpenSolutionAsync(solutionPath, cancellationToken: cancellationToken);
     }
 
     private async Task<(List<DiagnosticDetail> diagnostics, DiagnosticSummary summary)> AnalyzeProjectsAsync(
         Solution solution,
-        AnalysisContext context)
+        AnalysisContext context,
+        CancellationToken cancellationToken)
     {
         var allDiagnostics = new List<DiagnosticDetail>();
         var summary = new DiagnosticSummary();
 
         foreach (var project in solution.Projects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (!_filterService.ShouldAnalyzeProject(project.Name, context.IncludePattern, context.ExcludePattern))
             {
                 continue;
             }
 
-            await AnalyzeProjectAsync(project, allDiagnostics, summary, context);
+            await AnalyzeProjectAsync(project, allDiagnostics, summary, context, cancellationToken);
         }
 
         return (allDiagnostics, summary);
@@ -107,24 +133,25 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         Project project,
         List<DiagnosticDetail> allDiagnostics,
         DiagnosticSummary summary,
-        AnalysisContext context)
+        AnalysisContext context,
+        CancellationToken cancellationToken)
     {
         _logger.LogInformation("Analyzing project: {ProjectName}", project.Name);
 
-        var compilation = await project.GetCompilationAsync();
+        var compilation = await project.GetCompilationAsync(cancellationToken);
         if (compilation == null)
         {
             _logger.LogWarning("Failed to get compilation for project: {ProjectName}", project.Name);
             return;
         }
 
-        var diagnostics = GetFilteredDiagnostics(compilation, context);
+        var diagnostics = GetFilteredDiagnostics(compilation, context, cancellationToken);
         ProcessProjectDiagnostics(diagnostics, project.Name, allDiagnostics, summary, context.MaxDiagnostics);
     }
 
-    private IEnumerable<Diagnostic> GetFilteredDiagnostics(Compilation compilation, AnalysisContext context)
+    private IEnumerable<Diagnostic> GetFilteredDiagnostics(Compilation compilation, AnalysisContext context, CancellationToken cancellationToken)
     {
-        return compilation.GetDiagnostics()
+        return compilation.GetDiagnostics(cancellationToken)
             .Where(d => _filterService.ShouldIncludeDiagnostic(d, context.Severity))
             .Take(context.MaxDiagnostics);
     }
@@ -202,20 +229,23 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         string project,
         List<string>? ids = null,
         List<string>? files = null,
-        int max = 100)
+        int max = 100,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            using var workspace = _msBuildService.CreateWorkspace();
-            var msProject = await LoadProjectAsync(workspace, project);
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var compilation = await GetProjectCompilationAsync(msProject);
+            using var workspace = _msBuildService.CreateWorkspace();
+            var msProject = await LoadProjectAsync(workspace, project, cancellationToken);
+
+            var compilation = await GetProjectCompilationAsync(msProject, cancellationToken);
             if (compilation == null)
             {
                 return new ListDiagnosticsResponse { Project = msProject.Name };
             }
 
-            var allDiagnostics = GetProjectDiagnostics(compilation, ids, files);
+            var allDiagnostics = GetProjectDiagnostics(compilation, ids, files, cancellationToken);
             var stats = CollectDiagnosticStatistics(allDiagnostics);
             var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
 
@@ -235,18 +265,18 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         }
     }
 
-    private async Task<Project> LoadProjectAsync(MSBuildWorkspace workspace, string project)
+    private async Task<Project> LoadProjectAsync(MSBuildWorkspace workspace, string project, CancellationToken cancellationToken)
     {
         var projectPath = ResolveProjectPath(project);
         _logger.LogInformation("Loading project: {Path}", projectPath);
 
-        var msProject = await TryLoadProjectDirectlyAsync(workspace, projectPath);
+        var msProject = await TryLoadProjectDirectlyAsync(workspace, projectPath, cancellationToken);
         if (msProject != null)
         {
             return msProject;
         }
 
-        msProject = await TryLoadProjectFromSolutionAsync(workspace, projectPath, project);
+        msProject = await TryLoadProjectFromSolutionAsync(workspace, projectPath, project, cancellationToken);
         if (msProject == null)
         {
             throw new InvalidOperationException($"Project not found: {project}");
@@ -255,16 +285,16 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         return msProject;
     }
 
-    private async Task<Project?> TryLoadProjectDirectlyAsync(MSBuildWorkspace workspace, string projectPath)
+    private async Task<Project?> TryLoadProjectDirectlyAsync(MSBuildWorkspace workspace, string projectPath, CancellationToken cancellationToken)
     {
         if (File.Exists(projectPath) && projectPath.EndsWith(".csproj"))
         {
-            return await workspace.OpenProjectAsync(projectPath);
+            return await workspace.OpenProjectAsync(projectPath, cancellationToken: cancellationToken);
         }
         return null;
     }
 
-    private async Task<Project?> TryLoadProjectFromSolutionAsync(MSBuildWorkspace workspace, string projectPath, string projectName)
+    private async Task<Project?> TryLoadProjectFromSolutionAsync(MSBuildWorkspace workspace, string projectPath, string projectName, CancellationToken cancellationToken)
     {
         var solutionPath = FindSolutionFile(projectPath);
         if (solutionPath == null)
@@ -272,7 +302,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             return null;
         }
 
-        var solution = await workspace.OpenSolutionAsync(solutionPath);
+        var solution = await workspace.OpenSolutionAsync(solutionPath, cancellationToken: cancellationToken);
         return FindProjectInSolution(solution, projectName);
     }
 
@@ -283,9 +313,9 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             p.FilePath?.Contains(projectName) == true);
     }
 
-    private async Task<Compilation?> GetProjectCompilationAsync(Project project)
+    private async Task<Compilation?> GetProjectCompilationAsync(Project project, CancellationToken cancellationToken)
     {
-        var compilation = await project.GetCompilationAsync();
+        var compilation = await project.GetCompilationAsync(cancellationToken);
         if (compilation == null)
         {
             _logger.LogWarning("Failed to get compilation for project: {ProjectName}", project.Name);
@@ -293,9 +323,9 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         return compilation;
     }
 
-    private List<Diagnostic> GetProjectDiagnostics(Compilation compilation, List<string>? ids, List<string>? files)
+    private List<Diagnostic> GetProjectDiagnostics(Compilation compilation, List<string>? ids, List<string>? files, CancellationToken cancellationToken)
     {
-        return compilation.GetDiagnostics()
+        return compilation.GetDiagnostics(cancellationToken)
             .Where(d => !d.IsSuppressed)
             .Where(d => _filterService.FilterByIds(d, ids))
             .Where(d => _filterService.FilterByFiles(d, files))
@@ -359,29 +389,267 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             .ToList();
     }
 
-    private string ResolveSolutionPath(string pathOrGit, string? branch)
+    /// <summary>
+    /// Resolves <paramref name="pathOrGit"/> to a local solution file path. If it is a Git URL,
+    /// the repository is shallow-cloned into a fresh temp directory first; the caller is
+    /// responsible for deleting that directory (returned as <c>ClonedDirectory</c>) once it is
+    /// no longer needed.
+    /// </summary>
+    private async Task<(string SolutionPath, string? ClonedDirectory)> ResolveSolutionPathAsync(
+        string pathOrGit,
+        string? branch,
+        CancellationToken cancellationToken)
     {
-        ValidateNotGitRepository(pathOrGit);
-        
+        if (IsGitUrl(pathOrGit))
+        {
+            await EnsureGitUrlIsNotInternalAsync(pathOrGit, cancellationToken);
+            var clonedDirectory = await CloneGitRepositoryAsync(pathOrGit, branch, cancellationToken);
+            return (FindSolutionInDirectory(clonedDirectory), clonedDirectory);
+        }
+
         if (Directory.Exists(pathOrGit))
         {
-            return FindSolutionInDirectory(pathOrGit);
+            return (FindSolutionInDirectory(pathOrGit), null);
         }
 
-        return pathOrGit;
+        return (pathOrGit, null);
     }
 
-    private void ValidateNotGitRepository(string path)
-    {
-        if (IsGitUrl(path))
-        {
-            throw new NotImplementedException("Git repository cloning not yet implemented. Please provide a local path.");
-        }
-    }
-
+    /// <summary>
+    /// Narrow, production-facing gate: only http(s) URLs are ever treated as Git remotes.
+    /// Anything else (file://, ssh://, git://, plain local paths, ...) falls through to normal
+    /// local-path resolution, which safely fails with FileNotFoundException if it doesn't exist —
+    /// there is no code path that lets a non-http(s) scheme reach <see cref="CloneGitRepositoryAsync"/>.
+    /// </summary>
     private bool IsGitUrl(string path)
     {
         return path.StartsWith("http://") || path.StartsWith("https://");
+    }
+
+    /// <summary>
+    /// SSRF guard: resolves the host of an http(s) Git URL and rejects it if any resolved
+    /// address is loopback, link-local, or in a private (RFC1918) range — e.g. the cloud
+    /// metadata endpoint, localhost, or internal network addresses. Applied only to the
+    /// production http(s) path (called from <see cref="ResolveSolutionPathAsync"/>), not to
+    /// <see cref="CloneGitRepositoryAsync"/> itself, which stays exercisable directly against
+    /// local repository paths in tests.
+    ///
+    /// Note: this checks the address(es) resolved at validation time. It does not eliminate a
+    /// DNS-rebinding TOCTOU window, since <c>git</c> itself re-resolves the host at connect
+    /// time; closing that gap fully would require routing the clone through a pinned
+    /// connection rather than the system <c>git</c> executable. See SECURITY.md.
+    /// </summary>
+    private static async Task EnsureGitUrlIsNotInternalAsync(string gitUrl, CancellationToken cancellationToken)
+    {
+        Uri uri;
+        try
+        {
+            uri = new Uri(gitUrl);
+        }
+        catch (UriFormatException ex)
+        {
+            throw new InvalidOperationException($"Invalid Git URL: {gitUrl}", ex);
+        }
+
+        IPAddress[] addresses;
+        try
+        {
+            addresses = await Dns.GetHostAddressesAsync(uri.Host, cancellationToken);
+        }
+        catch (Exception ex) when (ex is SocketException or ArgumentException)
+        {
+            throw new InvalidOperationException($"Could not resolve host for Git URL: {uri.Host}", ex);
+        }
+
+        if (addresses.Length == 0 || Array.Exists(addresses, IsInternalAddress))
+        {
+            throw new InvalidOperationException(
+                $"Refusing to clone Git URL '{gitUrl}': host '{uri.Host}' resolves to an internal, loopback, or link-local address.");
+        }
+    }
+
+    private static bool IsInternalAddress(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address))
+        {
+            return true;
+        }
+
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            var bytes = address.GetAddressBytes();
+            return bytes[0] == 10                                   // 10.0.0.0/8
+                || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)  // 172.16.0.0/12
+                || (bytes[0] == 192 && bytes[1] == 168)              // 192.168.0.0/16
+                || (bytes[0] == 169 && bytes[1] == 254);             // 169.254.0.0/16 (link-local)
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return address.IsIPv6LinkLocal || address.IsIPv6SiteLocal;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Performs a shallow, read-only clone of <paramref name="gitUrl"/> into a freshly created
+    /// temp directory using the system <c>git</c> executable (no library dependency). Intentionally
+    /// does not re-validate the URL scheme itself — that gate lives in <see cref="IsGitUrl"/> — so
+    /// this method can also be exercised directly (e.g. via reflection in tests) against local
+    /// repository paths without weakening the production http(s)-only restriction.
+    /// </summary>
+    private async Task<string> CloneGitRepositoryAsync(string gitUrl, string? branch, CancellationToken cancellationToken)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"roselinemcp-clone-{Guid.NewGuid():N}");
+        CreateCloneDirectory(tempDir);
+
+        // Everything from here on can throw for reasons outside our control (missing git
+        // binary, cancellation, non-zero exit code, ...). Whatever the failure, the temp
+        // directory we just created must not be left behind.
+        try
+        {
+            var startInfo = new ProcessStartInfo("git")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("clone");
+            startInfo.ArgumentList.Add("--depth");
+            startInfo.ArgumentList.Add("1");
+            if (!string.IsNullOrWhiteSpace(branch))
+            {
+                startInfo.ArgumentList.Add("--branch");
+                startInfo.ArgumentList.Add(branch);
+            }
+            startInfo.ArgumentList.Add(gitUrl);
+            startInfo.ArgumentList.Add(tempDir);
+            // Never let a private/misconfigured remote hang the process waiting on a credential prompt.
+            startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+
+            _logger.LogInformation("Cloning Git repository (branch: {Branch})", branch ?? "default");
+
+            using var process = new Process { StartInfo = startInfo };
+            var stdErr = new StringBuilder();
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                {
+                    stdErr.AppendLine(e.Data);
+                }
+            };
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(GitCloneTimeout);
+
+            try
+            {
+                process.Start();
+                process.BeginErrorReadLine();
+                await process.WaitForExitAsync(timeoutCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                TryKillProcess(process);
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+
+                throw new TimeoutException(
+                    $"Cloning the Git repository timed out after {GitCloneTimeout.TotalSeconds:N0} seconds.");
+            }
+
+            if (process.ExitCode != 0)
+            {
+                var details = stdErr.Length > 0 ? stdErr.ToString().Trim() : $"git exited with code {process.ExitCode}";
+                throw new InvalidOperationException($"Failed to clone Git repository: {details}");
+            }
+
+            return tempDir;
+        }
+        catch
+        {
+            SafeDeleteDirectory(tempDir);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Creates the clone temp directory with owner-only permissions on non-Windows platforms,
+    /// to avoid other local users on shared hosts being able to read cloned source while the
+    /// clone is in progress. <c>UnixFileMode</c>-based creation throws
+    /// <see cref="PlatformNotSupportedException"/> on Windows, hence the explicit guard.
+    /// </summary>
+    private static void CreateCloneDirectory(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(path);
+        }
+        else
+        {
+            Directory.CreateDirectory(
+                path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    private static void TryKillProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+            // Best-effort — the process may have already exited between the check and the kill.
+        }
+    }
+
+    private void SafeDeleteDirectory(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory))
+            {
+                // Git marks object/pack files read-only on Windows. Directory.Delete honors
+                // that attribute (unlike a Unix rm -rf, which only cares about the containing
+                // directory's permissions) and throws UnauthorizedAccessException, so a cloned
+                // repository's own .git directory must be cleared of ReadOnly first.
+                ClearReadOnlyAttributes(directory);
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Best-effort cleanup — don't fail the caller's operation over cleanup issues,
+            // but do surface it so operators can notice orphaned temp directories.
+            _logger.LogWarning(ex, "Failed to delete temporary directory: {Directory}", directory);
+        }
+    }
+
+    private static void ClearReadOnlyAttributes(string directory)
+    {
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            var attributes = File.GetAttributes(file);
+            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            }
+        }
     }
 
     private string FindSolutionInDirectory(string directory)

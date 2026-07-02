@@ -149,7 +149,7 @@ dotnet test --logger html
 ## Dependencies
 
 ### Core MCP and Hosting
-- **ModelContextProtocol** (1.1.0): MCP server implementation
+- **ModelContextProtocol** (1.4.0): MCP server implementation
 - **Microsoft.Extensions.Hosting**: Application hosting and DI
 - **Microsoft.Extensions.DependencyInjection**: Service registration
 
@@ -186,8 +186,23 @@ Logging levels adjust automatically:
 
 ## Security Considerations
 
-- Never executes arbitrary code from analyzed projects
-- Uses read-only Git clones when analyzing remote repositories  
-- Operates in temporary workspaces to prevent accidental modifications
-- All changes are returned as patches for review before application
-- Path traversal protection in file operations
+- **Read-only by default**: `ApplyFixes`' `previewOnly` parameter defaults to `true` at the MCP
+  tool boundary — no file is written to disk unless the caller explicitly passes
+  `previewOnly: false`.
+- **Real Git support**: `pathOrGit` accepts `http://`/`https://` Git URLs. RoselineMCP performs a
+  shallow (`--depth 1`), read-only clone into a fresh temp directory using the system `git`
+  executable, and deletes that directory once the operation finishes. Any other scheme (local
+  path, `ssh://`, `git://`, `file://`, ...) is never treated as a Git remote.
+- **MSBuild is not a sandbox**: loading a `.sln`/`.csproj` via `MSBuildWorkspace` is a design-time
+  MSBuild evaluation, not a safe parse — it can execute build logic embedded in the project
+  (`<Exec>` tasks, custom `UsingTask` assemblies, imported `.targets`/`.props`). Analyzing a fully
+  untrusted repository or URL carries a real code-execution risk on the host running RoselineMCP.
+  See `SECURITY.md` for the full write-up and operator recommendations.
+- **No dedicated path-traversal sanitization**: solution/project paths are resolved with plain
+  `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
+  `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against
+  arbitrary/hostile callers.
+- Each operation creates a fresh `MSBuildWorkspace` (see "Workspace Isolation" above) — no
+  workspace state or MSBuild-loaded solution is shared or cached across calls.
+- Changes from `ApplyFixes` are always returned as a unified diff patch in the response, in
+  addition to (optionally) being written to disk.

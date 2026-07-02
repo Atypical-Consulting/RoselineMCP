@@ -214,75 +214,6 @@ public class PatchServiceTests
         }
     }
 
-    public class CreatePatchFromFilesTests : PatchServiceTests, IDisposable
-    {
-        private readonly string _testDirectory;
-
-        public CreatePatchFromFilesTests()
-        {
-            _testDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-            Directory.CreateDirectory(_testDirectory);
-        }
-
-        [Fact]
-        public void Should_Create_Patch_From_Files()
-        {
-            // Arrange
-            var beforePath = Path.Combine(_testDirectory, "before.txt");
-            var afterPath = Path.Combine(_testDirectory, "after.txt");
-            File.WriteAllText(beforePath, "Original content");
-            File.WriteAllText(afterPath, "Modified content");
-            var mockPatch = "--- a/before.txt\n+++ b/before.txt\n@@ -1 +1 @@\n-Original content\n+Modified content";
-            A.CallTo(() => _diffService.GenerateUnifiedDiff("Original content", "Modified content", "a/before.txt", "b/before.txt"))
-                .Returns(mockPatch);
-
-            // Act
-            var result = _sut.CreatePatchFromFiles(beforePath, afterPath);
-
-            // Assert
-            result.HasChanges.ShouldBeTrue();
-            result.FileName.ShouldBe("before.txt");
-        }
-
-        [Fact]
-        public void Should_Throw_When_Before_File_Not_Found()
-        {
-            // Arrange
-            var beforePath = Path.Combine(_testDirectory, "nonexistent.txt");
-            var afterPath = Path.Combine(_testDirectory, "after.txt");
-            File.WriteAllText(afterPath, "Content");
-
-            // Act & Assert
-            Should.Throw<FileNotFoundException>(() => _sut.CreatePatchFromFiles(beforePath, afterPath))
-                .Message.ShouldContain("Before file not found");
-        }
-
-        [Fact]
-        public void Should_Throw_When_After_File_Not_Found()
-        {
-            // Arrange
-            var beforePath = Path.Combine(_testDirectory, "before.txt");
-            var afterPath = Path.Combine(_testDirectory, "nonexistent.txt");
-            File.WriteAllText(beforePath, "Content");
-
-            // Act & Assert
-            Should.Throw<FileNotFoundException>(() => _sut.CreatePatchFromFiles(beforePath, afterPath))
-                .Message.ShouldContain("After file not found");
-        }
-
-        public void Dispose()
-        {
-            try
-            {
-                Directory.Delete(_testDirectory, true);
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-    }
-
     public class CreatePatchWithOptionsTests : PatchServiceTests
     {
         [Fact]
@@ -382,20 +313,42 @@ public class PatchServiceTests
         }
     }
 
-    public class ApplyPatchTests : PatchServiceTests
+    /// <summary>
+    /// Proves that a pre-cancelled token is actually honored rather than silently ignored —
+    /// deterministic in-process alternative to timing a real timeout.
+    /// </summary>
+    public class CancellationTests : PatchServiceTests
     {
         [Fact]
-        public void Should_Return_False_For_Unimplemented_Apply()
+        public void CreatePatch_Should_Throw_When_Token_Already_Cancelled()
         {
             // Arrange
-            var filePath = "test.txt";
-            var patch = "--- a/test.txt\n+++ b/test.txt\n@@ -1 +1 @@\n-old\n+new";
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
 
-            // Act
-            var result = _sut.ApplyPatch(filePath, patch);
+            // Act & Assert
+            Should.Throw<OperationCanceledException>(() =>
+                _sut.CreatePatch("before", "after", cancellationToken: cts.Token));
 
-            // Assert
-            result.ShouldBeFalse();
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(
+                A<string>._, A<string>._, A<string>._, A<string>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public void CreatePatchWithOptions_Should_Throw_When_Token_Already_Cancelled()
+        {
+            // Arrange
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Act & Assert
+            Should.Throw<OperationCanceledException>(() =>
+                _sut.CreatePatchWithOptions("before", "after", cancellationToken: cts.Token));
+
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(
+                A<string>._, A<string>._, A<string>._, A<string>._))
+                .MustNotHaveHappened();
         }
     }
 }

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.atypical-consulting/roseline-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for C# code analysis and automated fixing using Roslyn analyzers and code fix providers.",
+  "title": "RoselineMCP",
+  "websiteUrl": "https://github.com/Atypical-Consulting/RoselineMCP",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "RoselineMCP",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/Atypical-Consulting/RoselineMCP",
+    "source": "github"
+  }
+}

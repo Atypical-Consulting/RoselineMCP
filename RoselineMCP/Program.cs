@@ -3,6 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using RoselineMCP.Configuration;
+using RoselineMCP.Diagnostics;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Services;
 try
@@ -15,6 +18,22 @@ try
     logger.LogInformation("RoselineMCP server starting...");
     logger.LogInformation("Process ID: {ProcessId}", Environment.ProcessId);
     logger.LogInformation("Runtime: {Runtime}", System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription);
+
+    // Opt-in, stdio-safe tracing of MCP tool invocations (RoselineMCP:EnableDiagnosticLogging).
+    // When disabled (the default), no ActivityListener is registered against
+    // RoselineDiagnostics.ActivitySource, so the per-tool Activity spans the tools create are
+    // never sampled and cost next to nothing. When enabled, span start/stop is logged through
+    // this same ILogger pipeline (already routed to stderr) — never to stdout, and never over
+    // the network. See RoselineDiagnostics for details.
+    var diagnosticsOptions = host.Services.GetRequiredService<IOptions<RoselineMcpOptions>>().Value;
+    using var activityListener = diagnosticsOptions.EnableDiagnosticLogging
+        ? RoselineDiagnostics.RegisterStderrListener(host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("RoselineMCP.Diagnostics"))
+        : null;
+
+    if (diagnosticsOptions.EnableDiagnosticLogging)
+    {
+        logger.LogInformation("Diagnostic tracing enabled (RoselineMCP:EnableDiagnosticLogging=true): per-tool invocation spans will be logged to stderr.");
+    }
 
     // Run the application
     await host.RunAsync();
@@ -42,8 +61,12 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
                 .AddEnvironmentVariables(prefix: "ROSELINE_")
                 .AddCommandLine(args);
         })
-        .ConfigureServices((_, services) =>
+        .ConfigureServices((context, services) =>
         {
+            // Bind RoselineMCP:* configuration (e.g. DefaultTimeout) so it can be injected
+            // into MCP tool methods via IOptions<RoselineMcpOptions>.
+            services.Configure<RoselineMcpOptions>(context.Configuration.GetSection("RoselineMCP"));
+
             // Configure MCP Server
             services
                 .AddMcpServer()

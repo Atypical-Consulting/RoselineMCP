@@ -14,7 +14,7 @@ By participating in this project, you agree to abide by our Code of Conduct:
 
 ### Prerequisites
 
-1. Install .NET 9.0 SDK or later
+1. Install .NET 10.0 SDK or later
 2. Install an IDE (Visual Studio, VS Code with C# extension, or JetBrains Rider)
 3. Fork and clone the repository
 4. Run `dotnet restore` to restore packages
@@ -29,7 +29,7 @@ git clone https://github.com/YOUR_USERNAME/RoselineMCP.git
 cd RoselineMCP
 
 # Add upstream remote
-git remote add upstream https://github.com/phmatray/RoselineMCP.git
+git remote add upstream https://github.com/Atypical-Consulting/RoselineMCP.git
 
 # Install dependencies
 dotnet restore

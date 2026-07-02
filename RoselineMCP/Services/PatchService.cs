@@ -24,8 +24,14 @@ public class PatchService : IPatchService
     }
 
     /// <inheritdoc/>
-    public CreatePatchResponse CreatePatch(string before, string after, string? fileName = null)
+    public CreatePatchResponse CreatePatch(
+        string before,
+        string after,
+        string? fileName = null,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var response = new CreatePatchResponse
@@ -92,43 +98,17 @@ public class PatchService : IPatchService
 
 
     /// <inheritdoc/>
-    public CreatePatchResponse CreatePatchFromFiles(string beforePath, string afterPath)
-    {
-        try
-        {
-            if (!File.Exists(beforePath))
-            {
-                throw new FileNotFoundException($"Before file not found: {beforePath}");
-            }
-
-            if (!File.Exists(afterPath))
-            {
-                throw new FileNotFoundException($"After file not found: {afterPath}");
-            }
-
-            var beforeContent = File.ReadAllText(beforePath);
-            var afterContent = File.ReadAllText(afterPath);
-
-            var fileName = Path.GetFileName(beforePath);
-
-            return CreatePatch(beforeContent, afterContent, fileName);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create patch from files");
-            throw;
-        }
-    }
-
-    /// <inheritdoc/>
     public CreatePatchResponse CreatePatchWithOptions(
         string before,
         string after,
         string? fileName = null,
         int contextLines = 3,
         bool ignoreWhitespace = false,
-        bool ignoreCase = false)
+        bool ignoreCase = false,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var processedBefore = before;
@@ -147,7 +127,7 @@ public class PatchService : IPatchService
                 processedAfter = processedAfter.ToLowerInvariant();
             }
 
-            var response = CreatePatch(processedBefore, processedAfter, fileName);
+            var response = CreatePatch(processedBefore, processedAfter, fileName, cancellationToken);
 
             // Add options info to summary if applicable
             if (ignoreWhitespace || ignoreCase)
@@ -164,28 +144,6 @@ public class PatchService : IPatchService
         {
             _logger.LogError(ex, "Failed to create patch with options");
             throw;
-        }
-    }
-
-
-    /// <inheritdoc/>
-    public bool ApplyPatch(string filePath, string patch)
-    {
-        try
-        {
-            _logger.LogInformation("Applying patch to {FilePath}", filePath);
-
-            // This is a simplified patch application
-            // In a real implementation, you'd parse the unified diff format properly
-            // For now, this is just a placeholder
-
-            _logger.LogWarning("Patch application is not fully implemented yet");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to apply patch");
-            return false;
         }
     }
 }

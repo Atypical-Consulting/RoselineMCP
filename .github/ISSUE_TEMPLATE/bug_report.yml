@@ -1,0 +1,128 @@
+name: Bug Report
+description: Report a problem with RoselineMCP's MCP tools, analysis, or code fixes
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the
+        sections below as completely as you can — it helps us reproduce
+        and fix the issue faster.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: Tell us what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Step-by-step instructions to reproduce the behavior. Include the
+        MCP tool called and its parameters if applicable (e.g.
+        `AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`, `CreatePatch`).
+      placeholder: |
+        1. Call tool '...' with parameters '...'
+        2. Observe '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: tool-call
+    attributes:
+      label: Relevant MCP tool call / parameters
+      description: |
+        Paste the exact tool name and JSON parameters/response involved,
+        if applicable (redact anything sensitive).
+      render: json
+    validations:
+      required: false
+
+  - type: dropdown
+    id: mcp-client
+    attributes:
+      label: MCP client used
+      description: Which MCP client were you using when the issue occurred?
+      options:
+        - Claude Desktop
+        - Claude Code
+        - VS Code (Copilot / MCP extension)
+        - Cursor
+        - Other (please specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: mcp-client-other
+    attributes:
+      label: Other MCP client (if applicable)
+      placeholder: e.g. custom MCP client, agent framework name/version
+    validations:
+      required: false
+
+  - type: input
+    id: roseline-version
+    attributes:
+      label: RoselineMCP version
+      description: |
+        Output of `dotnet tool list -g` (or the Docker image tag) for
+        RoselineMCP.
+      placeholder: e.g. 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: dotnet-version
+    attributes:
+      label: .NET SDK version
+      description: Output of `dotnet --version`.
+      placeholder: e.g. 10.0.100
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Docker container
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: |
+        Paste any relevant stderr/log output. Set `ROSELINE_LOG_LEVEL=Debug`
+        for more detail. This will be automatically formatted as code.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help us understand the issue (target solution structure, analyzer packages installed, etc).
+    validations:
+      required: false

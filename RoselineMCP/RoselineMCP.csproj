@@ -10,9 +10,11 @@
 
     <!-- NuGet Global Tool Packaging -->
     <PackAsTool>true</PackAsTool>
+    <PackageType>McpServer</PackageType>
     <ToolCommandName>roseline-mcp</ToolCommandName>
     <PackageId>RoselineMCP</PackageId>
-    <Version>1.0.0</Version>
+    <MinVerMinimumMajorMinor>1.1</MinVerMinimumMajorMinor>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
     <Authors>Atypical Consulting SRL</Authors>
     <Description>High-performance MCP server for C# code analysis using Roslyn analyzers and code fix providers.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -25,10 +27,20 @@
     <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
     <ContainerRepository>phmatray/roseline-mcp</ContainerRepository>
     <ContainerFamily>alpine</ContainerFamily>
-    <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
   </PropertyGroup>
 
+  <!-- RuntimeIdentifiers is intentionally NOT set here. For a PackAsTool project it
+       restricts the package to RID-specific assets, breaking `dotnet tool install` on
+       other platforms - and that restriction leaks in no matter how the Pack target is
+       invoked (`dotnet pack`, `dotnet build -t:pack`, an IDE's Pack command, etc.), so a
+       conditional PropertyGroup here can never fully guard against it. The Docker image
+       (see Dockerfile) does a plain, portable `dotnet publish` with no `-r`/RuntimeIdentifier,
+       so it doesn't need this property either; if a future publish step needs to target
+       specific RIDs, pass `-p:RuntimeIdentifiers=linux-x64;linux-arm64` on that invocation's
+       command line instead of setting it globally in this file. -->
+
   <ItemGroup>
+    <PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="All" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />

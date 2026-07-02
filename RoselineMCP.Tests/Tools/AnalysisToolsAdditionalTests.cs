@@ -28,7 +28,8 @@ public class AnalysisToolsAdditionalTests
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 A<string>._,
                 A<List<string>>._,
-                A<bool>._))
+                A<bool>._,
+                A<CancellationToken>._))
                 .Throws(new InvalidOperationException("Workspace failed to load"));
 
             // Act
@@ -40,7 +41,7 @@ public class AnalysisToolsAdditionalTests
             // Assert
             result.ShouldContain("\"error\"");
             result.ShouldContain("Workspace failed to load");
-            result.ShouldContain("InvalidOperationException");
+            result.ShouldContain("AnalysisError");
         }
 
         [Fact]
@@ -64,7 +65,8 @@ public class AnalysisToolsAdditionalTests
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 A<string>._,
                 A<List<string>>._,
-                false))
+                false,
+                A<CancellationToken>._))
                 .Returns(Task.FromResult(new ApplyFixesResponse
                 {
                     PreviewOnly = false,
@@ -92,7 +94,8 @@ public class AnalysisToolsAdditionalTests
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 A<string>._,
                 A<List<string>>._,
-                A<bool>._))
+                A<bool>._,
+                A<CancellationToken>._))
                 .Throws(new FileNotFoundException("Project file not found"));
 
             // Act
@@ -107,7 +110,37 @@ public class AnalysisToolsAdditionalTests
             var doc = JsonDocument.Parse(result);
             doc.RootElement.TryGetProperty("error", out _).ShouldBeTrue();
             doc.RootElement.TryGetProperty("type", out var typeEl).ShouldBeTrue();
-            typeEl.GetString().ShouldBe("FileNotFoundException");
+            typeEl.GetString().ShouldBe("NotFoundError");
+        }
+
+        /// <summary>
+        /// Proves that when the underlying service reports cancellation, the tool never lets the
+        /// exception escape to the MCP layer — it renders a graceful JSON response instead, per
+        /// the project's "never throw to MCP" convention.
+        /// </summary>
+        [Fact]
+        public async Task Should_Return_Graceful_Json_When_Service_Reports_Cancellation()
+        {
+            // Arrange
+            A.CallTo(() => _codeFixService.ApplyFixesAsync(
+                A<string>._,
+                A<List<string>>._,
+                A<bool>._,
+                A<CancellationToken>._))
+                .Throws(new OperationCanceledException());
+
+            // Act
+            var result = await ApplyFixesTool.ApplyFixes(
+                _codeFixService,
+                "TestProject",
+                new[] { "CS0168" });
+
+            // Assert
+            result.ShouldNotBeNullOrEmpty();
+            var doc = JsonDocument.Parse(result);
+            doc.RootElement.TryGetProperty("error", out _).ShouldBeTrue();
+            doc.RootElement.TryGetProperty("type", out var typeEl).ShouldBeTrue();
+            typeEl.GetString().ShouldBe("CancelledError");
         }
     }
 
@@ -128,7 +161,8 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>?>._,
                 A<List<string>?>._,
-                A<int>._))
+                A<int>._,
+                A<CancellationToken>._))
                 .Throws(new InvalidOperationException("Project not found in solution"));
 
             // Act
@@ -139,7 +173,7 @@ public class AnalysisToolsAdditionalTests
             // Assert
             result.ShouldContain("\"error\"");
             result.ShouldContain("Project not found in solution");
-            result.ShouldContain("InvalidOperationException");
+            result.ShouldContain("AnalysisError");
         }
 
         [Fact]
@@ -150,7 +184,8 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>?>._,
                 A<List<string>?>._,
-                A<int>._))
+                A<int>._,
+                A<CancellationToken>._))
                 .Throws(new FileNotFoundException("Solution file not found"));
 
             // Act
@@ -163,7 +198,7 @@ public class AnalysisToolsAdditionalTests
             var doc = JsonDocument.Parse(result);
             doc.RootElement.TryGetProperty("error", out _).ShouldBeTrue();
             doc.RootElement.TryGetProperty("type", out var typeEl).ShouldBeTrue();
-            typeEl.GetString().ShouldBe("FileNotFoundException");
+            typeEl.GetString().ShouldBe("NotFoundError");
         }
 
         [Fact]
@@ -175,8 +210,9 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>?>._,
                 A<List<string>?>._,
-                A<int>._))
-                .Invokes((string _, List<string>? _, List<string>? _, int max) =>
+                A<int>._,
+                A<CancellationToken>._))
+                .Invokes((string _, List<string>? _, List<string>? _, int max, CancellationToken _) =>
                 {
                     capturedMax = max;
                 })
@@ -202,7 +238,8 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>?>._,
                 A<List<string>?>._,
-                A<int>._))
+                A<int>._,
+                A<CancellationToken>._))
                 .Returns(Task.FromResult(new ListDiagnosticsResponse
                 {
                     Project = "MyProject",

@@ -36,7 +36,8 @@ public class AnalysisToolsTests
                 A<string?>._,
                 A<string?>._,
                 A<string?>._,
-                A<int>._))
+                A<int>._,
+                A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
 
             // Act
@@ -62,7 +63,8 @@ public class AnalysisToolsTests
                 A<string?>._,
                 A<string?>._,
                 A<string?>._,
-                A<int>._))
+                A<int>._,
+                A<CancellationToken>._))
                 .Throws(new FileNotFoundException("Solution not found"));
 
             // Act
@@ -73,7 +75,7 @@ public class AnalysisToolsTests
             // Assert
             result.ShouldContain("error");
             result.ShouldContain("Solution not found");
-            result.ShouldContain("FileNotFoundException");
+            result.ShouldContain("NotFoundError");
         }
 
         [Fact]
@@ -93,7 +95,8 @@ public class AnalysisToolsTests
                 include,
                 exclude,
                 severity,
-                maxDiagnostics))
+                maxDiagnostics,
+                A<CancellationToken>._))
                 .Returns(Task.FromResult(new AnalyzeSolutionResponse()));
 
             // Act
@@ -113,7 +116,8 @@ public class AnalysisToolsTests
                 include,
                 exclude,
                 severity,
-                maxDiagnostics))
+                maxDiagnostics,
+                A<CancellationToken>._))
                 .MustHaveHappenedOnceExactly();
         }
     }
@@ -144,7 +148,8 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>?>._,
                 A<List<string>?>._,
-                A<int>._))
+                A<int>._,
+                A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
 
             // Act
@@ -173,8 +178,9 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>?>._,
                 A<List<string>?>._,
-                A<int>._))
-                .Invokes((string _, List<string>? i, List<string>? f, int _) =>
+                A<int>._,
+                A<CancellationToken>._))
+                .Invokes((string _, List<string>? i, List<string>? f, int _, CancellationToken _) =>
                 {
                     capturedIds = i;
                     capturedFiles = f;
@@ -205,7 +211,8 @@ public class AnalysisToolsTests
                 A<string>._,
                 null,
                 null,
-                A<int>._))
+                A<int>._,
+                A<CancellationToken>._))
                 .Returns(Task.FromResult(new ListDiagnosticsResponse()));
 
             // Act
@@ -242,6 +249,40 @@ public class AnalysisToolsTests
             result.ShouldContain("ValidationError");
         }
 
+        /// <summary>
+        /// Proves the "Read-Only by Default" safety guarantee (README.md / CLAUDE.md): calling
+        /// ApplyFixes without specifying previewOnly must reach the underlying service with
+        /// previewOnly=true, never previewOnly=false, so the filesystem is never touched unless
+        /// the caller explicitly opts in. CodeFixServiceIntegrationTests separately proves that
+        /// previewOnly=true never writes to disk end-to-end.
+        /// </summary>
+        [Fact]
+        public async Task Should_Default_To_PreviewOnly_True_When_Not_Specified()
+        {
+            // Arrange
+            bool? capturedPreviewOnly = null;
+            A.CallTo(() => _codeFixService.ApplyFixesAsync(
+                A<string>._,
+                A<List<string>>._,
+                A<bool>._,
+                A<CancellationToken>._))
+                .Invokes((string _, List<string> _, bool previewOnly, CancellationToken _) =>
+                {
+                    capturedPreviewOnly = previewOnly;
+                })
+                .Returns(Task.FromResult(new ApplyFixesResponse()));
+
+            // Act - previewOnly intentionally omitted
+            await ApplyFixesTool.ApplyFixes(
+                _codeFixService,
+                "TestProject",
+                new[] { "CS0168" });
+
+            // Assert
+            capturedPreviewOnly.ShouldNotBeNull();
+            capturedPreviewOnly!.Value.ShouldBeTrue();
+        }
+
         [Fact]
         public async Task Should_Return_Json_Response_On_Success()
         {
@@ -258,7 +299,8 @@ public class AnalysisToolsTests
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 A<string>._,
                 A<List<string>>._,
-                A<bool>._))
+                A<bool>._,
+                A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
 
             // Act
@@ -289,8 +331,9 @@ public class AnalysisToolsTests
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 project,
                 A<List<string>>._,
-                previewOnly))
-                .Invokes((string _, List<string> i, bool _) =>
+                previewOnly,
+                A<CancellationToken>._))
+                .Invokes((string _, List<string> i, bool _, CancellationToken _) =>
                 {
                     capturedIds = i;
                 })
@@ -334,10 +377,14 @@ public class AnalysisToolsTests
                 Summary = "test.txt: +1 lines"
             };
 
-            A.CallTo(() => _patchService.CreatePatch(
+            A.CallTo(() => _patchService.CreatePatchWithOptions(
                 A<string>._,
                 A<string>._,
-                A<string?>._))
+                A<string?>._,
+                A<int>._,
+                A<bool>._,
+                A<bool>._,
+                A<CancellationToken>._))
                 .Returns(expectedResponse);
 
             // Act
@@ -359,10 +406,14 @@ public class AnalysisToolsTests
         public void Should_Return_Error_Json_On_Exception()
         {
             // Arrange
-            A.CallTo(() => _patchService.CreatePatch(
+            A.CallTo(() => _patchService.CreatePatchWithOptions(
                 A<string>._,
                 A<string>._,
-                A<string?>._))
+                A<string?>._,
+                A<int>._,
+                A<bool>._,
+                A<bool>._,
+                A<CancellationToken>._))
                 .Throws(new InvalidOperationException("Failed to create patch"));
 
             // Act
@@ -374,7 +425,7 @@ public class AnalysisToolsTests
             // Assert
             result.ShouldContain("error");
             result.ShouldContain("Failed to create patch");
-            result.ShouldContain("InvalidOperationException");
+            result.ShouldContain("AnalysisError");
         }
 
         [Fact]
@@ -382,11 +433,15 @@ public class AnalysisToolsTests
         {
             // Arrange
             string? capturedFileName = "not-null";
-            A.CallTo(() => _patchService.CreatePatch(
+            A.CallTo(() => _patchService.CreatePatchWithOptions(
                 A<string>._,
                 A<string>._,
-                A<string?>._))
-                .Invokes((string _, string _, string? f) =>
+                A<string?>._,
+                A<int>._,
+                A<bool>._,
+                A<bool>._,
+                A<CancellationToken>._))
+                .Invokes((string _, string _, string? f, int _, bool _, bool _, CancellationToken _) =>
                 {
                     capturedFileName = f;
                 })
@@ -400,6 +455,40 @@ public class AnalysisToolsTests
 
             // Assert
             capturedFileName.ShouldBeNull();
+        }
+
+        [Fact]
+        public void Should_Pass_IgnoreWhitespace_And_IgnoreCase_Through_To_Service()
+        {
+            // Arrange
+            bool? capturedIgnoreWhitespace = null;
+            bool? capturedIgnoreCase = null;
+            A.CallTo(() => _patchService.CreatePatchWithOptions(
+                A<string>._,
+                A<string>._,
+                A<string?>._,
+                A<int>._,
+                A<bool>._,
+                A<bool>._,
+                A<CancellationToken>._))
+                .Invokes((string _, string _, string? _, int _, bool iw, bool ic, CancellationToken _) =>
+                {
+                    capturedIgnoreWhitespace = iw;
+                    capturedIgnoreCase = ic;
+                })
+                .Returns(new CreatePatchResponse());
+
+            // Act
+            CreatePatchTool.CreatePatch(
+                _patchService,
+                "old",
+                "new",
+                ignoreWhitespace: true,
+                ignoreCase: true);
+
+            // Assert
+            capturedIgnoreWhitespace.ShouldBe(true);
+            capturedIgnoreCase.ShouldBe(true);
         }
     }
 }

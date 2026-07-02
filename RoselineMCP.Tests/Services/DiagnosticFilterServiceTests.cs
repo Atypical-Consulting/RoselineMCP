@@ -1,4 +1,6 @@
+using FakeItEasy;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -10,7 +12,7 @@ public class DiagnosticFilterServiceTests
 
     public DiagnosticFilterServiceTests()
     {
-        _service = new DiagnosticFilterService();
+        _service = new DiagnosticFilterService(new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>()));
     }
 
     public class ShouldAnalyzeProjectTests : DiagnosticFilterServiceTests

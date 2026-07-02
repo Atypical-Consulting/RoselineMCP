@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+_site/
+api/
+.git/
+.github/
+.idea/
+.vs/
+TestResults/
+BenchmarkDotNet.Artifacts/
+*.user

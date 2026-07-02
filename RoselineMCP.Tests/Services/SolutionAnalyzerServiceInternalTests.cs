@@ -23,7 +23,8 @@ public class SolutionAnalyzerServiceInternalTests : IDisposable
     {
         var logger = A.Fake<ILogger<SolutionAnalyzerService>>();
         var msBuildService = A.Fake<IMSBuildService>();
-        _realFilterService = new DiagnosticFilterService();
+        var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
+        _realFilterService = new DiagnosticFilterService(codeFixProviderFactory);
         _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService);
 
         _testDirectory = Path.Combine(Path.GetTempPath(), $"RoselineTests_{Guid.NewGuid()}");

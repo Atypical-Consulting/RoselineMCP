@@ -2,6 +2,13 @@
 
 This document provides comprehensive examples and usage patterns for the RoselineMCP code analysis tools. These examples demonstrate real-world scenarios and best practices for analyzing and fixing C# code.
 
+> **A note on diagnostic IDs used below:** `CS*` (Roslyn compiler), `IDE*` (.NET analyzers), and
+> `RCS*` (Roslynator) diagnostics work out of the box, since RoselineMCP references Roslynator
+> directly. `SA*` (StyleCop) examples are included because they're a common real-world need, but
+> **RoselineMCP itself does not reference `StyleCop.Analyzers`** — those examples only produce
+> results/fixes if the *solution you point RoselineMCP at* has `StyleCop.Analyzers` in its own
+> `.csproj`. See [Supported Analyzers](README.md#supported-analyzers) in the README.
+
 ## Quick Start Examples
 
 ### Basic Solution Analysis
@@ -267,12 +274,16 @@ List performance-related diagnostics (CA1806, CA1810-CA1824) in the MyApp.Perfor
 ```
 
 ### File Pattern Filtering
+
+`files` is a case-insensitive **substring** match against each diagnostic's file path — not a
+glob pattern:
+
 ```json
 {
   "tool": "ListDiagnostics",
   "parameters": {
     "project": "MyApp.API",
-    "files": ["**/Controllers/**", "**/Services/**"],
+    "files": ["Controllers", "Services"],
     "max": 100
   }
 }
@@ -677,7 +688,7 @@ Generate patches for each modernization phase for documentation
 - RCS1213: Remove unused member
 - RCS1018: Add accessibility modifiers
 
-### StyleCop (SA*)
+### StyleCop (SA*) — requires `StyleCop.Analyzers` in the *target* solution, not bundled with RoselineMCP
 - SA1101: Prefix local calls with this
 - SA1200: Using directives placement
 - SA1210: Using directives ordering
