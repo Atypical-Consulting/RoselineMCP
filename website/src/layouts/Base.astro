@@ -184,6 +184,36 @@ const repo = 'https://github.com/Atypical-Consulting/RoselineMCP';
           setTimeout(() => { if (label) label.textContent = prev; btn.classList.remove('done'); }, 1600);
         });
       });
+
+      // Install-method tabs (progressive enhancement over stacked panels)
+      document.querySelectorAll('[data-install-tabs]').forEach((group) => {
+        const tabs = Array.from(group.querySelectorAll('[role="tab"]')) as HTMLElement[];
+        const activate = (tab: HTMLElement, focus: boolean) => {
+          tabs.forEach((t) => {
+            const on = t === tab;
+            t.setAttribute('aria-selected', String(on));
+            t.tabIndex = on ? 0 : -1;
+            const panel = document.getElementById(t.getAttribute('aria-controls') || '');
+            if (panel) (panel as HTMLElement).hidden = !on;
+          });
+          if (focus) tab.focus();
+        };
+        tabs.forEach((t) => { t.tabIndex = t.getAttribute('aria-selected') === 'true' ? 0 : -1; });
+        const list = group.querySelector('[role="tablist"]');
+        list?.addEventListener('click', (e) => {
+          const tab = (e.target as HTMLElement).closest('[role="tab"]') as HTMLElement | null;
+          if (tab) activate(tab, false);
+        });
+        list?.addEventListener('keydown', (e) => {
+          const ev = e as KeyboardEvent;
+          const i = tabs.indexOf(document.activeElement as HTMLElement);
+          if (i < 0) return;
+          if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') { ev.preventDefault(); activate(tabs[(i + 1) % tabs.length], true); }
+          else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') { ev.preventDefault(); activate(tabs[(i - 1 + tabs.length) % tabs.length], true); }
+          else if (ev.key === 'Home') { ev.preventDefault(); activate(tabs[0], true); }
+          else if (ev.key === 'End') { ev.preventDefault(); activate(tabs[tabs.length - 1], true); }
+        });
+      });
     </script>
   </body>
 </html>

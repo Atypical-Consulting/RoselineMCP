@@ -138,10 +138,15 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
           disk — the tools are identical.</p>
       </div>
 
-      <div class="install-grid">
-        <div class="icard featured">
-          <div class="ic-head"><h3>dnx</h3><span class="pill read">recommended · no install</span></div>
-          <p>Any client that speaks <code>dnx</code> (the .NET <code>npx</code>) runs it on demand. Needs the .NET&nbsp;10 SDK. Add to your MCP config:</p>
+      <div class="itabs" data-install-tabs>
+        <div class="itablist" role="tablist" aria-label="Install method">
+          <button class="itab" role="tab" id="tab-dnx" aria-controls="p-dnx" aria-selected="true">dnx <span class="tab-tag">recommended</span></button>
+          <button class="itab" role="tab" id="tab-nuget" aria-controls="p-nuget" aria-selected="false">NuGet tool</button>
+          <button class="itab" role="tab" id="tab-docker" aria-controls="p-docker" aria-selected="false">Docker</button>
+        </div>
+
+        <div class="ipanel" id="p-dnx" role="tabpanel" aria-labelledby="tab-dnx">
+          <p>Any client that speaks <code>dnx</code> (the .NET <code>npx</code>) runs it on demand — no install step. Needs the .NET&nbsp;10 SDK. Add to your MCP config:</p>
           <div class="codeblock" id="inst-dnx">
             <div class="cb-head"><span>mcp.json / claude_desktop_config.json</span></div>
             <button class="copy" data-copy-target="#inst-dnx pre"><span class="copy-label">Copy</span></button>
@@ -149,26 +154,24 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
           </div>
         </div>
 
-        <div class="icard">
-          <div class="ic-head"><h3>NuGet tool</h3><span class="pill">offline · pinned</span></div>
-          <p>Installs the <code>roseline-mcp</code> command globally.</p>
+        <div class="ipanel" id="p-nuget" role="tabpanel" aria-labelledby="tab-nuget" hidden>
+          <p>Installs the <code>roseline-mcp</code> command globally — offline, pinned to a version.</p>
           <div class="codeblock" id="inst-nuget">
             <div class="cb-head"><span>shell</span></div>
             <button class="copy" data-copy-target="#inst-nuget pre"><span class="copy-label">Copy</span></button>
             <pre><code>dotnet tool install -g RoselineMCP</code></pre>
           </div>
-          <p class="muted small">Then set <code>"command": "roseline-mcp"</code> in your config.</p>
+          <p class="muted small">Then set <code>"command": "roseline-mcp"</code> in your MCP config.</p>
         </div>
 
-        <div class="icard">
-          <div class="ic-head"><h3>Docker</h3><span class="pill">no SDK</span></div>
-          <p>Runs anywhere Docker does — no .NET install.</p>
+        <div class="ipanel" id="p-docker" role="tabpanel" aria-labelledby="tab-docker" hidden>
+          <p>Runs anywhere Docker does — no .NET install on the host.</p>
           <div class="codeblock" id="inst-docker">
             <div class="cb-head"><span>shell</span></div>
             <button class="copy" data-copy-target="#inst-docker pre"><span class="copy-label">Copy</span></button>
             <pre><code>docker run -i --rm phmatray/roseline-mcp:latest</code></pre>
           </div>
-          <p class="muted small">The <code>-i</code> flag is required for stdio.</p>
+          <p class="muted small">The <code>-i</code> flag is required for stdio transport.</p>
         </div>
       </div>
       <p class="clients muted">
@@ -221,7 +224,7 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     .showcase { background: var(--surface); }
     .showcase-head { margin-bottom: 1.6rem; }
     .showcase-head p { font-size: 1.08rem; margin: .55rem 0 0; max-width: 66ch; color: var(--ink-2); }
-    .transform { margin: 0; display: grid; grid-template-columns: 1fr 132px 1fr; align-items: stretch; }
+    .transform { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr); align-items: stretch; }
     .tpanel { border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
     .tpanel.file { background: var(--code-bg); border: 1px solid var(--code-line); box-shadow: var(--shadow); }
     .tpanel.struct { background: var(--inset); border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -235,7 +238,7 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     .outrows { padding: .8rem .7rem; display: flex; flex-direction: column; gap: .4rem; }
     .orow { display: flex; align-items: baseline; gap: .55rem; padding: .42rem .6rem; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); }
     .okind { font-family: var(--mono); font-size: .64rem; text-transform: uppercase; letter-spacing: .05em; color: var(--teal-ink); background: var(--teal-soft); border-radius: 5px; padding: .12rem .4rem; flex: none; }
-    .osig { font-size: .8rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .osig { font-size: .8rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .oline { margin-left: auto; color: var(--muted); font-size: .72rem; flex: none; }
     .tp-note { padding: .1rem .9rem 1rem; margin: auto 0 0; font-size: .78rem; color: var(--muted); }
 
@@ -255,16 +258,19 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     .pstat .pn.save-big { color: var(--teal-ink); }
     .pstat .pl { margin-top: .5rem; font-size: .82rem; color: var(--muted); }
 
-    /* INSTALL */
-    .install-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 1.1rem; align-items: start; }
-    .icard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 1.25rem; box-shadow: var(--shadow); }
-    .icard.featured { border-color: color-mix(in srgb, var(--rose) 34%, var(--line)); }
-    .ic-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; flex-wrap: wrap; }
-    .ic-head h3 { margin: 0; font-family: var(--mono); font-size: 1.05rem; }
-    .icard p { font-size: .92rem; margin: .3rem 0 .7rem; }
-    .icard .codeblock { margin-top: .3rem; }
-    .small { font-size: .82rem; }
-    .clients { margin-top: 1.5rem; text-align: center; font-size: .92rem; }
+    /* INSTALL — tabs */
+    .itabs { max-width: 760px; }
+    .itablist { display: inline-flex; flex-wrap: wrap; gap: .25rem; padding: .3rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 1.2rem; }
+    .itab { font-family: var(--mono); font-size: .88rem; color: var(--ink-2); background: transparent; border: 1px solid transparent; border-radius: 9px; padding: .5rem .9rem; cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; transition: color .12s ease; }
+    .itab:hover { color: var(--ink); }
+    .itab[aria-selected="true"] { background: var(--surface); color: var(--ink); border-color: var(--line); box-shadow: var(--shadow); }
+    .tab-tag { font-size: .6rem; text-transform: uppercase; letter-spacing: .04em; color: var(--rose-ink); background: var(--rose-soft); border-radius: 999px; padding: .1rem .42rem; }
+    .ipanel[hidden] { display: none; }
+    .ipanel p { font-size: .95rem; margin: 0 0 .8rem; max-width: 66ch; }
+    .ipanel .codeblock { max-width: 620px; }
+    .ipanel p.small { margin-top: .7rem; }
+    .small { font-size: .84rem; }
+    .clients { margin-top: 1.8rem; font-size: .92rem; }
 
     /* TOOLS */
     .tgroup { margin-bottom: 1.8rem; }
