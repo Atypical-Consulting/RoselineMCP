@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Token-savings benchmark harness. Runs the real navigation/edit services against RoselineMCP's
+    own source (dogfooding) and measures the token cost of each tool's output versus the source an
+    agent would otherwise read. Deliberately NOT part of RoselineMCP.sln so it doesn't affect the
+    server build or the file sweeps. Reproduce with a plain `dotnet run` of this project.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- MSBuildLocator must resolve the SDK's MSBuild at runtime; keep our own MSBuild refs out of the way. -->
+    <MSBuildLocatorAtRuntime>true</MSBuildLocatorAtRuntime>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../RoselineMCP/RoselineMCP.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="1.0.2" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" Version="1.0.2" />
+  </ItemGroup>
+
+</Project>

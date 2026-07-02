@@ -1,0 +1,142 @@
+---
+import Base from '../layouts/Base.astro';
+import SavingsChart from '../components/SavingsChart.astro';
+import data from '../data/benchmark-results.json';
+
+const base = import.meta.env.BASE_URL;
+const m = data.metadata;
+const h = data.headline;
+const fmt = (n: number) => n.toLocaleString('en-US');
+const pct = (v: number | null) => (v === null ? '—' : `${v >= 0 ? '' : '−'}${Math.round(Math.abs(v) * 100)}%`);
+const savedTokens = h.totalBaselineTokens - h.totalToolTokens;
+
+const label: Record<string, string> = {
+  outline: 'File outline', 'symbol-info': 'Symbol info (metadata)',
+  'symbol-info-source': 'Symbol info (+source)', references: 'Find references',
+  implementations: 'Find implementations', 'call-graph': 'Call graph (callers)',
+  'edit-output': 'Rename → diff',
+};
+const chartIds = ['outline', 'symbol-info', 'symbol-info-source', 'references', 'implementations', 'call-graph'];
+const chartRows = data.suites.filter((s) => chartIds.includes(s.id)).map((s) => ({
+  id: s.id, tool: s.tool, title: label[s.id] ?? s.title,
+  value: s.aggregate.medianSavingsVsWholeFile, min: s.aggregate.minSavingsVsWholeFile,
+  max: s.aggregate.maxSavingsVsWholeFile, pooled: s.aggregate.pooledSavingsVsWholeFile, n: s.aggregate.count,
+}));
+const editSuite = data.suites.find((s) => s.id === 'edit-output');
+---
+<Base title="Benchmark — how many tokens RoselineMCP saves" active="benchmark"
+      description="An honest, reproducible measurement of the token savings from RoselineMCP's navigation tools, run against its own source.">
+  <h1>How many tokens do these tools save?</h1>
+  <p class="lede">
+    An honest, reproducible measurement — not a marketing number. Every figure is a real string:
+    the tool’s actual JSON output versus the source an agent would otherwise read, tokenized with a
+    real BPE tokenizer. The suites are <strong>systematic sweeps</strong> over RoselineMCP’s own
+    source, so the distribution is representative — weak cases included.
+  </p>
+
+  <div class="stats">
+    <div class="tile"><div class="n save">{Math.round(h.pooledSavingsReadTools * 100)}%</div><div class="l">pooled reduction<br/>(size-weighted)</div></div>
+    <div class="tile"><div class="n">{Math.round(h.medianSavingsReadTools * 100)}%</div><div class="l">median per task</div></div>
+    <div class="tile"><div class="n">{fmt(savedTokens)}</div><div class="l">tokens saved<br/>on the sample</div></div>
+    <div class="tile"><div class="n">{fmt(h.totalBaselineTokens)}</div><div class="l">baseline tokens<br/>(reading the files)</div></div>
+  </div>
+  <div class="meta-row">
+    <span><b>Target:</b> {m.solution} · {m.targetProject}</span>
+    <span><b>Files swept:</b> {m.filesSwept}</span>
+    <span><b>Symbols swept:</b> {m.symbolsSwept}</span>
+    <span><b>Tokenizer:</b> cl100k_base</span>
+    <span><b>Commit:</b> <code>{m.commit}</code></span>
+    <span><b>Date:</b> {m.generatedAt}</span>
+  </div>
+
+  <h2>Savings by tool</h2>
+  <SavingsChart rows={chartRows} />
+
+  <div class="note warn">
+    <h3>The honest exception: <code>search_symbols</code> file outline</h3>
+    <p>Outlining a whole file is a <strong>net loss</strong> here — the indented JSON (a full
+      signature, fully-qualified name and path per symbol) is larger than the source for small,
+      symbol-dense files. It only wins on large files (e.g. <code>Program.cs</code>, +79%). This is
+      a real finding, not hidden: the outline serialization is verbose and should be trimmed
+      (drop the repeated per-symbol file path, don’t indent) to deliver on its promise. Every other
+      scenario saves 54–91%.</p>
+  </div>
+
+  <h2>Full results</h2>
+  <p>Two baselines. <strong>B1 (whole-file)</strong> = the full file(s) an agent must open — the
+    realistic-but-generous baseline. <strong>B2 (targeted)</strong> = only the relevant lines ±3
+    (a <code>grep -C3</code> model) — a conservative lower bound. “Weak” counts tasks that saved
+    under 25% vs B1.</p>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tool</th><th>Scenario</th><th class="num">n</th>
+          <th class="num">median</th><th class="num">pooled</th>
+          <th class="num">range (min…max)</th><th class="num">vs grep (B2)</th><th class="num">weak</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.suites.map((s) => {
+          const a = s.aggregate;
+          const good = a.medianSavingsVsWholeFile >= 0.25;
+          return (
+            <tr>
+              <td class="mono">{s.tool}</td>
+              <td>{s.title}{!s.systematic && <span class="pill" style="margin-left:.4rem">illustrative</span>}</td>
+              <td class="num">{a.count}</td>
+              <td class={`num ${good ? 'save-ink' : 'cost-ink'}`}>{pct(a.medianSavingsVsWholeFile)}</td>
+              <td class={`num ${a.pooledSavingsVsWholeFile >= 0.25 ? 'save-ink' : 'cost-ink'}`}>{pct(a.pooledSavingsVsWholeFile)}</td>
+              <td class="num muted">{pct(a.minSavingsVsWholeFile)}…{pct(a.maxSavingsVsWholeFile)}</td>
+              <td class="num muted">{pct(a.medianSavingsVsTargeted)}</td>
+              <td class="num muted">{a.weakOrNegativeCount}/{a.count}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h3>Reading the two baselines honestly</h3>
+    <ul class="clean">
+      <li><strong>vs. reading whole files (B1):</strong> the read tools cut 54–91% — because a file
+        is far bigger than the one fact you needed from it.</li>
+      <li><strong>vs. an optimal grep (B2):</strong> the tools are roughly <em>comparable</em> in
+        raw tokens (e.g. <code>find_references</code> ≈ <code>grep -C3</code>; <code>get_symbol_info</code>
+        metadata can even exceed a tiny member’s own text). Their advantage over grep is
+        <em>structure and precision</em> — resolved symbols, cross-project references, real call
+        edges — not raw token count. Real agent behavior sits between the two, so both are shown.</li>
+      <li><strong><code>get_symbol_info</code> with <code>includeSource=true</code></strong> is shown
+        separately (~55%): you get the declaration body back, so savings shrink and can go negative
+        for tiny members. That’s the point — the tool doesn’t pretend to replace reading code you’re
+        about to edit.</li>
+    </ul>
+  </div>
+
+  {editSuite && (
+    <div class="note">
+      <h3>Output tokens: emitting a diff instead of rewriting files</h3>
+      <p>A different axis — the tokens an agent must <em>emit</em> to change code.
+        <code>rename_symbol</code> returns a unified diff instead of the full text of every file it
+        touches: a pooled <strong class="save-ink">{pct(editSuite.aggregate.pooledSavingsVsWholeFile)}</strong>
+        reduction across {editSuite.aggregate.count} illustrative renames.</p>
+    </div>
+  )}
+
+  <h2>Methodology</h2>
+  <ul class="clean">{data.methodology.map((x: string) => <li>{x}</li>)}</ul>
+
+  <h2>Limitations</h2>
+  <ul class="clean">{data.limitations.map((x: string) => <li>{x}</li>)}</ul>
+
+  <h2>Reproduce it</h2>
+  <p>The harness loads the solution once via MSBuild, runs the real services, tokenizes their
+    output, and writes the JSON this page renders. Run it against your own solution to get your
+    numbers:</p>
+  <pre><code>git clone https://github.com/Atypical-Consulting/RoselineMCP
+cd RoselineMCP
+dotnet run --project RoselineMCP.TokenBenchmark -c Release</code></pre>
+  <p class="muted">Output: <code>website/src/data/benchmark-results.json</code>, stamped with the
+    commit and date. Tokenizer: {m.tokenizer}. Tool output format: {m.toolOutputFormat}.</p>
+</Base>

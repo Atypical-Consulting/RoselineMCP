@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `IProjectLoader`/`ProjectLoader` service that loads a project — and its containing solution when
   present, so references and renames span projects — into a fresh workspace per call, plus
   `ICodeNavigationService` and `ICodeEditService` and their response models.
+- **Token-savings benchmark** (`RoselineMCP.TokenBenchmark`) — a reproducible harness that runs the
+  real services against RoselineMCP's own source and measures each tool's output against the source
+  an agent would otherwise read, tokenized with cl100k_base. Systematic sweeps; results stamped with
+  commit + date. Reproduce with `dotnet run --project RoselineMCP.TokenBenchmark -c Release`.
+- **Documentation site** (`website/`, Astro) with an overview, the tool reference, and the honest
+  benchmark (charts + methodology + limitations), deployed to GitHub Pages via
+  `.github/workflows/deploy-docs.yml`. Across 477 navigation tasks the read-only tools showed a
+  pooled 79% / median 74% token reduction versus reading the corresponding files — with the one
+  net-loss case (`search_symbols` file outline) reported transparently rather than hidden.
 
 ## [1.2.1] - 2026-07-02
 

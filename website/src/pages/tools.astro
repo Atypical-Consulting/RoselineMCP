@@ -1,0 +1,47 @@
+---
+import Base from '../layouts/Base.astro';
+import { tools, groups } from '../data/tools.ts';
+const kindLabel: Record<string, string> = { read: 'read-only', write: 'write · preview', diagnostics: 'read-only' };
+---
+<Base title="Tool reference — RoselineMCP" active="tools"
+      description="The 12 MCP tools RoselineMCP exposes: code navigation, code editing, and diagnostics.">
+  <h1>Tool reference</h1>
+  <p class="lede">
+    Twelve MCP tools. All take a <code>project</code> (name, directory, or <code>.csproj</code>
+    path); a <code>symbol</code> can be a simple or fully-qualified name (add a parameter list to
+    pick an overload). Wire names are <code>snake_case</code>. Full request/response shapes are in
+    <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/docs/API.md">docs/API.md</a>.
+  </p>
+
+  <div class="note">
+    <p style="margin:0"><strong>Read-only by default.</strong> The six navigation tools and the
+      diagnostics/patch tools never write to disk. The three write-capable tools
+      (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
+      <code>previewOnly: true</code> — they return a diff and touch nothing unless you pass
+      <code>previewOnly: false</code>.</p>
+  </div>
+
+  {groups.map((g) => (
+    <section>
+      <h2>{g}</h2>
+      <div class="grid" style="gap:.9rem">
+        {tools.filter((t) => t.group === g).map((t) => (
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+              <h3 style="margin:0"><code>{t.name}</code></h3>
+              <span class={`pill ${t.kind === 'write' ? 'write' : 'read'}`}>{kindLabel[t.kind]}</span>
+              {t.isNew && <span class="pill" style="color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))">new</span>}
+            </div>
+            <p style="margin:.55rem 0 .7rem">{t.summary}</p>
+            <div style="font-size:.85rem"><span class="muted">params</span> <code>{t.params}</code></div>
+            <div style="font-size:.85rem;margin-top:.35rem"><span class="muted">returns</span> <span class="mono" style="color:var(--ink-2)">{t.returns}</span></div>
+          </div>
+        ))}
+      </div>
+    </section>
+  ))}
+
+  <h2>How much do they save?</h2>
+  <p>The read tools exist to spend fewer tokens than reading source. See the
+    <a href={import.meta.env.BASE_URL + 'benchmark'}>benchmark</a> for the measured, honest numbers.</p>
+</Base>

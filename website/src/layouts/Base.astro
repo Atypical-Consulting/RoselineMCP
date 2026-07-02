@@ -1,0 +1,132 @@
+---
+interface Props { title: string; description?: string; active?: string }
+const { title, description = 'Token-efficient C# code intelligence for AI agents, on the Model Context Protocol.', active = '' } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const nav = [
+  { href: base, label: 'Overview', id: 'home' },
+  { href: base + 'benchmark', label: 'Benchmark', id: 'benchmark' },
+  { href: base + 'tools', label: 'Tools', id: 'tools' },
+];
+const repo = 'https://github.com/Atypical-Consulting/RoselineMCP';
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <link rel="icon" href={base + 'favicon.svg'} type="image/svg+xml" />
+    <title>{title}</title>
+    <style is:global>
+      :root {
+        --plane: #f9f9f7; --surface: #fcfcfb; --surface-2: #f4f3ef;
+        --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+        --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+        --accent: #2a78d6; --accent-ink: #184f95;
+        --save: #2a78d6; --cost: #e34948; --good: #006300;
+        --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+        --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+        --radius: 12px; --maxw: 1080px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --plane: #0d0d0d; --surface: #1a1a19; --surface-2: #222220;
+          --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+          --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+          --accent: #3987e5; --accent-ink: #9ec5f4;
+          --save: #3987e5; --cost: #e66767; --good: #0ca30c;
+        }
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0; font-family: var(--sans); color: var(--ink);
+        background: var(--plane); line-height: 1.6;
+        font-size: 16px; -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      h1, h2, h3 { line-height: 1.2; letter-spacing: -0.02em; font-weight: 650; }
+      h1 { font-size: clamp(1.9rem, 4vw, 2.9rem); margin: 0 0 .5rem; }
+      h2 { font-size: clamp(1.35rem, 2.5vw, 1.75rem); margin: 2.6rem 0 1rem; }
+      h3 { font-size: 1.1rem; margin: 1.6rem 0 .5rem; }
+      p { color: var(--ink-2); }
+      code { font-family: var(--mono); font-size: .88em; background: var(--surface-2);
+        border: 1px solid var(--border); border-radius: 6px; padding: .1em .38em; color: var(--ink); }
+      pre { font-family: var(--mono); font-size: .85rem; background: var(--surface-2);
+        border: 1px solid var(--border); border-radius: 10px; padding: 1rem; overflow-x: auto; color: var(--ink); }
+      pre code { background: none; border: none; padding: 0; }
+      .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 1.25rem; }
+      /* header */
+      header.site { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--plane) 88%, transparent);
+        backdrop-filter: saturate(1.4) blur(8px); border-bottom: 1px solid var(--border); }
+      header.site .bar { display: flex; align-items: center; gap: 1.25rem; height: 58px; }
+      .brand { font-weight: 700; letter-spacing: -0.02em; color: var(--ink); display: flex; align-items: center; gap: .5rem; }
+      .brand .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); display: inline-block; }
+      header.site nav { display: flex; gap: .25rem; margin-left: auto; align-items: center; flex-wrap: wrap; }
+      header.site nav a { color: var(--ink-2); padding: .35rem .7rem; border-radius: 8px; font-size: .95rem; }
+      header.site nav a:hover { background: var(--surface-2); text-decoration: none; }
+      header.site nav a[aria-current="page"] { color: var(--ink); background: var(--surface-2); }
+      .ghlink { border: 1px solid var(--border); }
+      /* layout helpers */
+      main { padding: 2.5rem 0 4rem; }
+      .lede { font-size: 1.15rem; color: var(--ink-2); max-width: 62ch; }
+      .grid { display: grid; gap: 1rem; }
+      .cards { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+      .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.15rem; }
+      .card h3 { margin: 0 0 .3rem; }
+      .card p { margin: 0; font-size: .92rem; }
+      .tag { font-family: var(--mono); font-size: .8rem; color: var(--accent-ink); background: var(--surface-2);
+        border: 1px solid var(--border); border-radius: 6px; padding: .05rem .4rem; }
+      .pill { display: inline-block; font-size: .72rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+        padding: .12rem .5rem; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); }
+      .pill.read { color: var(--save); border-color: color-mix(in srgb, var(--save) 40%, var(--border)); }
+      .pill.write { color: var(--cost); border-color: color-mix(in srgb, var(--cost) 40%, var(--border)); }
+      /* stat tiles */
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+      .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.15rem 1.2rem; }
+      .tile .n { font-size: clamp(1.9rem, 3.4vw, 2.6rem); font-weight: 680; letter-spacing: -0.03em; color: var(--ink); line-height: 1; }
+      .tile .n.save { color: var(--save); }
+      .tile .l { font-size: .82rem; color: var(--muted); margin-top: .45rem; }
+      /* callouts */
+      .note { border: 1px solid var(--border); border-left: 3px solid var(--accent); background: var(--surface);
+        border-radius: 10px; padding: 1rem 1.1rem; margin: 1.2rem 0; }
+      .note.warn { border-left-color: var(--cost); }
+      .note h3 { margin-top: 0; }
+      .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+      /* tables */
+      .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+      table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+      th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+      thead th { color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+      tbody tr:last-child td { border-bottom: none; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+      td.mono { font-family: var(--mono); font-size: .85rem; white-space: normal; }
+      .save-ink { color: var(--save); font-variant-numeric: tabular-nums; }
+      .cost-ink { color: var(--cost); font-variant-numeric: tabular-nums; }
+      ul.clean { padding-left: 1.1rem; }
+      ul.clean li { margin: .35rem 0; color: var(--ink-2); }
+      footer.site { border-top: 1px solid var(--border); padding: 2rem 0; color: var(--muted); font-size: .88rem; }
+      footer.site a { color: var(--ink-2); }
+      .muted { color: var(--muted); }
+      .meta-row { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; font-size: .85rem; color: var(--muted); margin-top: .5rem; }
+      .meta-row b { color: var(--ink-2); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap bar">
+        <a class="brand" href={base}><span class="dot"></span>RoselineMCP</a>
+        <nav>
+          {nav.map((n) => <a href={n.href} aria-current={active === n.id ? 'page' : undefined}>{n.label}</a>)}
+          <a class="ghlink" href={repo} rel="noopener">GitHub ↗</a>
+        </nav>
+      </div>
+    </header>
+    <main><div class="wrap"><slot /></div></main>
+    <footer class="site"><div class="wrap">
+      <p style="margin:0">RoselineMCP — a .NET 10 Roslyn MCP server ·
+      <a href={repo}>GitHub</a> · MIT © Atypical Consulting</p>
+    </div></footer>
+  </body>
+</html>
