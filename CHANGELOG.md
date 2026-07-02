@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-07-02
+
+### Fixed
+- `publish-nuget.yml`'s `Pack` and `Push to NuGet.org` steps used multi-line `run:` blocks
+  without the YAML block-literal indicator (`run: |`). YAML folds unmarked multi-line scalars'
+  line breaks into spaces, and bash then treats each resulting `\<space>` as an escaped space
+  rather than a line continuation — collapsing the entire multi-line command into a single
+  garbled argument and failing with `MSB1008: Only one project can be specified`. This was the
+  very first execution of this workflow (never run before `v1.2.0`) and had never been caught.
+  `v1.2.0`'s Docker images published successfully to Docker Hub and GHCR; its NuGet package did
+  not, hence this immediate `1.2.1` follow-up to actually publish to NuGet.org.
+
 ## [1.2.0] - 2026-07-02
 
 ### Added
@@ -96,7 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ApplyFixes**: Apply automated code fixes
 - **CreatePatch**: Generate unified diffs
 
-[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Atypical-Consulting/RoselineMCP/releases/tag/v1.0.0
