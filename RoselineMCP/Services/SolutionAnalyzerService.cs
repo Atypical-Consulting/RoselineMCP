@@ -624,6 +624,11 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             if (Directory.Exists(directory))
             {
+                // Git marks object/pack files read-only on Windows. Directory.Delete honors
+                // that attribute (unlike a Unix rm -rf, which only cares about the containing
+                // directory's permissions) and throws UnauthorizedAccessException, so a cloned
+                // repository's own .git directory must be cleared of ReadOnly first.
+                ClearReadOnlyAttributes(directory);
                 Directory.Delete(directory, recursive: true);
             }
         }
@@ -632,6 +637,18 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             // Best-effort cleanup — don't fail the caller's operation over cleanup issues,
             // but do surface it so operators can notice orphaned temp directories.
             _logger.LogWarning(ex, "Failed to delete temporary directory: {Directory}", directory);
+        }
+    }
+
+    private static void ClearReadOnlyAttributes(string directory)
+    {
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            var attributes = File.GetAttributes(file);
+            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            }
         }
     }
 

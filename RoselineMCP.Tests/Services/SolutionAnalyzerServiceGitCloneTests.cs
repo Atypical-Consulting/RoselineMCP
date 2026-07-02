@@ -36,7 +36,31 @@ public class SolutionAnalyzerServiceGitCloneTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try { ForceDeleteDirectory(_testDirectory); } catch { /* ignored */ }
+    }
+
+    /// <summary>
+    /// Git marks object/pack files read-only on Windows, which a plain Directory.Delete(true)
+    /// refuses to remove (UnauthorizedAccessException) — clear the attribute first, mirroring
+    /// the fix applied to the production SafeDeleteDirectory this test suite exercises.
+    /// </summary>
+    private static void ForceDeleteDirectory(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            var attributes = File.GetAttributes(file);
+            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            }
+        }
+
+        Directory.Delete(directory, recursive: true);
     }
 
     private async Task<T> InvokePrivateAsync<T>(string methodName, params object?[] args)
@@ -110,7 +134,7 @@ public class SolutionAnalyzerServiceGitCloneTests : IDisposable
         {
             if (Directory.Exists(clonedDirectory))
             {
-                Directory.Delete(clonedDirectory, true);
+                ForceDeleteDirectory(clonedDirectory);
             }
         }
     }
@@ -138,7 +162,7 @@ public class SolutionAnalyzerServiceGitCloneTests : IDisposable
         {
             if (Directory.Exists(clonedDirectory))
             {
-                Directory.Delete(clonedDirectory, true);
+                ForceDeleteDirectory(clonedDirectory);
             }
         }
     }
