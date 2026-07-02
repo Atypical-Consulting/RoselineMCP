@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -26,11 +29,14 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release
 
+      - name: Test
+        run: dotnet test --no-build -c Release
+
       - name: Pack
         run: dotnet pack RoselineMCP/RoselineMCP.csproj \
           -c Release \
           --no-build \
-          -p:Version=${{ steps.version.outputs.VERSION }} \
+          -p:MinVerVersionOverride=${{ steps.version.outputs.VERSION }} \
           -o ./nupkg
 
       - name: Push to NuGet.org

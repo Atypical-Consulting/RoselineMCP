@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RoselineMCP.Benchmarks</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Benchmark projects are never part of `dotnet test`; keep it explicitly out of any
+         test discovery/coverage tooling that might otherwise glob csproj files. -->
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RoselineMCP\RoselineMCP.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/Atypical-Consulting/RoselineMCP/security/advisories/new
+    about: Please report security vulnerabilities privately via GitHub's security advisory tool, not as a public issue. See SECURITY.md for details.
+  - name: Contributing Guide
+    url: https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/CONTRIBUTING.md
+    about: Read the contributing guide before opening an issue or pull request.

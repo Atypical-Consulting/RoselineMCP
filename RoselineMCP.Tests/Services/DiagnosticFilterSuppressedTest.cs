@@ -1,5 +1,7 @@
 using System.Reflection;
+using FakeItEasy;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -11,7 +13,8 @@ namespace RoselineMCP.Tests.Services;
 /// </summary>
 public class DiagnosticFilterSuppressedTest
 {
-    private readonly DiagnosticFilterService _service = new();
+    private readonly DiagnosticFilterService _service =
+        new(new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>()));
 
     [Fact]
     public void ShouldIncludeDiagnostic_Should_Return_False_For_Suppressed_Diagnostic()

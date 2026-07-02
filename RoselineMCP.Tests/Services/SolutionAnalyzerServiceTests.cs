@@ -24,15 +24,20 @@ public class SolutionAnalyzerServiceTests
     public class AnalyzeSolutionAsyncTests : SolutionAnalyzerServiceTests
     {
         [Fact]
-        public async Task Should_Throw_NotImplementedException_For_Git_Urls()
+        public async Task Should_Attempt_Real_Clone_For_Git_Urls_Instead_Of_NotImplementedException()
         {
-            // Arrange
-            var gitUrl = "https://github.com/test/repo.git";
+            // Arrange — a loopback URL that nothing listens on. The TCP connection is refused
+            // almost instantly (no DNS lookup, no real network access needed), so this proves
+            // AnalyzeSolutionAsync now actually attempts a Git clone for http(s) URLs — and
+            // fails with a clear, descriptive error — instead of unconditionally throwing
+            // NotImplementedException like it used to.
+            var gitUrl = "https://127.0.0.1:1/nonexistent-repo.git";
 
             // Act & Assert
-            var exception = await Should.ThrowAsync<NotImplementedException>(
+            var exception = await Should.ThrowAsync<Exception>(
                 async () => await _sut.AnalyzeSolutionAsync(gitUrl));
-            exception.Message.ShouldContain("Git repository cloning not yet implemented");
+
+            exception.ShouldNotBeOfType<NotImplementedException>();
         }
 
         [Fact]
@@ -79,6 +84,42 @@ public class SolutionAnalyzerServiceTests
             // Act & Assert - Can throw various exception types for missing project
             await Should.ThrowAsync<Exception>(
                 async () => await _sut.ListDiagnosticsAsync(nonExistentProject));
+        }
+    }
+
+    /// <summary>
+    /// Proves that a pre-cancelled token is actually honored (instead of the operation
+    /// silently running to completion) — a deterministic, in-process alternative to timing a
+    /// real timeout.
+    /// </summary>
+    public class CancellationTests : SolutionAnalyzerServiceTests
+    {
+        [Fact]
+        public async Task AnalyzeSolutionAsync_Should_Throw_When_Token_Already_Cancelled()
+        {
+            // Arrange
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Act & Assert — cancelled before any workspace/IO work is attempted.
+            await Should.ThrowAsync<OperationCanceledException>(async () =>
+                await _sut.AnalyzeSolutionAsync("irrelevant.sln", cancellationToken: cts.Token));
+
+            A.CallTo(() => _msBuildService.CreateWorkspace()).MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task ListDiagnosticsAsync_Should_Throw_When_Token_Already_Cancelled()
+        {
+            // Arrange
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Act & Assert
+            await Should.ThrowAsync<OperationCanceledException>(async () =>
+                await _sut.ListDiagnosticsAsync("irrelevant.csproj", cancellationToken: cts.Token));
+
+            A.CallTo(() => _msBuildService.CreateWorkspace()).MustNotHaveHappened();
         }
     }
 

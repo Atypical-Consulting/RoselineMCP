@@ -25,7 +25,8 @@ public class SolutionAnalyzerServiceRoslynTests
     {
         var logger = A.Fake<ILogger<SolutionAnalyzerService>>();
         var msBuildService = A.Fake<IMSBuildService>();
-        _realFilterService = new DiagnosticFilterService();
+        var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
+        _realFilterService = new DiagnosticFilterService(codeFixProviderFactory);
         _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService);
     }
 
@@ -95,7 +96,7 @@ public class SolutionAnalyzerServiceRoslynTests
 
             // Act
             var result = await InvokePrivateAsync<Compilation?>(
-                "GetProjectCompilationAsync", project);
+                "GetProjectCompilationAsync", project, CancellationToken.None);
 
             // Assert
             result.ShouldNotBeNull();
@@ -110,7 +111,7 @@ public class SolutionAnalyzerServiceRoslynTests
 
             // Act
             var compilation = await InvokePrivateAsync<Compilation?>(
-                "GetProjectCompilationAsync", project);
+                "GetProjectCompilationAsync", project, CancellationToken.None);
 
             // Assert
             compilation.ShouldNotBeNull();
@@ -148,7 +149,7 @@ public class SolutionAnalyzerServiceRoslynTests
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "GetFilteredDiagnostics",
                 BindingFlags.NonPublic | BindingFlags.Instance);
-            var result = (IEnumerable<Diagnostic>)method!.Invoke(_sut, new object[] { compilation!, context })!;
+            var result = (IEnumerable<Diagnostic>)method!.Invoke(_sut, new object[] { compilation!, context, CancellationToken.None })!;
 
             // Assert
             result.ShouldNotBeNull();
@@ -171,7 +172,7 @@ public class SolutionAnalyzerServiceRoslynTests
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "GetFilteredDiagnostics",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            var result = (IEnumerable<Diagnostic>)method.Invoke(_sut, new object[] { compilation!, context })!;
+            var result = (IEnumerable<Diagnostic>)method.Invoke(_sut, new object[] { compilation!, context, CancellationToken.None })!;
 
             // Assert — filter by "Error" should exclude warnings/info
             result.ShouldNotBeNull();
@@ -257,7 +258,7 @@ public class SolutionAnalyzerServiceRoslynTests
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "AnalyzeProjectAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context })!;
+            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context, CancellationToken.None })!;
 
             // Assert — the project compiled successfully (no exceptions)
             allDiagnosticDetails.ShouldNotBeNull();
@@ -283,7 +284,7 @@ public class SolutionAnalyzerServiceRoslynTests
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "AnalyzeProjectAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context })!;
+            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context, CancellationToken.None })!;
 
             // Assert — diagnostics from unused variable
             allDiagnosticDetails.ShouldNotBeNull();
@@ -332,7 +333,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "AnalyzeProjectsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
-                method.Invoke(_sut, new object[] { solution, context })!;
+                method.Invoke(_sut, new object[] { solution, context, CancellationToken.None })!;
 
             // Assert
             var (diagnostics, summary) = result;
@@ -365,7 +366,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "AnalyzeProjectsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
-                method.Invoke(_sut, new object[] { solution, context })!;
+                method.Invoke(_sut, new object[] { solution, context, CancellationToken.None })!;
 
             // Assert — project excluded by include pattern
             var (diagnostics, summary) = result;
@@ -450,7 +451,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "GetProjectDiagnostics",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = (List<Diagnostic>)method.Invoke(_sut,
-                new object?[] { compilation!, (List<string>?)null, (List<string>?)null })!;
+                new object?[] { compilation!, (List<string>?)null, (List<string>?)null, CancellationToken.None })!;
 
             // Assert
             result.ShouldNotBeNull();
@@ -472,7 +473,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "GetProjectDiagnostics",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = (List<Diagnostic>)method.Invoke(_sut,
-                new object?[] { compilation!, ids, (List<string>?)null })!;
+                new object?[] { compilation!, ids, (List<string>?)null, CancellationToken.None })!;
 
             // Assert — all results should match the filter
             result.ShouldNotBeNull();

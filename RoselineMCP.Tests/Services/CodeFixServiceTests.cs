@@ -57,6 +57,27 @@ public class CodeFixServiceTests
             result.Notes.ShouldContain(n => n.Contains("Error"));
         }
 
+        /// <summary>
+        /// Proves that a pre-cancelled token is actually honored: unlike other failures (which
+        /// ApplyFixesAsync folds into a graceful response per the "never throw to the MCP layer"
+        /// convention), cancellation must propagate as an <see cref="OperationCanceledException"/>
+        /// so that ApplyFixesTool's dedicated cancellation handling fires and reports a
+        /// Cancelled/Timeout error instead of a fake-success response.
+        /// </summary>
+        [Fact]
+        public async Task Should_Throw_OperationCanceledException_When_Token_Already_Cancelled()
+        {
+            // Arrange
+            var project = "TestProject";
+            var ids = new List<string> { "CS0168" };
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Act & Assert — cancellation must propagate, not be swallowed into a response.
+            await Should.ThrowAsync<OperationCanceledException>(
+                () => _sut.ApplyFixesAsync(project, ids, previewOnly: true, cancellationToken: cts.Token));
+        }
+
         [Fact]
         public async Task Should_Set_PreviewOnly_Flag_Correctly()
         {
@@ -70,7 +91,7 @@ public class CodeFixServiceTests
                 var previewResult = await _sut.ApplyFixesAsync(project, ids, true);
                 previewResult.PreviewOnly.ShouldBeTrue();
 
-                var applyResult = await _sut.ApplyFixesAsync(project, ids);
+                var applyResult = await _sut.ApplyFixesAsync(project, ids, previewOnly: false);
                 applyResult.PreviewOnly.ShouldBeFalse();
             }
             catch (FileNotFoundException)

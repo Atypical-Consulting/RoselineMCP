@@ -8,11 +8,18 @@ namespace RoselineMCP.Services;
 /// </summary>
 public class DiagnosticFilterService : IDiagnosticFilterService
 {
-    private readonly HashSet<string> _fixableDiagnosticIds;
+    private readonly ICodeFixProviderFactory _codeFixProviderFactory;
 
-    public DiagnosticFilterService()
+    /// <summary>
+    /// Initializes a new instance of the DiagnosticFilterService.
+    /// </summary>
+    /// <param name="codeFixProviderFactory">
+    /// Factory whose dynamically-loaded code fix providers are the single source of truth
+    /// for which diagnostic IDs are actually fixable in this deployment.
+    /// </param>
+    public DiagnosticFilterService(ICodeFixProviderFactory codeFixProviderFactory)
     {
-        _fixableDiagnosticIds = InitializeFixableDiagnosticIds();
+        _codeFixProviderFactory = codeFixProviderFactory;
     }
 
     /// <inheritdoc/>
@@ -90,29 +97,11 @@ public class DiagnosticFilterService : IDiagnosticFilterService
     /// <inheritdoc/>
     public bool IsFixableDiagnostic(string id)
     {
-        return _fixableDiagnosticIds.Contains(id);
-    }
-
-    private static HashSet<string> InitializeFixableDiagnosticIds()
-    {
-        return new HashSet<string>
-        {
-            // Roslynator
-            "RCS1001", "RCS1003", "RCS1018", "RCS1036", "RCS1037", "RCS1058", "RCS1059", "RCS1060",
-            "RCS1213", "RCS1214", "RCS1215", "RCS1216", "RCS1217", "RCS1218", "RCS1220", "RCS1221",
-
-            // StyleCop
-            "SA1000", "SA1001", "SA1002", "SA1003", "SA1004", "SA1005", "SA1006", "SA1007", "SA1008",
-            "SA1101", "SA1200", "SA1210",
-
-            // Common C# compiler warnings
-            "CS0168", "CS0219", "CS0414", "CS0649", "CS1591", "CS8019",
-
-            // IDE suggestions
-            "IDE0001", "IDE0002", "IDE0003", "IDE0004", "IDE0005", "IDE0007", "IDE0008", "IDE0009",
-            "IDE0017", "IDE0028", "IDE0031", "IDE0041", "IDE0051", "IDE0052", "IDE0055", "IDE0060",
-            "IDE0090", "IDE0100", "IDE0130", "IDE0160", "IDE0161", "IDE0200", "IDE0230", "IDE0250",
-            "IDE1005", "IDE1006"
-        };
+        // Single source of truth: whatever ICodeFixProviderFactory actually discovered from the
+        // dynamically-loaded Roslyn/Roslynator code fix providers at runtime. Previously this
+        // checked a hand-maintained static list that could silently drift out of sync with what
+        // ApplyFixes could really fix (missing newly-available fixers, or claiming fixability for
+        // an ID whose provider assembly failed to load).
+        return _codeFixProviderFactory.GetFixableDiagnosticIds().Contains(id);
     }
 }

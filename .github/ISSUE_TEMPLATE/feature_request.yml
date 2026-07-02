@@ -1,0 +1,82 @@
+name: Feature Request
+description: Suggest a new MCP tool, capability, or improvement for RoselineMCP
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! Please describe your idea in
+        as much detail as you can.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Is your feature request related to a problem? A clear and concise
+        description of what the problem is, and what workflow you're
+        trying to accomplish (e.g. via an MCP client, agent, or CI).
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: |
+        Describe the feature or change you'd like. If this is a new or
+        modified MCP tool, describe its intended name, parameters, and
+        return shape.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of RoselineMCP does this affect?
+      options:
+        - New MCP tool
+        - Existing MCP tool (AnalyzeSolution / ListDiagnostics / ApplyFixes / CreatePatch)
+        - Analyzer / code-fix coverage (Roslyn / Roslynator)
+        - Packaging / distribution (NuGet tool, Docker)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: mcp-client
+    attributes:
+      label: MCP client used (if relevant)
+      description: Which MCP client would use this feature?
+      placeholder: e.g. Claude Desktop, Claude Code, VS Code, custom agent
+    validations:
+      required: false
+
+  - type: input
+    id: roseline-version
+    attributes:
+      label: RoselineMCP version
+      description: Version you're currently using, if applicable.
+      placeholder: e.g. 1.0.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: A description of any alternative solutions or workarounds you've considered.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context, example tool call/response shapes, or screenshots about the feature request here.
+    validations:
+      required: false

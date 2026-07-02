@@ -200,16 +200,18 @@ Services act as repositories for their respective domains:
 ```
 1. MCP Client → AnalyzeSolution tool
 2. Tool → SolutionAnalyzerService.AnalyzeSolutionAsync()
-3. Service → MSBuildService.CreateWorkspace()
-4. Service → Load solution via MSBuildWorkspace
-5. For each project:
+3. If pathOrGit is an http(s):// URL: shallow `git clone --depth 1` into a temp directory
+   (deleted in a `finally` block once the operation completes)
+4. Service → MSBuildService.CreateWorkspace()
+5. Service → Load solution via MSBuildWorkspace
+6. For each project, sequentially (not in parallel):
    a. Get compilation
    b. Get diagnostics
    c. Filter via DiagnosticFilterService
    d. Aggregate results
-6. Return AnalyzeSolutionResponse
-7. Tool → Serialize to JSON
-8. MCP Server → Return to client
+7. Return AnalyzeSolutionResponse
+8. Tool → Serialize to JSON
+9. MCP Server → Return to client
 ```
 
 ### Applying Fixes
@@ -253,59 +255,95 @@ For safety, operations use temporary workspaces:
 
 ### Layered Error Handling
 
-1. **Tool Layer**: Catches all exceptions, returns JSON error
-2. **Service Layer**: Throws domain-specific exceptions
-3. **External Layer**: Wraps external library exceptions
+1. **Tool Layer**: every tool wraps its body in try/catch and delegates to the shared
+   `ToolExecutionHelper` (`RoselineMCP/Tools/ToolExecutionHelper.cs`), which classifies any
+   exception into a closed, stable `type` value and never lets one escape to the MCP protocol
+   layer or leak a raw CLR exception message for unclassified failures
+2. **Service Layer**: throws ordinary .NET exceptions (`FileNotFoundException`,
+   `InvalidOperationException`, `TimeoutException`, ...) rather than a custom exception hierarchy
+3. `ToolExecutionHelper` also owns cancellation/timeout composition: it links the caller's
+   `CancellationToken` with the configurable `RoselineMCP:DefaultTimeout` (120,000 ms by default)
 
 ### Error Response Format
 
 ```json
 {
-  "error": "Human-readable message",
-  "type": "ExceptionTypeName",
-  "details": { /* optional context */ }
+  "error": "Human-readable message (fixed, generic text for InternalError — never a raw exception message/stack trace)",
+  "type": "ValidationError | NotFoundError | AnalysisError | CancelledError | TimeoutError | InternalError",
+  "hint": "Optional, present on some ValidationError responses",
+  "correlationId": "Always present — per-invocation GUID (see ToolInvocation.CorrelationId) that correlates a client-reported failure with the server-side log entry for that call"
 }
 ```
+
+See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` values and examples.
 
 ## Performance Considerations
 
 ### Caching Strategies
 
-1. **Code Fix Providers**: Cached after first load
-2. **MSBuild Location**: Located once at startup
-3. **Compilation Results**: Reused within operations
+1. **Code Fix Provider Types**: `CodeFixProviderFactory` scans the fix-provider assemblies once
+   per process (`_providersLoaded` flag) and caches the diagnostic-ID → provider-type mapping;
+   individual `CodeFixProvider` *instances* are still created fresh per call via
+   `Activator.CreateInstance`.
+2. **MSBuild Location**: `MSBuildLocator` registration happens once per process
+   (`MSBuildService._msBuildRegistered`, guarded by a lock).
+3. **MSBuildWorkspace**: intentionally **not** cached or reused — every `AnalyzeSolution`,
+   `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own `MSBuildWorkspace` (see
+   "Workspace Isolation" below), trading some reload cost for isolation between calls.
 
-### Parallel Processing
+### Sequential Processing
 
-- Projects analyzed concurrently where possible
-- Diagnostics collected in parallel
-- Fix applications batched by file
+Projects within a solution are analyzed **sequentially**, not concurrently — `AnalyzeSolution`
+loops over `solution.Projects` with a plain `foreach`. Diagnostics for each project are then
+filtered in-process against the compilation the workspace already produced. This keeps
+`MSBuildWorkspace` state predictable per call; parallelizing the project loop is tracked as a
+possible future optimization, not current behavior.
 
 ### Memory Management
 
-- Large solutions processed incrementally
-- Workspaces disposed after use
-- Results streamed when possible
+- A new `MSBuildWorkspace` is created and disposed per tool call (see "Workspace Management"
+  above) rather than pooled or shared
+- `ApplyFixes` re-fetches the project's compilation after every individual fix is applied, so
+  later fixes see up-to-date source text/positions
 
 ## Security Architecture
 
+See [`SECURITY.md`](../SECURITY.md) and the README's [Security](../README.md#security) section
+for the full, current picture — the summary below intentionally matches those rather than
+restating an idealized version.
+
 ### Input Validation
 
-- Path traversal prevention
-- Regex pattern validation
-- ID whitelist validation
+- `include`/`exclude` (project name filter) and `files` (diagnostic file filter) are plain
+  substring (`Contains`) matches — not regex, not glob.
+- `AnalyzeSolutionTool` validates `severity` against a fixed whitelist
+  (`Error`/`Warning`/`Info`/`Hidden`, case-insensitive) before calling the service.
+- **No path-traversal-specific sanitization exists.** Solution/project paths are resolved with
+  plain `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root.
+  `pathOrGit`, `project`, and `branch` should be treated as trusted operator input.
 
 ### Isolation
 
-- No code execution from analyzed projects
-- Read-only operations by default
-- Temporary workspace isolation
+- Read-only by default: `AnalyzeSolution`, `ListDiagnostics`, and `CreatePatch` never write to
+  disk; `ApplyFixes` defaults `previewOnly` to `true` at the MCP tool boundary.
+- A fresh `MSBuildWorkspace` per operation — no shared/cached workspace state across calls.
+- **MSBuild is not a sandbox.** Loading a `.sln`/`.csproj` is a design-time MSBuild evaluation
+  that can execute build logic embedded in the project (`<Exec>` tasks, custom `UsingTask`
+  assemblies, imported `.targets`/`.props`). Analyzing a fully untrusted repository or Git URL
+  carries a real code-execution risk on the host — RoselineMCP does not attempt to sandbox or
+  disable MSBuild task execution during workspace loading. See `SECURITY.md` for operator
+  recommendations.
+- Git URLs (`http(s)://` only) are shallow-cloned (`git clone --depth 1`) into a temp directory
+  that is deleted once the operation completes.
 
 ### Output Sanitization
 
-- Error messages sanitized
-- Paths normalized
-- Sensitive data excluded
+- `InternalError`-class failures always return a fixed, generic message
+  ("An unexpected internal error occurred. Check the server logs for details.") — the real
+  exception message and stack trace are logged server-side only, never returned to the caller.
+- Non-internal failures (validation, not-found, analysis, cancellation, timeout) return the
+  exception's own message, classified into the closed `ToolErrorTypes` set rather than a raw CLR
+  type name (see `docs/API.md#error-handling`).
 
 ## Extension Points
 
@@ -363,41 +401,66 @@ For safety, operations use temporary workspaces:
 
 ```
 RoselineMCP.Tests/
+├── Models/
+│   └── DiagnosticDetailTests.cs
 ├── Services/
-│   ├── SolutionAnalyzerServiceTests.cs
-│   ├── CodeFixServiceTests.cs
-│   └── ...
-├── Tools/
-│   └── AnalysisToolsTests.cs
-└── TestUtilities/
-    ├── MockFactory.cs
-    └── TestData.cs
+│   ├── SolutionAnalyzerServiceTests.cs (+ several focused companion files, e.g.
+│   │   SolutionAnalyzerServiceGitCloneTests.cs, SolutionAnalyzerServiceWorkspaceTests.cs)
+│   ├── CodeFixServiceTests.cs (+ CodeFixServiceIntegrationTests.cs, CodeFixServiceResolveTests.cs)
+│   ├── CodeFixProviderFactoryTests.cs
+│   ├── DiagnosticFilterServiceTests.cs
+│   ├── DiffServiceTests.cs
+│   ├── MSBuildServiceTests.cs
+│   └── PatchServiceTests.cs
+└── Tools/
+    ├── AnalysisToolsTests.cs
+    └── ToolErrorContractTests.cs  # cross-cutting: every tool maps exceptions to the
+                                     # documented, closed ToolErrorTypes set (see docs/API.md)
 ```
 
 ### Test Patterns
 
 - **Arrange-Act-Assert**: Standard test structure
-- **Mock Dependencies**: Interface-based mocking
-- **Test Data Builders**: Fluent test data creation
-- **Integration Tests**: End-to-end tool testing
+- **Interface-based mocking**: [FakeItEasy](https://fakeiteasy.github.io/) fakes every service
+  interface consumed by the tool layer
+- **Assertions**: [Shouldly](https://github.com/shouldly/shouldly)
+- **Test framework**: xUnit v3 (`xunit.v3` + `xunit.runner.visualstudio`)
+- **Cross-cutting contract tests**: `ToolErrorContractTests` verifies every tool classifies a
+  representative set of exceptions into the documented `ToolErrorTypes` values rather than
+  leaking raw CLR exception type names
 
 ## Deployment Architecture
 
-### Docker Support (Future)
+### Docker Support
+
+Docker support is implemented today via a multi-stage [`Dockerfile`](../Dockerfile) (not a future
+item): the build stage uses the `.NET 10.0` SDK image, and the runtime stage uses the Alpine-based
+`.NET 10.0` runtime image, running as an unprivileged `roseline` user:
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/runtime:9.0
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# ... restore, copy source, dotnet publish ...
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS runtime
 WORKDIR /app
-COPY published/ .
+RUN apk add --no-cache icu-libs
+COPY --from=build /app/publish .
+USER roseline
 ENTRYPOINT ["dotnet", "RoselineMCP.dll"]
 ```
 
+Multi-arch images (`linux/amd64`, `linux/arm64`) are built and pushed to Docker Hub and GHCR by
+`.github/workflows/docker-publish.yml` on every `v*` tag push — see [`PUBLISH.md`](../PUBLISH.md)
+for the full release flow.
+
 ### CI/CD Pipeline
 
-1. Build → Test → Package → Publish
-2. Automated testing on PR
-3. Release builds on tags
-4. NuGet package publication
+1. **CI** (`.github/workflows/ci.yml`): build + test with coverage on every push/PR to `main`/`dev`
+   across Ubuntu, Windows, and macOS; enforces an 80% line-coverage threshold on Ubuntu
+2. **CodeQL** (`.github/workflows/codeql.yml`): static security analysis
+3. **Release** (on `v*` tag push): `publish-nuget.yml` packs and pushes to nuget.org;
+   `docker-publish.yml` builds and pushes the multi-arch container — both run in parallel,
+   triggered by the same tag
 
 ## Monitoring and Diagnostics
 

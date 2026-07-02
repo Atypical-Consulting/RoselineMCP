@@ -1,0 +1,156 @@
+{
+  "analyze_solution": {
+    "properties": {
+      "branch": {
+        "default": null,
+        "description": "Git branch name (only used if pathOrGit is a Git URL)",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "exclude": {
+        "default": null,
+        "description": "Exclude pattern for project names (e.g., \u0027Test\u0027 to skip test projects)",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "include": {
+        "default": null,
+        "description": "Include pattern for project names (e.g., \u0027Core\u0027 to only analyze projects containing \u0027Core\u0027)",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "maxDiagnostics": {
+        "default": 100,
+        "description": "Maximum number of diagnostics to return (default: 100)",
+        "type": "integer"
+      },
+      "pathOrGit": {
+        "description": "Path to solution file or directory containing .sln file, or Git repository URL",
+        "type": "string"
+      },
+      "severity": {
+        "default": null,
+        "description": "Minimum severity level to include: Error, Warning, Info, or Hidden",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "pathOrGit"
+    ],
+    "type": "object"
+  },
+  "apply_fixes": {
+    "properties": {
+      "ids": {
+        "description": "List of diagnostic IDs to fix (e.g., [\u0027RCS1213\u0027, \u0027SA1101\u0027])",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "previewOnly": {
+        "default": true,
+        "description": "If true (the default), only preview changes and return a diff \u2014 no files are modified. Set explicitly to false to apply the fixes and write changes to disk.",
+        "type": "boolean"
+      },
+      "project": {
+        "description": "Project name or path to .csproj file",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "ids"
+    ],
+    "type": "object"
+  },
+  "create_patch": {
+    "properties": {
+      "after": {
+        "description": "The modified text content (after changes)",
+        "type": "string"
+      },
+      "before": {
+        "description": "The original text content (before changes)",
+        "type": "string"
+      },
+      "fileName": {
+        "default": null,
+        "description": "Optional file name for the patch header (default: \u0027file.txt\u0027)",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ignoreCase": {
+        "default": false,
+        "description": "If true, ignore case differences when computing the diff (default: false)",
+        "type": "boolean"
+      },
+      "ignoreWhitespace": {
+        "default": false,
+        "description": "If true, ignore whitespace-only differences (trailing spaces, run-length) when computing the diff (default: false)",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "before",
+      "after"
+    ],
+    "type": "object"
+  },
+  "list_diagnostics": {
+    "properties": {
+      "files": {
+        "default": null,
+        "description": "Optional list of file patterns to filter (e.g., [\u0027Controller.cs\u0027, \u0027Service.cs\u0027])",
+        "items": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "ids": {
+        "default": null,
+        "description": "Optional list of diagnostic IDs to filter (e.g., [\u0027CS0168\u0027, \u0027CS0219\u0027])",
+        "items": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "max": {
+        "default": 100,
+        "description": "Maximum number of diagnostic details to return (default: 100)",
+        "type": "integer"
+      },
+      "project": {
+        "description": "Project name or path to .csproj file",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project"
+    ],
+    "type": "object"
+  }
+}

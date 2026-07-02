@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Formatting;
@@ -44,12 +44,11 @@ public class CodeFixService : ICodeFixService
 
 
     /// <inheritdoc/>
-    [ExcludeFromCodeCoverage(Justification =
-        "Roslyn MSBuild workspace integration code — requires full integration tests with a real .NET project")]
     public async Task<ApplyFixesResponse> ApplyFixesAsync(
         string project,
         List<string> ids,
-        bool previewOnly = false)
+        bool previewOnly = true,
+        CancellationToken cancellationToken = default)
     {
         var response = new ApplyFixesResponse
         {
@@ -59,6 +58,8 @@ public class CodeFixService : ICodeFixService
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // Create a temporary workspace
             using var workspace = _msBuildService.CreateWorkspace();
 
@@ -68,7 +69,7 @@ public class CodeFixService : ICodeFixService
             var projectPath = ResolveProjectPath(project);
             _logger.LogInformation("Loading project for fixes: {Path}", projectPath);
 
-            var msProject = await workspace.OpenProjectAsync(projectPath);
+            var msProject = await workspace.OpenProjectAsync(projectPath, cancellationToken: cancellationToken);
             response.Project = msProject.Name;
 
             // Get the original solution text for diff generation
@@ -77,7 +78,7 @@ public class CodeFixService : ICodeFixService
 
             foreach (var document in msProject.Documents)
             {
-                var text = await document.GetTextAsync();
+                var text = await document.GetTextAsync(cancellationToken);
                 originalTexts[document.FilePath!] = text.ToString();
             }
 
@@ -89,25 +90,9 @@ public class CodeFixService : ICodeFixService
 
             foreach (var diagnosticId in ids)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 _logger.LogInformation("Attempting to fix diagnostic: {Id}", diagnosticId);
-
-                // Get the current project from the solution
-                var currentProject = currentSolution.GetProject(msProject.Id);
-                if (currentProject == null) continue;
-
-                // Get compilation and diagnostics
-                var compilation = await currentProject.GetCompilationAsync();
-                if (compilation == null) continue;
-
-                var diagnostics = compilation.GetDiagnostics()
-                    .Where(d => d.Id == diagnosticId && !d.IsSuppressed)
-                    .ToList();
-
-                if (diagnostics.Count == 0)
-                {
-                    response.Notes.Add($"No diagnostics found for {diagnosticId}");
-                    continue;
-                }
 
                 // Find code fix provider for this diagnostic
                 var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId);
@@ -119,54 +104,24 @@ public class CodeFixService : ICodeFixService
 
                 try
                 {
+                    var (updatedSolution, fixedForThisId, anyDiagnosticsFound) =
+                        await ApplyFixesForDiagnosticIdAsync(
+                            currentSolution, msProject.Id, diagnosticId, provider, changedDocuments, cancellationToken);
 
-                    // Group diagnostics by document
-                    var diagnosticsByDocument = diagnostics
-                        .Where(d => d.Location.SourceTree != null)
-                        .GroupBy(d => currentProject.Documents.FirstOrDefault(doc =>
-                            doc.FilePath == d.Location.SourceTree?.FilePath));
+                    currentSolution = updatedSolution;
 
-                    foreach (var group in diagnosticsByDocument.Where(g => g.Key != null))
+                    if (fixedForThisId > 0)
                     {
-                        var document = group.Key!;
-                        var documentDiagnostics = group.ToList();
-
-                        foreach (var diagnostic in documentDiagnostics)
-                        {
-                            var context = new CodeFixContext(
-                                document,
-                                diagnostic,
-                                async void (action, _) =>
-                                {
-                                    try
-                                    {
-                                        var operations = await action.GetOperationsAsync(CancellationToken.None);
-                                        var operation = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
-
-                                        if (operation != null)
-                                        {
-                                            currentSolution = operation.ChangedSolution;
-                                            changedDocuments.Add(document.FilePath!);
-                                            fixCount++;
-                                            _logger.LogDebug("Applied fix for {Id} in {File}",
-                                                diagnosticId, document.Name);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.LogWarning("Failed to apply fix for {Id}: {Message}",
-                                            diagnosticId, ex.Message);
-                                    }
-                                },
-                                CancellationToken.None);
-
-                            await provider.RegisterCodeFixesAsync(context);
-                        }
-                    }
-
-                    if (fixCount > 0)
-                    {
+                        fixCount += fixedForThisId;
                         appliedFixes.Add(diagnosticId);
+                    }
+                    else if (!anyDiagnosticsFound)
+                    {
+                        response.Notes.Add($"No diagnostics found for {diagnosticId}");
+                    }
+                    else
+                    {
+                        response.Notes.Add($"No code fix could be applied for {diagnosticId}");
                     }
                 }
                 catch (Exception ex)
@@ -192,7 +147,7 @@ public class CodeFixService : ICodeFixService
 
                     if (document != null)
                     {
-                        document = await Formatter.FormatAsync(document);
+                        document = await Formatter.FormatAsync(document, cancellationToken: cancellationToken);
                         currentSolution = document.Project.Solution;
                     }
                 }
@@ -205,6 +160,8 @@ public class CodeFixService : ICodeFixService
 
                 foreach (var filePath in changedDocuments.OrderBy(f => f))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var relativePath = Path.GetRelativePath(Path.GetDirectoryName(projectPath)!, filePath);
                     response.ChangedFiles.Add(relativePath);
 
@@ -214,7 +171,7 @@ public class CodeFixService : ICodeFixService
 
                     if (newDocument != null)
                     {
-                        var newText = await newDocument.GetTextAsync();
+                        var newText = await newDocument.GetTextAsync(cancellationToken);
                         var oldText = originalTexts.GetValueOrDefault(filePath, "");
 
                         var diff = _diffService.GenerateUnifiedDiff(
@@ -240,14 +197,16 @@ public class CodeFixService : ICodeFixService
 
                 foreach (var filePath in changedDocuments)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var document = currentSolution.Projects
                         .SelectMany(p => p.Documents)
                         .FirstOrDefault(d => d.FilePath == filePath);
 
                     if (document != null)
                     {
-                        var text = await document.GetTextAsync();
-                        await File.WriteAllTextAsync(filePath, text.ToString());
+                        var text = await document.GetTextAsync(cancellationToken);
+                        await File.WriteAllTextAsync(filePath, text.ToString(), cancellationToken);
                     }
                 }
 
@@ -260,12 +219,143 @@ public class CodeFixService : ICodeFixService
 
             return response;
         }
+        catch (OperationCanceledException)
+        {
+            // Let cancellation (caller-initiated or the DefaultTimeout linked token) propagate
+            // uncaught rather than being folded into a normal-looking completed response — the
+            // MCP tool boundary (ApplyFixesTool) has a dedicated catch for this and reports it
+            // as a Cancelled/Timeout error instead of a fake success.
+            _logger.LogWarning("Apply fixes operation was cancelled");
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to apply fixes");
             response.Notes.Add($"Error: {ex.Message}");
             return response;
         }
+    }
+
+    /// <summary>
+    /// Applies fixes for a single diagnostic ID, one occurrence at a time, re-analyzing the
+    /// solution after every applied fix so that later occurrences see up-to-date source text.
+    /// This intentionally avoids any concurrency: a prior fix can shift line/column offsets
+    /// for other diagnostics in the same document, so each <see cref="CodeFixContext"/> is
+    /// built from a freshly recomputed diagnostic against the latest solution snapshot, and
+    /// its operations are awaited to completion before the next occurrence is even looked up.
+    /// Only the FIRST <see cref="CodeAction"/> a provider registers for a given occurrence is
+    /// applied — a provider that offers several candidate fixes for the same diagnostic (e.g.
+    /// an ambiguous-reference fix with multiple candidate namespaces) must not have every one
+    /// of them applied sequentially, since each is computed from the same pre-fix snapshot and
+    /// later ones would silently overwrite earlier ones while still being counted as separate
+    /// successful fixes. An occurrence that yields no usable code action (no registered actions,
+    /// or none that produce an <see cref="ApplyChangesOperation"/>) is skipped — not treated as
+    /// a reason to abort every other occurrence of the same diagnostic ID — so it is remembered
+    /// and excluded from subsequent occurrence selection to guarantee forward progress.
+    /// </summary>
+    /// <param name="solution">The solution to start from.</param>
+    /// <param name="projectId">The ID of the project being fixed.</param>
+    /// <param name="diagnosticId">The diagnostic ID to fix.</param>
+    /// <param name="provider">The code fix provider to use.</param>
+    /// <param name="changedDocuments">Accumulator of file paths that were modified.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>The resulting solution, how many fixes were applied, and whether any matching diagnostics existed.</returns>
+    private async Task<(Solution Solution, int FixedCount, bool AnyDiagnosticsFound)> ApplyFixesForDiagnosticIdAsync(
+        Solution solution,
+        ProjectId projectId,
+        string diagnosticId,
+        CodeFixProvider provider,
+        HashSet<string> changedDocuments,
+        CancellationToken cancellationToken)
+    {
+        var project = solution.GetProject(projectId);
+        if (project == null) return (solution, 0, false);
+
+        var compilation = await project.GetCompilationAsync(cancellationToken);
+        if (compilation == null) return (solution, 0, false);
+
+        var initialCount = compilation.GetDiagnostics(cancellationToken)
+            .Count(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null);
+
+        if (initialCount == 0) return (solution, 0, false);
+
+        // Bound the number of re-analysis passes so a fixer that keeps registering a
+        // no-op/ineffective action for the same occurrence can't loop forever.
+        var maxIterations = initialCount + 5;
+        var fixedCount = 0;
+
+        // Occurrences that turned out to be unfixable (no usable code action) are remembered
+        // here, keyed by their source location, so subsequent iterations skip them and move on
+        // to other occurrences instead of endlessly reselecting the same unfixable one.
+        var unfixableLocations = new HashSet<(string FilePath, int Start, int Length)>();
+
+        for (var iteration = 0; iteration < maxIterations; iteration++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            project = solution.GetProject(projectId);
+            if (project == null) break;
+
+            compilation = await project.GetCompilationAsync(cancellationToken);
+            if (compilation == null) break;
+
+            var diagnostic = compilation.GetDiagnostics(cancellationToken)
+                .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
+                .Where(d => !unfixableLocations.Contains((d.Location.SourceTree!.FilePath, d.Location.SourceSpan.Start, d.Location.SourceSpan.Length)))
+                .OrderBy(d => d.Location.SourceTree!.FilePath, StringComparer.Ordinal)
+                .ThenBy(d => d.Location.SourceSpan.Start)
+                .FirstOrDefault();
+
+            if (diagnostic == null) break;
+
+            var locationKey = (diagnostic.Location.SourceTree!.FilePath, diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length);
+
+            var document = project.Documents.FirstOrDefault(doc =>
+                doc.FilePath == diagnostic.Location.SourceTree!.FilePath);
+            if (document == null)
+            {
+                unfixableLocations.Add(locationKey);
+                continue;
+            }
+
+            // Synchronous registration delegate — no async void. CodeActions are queued here
+            // and their operations are explicitly awaited below, after registration completes.
+            var registeredActions = new List<CodeAction>();
+            var context = new CodeFixContext(
+                document,
+                diagnostic,
+                (action, _) => registeredActions.Add(action),
+                cancellationToken);
+
+            await provider.RegisterCodeFixesAsync(context);
+
+            if (registeredActions.Count == 0)
+            {
+                // This occurrence has no registered fix — skip only it, other occurrences of
+                // the same diagnostic ID (e.g. in a different file) may still be fixable.
+                unfixableLocations.Add(locationKey);
+                continue;
+            }
+
+            // Apply only the first registered CodeAction for this occurrence — applying every
+            // registered action would apply multiple competing fixes for what is really a
+            // single diagnostic occurrence.
+            var operations = await registeredActions[0].GetOperationsAsync(cancellationToken);
+            var operation = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
+            if (operation == null)
+            {
+                unfixableLocations.Add(locationKey);
+                continue;
+            }
+
+            solution = operation.ChangedSolution;
+            changedDocuments.Add(document.FilePath!);
+            fixedCount++;
+
+            _logger.LogDebug("Applied fix for {Id} in {File}", diagnosticId, document.Name);
+        }
+
+        return (solution, fixedCount, true);
     }
 
     private string ResolveProjectPath(string project)

@@ -31,9 +31,14 @@
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
+- [MCP Client Compatibility](#mcp-client-compatibility)
 - [Available Tools](#available-tools)
+- [Tool Annotations](#tool-annotations)
+- [Tool Compatibility Policy](#tool-compatibility-policy)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
+- [Security](#security)
+- [Documentation](#documentation)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
@@ -77,10 +82,12 @@ C# codebases accumulate quality issues silently -- inconsistent naming, missing 
 | Runtime | .NET 10.0 |
 | Compiler Platform | Roslyn (Microsoft.CodeAnalysis) 5.3.0 |
 | Analyzers | Roslynator 4.15.0 |
-| MCP SDK | ModelContextProtocol 1.1.0 |
+| MCP SDK | ModelContextProtocol 1.4.0 |
 | Diff Engine | DiffPlex 1.9.0 |
-| Build System | MSBuild 18.4.0 |
-| Hosting | Microsoft.Extensions.Hosting 10.0.5 |
+| Build System | MSBuild 18.7.1 |
+| Hosting | Microsoft.Extensions.Hosting 10.0.9 |
+
+> Versions above are kept in sync with [`RoselineMCP/RoselineMCP.csproj`](RoselineMCP/RoselineMCP.csproj) — that file is the source of truth if this table ever drifts.
 
 ## Getting Started
 
@@ -93,7 +100,31 @@ C# codebases accumulate quality issues silently -- inconsistent naming, missing 
 
 ### Installation
 
-**Option 1 -- NuGet Global Tool** *(recommended)*
+**Option 1 -- `dnx` (no install step)** *(recommended)*
+
+RoselineMCP ships an [MCP server registry manifest](.mcp/server.json), so any MCP client that
+understands the `dnx` launcher (the .NET equivalent of `npx` — resolves and runs a NuGet-packaged
+tool on demand, without a separate `dotnet tool install` step) can start it directly. Requires the
+.NET 10.0 SDK.
+
+```json
+{
+  "mcpServers": {
+    "roseline": {
+      "command": "dnx",
+      "args": ["RoselineMCP", "--yes"]
+    }
+  }
+}
+```
+
+Add this to your Claude Desktop or VS Code MCP configuration (see
+[MCP Client Compatibility](#mcp-client-compatibility) below for exact file locations per client).
+`dnx` downloads and caches the tool on first use, so there's nothing to pre-install globally.
+
+---
+
+**Option 2 -- NuGet Global Tool** *(offline / pinned-version installs)*
 
 Requires .NET 10.0 SDK or later.
 
@@ -123,7 +154,7 @@ Add to your Claude Desktop configuration file (`claude_desktop_config.json`):
 
 ---
 
-**Option 2 -- Docker**
+**Option 3 -- Docker**
 
 No SDK required. Works on any platform with Docker installed.
 
@@ -153,7 +184,7 @@ docker run -i --rm phmatray/roseline-mcp:latest
 
 ---
 
-**Option 3 -- Build from Source**
+**Option 4 -- Build from Source**
 
 ```bash
 git clone https://github.com/Atypical-Consulting/RoselineMCP.git
@@ -175,58 +206,161 @@ dotnet test
 }
 ```
 
+## MCP Client Compatibility
+
+RoselineMCP speaks plain stdio MCP, so it should work with any MCP-compatible client. The
+snippets below are **documented, not independently verified in every case** — we've confirmed the
+protocol-level behavior (stdio transport, tool discovery, JSON responses) works correctly, but we
+have not personally exercised each client's own configuration UI/file end to end. If one of these
+doesn't work as written for your client version, please open an issue.
+
+<details>
+<summary><strong>Claude Desktop</strong></summary>
+
+Edit `claude_desktop_config.json` (see file locations under [Installation](#getting-started)
+above) and add a `roseline` entry under `mcpServers`, using any of the four install options shown
+above (`dnx`, global tool, Docker, or build-from-source).
+
+</details>
+
+<details>
+<summary><strong>VS Code (GitHub Copilot / MCP extension)</strong></summary>
+
+Add an entry to your workspace or user `mcp.json` (Command Palette → "MCP: Open User
+Configuration", or `.vscode/mcp.json` in the workspace):
+
+```json
+{
+  "servers": {
+    "roseline": {
+      "command": "dnx",
+      "args": ["RoselineMCP", "--yes"]
+    }
+  }
+}
+```
+
+Substitute `"command": "roseline-mcp"` (no `args`) if you installed via the NuGet global tool
+instead.
+
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+Add a `roseline` entry to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-local),
+using the same `command`/`args` shape as the VS Code snippet above.
+
+</details>
+
 ## Available Tools
 
 ### 1. AnalyzeSolution
 
-Analyzes an entire C# solution for diagnostics.
+Analyzes an entire C# solution for diagnostics. Read-only — never modifies files on disk.
+`pathOrGit` also accepts an `http(s)://` Git URL, which is shallow-cloned to a temp directory,
+analyzed, and deleted afterward.
 
 ```typescript
 analyzeSolution({
   pathOrGit: "/path/to/solution.sln",
-  includePattern: "*.Core",     // Optional: Include only matching projects
-  excludePattern: "*.Tests",    // Optional: Exclude matching projects
-  severity: "warning",           // Optional: Minimum severity (error|warning|info)
-  maxDiagnostics: 100           // Optional: Maximum diagnostics to return
+  include: "Core",              // Optional: only project names containing this substring
+  exclude: "Test",              // Optional: skip project names containing this substring
+  severity: "warning",          // Optional: minimum severity (Error|Warning|Info|Hidden)
+  maxDiagnostics: 100           // Optional: Maximum diagnostics to return (default: 100)
 })
 ```
 
+**Returns:** solution file name, project count, a `diagnosticSummary` (counts by severity), and a
+`topDiagnostics` array with project/file/line/column/id/severity/message per diagnostic.
+
 ### 2. ListDiagnostics
 
-Gets detailed diagnostics for a specific project.
+Gets detailed diagnostics for a specific project. Read-only — never modifies files on disk.
 
 ```typescript
 listDiagnostics({
   project: "MyProject.csproj",
-  ids: ["CS0168", "CS0219"],    // Optional: Filter by diagnostic IDs
-  files: ["**/Controllers/*"],   // Optional: Filter by file patterns
-  max: 50                        // Optional: Maximum results
+  ids: ["CS0168", "CS0219"],       // Optional: Filter by diagnostic IDs
+  files: ["Controller.cs"],        // Optional: substring match against each diagnostic's file path (case-insensitive; NOT a glob pattern)
+  max: 50                          // Optional: Maximum results
 })
 ```
 
+**Returns:** project name, `totalDiagnostics` count, the filtered `diagnostics` list, `stats`
+(counts grouped by ID and by severity), and `suggestedFixableIds` — diagnostic IDs a code fix
+provider is actually registered for.
+
 ### 3. ApplyFixes
 
-Applies automated code fixes for specified diagnostics.
+Applies automated code fixes for specified diagnostics. **Defaults to preview mode**:
+`previewOnly` defaults to `true`, so calling this tool without setting it never writes to disk —
+you must pass `previewOnly: false` explicitly to apply changes.
 
 ```typescript
 applyFixes({
   project: "MyProject.csproj",
   ids: ["CS0168", "RCS1001"],   // Diagnostic IDs to fix
-  previewOnly: true              // Optional: Generate patch without applying
+  previewOnly: false             // Optional (default: true). Set false to write changes to disk.
 })
 ```
 
+**Returns:** project name, `fixedCount`, `fixersApplied` (diagnostic IDs actually fixed),
+`changedFiles`, a unified diff `patch`, `notes` (skipped/failed IDs and status messages), and
+`previewOnly` echoing back whether anything was written.
+
 ### 4. CreatePatch
 
-Generates a unified diff between two text versions.
+Generates a unified diff between two text versions. Read-only — operates purely on the provided
+strings, never touches the filesystem.
 
 ```typescript
 createPatch({
   before: "original code",
   after: "modified code",
-  fileName: "Example.cs"         // Optional: For display in diff
+  fileName: "Example.cs",        // Optional: For display in diff
+  ignoreWhitespace: false,       // Optional: ignore whitespace-only differences
+  ignoreCase: false              // Optional: ignore case differences
 })
 ```
+
+**Returns:** the unified diff `patch`, `hasChanges`, `linesAdded`, `linesRemoved`, and the
+`fileName`/`summary` used in the diff header.
+
+## Tool Annotations
+
+RoselineMCP's SDK (`ModelContextProtocol` 1.4.0) supports the standard MCP tool
+[annotation hints](https://modelcontextprotocol.io/) (`readOnlyHint`, `destructiveHint`,
+`idempotentHint`), and every tool declares them via `[McpServerTool(ReadOnly = ..., Destructive =
+..., Idempotent = ...)]`:
+
+| Tool | readOnlyHint | destructiveHint | idempotentHint | Notes |
+|------|:---:|:---:|:---:|-------|
+| `AnalyzeSolution` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `ListDiagnostics` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `ApplyFixes` | ❌ false | ⚠️ true | ❌ false | `destructiveHint` is a static, worst-case annotation: it's `true` because the tool *can* write files when `previewOnly: false` is passed, even though the default call (`previewOnly` unset, i.e. `true`) writes nothing. The SDK's annotation model has no way to express "destructive only for a specific parameter value" — see the doc comment on `ApplyFixesTool.ApplyFixes` in source. |
+| `CreatePatch` | ✅ true | ❌ false | ✅ true | Operates purely on the two provided strings; never touches the filesystem. |
+
+These hints are static per-tool metadata for MCP clients that surface them (e.g. to warn a user
+before an agent invokes a destructive tool) — they describe the tool's worst-case behavior, not
+the outcome of any specific call. See [Tool Compatibility Policy](#tool-compatibility-policy)
+below for the stability guarantees around tool names and parameters that these annotations sit on
+top of.
+
+## Tool Compatibility Policy
+
+- **Tool names and required parameters are stable within a major version.** An MCP client
+  integration written against `AnalyzeSolution(pathOrGit, ...)` on `1.x` will keep working across
+  all `1.x` releases.
+- **Optional parameters may be added in minor versions** (e.g. `CreatePatch` gained
+  `ignoreWhitespace`/`ignoreCase` as optional, defaulted parameters without breaking existing
+  callers).
+- **Renaming or removing a parameter, changing a parameter's required/optional status, or
+  changing a tool's name is a breaking change.** Breaking changes are called out under a
+  dedicated "Breaking Changes" heading in [`CHANGELOG.md`](CHANGELOG.md) and only ship in a major
+  version bump.
+- Response *shapes* (JSON field names/types) are documented in [`docs/API.md`](docs/API.md) and
+  follow the same policy: additive fields are non-breaking, renamed/removed fields are breaking.
 
 ## Supported Analyzers
 
@@ -234,8 +368,9 @@ RoselineMCP includes support for:
 
 - **Roslyn Analyzers** -- Built-in C# compiler diagnostics
 - **Roslynator** -- 500+ analyzers, refactorings, and fixes for C#
-- **StyleCop Analyzers** -- Code style and consistency rules
-- **Custom Analyzers** -- Any Roslyn-based analyzer in your solution
+- **Custom Analyzers** -- Any Roslyn-based analyzer referenced by your solution (loaded and run
+  the same way as Roslynator; there is no built-in StyleCop.Analyzers reference in this
+  repository's own `.csproj` — add it to your analyzed solution if you want SA* diagnostics)
 
 ## Examples
 
@@ -302,9 +437,16 @@ Configure logging and other settings:
       "Default": "Information",
       "RoselineMCP": "Debug"
     }
+  },
+  "RoselineMCP": {
+    "DefaultTimeout": 120000,
+    "EnableDiagnosticLogging": false
   }
 }
 ```
+
+- `RoselineMCP:DefaultTimeout`: Wall-clock timeout (ms) applied to each tool call, in addition to the caller's own cancellation. `0` disables it.
+- `RoselineMCP:EnableDiagnosticLogging`: Opt-in, local-only tracing of tool invocations — see [Debug Logging](#debug-logging). Disabled by default; enabled in `appsettings.Development.json`.
 
 ## Architecture
 
@@ -366,17 +508,30 @@ RoselineMCP/
 
 ## Performance
 
-- **Workspace Caching** -- MSBuild workspaces are reused when possible
-- **Parallel Analysis** -- Projects analyzed concurrently
-- **Streaming Results** -- Large result sets streamed to prevent memory issues
-- **Lazy Loading** -- Diagnostics computed on-demand
+- **Workspace Isolation** -- Each operation creates a fresh `MSBuildWorkspace`; nothing is cached
+  or reused across calls (see [Architecture](#architecture))
+- **Sequential Project Analysis** -- Projects within a solution are analyzed one at a time, not
+  concurrently, to keep MSBuild workspace state consistent
+- **Result Capping** -- `maxDiagnostics`/`max` bound how many diagnostics are returned per call,
+  independent of how many were found
 
 ## Security
 
-- **No Code Execution** -- Never executes code from analyzed projects
-- **Sandboxed Operations** -- All changes made in temporary workspaces
-- **Path Validation** -- Protection against path traversal attacks
-- **Read-Only by Default** -- Explicit confirmation required for modifications
+- **Read-Only by Default** -- `AnalyzeSolution`, `ListDiagnostics`, and `CreatePatch` never write
+  to disk. `ApplyFixes` defaults to `previewOnly: true`; writing requires the caller to pass
+  `previewOnly: false` explicitly.
+- **Real, Read-Only Git Cloning** -- `pathOrGit` accepts `http(s)://` Git URLs, which are
+  shallow-cloned (`git clone --depth 1`) into a temp directory that's deleted after the operation.
+  No other URL scheme is treated as a Git remote.
+- **MSBuild Is Not a Sandbox** -- loading a `.sln`/`.csproj` via `MSBuildWorkspace` is a
+  design-time MSBuild evaluation and can execute build logic embedded in the project (`<Exec>`
+  tasks, custom `UsingTask` assemblies, imported `.targets`/`.props`). Analyzing a fully untrusted
+  repository or URL carries a real code-execution risk on the host. **See
+  [`SECURITY.md`](SECURITY.md)** for the full write-up and operator recommendations before
+  pointing RoselineMCP at untrusted input.
+- **No Dedicated Path-Traversal Sandbox** -- paths are resolved with plain existence checks, not
+  canonicalized against an allowed root; treat `pathOrGit`/`project`/`branch` as trusted operator
+  input.
 
 ## Troubleshooting
 
@@ -395,6 +550,28 @@ Enable detailed logging:
 ROSELINE_LOG_LEVEL=Debug dotnet run --project RoselineMCP/RoselineMCP.csproj
 ```
 
+### Tracing Individual Tool Calls
+
+Every tool call gets a per-invocation correlation ID (a GUID). It's cheap to generate so it's
+always created, but it's only surfaced when you need it: it's included in every JSON error
+response (`correlationId`) and attached to that call's log lines via `ILogger.BeginScope`, so a
+user reporting a failure can hand you one ID that ties back to the full server-side log entry —
+without needing to grep timestamps.
+
+For deeper, opt-in tracing of each tool invocation (start/stop, duration, success/failure) as a
+`System.Diagnostics.Activity` span, set `RoselineMCP:EnableDiagnosticLogging` to `true` (it's
+already `true` in `appsettings.Development.json`):
+
+```bash
+ROSELINE_RoselineMCP__EnableDiagnosticLogging=true dotnet run --project RoselineMCP/RoselineMCP.csproj
+```
+
+This uses the built-in `ActivitySource`/`Activity` APIs rather than the OpenTelemetry SDK, so it
+adds no extra dependency. Spans are logged exclusively through the existing `ILogger` pipeline,
+which is already routed to stderr — never to stdout (the MCP JSON-RPC channel) — and nothing is
+ever sent over the network; when the flag is off (the default), no listener is registered and the
+spans cost essentially nothing.
+
 ## Roadmap
 
 - [ ] Additional analyzer rule sets (SonarAnalyzer, FxCop)
@@ -406,7 +583,16 @@ ROSELINE_LOG_LEVEL=Debug dotnet run --project RoselineMCP/RoselineMCP.csproj
 
 > Want to contribute? Pick any roadmap item and open a PR!
 
-## Stats
+## Documentation
+
+- [docs/API.md](docs/API.md) -- Full request/response reference for every MCP tool, service
+  interfaces, models, and the error-response contract
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) -- Layered architecture, data flow, and design
+  patterns
+- [PROMPTS.md](PROMPTS.md) -- Example prompts and end-to-end workflows for each tool
+- [CHANGELOG.md](CHANGELOG.md) -- Release history and breaking changes
+- [SECURITY.md](SECURITY.md) -- Vulnerability reporting and the MSBuild code-execution caveat
+- [CONTRIBUTING.md](CONTRIBUTING.md) -- Development setup and PR process
 
 ## Contributing
 
@@ -420,7 +606,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## License
 
-[MIT](LICENSE) © 2025 [Atypical Consulting](https://atypical.garry-ai.cloud)
+[MIT](LICENSE) © 2026 [Atypical Consulting SRL](https://atypical.garry-ai.cloud)
 
 ## Acknowledgments
 

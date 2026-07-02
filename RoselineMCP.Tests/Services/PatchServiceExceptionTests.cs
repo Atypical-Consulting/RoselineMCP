@@ -96,30 +96,4 @@ public class PatchServiceExceptionTests
         }
     }
 
-    public class CreatePatchFromFilesExceptionTests : PatchServiceExceptionTests, IDisposable
-    {
-        [Fact]
-        public void Should_Rethrow_When_DiffService_Throws_During_File_Read()
-        {
-            // Arrange — create real temp files first
-            var beforePath = Path.Combine(_testDirectory, "before.cs");
-            var afterPath = Path.Combine(_testDirectory, "after.cs");
-            File.WriteAllText(beforePath, "class A { }");
-            File.WriteAllText(afterPath, "class A { void M() {} }");
-
-            A.CallTo(() => _diffService.GenerateUnifiedDiff(
-                A<string>._, A<string>._, A<string>._, A<string>._))
-                .Throws(new IOException("I/O error during diff"));
-
-            // Act & Assert
-            Should.Throw<IOException>(() =>
-                _sut.CreatePatchFromFiles(beforePath, afterPath))
-                .Message.ShouldBe("I/O error during diff");
-        }
-
-        public void Dispose()
-        {
-            try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
-        }
-    }
 }
