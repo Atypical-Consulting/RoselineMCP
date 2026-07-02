@@ -220,4 +220,30 @@ public class CodeNavigationServiceTests
         await Should.ThrowAsync<KeyNotFoundException>(
             () => service.SearchSymbolsAsync("Demo", null, "Service.cs", null, 50, CancellationToken.None));
     }
+
+    [Fact]
+    public async Task SearchSymbols_File_Outline_Is_Lean()
+    {
+        var service = CreateService("Demo", ("Models.cs",
+            "public class Account { public int Id { get; set; } public void Deposit() { } }"));
+
+        var result = await service.SearchSymbolsAsync("Demo", null, "Models.cs", null, 50, CancellationToken.None);
+
+        // The outline omits per-symbol file, fully-qualified name, and accessibility — the file is on
+        // the response and accessibility is inside the signature — but keeps name/kind/signature.
+        result.Symbols.ShouldAllBe(s => s.File == null && s.FullName == null && s.Accessibility == null);
+        result.Symbols.ShouldContain(s => s.Name == "Deposit" && s.Signature.Length > 0);
+    }
+
+    [Fact]
+    public async Task SearchSymbols_ProjectWide_Keeps_FullName_And_File()
+    {
+        var service = CreateService("Demo", ("Services.cs", "public class UserService { }"));
+
+        var result = await service.SearchSymbolsAsync("Demo", "UserService", null, null, 50, CancellationToken.None);
+
+        var summary = result.Symbols.ShouldHaveSingleItem();
+        summary.FullName.ShouldNotBeNull();
+        summary.File.ShouldNotBeNull();
+    }
 }

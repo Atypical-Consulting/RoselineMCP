@@ -58,7 +58,11 @@ public class CodeNavigationService : ICodeNavigationService
             .ThenBy(s => s.ToDisplayString(SymbolResolver.FullNameFormat), StringComparer.Ordinal)
             .ToList();
 
-        var capped = ordered.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
+        // A single-file outline shares one file and puts accessibility inside each signature, so it
+        // returns a lean per-symbol projection; a project-wide search spans files and needs the full
+        // summary (file + fully-qualified name).
+        Func<ISymbol, SymbolSummary> toSummary = file != null ? LeanOutlineSummary : SymbolResolver.ToSummary;
+        var capped = ordered.Take(Math.Max(1, max)).Select(toSummary).ToList();
 
         return new SymbolSearchResponse
         {
@@ -543,6 +547,25 @@ public class CodeNavigationService : ICodeNavigationService
         }
 
         return response;
+    }
+
+    /// <summary>
+    /// Lean per-symbol projection for a single-file outline: name, kind, signature (which already
+    /// carries accessibility, modifiers, and return type), line, and containing type. The file path
+    /// and fully-qualified name are intentionally omitted — the file is on the response and the FQN
+    /// is <c>containingType + name</c> — so the outline does not repeat them on every symbol.
+    /// </summary>
+    private static SymbolSummary LeanOutlineSummary(ISymbol symbol)
+    {
+        var (_, line) = SymbolResolver.LocationOf(symbol);
+        return new SymbolSummary
+        {
+            Name = symbol.Name,
+            Kind = SymbolResolver.KindOf(symbol),
+            Signature = symbol.ToDisplayString(SymbolResolver.SignatureFormat),
+            Line = line,
+            ContainingType = symbol.ContainingType?.ToDisplayString(SymbolResolver.FullNameFormat)
+        };
     }
 
     private static Document? FindDocument(Project project, string file)
