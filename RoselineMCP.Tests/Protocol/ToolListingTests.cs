@@ -19,10 +19,18 @@ public class ToolListingTests : McpProtocolTestBase
         "list_diagnostics",
         "apply_fixes",
         "create_patch",
+        "search_symbols",
+        "get_symbol_info",
+        "find_references",
+        "find_implementations",
+        "get_call_graph",
+        "get_type_hierarchy",
+        "edit_member",
+        "rename_symbol",
     ];
 
     [Fact]
-    public async Task ListTools_Returns_Exactly_The_Four_Documented_Tools()
+    public async Task ListTools_Returns_Exactly_The_Documented_Tools()
     {
         var tools = await Client.ListToolsAsync();
 
@@ -78,11 +86,39 @@ public class ToolListingTests : McpProtocolTestBase
     /// in their public JSON schema — those are bound automatically by the SDK from the DI
     /// container/request context, not supplied by callers.
     /// </summary>
+    [Fact]
+    public async Task SearchSymbols_Schema_Requires_Only_Project()
+    {
+        var tool = await GetToolAsync("search_symbols");
+
+        GetRequired(tool).ShouldBe(["project"]);
+        GetPropertyNames(tool).ShouldBe(
+            ["project", "query", "file", "kinds", "max"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task EditMember_Schema_Requires_Project_Symbol_And_Operation()
+    {
+        var tool = await GetToolAsync("edit_member");
+
+        GetRequired(tool).ShouldBe(["project", "symbol", "operation"], ignoreOrder: true);
+        GetPropertyNames(tool).ShouldBe(
+            ["project", "symbol", "operation", "newSource", "previewOnly"], ignoreOrder: true);
+    }
+
     [Theory]
     [InlineData("analyze_solution")]
     [InlineData("list_diagnostics")]
     [InlineData("apply_fixes")]
     [InlineData("create_patch")]
+    [InlineData("search_symbols")]
+    [InlineData("get_symbol_info")]
+    [InlineData("find_references")]
+    [InlineData("find_implementations")]
+    [InlineData("get_call_graph")]
+    [InlineData("get_type_hierarchy")]
+    [InlineData("edit_member")]
+    [InlineData("rename_symbol")]
     public async Task Schema_Never_Leaks_DI_Infrastructure_Parameters(string toolName)
     {
         var tool = await GetToolAsync(toolName);
@@ -94,6 +130,8 @@ public class ToolListingTests : McpProtocolTestBase
         properties.ShouldNotContain("analyzerService");
         properties.ShouldNotContain("codeFixService");
         properties.ShouldNotContain("patchService");
+        properties.ShouldNotContain("navigationService");
+        properties.ShouldNotContain("editService");
     }
 
     private async Task<ModelContextProtocol.Client.McpClientTool> GetToolAsync(string name)

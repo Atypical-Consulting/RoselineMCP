@@ -1,0 +1,82 @@
+using System.ComponentModel;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using ModelContextProtocol.Server;
+using RoselineMCP.Configuration;
+using RoselineMCP.Interfaces;
+namespace RoselineMCP.Tools;
+
+/// <summary>
+/// MCP tool for surgical, member-level edits (replace/add/delete). Emitting a single member instead
+/// of a whole-file rewrite keeps the tokens an agent must produce proportional to the change.
+/// </summary>
+[McpServerToolType]
+public static class EditMemberTool
+{
+    private static readonly HashSet<string> ValidOperations = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "replace", "add", "delete"
+    };
+
+    /// <summary>
+    /// Replaces, adds, or deletes a single type member and returns a unified diff.
+    /// </summary>
+    /// <remarks>
+    /// Like <see cref="ApplyFixesTool"/>, this defaults to preview mode (<c>previewOnly: true</c>) so
+    /// nothing is written to disk unless the caller explicitly passes <c>previewOnly: false</c>. The
+    /// <see cref="McpServerToolAttribute.Destructive"/> hint is a static worst-case annotation: the
+    /// tool *can* write a file when preview mode is turned off.
+    /// </remarks>
+    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false)]
+    [Description("Surgically replace, add, or delete a single C# member (method/property/field/etc.) and return a unified diff — instead of rewriting the whole file. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the change to disk.")]
+    public static async Task<string> EditMember(
+        ICodeEditService editService,
+        [Description("Project name or path to .csproj file")]
+        string project,
+        [Description("For 'replace'/'delete': the member to edit. For 'add': the container type to add a member to. Simple or fully-qualified name.")]
+        string symbol,
+        [Description("Operation to perform: 'replace', 'add', or 'delete'")]
+        string operation,
+        [Description("New C# member declaration source (required for 'replace' and 'add'; ignored for 'delete')")]
+        string? newSource = null,
+        [Description("If true (the default), only preview the change and return a diff — no files are modified. Set explicitly to false to write the change to disk.")]
+        bool previewOnly = true,
+        IOptions<RoselineMcpOptions>? options = null,
+        ILoggerFactory? loggerFactory = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(EditMember), loggerFactory);
+
+        if (string.IsNullOrWhiteSpace(operation) || !ValidOperations.Contains(operation))
+        {
+            invocation.MarkFailure("validation: invalid operation");
+            return ToolExecutionHelper.SerializeValidationError(
+                $"Invalid or missing operation '{operation}'.",
+                invocation.CorrelationId,
+                "Valid operations are: replace, add, delete.");
+        }
+
+        using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
+
+        try
+        {
+            var result = await editService.EditMemberAsync(
+                project, symbol, operation, newSource, previewOnly, timeoutSource.Token);
+
+            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            invocation.MarkSuccess();
+            return json;
+        }
+        catch (OperationCanceledException)
+        {
+            invocation.MarkFailure("cancelled");
+            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+        }
+        catch (Exception ex)
+        {
+            invocation.MarkFailure(ex.Message);
+            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+        }
+    }
+}

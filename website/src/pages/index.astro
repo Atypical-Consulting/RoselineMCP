@@ -1,0 +1,57 @@
+---
+import Base from '../layouts/Base.astro';
+import { tools } from '../data/tools.ts';
+import data from '../data/benchmark-results.json';
+
+const base = import.meta.env.BASE_URL;
+const h = data.headline;
+const pooled = Math.round(h.pooledSavingsReadTools * 100);
+const median = Math.round(h.medianSavingsReadTools * 100);
+const savedTokens = h.totalBaselineTokens - h.totalToolTokens;
+const fmt = (n: number) => n.toLocaleString('en-US');
+const navTools = tools.filter((t) => t.isNew);
+---
+<Base title="RoselineMCP — token-efficient C# code intelligence for AI agents" active="home">
+  <h1>Roslyn code intelligence that spends <span style="color:var(--save)">fewer tokens</span>.</h1>
+  <p class="lede">
+    RoselineMCP is a .NET&nbsp;10 <a href="https://modelcontextprotocol.io">Model Context Protocol</a>
+    server. It gives an AI agent precise, structural answers about a C# solution — symbols, signatures,
+    references, call graphs, surgical edits — instead of making it read whole files. Source code
+    dominates an agent’s token budget, so navigating by structure is where the savings live.
+  </p>
+
+  <div class="stats">
+    <div class="tile"><div class="n save">{pooled}%</div><div class="l">pooled token reduction<br/>across {navTools.length ? '' : ''}navigation tasks</div></div>
+    <div class="tile"><div class="n">{median}%</div><div class="l">median saving per task</div></div>
+    <div class="tile"><div class="n">{fmt(savedTokens)}</div><div class="l">tokens saved on the sample<br/>(vs. reading the files)</div></div>
+    <div class="tile"><div class="n">8</div><div class="l">new MCP tools<br/>(12 in total)</div></div>
+  </div>
+  <p class="muted" style="margin-top:-.4rem">
+    Measured against RoselineMCP’s own source with a real tokenizer, two baselines, and systematic
+    sweeps — weak cases shown, not hidden. <a href={base + 'benchmark'}>See the honest benchmark →</a>
+  </p>
+
+  <h2>The new tools</h2>
+  <p>Eight tools added on top of the existing diagnostics/fix surface. Read-only navigation returns
+    compact structure; the two write tools emit a member-level diff and default to preview.</p>
+  <div class="grid cards">
+    {navTools.map((t) => (
+      <div class="card">
+        <h3><code>{t.name}</code></h3>
+        <span class={`pill ${t.kind}`}>{t.kind === 'read' ? 'read-only' : 'write · preview'}</span>
+        <p style="margin-top:.6rem">{t.summary}</p>
+      </div>
+    ))}
+  </div>
+  <p style="margin-top:1rem"><a href={base + 'tools'}>Full tool reference →</a></p>
+
+  <h2>Use it</h2>
+  <p>Any MCP client that understands <code>dnx</code> (the .NET equivalent of <code>npx</code>) can run it — no install step. Requires the .NET&nbsp;10 SDK.</p>
+  <pre><code>{`{
+  "mcpServers": {
+    "roseline": { "command": "dnx", "args": ["RoselineMCP", "--yes"] }
+  }
+}`}</code></pre>
+  <p class="muted">Also available as a NuGet global tool and a Docker image — see the
+    <a href="https://github.com/Atypical-Consulting/RoselineMCP">repository</a>.</p>
+</Base>

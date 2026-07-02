@@ -97,6 +97,30 @@ Generates unified diff patches between text versions.
 - **Parameters**: before, after, fileName
 - **Returns**: Unified diff, line counts, change summary
 
+### Code Navigation Tools (read-only, token-efficient)
+These return precise structure instead of whole files (backed by `ICodeNavigationService` /
+`CodeNavigationService`, which loads via `IProjectLoader`). All take a `project` (name, directory,
+or `.csproj` path); the containing solution is loaded when present so references/renames span
+projects.
+
+- **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
+- **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/accessibility/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source).
+- **7. FindReferences** — `project`, `symbol`, `includeDefinition`, `max`. Returns use sites (file/line/column/snippet).
+- **8. FindImplementations** — `project`, `symbol`, `max`. Returns implementations/overrides/derived types.
+- **9. GetCallGraph** — `project`, `method`, `direction` (callers|callees|both), `depth` (1-3), `max`. Returns a cycle-safe call tree.
+- **10. GetTypeHierarchy** — `project`, `type`, `direction` (base|derived|both). Returns base chain, interfaces, derived types.
+
+### Code Editing Tools (write, `previewOnly` defaults to true)
+Surgical edits (backed by `ICodeEditService` / `CodeEditService`, reusing `IDiffService`). Like
+`ApplyFixes`, nothing is written unless `previewOnly: false` is passed explicitly.
+
+- **11. EditMember** — `project`, `symbol`, `operation` (replace|add|delete), `newSource`, `previewOnly`. Returns changed files + unified diff.
+- **12. RenameSymbol** — `project`, `symbol`, `newName`, `previewOnly`. Roslyn solution-wide rename; returns changed files + unified diff.
+
+> `MoveMember` (moving a member between types) is intentionally **not** implemented — it is a
+> refactor rather than a token-saver and is the highest-risk to get subtly wrong. Consider it a
+> documented follow-up.
+
 ## Adding New MCP Tools
 
 When implementing new tools:

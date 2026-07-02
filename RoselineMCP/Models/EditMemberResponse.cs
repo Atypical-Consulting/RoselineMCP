@@ -1,0 +1,44 @@
+using System.Text.Json.Serialization;
+
+namespace RoselineMCP.Models;
+
+/// <summary>
+/// Response model for <c>edit_member</c>. A surgical, member-level edit (replace/add/delete) returns
+/// only the resulting unified diff and the affected file — never a whole-file rewrite — so the tokens
+/// an agent must emit to change code stay small. Defaults to preview mode; nothing is written to disk
+/// unless the caller explicitly opts in.
+/// </summary>
+public class EditMemberResponse
+{
+    /// <summary>Name of the project the edit targeted.</summary>
+    [JsonPropertyName("project")]
+    public string Project { get; set; } = string.Empty;
+
+    /// <summary>The operation performed: <c>replace</c>, <c>add</c>, or <c>delete</c>.</summary>
+    [JsonPropertyName("operation")]
+    public string Operation { get; set; } = string.Empty;
+
+    /// <summary>Fully-qualified name of the member (or container type, for <c>add</c>) the edit targeted.</summary>
+    [JsonPropertyName("target")]
+    public string Target { get; set; } = string.Empty;
+
+    /// <summary>Files that were (or, in preview mode, would be) modified.</summary>
+    [JsonPropertyName("changedFiles")]
+    public List<string> ChangedFiles { get; set; } = new();
+
+    /// <summary>Unified diff of the edit.</summary>
+    [JsonPropertyName("patch")]
+    public string Patch { get; set; } = string.Empty;
+
+    /// <summary>Whether this was a preview-only operation (no files written).</summary>
+    [JsonPropertyName("previewOnly")]
+    public bool PreviewOnly { get; set; }
+
+    /// <summary>Whether changes were actually written to disk (only true when <c>previewOnly</c> was explicitly false and there were changes).</summary>
+    [JsonPropertyName("applied")]
+    public bool Applied { get; set; }
+
+    /// <summary>Additional notes or warnings about the edit.</summary>
+    [JsonPropertyName("notes")]
+    public List<string> Notes { get; set; } = new();
+}

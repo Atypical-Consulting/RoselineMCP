@@ -1,0 +1,63 @@
+---
+// Zero-anchored diverging bar chart of per-suite savings. Positive (saves tokens) reads blue,
+// negative (costs tokens) reads red — the palette's validated diverging pair. Every bar is
+// direct-labeled, so identity never rests on color alone.
+interface Row { id: string; tool: string; title: string; value: number; min: number; max: number; pooled: number; n: number }
+interface Props { rows: Row[]; metric?: string }
+const { rows, metric = 'median savings per task vs. reading the whole file' } = Astro.props;
+
+const W = 760, rowH = 46, padT = 8, padB = 30, labelW = 210, valW = 58;
+const H = padT + rows.length * rowH + padB;
+const plotL = labelW, plotR = W - valW, plotW = plotR - plotL;
+const domainMin = Math.min(-0.5, ...rows.map((r) => r.value));
+const domainMax = 1;
+const x = (v: number) => plotL + ((v - domainMin) / (domainMax - domainMin)) * plotW;
+const x0 = x(0);
+const ticks = [-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1].filter((t) => t >= domainMin - 1e-9);
+const pct = (v: number) => `${v >= 0 ? '' : '−'}${Math.round(Math.abs(v) * 100)}%`;
+---
+<figure class="chart">
+  <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img"
+       aria-label={`Bar chart: ${metric}, per tool suite.`}>
+    <!-- gridlines + axis ticks (recessive) -->
+    {ticks.map((t) => (
+      <g>
+        <line x1={x(t)} x2={x(t)} y1={padT} y2={H - padB}
+              stroke={t === 0 ? 'var(--axis)' : 'var(--grid)'} stroke-width={t === 0 ? 1.5 : 1} />
+        <text x={x(t)} y={H - padB + 18} text-anchor="middle" class="ax">{pct(t)}</text>
+      </g>
+    ))}
+    {rows.map((r, i) => {
+      const cy = padT + i * rowH + rowH / 2;
+      const bx = Math.min(x0, x(r.value));
+      const bw = Math.abs(x(r.value) - x0);
+      const positive = r.value >= 0;
+      const labelX = positive ? x(r.value) + 8 : x(r.value) - 8;
+      return (
+        <g>
+          <text x={8} y={cy - 4} class="lbl">{r.title}</text>
+          <text x={8} y={cy + 13} class="sub"><tspan class="mono">{r.tool}</tspan> · n={r.n}</text>
+          <rect x={bx} y={cy - 11} width={Math.max(bw, 1.5)} height={22} rx="3"
+                fill={positive ? 'var(--save)' : 'var(--cost)'}>
+            <title>{r.title} — median {pct(r.value)} (pooled {pct(r.pooled)}, range {pct(r.min)}…{pct(r.max)}, n={r.n})</title>
+          </rect>
+          <text x={labelX} y={cy + 5} text-anchor={positive ? 'start' : 'end'}
+                class={positive ? 'val save' : 'val cost'}>{pct(r.value)}</text>
+        </g>
+      );
+    })}
+  </svg>
+  <figcaption class="muted">{metric}. Hover a bar for the pooled figure and full range. Positive = tokens saved; negative = tokens added.</figcaption>
+</figure>
+<style>
+  .chart { margin: 1.25rem 0 0; }
+  svg { display: block; overflow: visible; }
+  .ax { fill: var(--muted); font-size: 11px; font-family: var(--mono); }
+  .lbl { fill: var(--ink); font-size: 13px; font-weight: 600; font-family: var(--sans); }
+  .sub { fill: var(--muted); font-size: 11px; font-family: var(--sans); }
+  .sub .mono { font-family: var(--mono); }
+  .val { font-size: 13px; font-weight: 700; font-family: var(--mono); }
+  .val.save { fill: var(--save); }
+  .val.cost { fill: var(--cost); }
+  figcaption { font-size: .82rem; margin-top: .6rem; }
+</style>
