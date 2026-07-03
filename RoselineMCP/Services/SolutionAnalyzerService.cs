@@ -60,13 +60,16 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            progress?.Report(new ProgressNotificationValue { Progress = 0, Message = "Resolving solution source…" });
+            // Progress values must strictly increase (MCP requirement): the two pre-analysis phases
+            // occupy steps 1 and 2, and the per-project loop continues from step 3 (see the
+            // progressOffset passed to AnalyzeProjectsAsync below).
+            progress?.Report(new ProgressNotificationValue { Progress = 1, Message = "Resolving solution source…" });
             var (solutionPath, cloneDirectory) = await ResolveSolutionPathAsync(pathOrGit, branch, cancellationToken);
             clonedDirectory = cloneDirectory;
             ValidateSolutionPath(solutionPath);
 
             using var workspace = _msBuildService.CreateWorkspace();
-            progress?.Report(new ProgressNotificationValue { Progress = 0, Message = "Loading solution via MSBuild…" });
+            progress?.Report(new ProgressNotificationValue { Progress = 2, Message = "Loading solution via MSBuild…" });
             var solution = await LoadSolutionAsync(workspace, solutionPath, cancellationToken);
 
             var analysisContext = new AnalysisContext
@@ -77,7 +80,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 MaxDiagnostics = maxDiagnostics
             };
 
-            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, progress, cancellationToken);
+            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, progress, progressOffset: 2, cancellationToken);
 
             return BuildAnalyzeSolutionResponse(solutionPath, solution, diagnostics, summary, maxDiagnostics);
         }
@@ -114,6 +117,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         Solution solution,
         AnalysisContext context,
         IProgress<ProgressNotificationValue>? progress,
+        int progressOffset,
         CancellationToken cancellationToken)
     {
         var allDiagnostics = new List<DiagnosticDetail>();
@@ -125,12 +129,9 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             .Where(p => _filterService.ShouldAnalyzeProject(p.Name, context.IncludePattern, context.ExcludePattern))
             .ToList();
 
-        progress?.Report(new ProgressNotificationValue
-        {
-            Progress = 0,
-            Total = projectsToAnalyze.Count,
-            Message = $"Analyzing {projectsToAnalyze.Count} project(s)…"
-        });
+        // Progress continues from progressOffset (the number of phases already reported) so the
+        // reported value strictly increases across the whole operation, as MCP requires.
+        var total = progressOffset + projectsToAnalyze.Count;
 
         for (var i = 0; i < projectsToAnalyze.Count; i++)
         {
@@ -141,8 +142,8 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
 
             progress?.Report(new ProgressNotificationValue
             {
-                Progress = i + 1,
-                Total = projectsToAnalyze.Count,
+                Progress = progressOffset + i + 1,
+                Total = total,
                 Message = $"Analyzed {project.Name} ({i + 1}/{projectsToAnalyze.Count})"
             });
         }

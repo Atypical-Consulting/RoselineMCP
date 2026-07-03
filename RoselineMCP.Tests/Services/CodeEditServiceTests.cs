@@ -1,6 +1,7 @@
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -157,6 +158,28 @@ public class CodeEditServiceTests
         result.Applied.ShouldBeFalse();
         result.Patch.ShouldContain("Sum");
         result.ChangedFiles.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Reports_Strictly_Increasing_Progress()
+    {
+        var service = CreateService("Demo", ("Calc.cs",
+            "public class Calc { public int Add(int a, int b) { return a + b; } public int Twice(int x) { return Add(x, x); } }"));
+
+        var reports = new List<ProgressNotificationValue>();
+        var progress = A.Fake<IProgress<ProgressNotificationValue>>();
+        A.CallTo(() => progress.Report(A<ProgressNotificationValue>._))
+            .Invokes((ProgressNotificationValue v) => reports.Add(v));
+
+        await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, progress, CancellationToken.None);
+
+        // The load/resolve/rename phases each report progress, and the value must strictly increase
+        // (MCP requirement).
+        reports.Count.ShouldBeGreaterThanOrEqualTo(3);
+        for (var i = 1; i < reports.Count; i++)
+        {
+            reports[i].Progress.ShouldBeGreaterThan(reports[i - 1].Progress);
+        }
     }
 
     [Fact]

@@ -64,10 +64,12 @@ public static class EditMemberTool
         {
             var effectivePreviewOnly = previewOnly;
             string? declineNote = null;
+            // Use the caller's request token (not the wall-clock timeout) for the human confirmation
+            // round-trip: think-time must not be charged against the analysis budget.
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
                     $"Write the '{operation}' of member '{symbol}' in '{project}' to disk?",
-                    timeoutSource.Token))
+                    cancellationToken))
             {
                 effectivePreviewOnly = true;
                 declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";

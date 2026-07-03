@@ -96,4 +96,41 @@ public class ElicitationTests
         // Accepted → the write proceeds; the service was invoked with previewOnly = false.
         captured.ShouldBe(false);
     }
+
+    [Fact]
+    public async Task RenameSymbol_With_PreviewOnly_False_Is_Downgraded_To_Preview_When_Client_Declines()
+    {
+        // The write-path gate is shared by all three write tools; this exercises it via a second
+        // tool (rename_symbol) to prove it is not specific to apply_fixes.
+        bool? captured = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                captured = previewOnly)
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await McpProtocolTestHost.StartAsync(
+            services =>
+            {
+                services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
+                services.AddSingleton(A.Fake<ICodeFixService>());
+                services.AddSingleton(A.Fake<ICodeNavigationService>());
+                services.AddSingleton(edit);
+                services.AddSingleton<IDiffService, DiffService>();
+                services.AddSingleton<IPatchService, PatchService>();
+            },
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }));
+
+        await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
+        {
+            ["project"] = "Demo",
+            ["symbol"] = "Foo",
+            ["newName"] = "Bar",
+            ["previewOnly"] = false,
+        });
+
+        captured.ShouldBe(true);
+    }
 }

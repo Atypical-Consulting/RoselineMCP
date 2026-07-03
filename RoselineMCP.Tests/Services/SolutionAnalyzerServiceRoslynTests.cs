@@ -334,7 +334,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "AnalyzeProjectsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
-                method.Invoke(_sut, new object?[] { solution, context, null, CancellationToken.None })!;
+                method.Invoke(_sut, new object?[] { solution, context, null, 0, CancellationToken.None })!;
 
             // Assert
             var (diagnostics, summary) = result;
@@ -376,7 +376,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "AnalyzeProjectsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
-                method.Invoke(_sut, new object?[] { solution, context, progress, CancellationToken.None })!;
+                method.Invoke(_sut, new object?[] { solution, context, progress, 0, CancellationToken.None })!;
 
             // Assert — a report per project, culminating in the full 2/2 count.
             reports.ShouldNotBeEmpty();
@@ -410,7 +410,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "AnalyzeProjectsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
-                method.Invoke(_sut, new object?[] { solution, context, null, CancellationToken.None })!;
+                method.Invoke(_sut, new object?[] { solution, context, null, 0, CancellationToken.None })!;
 
             // Assert — project excluded by include pattern
             var (diagnostics, summary) = result;
