@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-04
+
 ### Added
 - **Server-level tool guidance to drive adoption.** The server now sends MCP `instructions` — a
   decision policy telling the model to prefer these structural tools over reading whole files
