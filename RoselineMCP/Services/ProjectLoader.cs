@@ -141,8 +141,11 @@ public class ProjectLoader : IProjectLoader
     /// </list>
     /// Throws <see cref="ArgumentException"/> when auto-discovery finds no or multiple candidates, and
     /// <see cref="FileNotFoundException"/> when an explicit reference cannot be resolved.
+    /// Internal (rather than private) so <see cref="CachingProjectLoader"/> can compute the same
+    /// resolved path as a cache key — keeping <c>null</c>/name/directory aliases of the same target
+    /// on a single cache entry.
     /// </summary>
-    private static string ResolveTargetPath(string? project, string baseDirectory)
+    internal static string ResolveTargetPath(string? project, string baseDirectory)
     {
         if (string.IsNullOrWhiteSpace(project))
         {

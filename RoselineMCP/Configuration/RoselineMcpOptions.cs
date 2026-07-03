@@ -24,4 +24,14 @@ public class RoselineMcpOptions
     /// network exporter is configured).
     /// </summary>
     public bool EnableDiagnosticLogging { get; set; }
+
+    /// <summary>
+    /// Whether the navigation/edit tools reuse the loaded <c>MSBuildWorkspace</c> across tool
+    /// calls (see <c>RoselineMCP.Services.CachingProjectLoader</c>). Enabled by default: cached
+    /// solutions are fingerprinted (last-write-time + length of the <c>.sln</c>, every
+    /// <c>.csproj</c>, and every document) and transparently reloaded whenever anything changed on
+    /// disk. Set to <see langword="false"/> to restore the previous behavior of loading a fresh
+    /// workspace on every call.
+    /// </summary>
+    public bool WorkspaceCache { get; set; } = true;
 }
