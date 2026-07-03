@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `deploy-docs.yml` retries the GitHub Pages deploy up to 3× — it intermittently returns
+  "Deployment failed, try again later" (a Pages backend hiccup, not a build failure) that clears on
+  re-run. The first two attempts tolerate failure, so a transient miss no longer fails the job.
+
 ### Documentation
 - **Tools page aligned to the v1.4.0 contract.** Added a response-envelope callout
   (`{ ok, data }` / `{ ok, error }`, `structuredContent`/`outputSchema`), surfaced each tool's
