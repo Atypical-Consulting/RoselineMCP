@@ -161,6 +161,25 @@ public class CodeEditServiceTests
     }
 
     [Fact]
+    public async Task RenameSymbol_Resolves_Symbol_In_Unreferenced_Sibling_Project()
+    {
+        // The anchor project (App) does not reference Lib — resolution must still find Lib's
+        // Widget because the whole solution is searched, not just the anchor.
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { } }")])
+        ]);
+        var service = CreateService(workspace, anchor);
+
+        var result = await service.RenameSymbolAsync("App", "Widget", "Gadget", previewOnly: true, cancellationToken: CancellationToken.None);
+
+        result.NewName.ShouldBe("Gadget");
+        result.Patch.ShouldContain("Gadget");
+        result.ChangedFiles.ShouldNotBeEmpty();
+    }
+
+    [Fact]
     public async Task RenameSymbol_Reports_Strictly_Increasing_Progress()
     {
         var service = CreateService("Demo", ("Calc.cs",
