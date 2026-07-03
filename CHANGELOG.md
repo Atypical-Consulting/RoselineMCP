@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository's own `appsettings.json` can no longer reconfigure the server, the settings packaged
   with the dotnet tool are actually found, and the needless reload-on-change file watchers are
   gone. Removed the dead `RoselineMCP:MaxDiagnostics` key from `appsettings.json`.
+- MSBuild registration now picks the newest installed SDK instead of whatever
+  `MSBuildLocator` enumerates first, and `CreateWorkspace` fails fast with an actionable error
+  when no MSBuild/.NET SDK instance could be registered (instead of surfacing a confusing
+  workspace load failure later).
 
 ## [2.0.0] - 2026-07-04
 
