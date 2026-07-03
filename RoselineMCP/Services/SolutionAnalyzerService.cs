@@ -130,24 +130,45 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         // reported value strictly increases across the whole operation, as MCP requires.
         var total = progressOffset + projectsToAnalyze.Count;
 
-        // Each project's result lands in its own slot, so per-project analysis stays independent
-        // and the merged output is deterministic regardless of analysis order.
+        // Projects are analyzed concurrently: GetCompilationAsync/GetDiagnostics are safe to run
+        // in parallel across independent Project instances. Each project's result lands in its
+        // own array slot (no shared mutable state across workers), so the merged output is
+        // deterministic regardless of completion order.
         var results = new ProjectAnalysisResult[projectsToAnalyze.Count];
+        var completed = 0;
+        var progressLock = new object();
 
-        for (var i = 0; i < projectsToAnalyze.Count; i++)
+        var parallelOptions = new ParallelOptions
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            MaxDegreeOfParallelism = Environment.ProcessorCount,
+            CancellationToken = cancellationToken
+        };
 
-            var project = projectsToAnalyze[i];
-            results[i] = await AnalyzeProjectAsync(project, context, cancellationToken);
-
-            progress?.Report(new ProgressNotificationValue
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, projectsToAnalyze.Count),
+            parallelOptions,
+            async (index, ct) =>
             {
-                Progress = progressOffset + i + 1,
-                Total = total,
-                Message = $"Analyzed {project.Name} ({i + 1}/{projectsToAnalyze.Count})"
+                var project = projectsToAnalyze[index];
+                results[index] = await AnalyzeProjectAsync(project, context, ct);
+
+                if (progress != null)
+                {
+                    // MCP requires strictly increasing progress values, so the counter increment
+                    // and the report happen under one lock; which project finishes at each step
+                    // is nondeterministic, but the reported value always advances by exactly 1.
+                    lock (progressLock)
+                    {
+                        completed++;
+                        progress.Report(new ProgressNotificationValue
+                        {
+                            Progress = progressOffset + completed,
+                            Total = total,
+                            Message = $"Analyzed {project.Name} ({completed}/{projectsToAnalyze.Count})"
+                        });
+                    }
+                }
             });
-        }
 
         return MergeProjectResults(results, context.MaxDiagnostics);
     }

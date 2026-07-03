@@ -233,6 +233,56 @@ public class SolutionAnalyzerServiceTests
             diagnostics[3].Severity.ShouldBe("warning");
             diagnostics[3].Project.ShouldBe("AAA_Warnings");
         }
+
+        [Fact]
+        public async Task Parallel_Analysis_Should_Produce_Same_Totals_As_Sequential()
+        {
+            // Arrange — enough projects to actually exercise concurrent analysis.
+            using var workspace = new AdhocWorkspace();
+            var solution = workspace.CurrentSolution;
+            for (var i = 1; i <= 6; i++)
+            {
+                solution = AddProject(solution, $"Project{i}", WarningCode($"W{i}", 4));
+            }
+
+            // Act — uncapped, then capped; totals must be deterministic either way.
+            var (uncapped, uncappedSummary) = await RunAnalyzeProjectsAsync(solution, maxDiagnostics: 100);
+            var (capped, cappedSummary) = await RunAnalyzeProjectsAsync(solution, maxDiagnostics: 7);
+
+            // Assert — 6 projects × 4 warnings, regardless of completion order.
+            uncappedSummary.Warning.ShouldBe(24);
+            uncappedSummary.Error.ShouldBe(0);
+            uncapped.Count.ShouldBe(24);
+            cappedSummary.Warning.ShouldBe(24);
+            capped.Count.ShouldBe(7);
+        }
+
+        [Fact]
+        public async Task Progress_Should_Be_Strictly_Increasing_Across_Parallel_Analysis()
+        {
+            // Arrange
+            using var workspace = new AdhocWorkspace();
+            var solution = workspace.CurrentSolution;
+            for (var i = 1; i <= 6; i++)
+            {
+                solution = AddProject(solution, $"Project{i}", WarningCode($"W{i}", 1));
+            }
+
+            // Capture progress reports synchronously (unlike Progress<T>, which posts async).
+            var reports = new List<ProgressNotificationValue>();
+            var progress = A.Fake<IProgress<ProgressNotificationValue>>();
+            A.CallTo(() => progress.Report(A<ProgressNotificationValue>._))
+                .Invokes((ProgressNotificationValue v) => reports.Add(v));
+
+            // Act
+            await RunAnalyzeProjectsAsync(solution, maxDiagnostics: 100, progress);
+
+            // Assert — one report per project; values strictly increase as MCP requires, even
+            // though completion order across projects is nondeterministic.
+            reports.Count.ShouldBe(6);
+            reports.Select(r => r.Progress).ShouldBe(new[] { 1f, 2f, 3f, 4f, 5f, 6f });
+            reports.ShouldAllBe(r => r.Total == 6);
+        }
     }
 
     // Testing helper methods through the filter service

@@ -913,7 +913,7 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 `RoselineMCP:DefaultTimeout` above and `docs/ARCHITECTURE.md`). Rough complexity per call:
 
 - **AnalyzeSolution**: proportional to the number of projects times diagnostics per project;
-  projects within a solution are analyzed sequentially, not concurrently
+  projects within a solution are analyzed concurrently, bounded by the processor count
 - **ListDiagnostics**: proportional to diagnostics in the target project
 - **ApplyFixes**: proportional to files touched times diagnostics fixed per file; each diagnostic
   ID is fixed occurrence-by-occurrence, re-analyzing the solution after every applied fix
