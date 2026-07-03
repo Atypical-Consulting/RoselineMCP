@@ -1,0 +1,211 @@
+using System.Reflection;
+using FakeItEasy;
+using Microsoft.Extensions.Logging;
+using RoselineMCP.Services;
+using Shouldly;
+
+namespace RoselineMCP.Tests.Services;
+
+/// <summary>
+/// Tests for <see cref="ProjectLoader"/>'s reference-resolution and auto-discovery behavior.
+///
+/// The pure resolution logic (<c>ResolveTargetPath</c>) is exercised directly against an isolated,
+/// hermetic temp directory tree — no MSBuild, no <c>Directory.SetCurrentDirectory</c> — so the
+/// auto-discovery/ambiguity cases are deterministic and parallel-safe. A single MSBuild integration
+/// test then proves that a real <c>.sln</c> path is accepted end-to-end and yields a usable project.
+/// </summary>
+public class ProjectLoaderTests : IDisposable
+{
+    private readonly string _root;
+    private readonly string _baseDir;
+
+    public ProjectLoaderTests()
+    {
+        // Nest the base directory a few levels deep under a fresh root so the parent-directory portion
+        // of auto-discovery stays inside this test's own (empty) tree and can never pick up a stray
+        // .sln/.csproj from the machine.
+        _root = Path.Combine(Path.GetTempPath(), $"RoselineProjectLoader_{Guid.NewGuid():N}");
+        _baseDir = Path.Combine(_root, "a", "b", "work");
+        Directory.CreateDirectory(_baseDir);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_root, true); } catch { /* ignored */ }
+    }
+
+    /// <summary>Invokes the private static <c>ResolveTargetPath</c>, unwrapping reflection's exception wrapper.</summary>
+    private static string ResolveTargetPath(string? project, string baseDirectory)
+    {
+        var method = typeof(ProjectLoader).GetMethod(
+            "ResolveTargetPath", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        try
+        {
+            return (string)method.Invoke(null, [project, baseDirectory])!;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        {
+            throw ex.InnerException;
+        }
+    }
+
+    private string Touch(string relativePath)
+    {
+        var fullPath = Path.Combine(_baseDir, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllText(fullPath, string.Empty);
+        return fullPath;
+    }
+
+    [Fact]
+    public void AutoDiscover_Finds_Single_Csproj_When_No_Project_Given()
+    {
+        var csproj = Touch("Lib.csproj");
+
+        var resolved = ResolveTargetPath(null, _baseDir);
+
+        resolved.ShouldBe(Path.GetFullPath(csproj));
+    }
+
+    [Fact]
+    public void AutoDiscover_Prefers_Sln_Over_Csproj()
+    {
+        Touch("App.csproj");
+        var sln = Touch("App.sln");
+
+        var resolved = ResolveTargetPath(null, _baseDir);
+
+        resolved.ShouldBe(Path.GetFullPath(sln));
+    }
+
+    [Fact]
+    public void AutoDiscover_Searches_Immediate_Subdirectories()
+    {
+        var csproj = Touch(Path.Combine("src", "Nested.csproj"));
+
+        var resolved = ResolveTargetPath(null, _baseDir);
+
+        resolved.ShouldBe(Path.GetFullPath(csproj));
+    }
+
+    [Fact]
+    public void AutoDiscover_Throws_Actionable_Error_When_Multiple_Solutions_Found()
+    {
+        Touch("One.sln");
+        Touch("Two.sln");
+
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+
+        ex.Message.ShouldContain("multiple");
+        ex.Message.ShouldContain("One.sln");
+        ex.Message.ShouldContain("Two.sln");
+        ex.Message.ShouldContain("explicit 'project'");
+    }
+
+    [Fact]
+    public void AutoDiscover_Throws_Actionable_Error_When_Nothing_Found()
+    {
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+
+        ex.Message.ShouldContain("auto-discover");
+        ex.Message.ShouldContain("explicit 'project'");
+    }
+
+    [Fact]
+    public void ResolveTargetPath_Accepts_An_Explicit_Sln_Path()
+    {
+        var sln = Touch("Explicit.sln");
+
+        // A .sln path that previously failed resolution is now returned as the solution to open.
+        var resolved = ResolveTargetPath(sln, _baseDir);
+
+        resolved.ShouldBe(Path.GetFullPath(sln));
+    }
+
+    [Fact]
+    public void ResolveTargetPath_Accepts_An_Explicit_Csproj_Path()
+    {
+        var csproj = Touch("Lib.csproj");
+
+        var resolved = ResolveTargetPath(csproj, _baseDir);
+
+        resolved.ShouldBe(csproj);
+    }
+
+    /// <summary>
+    /// End-to-end: a real <c>.sln</c> file (referencing a real SDK-style project) is loaded via a real
+    /// <see cref="MSBuildService"/> and yields a usable primary project whose solution contains the
+    /// referenced project — the core of fix (A), that passing a solution path no longer fails.
+    /// </summary>
+    [Fact]
+#pragma warning disable xUnit1051 // TestContext.Current not needed here
+    public async Task LoadAsync_Accepts_A_Sln_Path_And_Returns_A_Usable_Project()
+    {
+        var slnPath = CreateRealSolution();
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(slnPath);
+
+        loaded.Project.ShouldNotBeNull();
+        loaded.Project.Name.ShouldBe("App");
+        loaded.Solution.Projects.ShouldContain(p => p.Name == "App");
+
+        // The loaded project is genuinely usable: it compiles and exposes the declared type.
+        var compilation = await loaded.Project.GetCompilationAsync();
+        compilation.ShouldNotBeNull();
+        compilation!.GetTypeByMetadataName("App.Widget").ShouldNotBeNull();
+    }
+#pragma warning restore xUnit1051
+
+    private const string MinimalCsprojXml =
+        """
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <TargetFramework>net10.0</TargetFramework>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <Nullable>enable</Nullable>
+          </PropertyGroup>
+        </Project>
+        """;
+
+    /// <summary>
+    /// Writes a minimal SDK-style project (no PackageReferences, so MSBuildWorkspace can design-time
+    /// build it offline) plus a hand-written <c>.sln</c> that references it, and returns the .sln path.
+    /// </summary>
+    private string CreateRealSolution()
+    {
+        var projectDir = Path.Combine(_baseDir, "App");
+        Directory.CreateDirectory(projectDir);
+        File.WriteAllText(Path.Combine(projectDir, "App.csproj"), MinimalCsprojXml);
+        File.WriteAllText(Path.Combine(projectDir, "Widget.cs"), "namespace App { public class Widget { } }");
+
+        var slnPath = Path.Combine(_baseDir, "App.sln");
+        File.WriteAllText(slnPath,
+            """
+            Microsoft Visual Studio Solution File, Format Version 12.00
+            # Visual Studio Version 17
+            VisualStudioVersion = 17.0.31903.59
+            MinimumVisualStudioVersion = 10.0.40219.1
+            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
+            EndProject
+            Global
+            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+            		Debug|Any CPU = Debug|Any CPU
+            		Release|Any CPU = Release|Any CPU
+            	EndGlobalSection
+            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU
+            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.ActiveCfg = Release|Any CPU
+            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.Build.0 = Release|Any CPU
+            	EndGlobalSection
+            EndGlobal
+            """);
+
+        return slnPath;
+    }
+}
