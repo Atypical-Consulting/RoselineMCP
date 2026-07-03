@@ -7,3 +7,6 @@ TestResults/
 _site/
 /api/
 BenchmarkDotNet.Artifacts/
+
+# MCPB bundle build artifact (built in CI, attached to releases)
+*.mcpb

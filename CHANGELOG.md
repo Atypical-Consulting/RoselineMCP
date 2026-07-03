@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **One-click install for Claude Desktop (MCPB bundle).** A `mcpb/manifest.json` (MCPB spec 0.3)
+  describes RoselineMCP as a `dnx`-launched server; the release now builds and attaches a
+  `RoselineMCP.mcpb` to each GitHub Release, so users can install with a dialog instead of editing
+  JSON config. The bundle only wraps the `dnx RoselineMCP` launch (the .NET 10 SDK is still
+  required, since analysis loads projects through MSBuild), so it stays tiny and platform-agnostic.
 - **Automated MCP Registry publishing.** `publish-nuget.yml` now has a `publish-registry` job that,
   after a successful NuGet publish, waits for the version to index, then authenticates via GitHub
   OIDC (`mcp-publisher login github-oidc`, no secret) and publishes `.mcp/server.json` to the

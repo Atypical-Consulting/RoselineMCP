@@ -19,6 +19,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
@@ -78,9 +82,19 @@ jobs:
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
+      # Build the MCPB bundle (one-click install for Claude Desktop and other MCPB-aware clients).
+      # It just wraps the `dnx RoselineMCP` launch, so the bundle is the stamped manifest only.
+      # `mcpb pack` validates the manifest as it builds - a bad manifest fails the release here.
+      - name: Build MCPB bundle
+        run: |
+          want="${{ steps.version.outputs.VERSION }}"
+          jq --arg v "$want" '.version = $v' mcpb/manifest.json > mcpb/manifest.tmp
+          mv mcpb/manifest.tmp mcpb/manifest.json
+          npx -y @anthropic-ai/mcpb pack mcpb RoselineMCP.mcpb
+
       # A git tag is not a GitHub Release - one must be created explicitly. Do it here, after a
-      # successful NuGet push, so every published version has a matching Release with notes and the
-      # .nupkg attached. Idempotent so a re-run of the workflow on the same tag heals rather than errors.
+      # successful NuGet push, so every published version has a matching Release with notes, the
+      # .nupkg, and the .mcpb attached. Idempotent so a re-run on the same tag heals rather than errors.
       - name: Extract release notes from CHANGELOG
         run: |
           want="${{ steps.version.outputs.VERSION }}"
@@ -105,13 +119,13 @@ jobs:
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             echo "Release $GITHUB_REF_NAME already exists - updating notes and assets."
             gh release edit "$GITHUB_REF_NAME" --title "v$want" --notes-file release-notes.md
-            gh release upload "$GITHUB_REF_NAME" ./nupkg/*.nupkg --clobber
+            gh release upload "$GITHUB_REF_NAME" ./nupkg/*.nupkg RoselineMCP.mcpb --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
               --title "v$want" \
               --notes-file release-notes.md \
               --verify-tag \
-              ./nupkg/*.nupkg
+              ./nupkg/*.nupkg RoselineMCP.mcpb
           fi
 
   # Publish the manifest to the official MCP Registry (registry.modelcontextprotocol.io) so the

@@ -121,6 +121,12 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 
 ### Installation
 
+> **Claude Desktop, one click:** download **`RoselineMCP.mcpb`** from the
+> [latest release](https://github.com/Atypical-Consulting/RoselineMCP/releases/latest) and open it —
+> Claude Desktop shows an install dialog, no config editing. (It launches via `dnx` under the hood,
+> so the .NET 10 SDK is still required.) Prefer to edit config yourself, or using another client?
+> Use one of the options below.
+
 **Option 1 -- `dnx` (no install step)** *(recommended)*
 
 RoselineMCP ships an [MCP server registry manifest](.mcp/server.json), so any MCP client that
