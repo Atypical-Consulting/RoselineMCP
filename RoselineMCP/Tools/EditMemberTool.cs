@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -28,9 +28,9 @@ public static class EditMemberTool
     /// <see cref="McpServerToolAttribute.Destructive"/> hint is a static worst-case annotation: the
     /// tool *can* write a file when preview mode is turned off.
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false)]
+    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, UseStructuredContent = true)]
     [Description("Surgically replace, add, or delete a single C# member (method/property/field/etc.) and return a unified diff — instead of rewriting the whole file. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the change to disk.")]
-    public static async Task<string> EditMember(
+    public static async Task<ToolResult<EditMemberResponse>> EditMember(
         ICodeEditService editService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -51,7 +51,7 @@ public static class EditMemberTool
         if (string.IsNullOrWhiteSpace(operation) || !ValidOperations.Contains(operation))
         {
             invocation.MarkFailure("validation: invalid operation");
-            return ToolExecutionHelper.SerializeValidationError(
+            return ToolExecutionHelper.ValidationError<EditMemberResponse>(
                 $"Invalid or missing operation '{operation}'.",
                 invocation.CorrelationId,
                 "Valid operations are: replace, add, delete.");
@@ -64,19 +64,18 @@ public static class EditMemberTool
             var result = await editService.EditMemberAsync(
                 project, symbol, operation, newSource, previewOnly, timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<EditMemberResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<EditMemberResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<EditMemberResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

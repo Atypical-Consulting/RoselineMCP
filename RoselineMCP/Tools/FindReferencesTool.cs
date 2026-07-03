@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -17,9 +17,9 @@ public static class FindReferencesTool
     /// <summary>
     /// Finds all references to a symbol across the solution.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]
+    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, UseStructuredContent = true)]
     [Description("Find every reference (use site) of a C# symbol across the solution, each as a file/line/column plus a one-line snippet — instead of reading the referencing files. Read-only: never modifies any files on disk.")]
-    public static async Task<string> FindReferences(
+    public static async Task<ToolResult<ReferencesResponse>> FindReferences(
         ICodeNavigationService navigationService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -41,19 +41,18 @@ public static class FindReferencesTool
             var result = await navigationService.FindReferencesAsync(
                 project, symbol, includeDefinition, max, timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<ReferencesResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ReferencesResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<ReferencesResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -27,9 +27,9 @@ public static class ApplyFixesTool
     /// the default call is non-destructive. The current MCP SDK annotation model has no way to
     /// express "destructive only for a specific parameter value".
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false)]
+    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, UseStructuredContent = true)]
     [Description("Apply code fixes for specified diagnostic IDs in a project. Defaults to preview mode: with previewOnly left unset (or true), no files are changed and only a diff is returned. Pass previewOnly=false explicitly to write the fixes to disk.")]
-    public static async Task<string> ApplyFixes(
+    public static async Task<ToolResult<ApplyFixesResponse>> ApplyFixes(
         ICodeFixService codeFixService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -46,7 +46,7 @@ public static class ApplyFixesTool
         if (ids == null || ids.Length == 0)
         {
             invocation.MarkFailure("validation: no diagnostic IDs provided");
-            return ToolExecutionHelper.SerializeValidationError(
+            return ToolExecutionHelper.ValidationError<ApplyFixesResponse>(
                 "No diagnostic IDs provided.",
                 invocation.CorrelationId,
                 "Call ListDiagnostics first to discover fixable diagnostic IDs for this project, then pass one or more of them, e.g. ids: [\"RCS1213\"].");
@@ -62,23 +62,18 @@ public static class ApplyFixesTool
                 previewOnly,
                 timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<ApplyFixesResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ApplyFixesResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<ApplyFixesResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

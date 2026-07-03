@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -17,9 +17,9 @@ public static class GetCallGraphTool
     /// <summary>
     /// Builds a caller and/or callee graph for a method with cycle detection.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]
+    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, UseStructuredContent = true)]
     [Description("Build a depth-bounded caller and/or callee graph for a C# method (with cycle detection) to trace control flow without reading method bodies. Read-only: never modifies any files on disk.")]
-    public static async Task<string> GetCallGraph(
+    public static async Task<ToolResult<CallGraphResponse>> GetCallGraph(
         ICodeNavigationService navigationService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -43,19 +43,18 @@ public static class GetCallGraphTool
             var result = await navigationService.GetCallGraphAsync(
                 project, method, direction, depth, max, timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<CallGraphResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<CallGraphResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<CallGraphResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

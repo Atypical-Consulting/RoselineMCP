@@ -204,8 +204,10 @@ public class ToolInvocationTests : McpProtocolTestBase
 
     /// <summary>
     /// Asserts the shape every successful tool response must have: not flagged as an error, and
-    /// exactly one text content block whose text is well-formed JSON. Returns the parsed payload
-    /// so callers can assert on individual fields.
+    /// exactly one text content block whose text is the well-formed <c>ToolResult&lt;T&gt;</c>
+    /// envelope (<c>ok: true</c> with a <c>data</c> payload). Returns the unwrapped <c>data</c>
+    /// element so callers can assert on individual fields, and confirms the SDK also emitted a
+    /// matching <c>structuredContent</c> block (the point of <c>UseStructuredContent</c>).
     /// </summary>
     private static JsonElement AssertWellFormedSuccess(CallToolResult result)
     {
@@ -214,7 +216,12 @@ public class ToolInvocationTests : McpProtocolTestBase
         var text = block.ShouldBeOfType<TextContentBlock>();
         text.Text.ShouldNotBeNullOrWhiteSpace();
 
-        return JsonDocument.Parse(text.Text).RootElement.Clone();
+        // The SDK emits structured content alongside the text block when UseStructuredContent is set.
+        result.StructuredContent.ShouldNotBeNull();
+
+        var root = JsonDocument.Parse(text.Text).RootElement;
+        root.GetProperty("ok").GetBoolean().ShouldBeTrue();
+        return root.GetProperty("data").Clone();
     }
 
     /// <summary>

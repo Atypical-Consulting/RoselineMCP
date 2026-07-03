@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -23,9 +23,9 @@ public static class RenameSymbolTool
     /// <see cref="McpServerToolAttribute.Destructive"/> hint is a static worst-case annotation: the
     /// tool *can* write files when preview mode is turned off.
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false)]
+    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, UseStructuredContent = true)]
     [Description("Rename a C# symbol and update every reference across the solution using Roslyn, returning a unified diff. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the changes to disk.")]
-    public static async Task<string> RenameSymbol(
+    public static async Task<ToolResult<RenameSymbolResponse>> RenameSymbol(
         ICodeEditService editService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -44,7 +44,7 @@ public static class RenameSymbolTool
         if (string.IsNullOrWhiteSpace(newName))
         {
             invocation.MarkFailure("validation: missing newName");
-            return ToolExecutionHelper.SerializeValidationError(
+            return ToolExecutionHelper.ValidationError<RenameSymbolResponse>(
                 "No new name provided.",
                 invocation.CorrelationId,
                 "Pass a valid C# identifier as newName, e.g. newName: \"GetUserById\".");
@@ -57,19 +57,18 @@ public static class RenameSymbolTool
             var result = await editService.RenameSymbolAsync(
                 project, symbol, newName, previewOnly, timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<RenameSymbolResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<RenameSymbolResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<RenameSymbolResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

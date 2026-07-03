@@ -1,4 +1,3 @@
-using System.Text.Json;
 using FakeItEasy;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
@@ -9,10 +8,10 @@ namespace RoselineMCP.Tests.Tools;
 
 /// <summary>
 /// Verifies the cross-cutting error contract shared by every MCP tool: raw CLR exception type
-/// names must never be surfaced as the "type" field, only the documented closed set of stable,
-/// machine-readable values (see ToolExecutionHelper.ToolErrorTypes). Also verifies that
-/// InternalError-class responses never leak raw exception text, and that validation failures
-/// include a corrective "hint".
+/// names must never be surfaced as the <see cref="ToolError.Type"/> field, only the documented
+/// closed set of stable, machine-readable values (see ToolExecutionHelper.ToolErrorTypes). Also
+/// verifies that InternalError-class responses never leak raw exception text, and that validation
+/// failures include a corrective <see cref="ToolError.Hint"/>.
 /// </summary>
 public class ToolErrorContractTests
 {
@@ -108,10 +107,10 @@ public class ToolErrorContractTests
 
         var result = await AnalyzeSolutionTool.AnalyzeSolution(analyzerService, "test.sln");
 
-        result.ShouldNotContain(sensitiveDetail);
-        result.ShouldNotContain("NullReferenceException");
-        var doc = JsonDocument.Parse(result);
-        doc.RootElement.GetProperty("type").GetString().ShouldBe("InternalError");
+        result.Error.ShouldNotBeNull();
+        result.Error.Message.ShouldNotContain(sensitiveDetail);
+        result.Error.Message.ShouldNotContain("NullReferenceException");
+        result.Error.Type.ShouldBe("InternalError");
     }
 
     [Fact]
@@ -121,10 +120,9 @@ public class ToolErrorContractTests
 
         var result = await ApplyFixesTool.ApplyFixes(codeFixService, "TestProject", []);
 
-        var doc = JsonDocument.Parse(result);
-        doc.RootElement.GetProperty("type").GetString().ShouldBe("ValidationError");
-        doc.RootElement.TryGetProperty("hint", out var hint).ShouldBeTrue();
-        hint.GetString().ShouldNotBeNullOrWhiteSpace();
+        result.Error.ShouldNotBeNull();
+        result.Error.Type.ShouldBe("ValidationError");
+        result.Error.Hint.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -134,10 +132,10 @@ public class ToolErrorContractTests
 
         var result = await AnalyzeSolutionTool.AnalyzeSolution(analyzerService, "test.sln", severity: "critical");
 
-        var doc = JsonDocument.Parse(result);
-        doc.RootElement.GetProperty("type").GetString().ShouldBe("ValidationError");
-        doc.RootElement.TryGetProperty("hint", out var hint).ShouldBeTrue();
-        hint.GetString().ShouldContain("Warning");
+        result.Error.ShouldNotBeNull();
+        result.Error.Type.ShouldBe("ValidationError");
+        result.Error.Hint.ShouldNotBeNull();
+        result.Error.Hint.ShouldContain("Warning");
 
         // The service must never be called with a value the tool already rejected.
         A.CallTo(() => analyzerService.AnalyzeSolutionAsync(
@@ -160,16 +158,15 @@ public class ToolErrorContractTests
 
         var result = await AnalyzeSolutionTool.AnalyzeSolution(analyzerService, "test.sln", severity: severity);
 
-        var doc = JsonDocument.Parse(result);
-        doc.RootElement.TryGetProperty("type", out _).ShouldBeFalse();
+        result.Ok.ShouldBeTrue();
+        result.Error.ShouldBeNull();
     }
 
-    private static void AssertDocumentedType(string result, string expectedType)
+    private static void AssertDocumentedType<T>(ToolResult<T> result, string expectedType)
     {
-        result.ShouldNotBeNullOrEmpty();
-        var doc = JsonDocument.Parse(result);
-        var type = doc.RootElement.GetProperty("type").GetString();
-        type.ShouldBe(expectedType);
-        DocumentedErrorTypes.ShouldContain(type!);
+        result.Ok.ShouldBeFalse();
+        result.Error.ShouldNotBeNull();
+        result.Error.Type.ShouldBe(expectedType);
+        DocumentedErrorTypes.ShouldContain(result.Error.Type);
     }
 }
