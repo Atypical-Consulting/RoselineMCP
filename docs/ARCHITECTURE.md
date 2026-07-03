@@ -266,12 +266,18 @@ For safety, operations use temporary workspaces:
 
 ### Error Response Format
 
+Every tool returns the typed `ToolResult<T>` envelope (`{ ok, data, error }`); a failure is the
+`ok: false` branch, with details nested under `error`:
+
 ```json
 {
-  "error": "Human-readable message (fixed, generic text for InternalError — never a raw exception message/stack trace)",
-  "type": "ValidationError | NotFoundError | AnalysisError | CancelledError | TimeoutError | InternalError",
-  "hint": "Optional, present on some ValidationError responses",
-  "correlationId": "Always present — per-invocation GUID (see ToolInvocation.CorrelationId) that correlates a client-reported failure with the server-side log entry for that call"
+  "ok": false,
+  "error": {
+    "type": "ValidationError | NotFoundError | AnalysisError | CancelledError | TimeoutError | InternalError",
+    "message": "Human-readable message (fixed, generic text for InternalError — never a raw exception message/stack trace)",
+    "hint": "Optional, present on some ValidationError responses",
+    "correlationId": "Always present — per-invocation GUID (see ToolInvocation.CorrelationId) that correlates a client-reported failure with the server-side log entry for that call"
+  }
 }
 ```
 

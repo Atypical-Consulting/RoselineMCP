@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **MCP structured content + output schema** — every tool now advertises an `outputSchema` and
+  emits `structuredContent` (`UseStructuredContent = true`), so clients get a machine-readable,
+  schema-validated result in addition to the JSON text.
+- **Progress notifications** for long-running tools — `AnalyzeSolution`, `ApplyFixes`, and
+  `RenameSymbol` now report progress via MCP progress notifications.
+- **Human-readable tool titles and an honest `OpenWorld` hint** — every tool advertises a `Title`;
+  `OpenWorld` is `false` for the local-only tools and `true` only for `AnalyzeSolution` (which can
+  clone a Git URL).
+- **Write confirmation via MCP elicitation** — the write tools (`ApplyFixes`, `EditMember`,
+  `RenameSymbol`) ask the client to confirm before writing when `previewOnly: false`; declining
+  downgrades the call to a preview (nothing is written).
+- **Failure logging via MCP logging notifications** — tool failures are surfaced to the client's
+  log stream through MCP logging notifications that carry the correlation ID.
+
+### Changed
+- **BREAKING: tools now return a typed `ToolResult<T>` envelope** instead of a hand-serialized JSON
+  string. The response wire shape changed: success payloads are now nested under `data`
+  (`{ "ok": true, "data": { ... } }`) and failures under `error`
+  (`{ "ok": false, "error": { "type", "message", "hint?", "correlationId" } }`). The human-readable
+  message moved from the top-level `error` field to `error.message`; `type`/`hint`/`correlationId`
+  moved under `error`. See [`docs/API.md`](docs/API.md#response-envelope).
+
 ## [1.3.3] - 2026-07-03
 
 ### Fixed

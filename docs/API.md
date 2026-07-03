@@ -26,6 +26,27 @@ Complete API reference for RoselineMCP tools and services.
 
 All tools are exposed via the Model Context Protocol and return JSON responses.
 
+### Response Envelope
+
+**Every** tool returns the same typed envelope, `ToolResult<T>`, with the shape `{ ok, data, error }`:
+
+- **Success** — `ok` is `true`, the tool's payload is nested under `data`, and `error` is absent:
+
+  ```json
+  { "ok": true, "data": { /* ...the tool's payload... */ } }
+  ```
+
+- **Failure** — `ok` is `false`, `data` is absent, and the details live under `error`
+  (see [Error Handling](#error-handling)):
+
+  ```json
+  { "ok": false, "error": { "type": "...", "message": "...", "correlationId": "..." } }
+  ```
+
+Each tool's **Response** schema shown below describes the shape of the `data` object (the success
+payload), not the envelope. The tools set `UseStructuredContent = true`, so the same object is also
+delivered as MCP `structuredContent` alongside an advertised `outputSchema`.
+
 ### AnalyzeSolution
 
 Analyzes an entire C# solution for diagnostics with filtering options. **Read-only** — never
@@ -794,18 +815,24 @@ every failure is classified first.
 
 ### Error Response Format
 
+A failure is reported as the envelope's `ok: false` branch, with everything nested under `error`:
+
 ```typescript
 {
-  error: string;   // Human-readable message. For InternalError, this is always the fixed string
-                    // "An unexpected internal error occurred. Check the server logs for details."
-                    // — the real exception message/stack trace is logged server-side only, never returned.
-  type: string;     // One of: "ValidationError" | "NotFoundError" | "AnalysisError" |
-                     // "CancelledError" | "TimeoutError" | "InternalError"
-  hint?: string;    // Present on some ValidationError responses: suggests the concrete fix
-                     // (e.g. the accepted enum values, or which tool to call first)
-  correlationId: string;  // Per-invocation GUID, always present. Lets a user reporting a failure
-                           // hand you one ID that ties back to the full server-side log entry for
-                           // that call (see "Tracing Individual Tool Calls" in the README).
+  ok: false;         // Always false on failure. Note: this is in-band — the MCP-protocol isError
+                     // flag stays false, since the tool never throws to the protocol layer.
+  error: {
+    type: string;     // One of: "ValidationError" | "NotFoundError" | "AnalysisError" |
+                       // "CancelledError" | "TimeoutError" | "InternalError"
+    message: string;  // Human-readable message. For InternalError, this is always the fixed string
+                       // "An unexpected internal error occurred. Check the server logs for details."
+                       // — the real exception message/stack trace is logged server-side only, never returned.
+    hint?: string;    // Present on some ValidationError responses: suggests the concrete fix
+                       // (e.g. the accepted enum values, or which tool to call first)
+    correlationId: string;  // Per-invocation GUID, always present. Lets a user reporting a failure
+                             // hand you one ID that ties back to the full server-side log entry for
+                             // that call (see "Tracing Individual Tool Calls" in the README).
+  };
 }
 ```
 
@@ -824,26 +851,35 @@ every failure is classified first.
 
 ```json
 {
-  "error": "Solution file not found: /path/to/missing.sln",
-  "type": "NotFoundError",
-  "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21"
+  "ok": false,
+  "error": {
+    "type": "NotFoundError",
+    "message": "Solution file not found: /path/to/missing.sln",
+    "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21"
+  }
 }
 ```
 
 ```json
 {
-  "error": "No diagnostic IDs provided.",
-  "type": "ValidationError",
-  "hint": "Call ListDiagnostics first to discover fixable diagnostic IDs for this project, then pass one or more of them, e.g. ids: [\"RCS1213\"].",
-  "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21"
+  "ok": false,
+  "error": {
+    "type": "ValidationError",
+    "message": "No diagnostic IDs provided.",
+    "hint": "Call ListDiagnostics first to discover fixable diagnostic IDs for this project, then pass one or more of them, e.g. ids: [\"RCS1213\"].",
+    "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21"
+  }
 }
 ```
 
 ```json
 {
-  "error": "Operation timed out after 120000ms",
-  "type": "TimeoutError",
-  "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21"
+  "ok": false,
+  "error": {
+    "type": "TimeoutError",
+    "message": "Operation timed out after 120000ms",
+    "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21"
+  }
 }
 ```
 

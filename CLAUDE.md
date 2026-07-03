@@ -28,7 +28,11 @@ The application uses a dependency injection-based service architecture with clea
 
 - **Workspace Isolation**: Each operation creates a new MSBuildWorkspace to prevent state pollution
 - **Service Injection**: Tools receive services as first parameters via DI container
-- **Error Resilience**: All tools return JSON with error details on failure, never throwing to MCP layer
+- **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
+  payload nested under `data` on success, error details under `error` on failure — and sets
+  `UseStructuredContent = true` so the SDK also advertises an `outputSchema` and emits structured content
+- **Error Resilience**: All tools return the failure envelope (`ok: false`) with error details, never
+  throwing to the MCP layer
 - **Streaming Prevention**: Stderr logging ensures clean stdio communication for MCP protocol
 
 ## Common Commands
@@ -124,28 +128,36 @@ Surgical edits (backed by `ICodeEditService` / `CodeEditService`, reusing `IDiff
 ## Adding New MCP Tools
 
 When implementing new tools:
-1. Add method to appropriate tool class in `Tools/` with `[McpServerTool]` attribute
+1. Add method to appropriate tool class in `Tools/` with `[McpServerTool(UseStructuredContent = true)]`
 2. Use `[Description("...")]` on method and all parameters for documentation
 3. Accept required services as first parameters (injected automatically)
-4. Return JSON-serialized results or error responses
-5. Handle exceptions and return structured error JSON
+4. Return a `ToolResult<T>` envelope — the payload on success, a classified failure envelope on error
+5. Handle exceptions and return the failure envelope (never throw to the MCP layer)
 
 Example:
 ```csharp
-[McpServerTool]
+[McpServerTool(UseStructuredContent = true)]
 [Description("Tool description")]
-public static async Task<string> NewTool(
+public static async Task<ToolResult<Result>> NewTool(
     IRequiredService service,
-    [Description("Parameter description")] string param)
+    [Description("Parameter description")] string param,
+    ILoggerFactory? loggerFactory = null,
+    McpServer? server = null,
+    CancellationToken cancellationToken = default)
 {
+    using var invocation = ToolExecutionHelper.BeginInvocation(nameof(NewTool), loggerFactory, server);
     try
     {
-        var result = await service.ProcessAsync(param);
-        return JsonSerializer.Serialize(result);
+        var result = await service.ProcessAsync(param, cancellationToken);
+        invocation.MarkSuccess();
+        return ToolResult<Result>.Success(result);
     }
     catch (Exception ex)
     {
-        return JsonSerializer.Serialize(new { error = ex.Message, type = ex.GetType().Name });
+        invocation.MarkFailure(ex.Message);
+        // ToolExecutionHelper.Error<T> classifies the exception into the closed error-type set and
+        // returns { ok: false, error: { type, message, correlationId } } — never rethrowing.
+        return ToolExecutionHelper.Error<Result>(ex, invocation.CorrelationId, invocation.Logger);
     }
 }
 ```
