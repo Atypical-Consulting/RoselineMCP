@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-07-03
+
 ### Documentation
 - **Docs site: a Releases page generated from GitHub Releases at build time** (notes rendered from
   each release, plus direct `.mcpb`/`.nupkg` download buttons), a new *Claude Desktop (1-click)*
