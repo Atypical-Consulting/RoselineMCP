@@ -9,6 +9,10 @@ on:
     paths:
       - 'website/**'
       - '.github/workflows/deploy-docs.yml'
+  # Rebuild when a release is published/edited/removed so the /releases page (generated from the
+  # GitHub Releases API at build time) stays in sync without a manual website change.
+  release:
+    types: [published, edited, deleted]
   workflow_dispatch:
 
 permissions:
