@@ -66,8 +66,8 @@ dotnet build
 # Run all tests
 dotnet test
 
-# Run tests with coverage
-dotnet test --collect:"XPlat Code Coverage"
+# Run tests with coverage (coverlet.msbuild; writes RoselineMCP.Tests/TestResults/coverage.cobertura.xml)
+dotnet test -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=./TestResults/coverage.cobertura.xml
 
 # Run a specific test
 dotnet test --filter "FullyQualifiedName~SolutionAnalyzerServiceTests"

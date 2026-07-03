@@ -82,8 +82,8 @@ dotnet test
    # Run specific test
    dotnet test --filter "FullyQualifiedName~YourTestName"
    
-   # Check code coverage
-   dotnet test --collect:"XPlat Code Coverage"
+   # Check code coverage (report lands at RoselineMCP.Tests/TestResults/coverage.cobertura.xml)
+   dotnet test -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=./TestResults/coverage.cobertura.xml
    ```
 
 4. **Commit your changes**:
