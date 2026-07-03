@@ -28,7 +28,7 @@
          transitively, which is vulnerable to CVE-2026-26127 (GHSA-73j8-2gch-69rq, high severity:
          Base64Url out-of-bounds-read DoS; fixed in 9.0.14). Pin the patched version directly to
          override the transitive one. Remove once Microsoft.ML.Tokenizers references a fixed build. -->
-    <PackageReference Include="Microsoft.Bcl.Memory" Version="9.0.14" />
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="9.0.17" />
   </ItemGroup>
 
 </Project>
