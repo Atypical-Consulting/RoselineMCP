@@ -242,3 +242,46 @@ Logging levels adjust automatically:
   workspace state or MSBuild-loaded solution is shared or cached across calls.
 - Changes from `ApplyFixes` are always returned as a unified diff patch in the response, in
   addition to (optionally) being written to disk.
+
+## Releasing a New Version
+
+A release is cut by pushing a `vX.Y.Z` git tag; the `Publish NuGet` workflow
+(`.github/workflows/publish-nuget.yml`) does everything else. **Follow these steps exactly every
+time** so releases are identical across sessions. Do them in order; do not skip or reorder.
+
+1. **Land everything first.** All intended changes must be merged into `dev`, and `dev` must be
+   green (CI passing, no open blocking PRs).
+2. **Pick the version** by semver against the *shipped tool contract*:
+   - **patch** (`Z`) — bug fixes, dependency bumps, packaging/CI/docs only (no tool behavior change)
+   - **minor** (`Y`) — new tools or backward-compatible tool features
+   - **major** (`X`) — breaking changes to a tool's wire shape / parameters
+3. **Roll the CHANGELOG** (`CHANGELOG.md`): rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`
+   (today's date) and add a fresh empty `## [Unreleased]` above it.
+4. **Bump the checked-in version defaults to `X.Y.Z`** so they never drift (CI re-stamps them from
+   the tag at publish, but keep them consistent):
+   - `.mcp/server.json` → both `version` **and** `packages[0].version`
+   - `mcpb/manifest.json` → `version`
+5. **Commit** the prep as `chore(release): X.Y.Z — <summary>` and **push to `dev`**.
+6. **Tag and push**: `git tag -a vX.Y.Z -m "vX.Y.Z - <summary>" <commit>` then
+   `git push origin vX.Y.Z`. This is the only manual trigger.
+7. **The tag runs `publish-nuget.yml` automatically — never do these by hand:**
+   - `publish` job: build → test → pack → **verify the packed `.mcp/server.json`** (fails if the
+     manifest is missing or its version ≠ tag) → push to NuGet.org → build `RoselineMCP.mcpb` →
+     create the GitHub Release (attaches `.nupkg` + `.mcpb`, notes from the CHANGELOG section).
+   - `publish-registry` job: waits for NuGet to index the version → `mcp-publisher login
+     github-oidc` (no secret) → publishes `.mcp/server.json` to `registry.modelcontextprotocol.io`.
+   - `deploy-docs` then rebuilds the site via a `workflow_run` trigger, so the `/releases` page
+     picks up the new release.
+8. **Verify after the run**: NuGet has `X.Y.Z`, the GitHub Release exists with both assets, the MCP
+   Registry entry shows `X.Y.Z`, and the docs `/releases` page lists it.
+
+**Invariants (do not violate):**
+- The MCP server name and the README `<!-- mcp-name: … -->` marker are **case-sensitive** and must
+  match the GitHub org login exactly: `io.github.Atypical-Consulting/roseline-mcp`. A mismatch makes
+  the registry publish `403`.
+- `.mcp/server.json` must stay valid against the current published schema — check with
+  `mcp-publisher validate .mcp/server.json` before releasing if you touched it.
+- **Never** run `dotnet nuget push` or create the GitHub Release manually — the workflow owns them
+  (idempotent; re-pushing the same tag heals rather than duplicates).
+- The registry entry is immutable per version: to change published metadata (e.g. `websiteUrl`),
+  ship a new version.
