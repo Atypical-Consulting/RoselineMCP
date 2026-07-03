@@ -39,6 +39,7 @@ public static class RenameSymbolTool
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         IProgress<ProgressNotificationValue>? progress = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
         using var invocation = ToolExecutionHelper.BeginInvocation(nameof(RenameSymbol), loggerFactory);
@@ -56,8 +57,25 @@ public static class RenameSymbolTool
 
         try
         {
+            var effectivePreviewOnly = previewOnly;
+            string? declineNote = null;
+            if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
+                    server,
+                    $"Rename '{symbol}' to '{newName}' across the solution and write the changes to disk?",
+                    timeoutSource.Token))
+            {
+                effectivePreviewOnly = true;
+                declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";
+            }
+
             var result = await editService.RenameSymbolAsync(
-                project, symbol, newName, previewOnly, progress, timeoutSource.Token);
+                project, symbol, newName, effectivePreviewOnly, progress, timeoutSource.Token);
+
+            if (declineNote is not null)
+            {
+                result.PreviewOnly = true;
+                result.Notes.Add(declineNote);
+            }
 
             invocation.MarkSuccess();
             return ToolResult<RenameSymbolResponse>.Success(result);

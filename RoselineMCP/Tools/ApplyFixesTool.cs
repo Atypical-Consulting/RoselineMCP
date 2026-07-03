@@ -41,6 +41,7 @@ public static class ApplyFixesTool
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         IProgress<ProgressNotificationValue>? progress = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
         using var invocation = ToolExecutionHelper.BeginInvocation(nameof(ApplyFixes), loggerFactory);
@@ -58,12 +59,29 @@ public static class ApplyFixesTool
 
         try
         {
+            var effectivePreviewOnly = previewOnly;
+            string? declineNote = null;
+            if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
+                    server,
+                    $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{project}' and write the changes to disk?",
+                    timeoutSource.Token))
+            {
+                effectivePreviewOnly = true;
+                declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";
+            }
+
             var result = await codeFixService.ApplyFixesAsync(
                 project,
                 ids.ToList(),
-                previewOnly,
+                effectivePreviewOnly,
                 progress,
                 timeoutSource.Token);
+
+            if (declineNote is not null)
+            {
+                result.PreviewOnly = true;
+                result.Notes.Add(declineNote);
+            }
 
             invocation.MarkSuccess();
             return ToolResult<ApplyFixesResponse>.Success(result);

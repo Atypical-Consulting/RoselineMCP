@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Diagnostics;
 using RoselineMCP.Models;
@@ -105,6 +107,52 @@ internal static class ToolExecutionHelper
     /// </summary>
     public static ToolInvocation BeginInvocation(string toolName, ILoggerFactory? loggerFactory) =>
         new(toolName, loggerFactory);
+
+    /// <summary>
+    /// Best-effort confirmation gate for a destructive, disk-writing operation. Returns
+    /// <see langword="true"/> if the write should proceed, <see langword="false"/> only if the
+    /// caller's client actively declined it.
+    /// </summary>
+    /// <remarks>
+    /// This is a second guard behind the <c>previewOnly: false</c> opt-in, surfaced to the human via
+    /// MCP elicitation. It is deliberately best-effort: if no server is available, or the connected
+    /// client does not support elicitation (or the elicitation round-trip fails for any reason other
+    /// than cancellation), the explicit <c>previewOnly: false</c> opt-in stands and the write
+    /// proceeds — a client without elicitation support must not be silently prevented from writing.
+    /// Only an explicit decline (<see cref="ElicitResult.IsAccepted"/> is <see langword="false"/>)
+    /// stops the write.
+    /// </remarks>
+    public static async Task<bool> ConfirmDestructiveWriteAsync(
+        McpServer? server,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (server is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            // A field-less form: the user simply accepts or declines the confirmation prompt.
+            var request = new ElicitRequestParams
+            {
+                Message = message,
+                RequestedSchema = new ElicitRequestParams.RequestSchema(),
+            };
+            var result = await server.ElicitAsync(request, cancellationToken);
+            return result.IsAccepted;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Client does not support elicitation (or it failed) — honor the explicit opt-in.
+            return true;
+        }
+    }
 
     /// <summary>
     /// Creates a <see cref="CancellationTokenSource"/> linked to <paramref name="requestToken"/>

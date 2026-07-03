@@ -44,6 +44,7 @@ public static class EditMemberTool
         bool previewOnly = true,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
         using var invocation = ToolExecutionHelper.BeginInvocation(nameof(EditMember), loggerFactory);
@@ -61,8 +62,25 @@ public static class EditMemberTool
 
         try
         {
+            var effectivePreviewOnly = previewOnly;
+            string? declineNote = null;
+            if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
+                    server,
+                    $"Write the '{operation}' of member '{symbol}' in '{project}' to disk?",
+                    timeoutSource.Token))
+            {
+                effectivePreviewOnly = true;
+                declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";
+            }
+
             var result = await editService.EditMemberAsync(
-                project, symbol, operation, newSource, previewOnly, timeoutSource.Token);
+                project, symbol, operation, newSource, effectivePreviewOnly, timeoutSource.Token);
+
+            if (declineNote is not null)
+            {
+                result.PreviewOnly = true;
+                result.Notes.Add(declineNote);
+            }
 
             invocation.MarkSuccess();
             return ToolResult<EditMemberResponse>.Success(result);
