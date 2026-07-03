@@ -16,7 +16,7 @@
     <MinVerMinimumMajorMinor>1.1</MinVerMinimumMajorMinor>
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <Authors>Atypical Consulting SRL</Authors>
-    <Description>High-performance MCP server for C# code analysis using Roslyn analyzers and code fix providers.</Description>
+    <Description>Roslyn code intelligence for AI coding agents over MCP — token-efficient C# navigation (symbols, references, call graphs, type hierarchies), surgical member-level edits, and diagnostics with automated fixes.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Atypical-Consulting/RoselineMCP</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Atypical-Consulting/RoselineMCP</RepositoryUrl>
