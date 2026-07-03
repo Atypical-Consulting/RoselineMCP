@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "roseline-mcp",
   "display_name": "RoselineMCP",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Roslyn code intelligence for C# — symbols, references, call graphs, and surgical edits over MCP.",
   "long_description": "RoselineMCP gives AI coding agents a semantic view of your C# solution via Roslyn: search symbols, inspect definitions, find references and implementations, walk call graphs and type hierarchies, and apply surgical, member-level edits — so the agent navigates by *structure* instead of re-reading source (measured ~81% fewer tokens on navigation tasks).\n\nRequires the **.NET 10 SDK** on your machine: this bundle launches the server on demand with `dnx` (the SDK's NuGet tool runner), and the analysis tools load your real `.sln`/`.csproj` through MSBuild, which needs the SDK present. Nothing is pre-installed — `dnx` fetches and caches the `RoselineMCP` NuGet package on first use.",
   "author": {
@@ -17,30 +17,80 @@
   "documentation": "https://atypical-consulting.github.io/RoselineMCP/",
   "support": "https://github.com/Atypical-Consulting/RoselineMCP/issues",
   "license": "MIT",
-  "keywords": ["mcp", "roslyn", "csharp", "dotnet", "code-analysis", "ai"],
+  "keywords": [
+    "mcp",
+    "roslyn",
+    "csharp",
+    "dotnet",
+    "code-analysis",
+    "ai"
+  ],
   "server": {
     "type": "binary",
     "entry_point": "dnx",
     "mcp_config": {
       "command": "dnx",
-      "args": ["RoselineMCP", "--yes"]
+      "args": [
+        "RoselineMCP",
+        "--yes"
+      ]
     }
   },
   "tools": [
-    { "name": "analyze_solution", "description": "Analyze a C# solution for diagnostics with include/exclude/severity filtering." },
-    { "name": "list_diagnostics", "description": "Detailed diagnostics for a project with statistics and suggested fixable IDs." },
-    { "name": "apply_fixes", "description": "Apply automated Roslyn/Roslynator code fixes; preview-only by default." },
-    { "name": "create_patch", "description": "Generate a unified diff between two text versions." },
-    { "name": "search_symbols", "description": "Find symbols by wildcard/substring, or outline a single file." },
-    { "name": "get_symbol_info", "description": "A symbol's kind, signature, base types, interfaces, docs, and definition (optionally source)." },
-    { "name": "find_references", "description": "Every use site of a symbol across the solution." },
-    { "name": "find_implementations", "description": "Implementations, overrides, and derived types of a symbol." },
-    { "name": "get_call_graph", "description": "A cycle-safe caller/callee graph for a method, depth-bounded." },
-    { "name": "get_type_hierarchy", "description": "A type's base-class chain, interfaces, and derived types." },
-    { "name": "edit_member", "description": "Replace, add, or delete a single type member; preview-only by default." },
-    { "name": "rename_symbol", "description": "Roslyn solution-wide rename of a symbol and all its references; preview-only by default." }
+    {
+      "name": "analyze_solution",
+      "description": "Analyze a C# solution for diagnostics with include/exclude/severity filtering."
+    },
+    {
+      "name": "list_diagnostics",
+      "description": "Detailed diagnostics for a project with statistics and suggested fixable IDs."
+    },
+    {
+      "name": "apply_fixes",
+      "description": "Apply automated Roslyn/Roslynator code fixes; preview-only by default."
+    },
+    {
+      "name": "create_patch",
+      "description": "Generate a unified diff between two text versions."
+    },
+    {
+      "name": "search_symbols",
+      "description": "Find symbols by wildcard/substring, or outline a single file."
+    },
+    {
+      "name": "get_symbol_info",
+      "description": "A symbol's kind, signature, base types, interfaces, docs, and definition (optionally source)."
+    },
+    {
+      "name": "find_references",
+      "description": "Every use site of a symbol across the solution."
+    },
+    {
+      "name": "find_implementations",
+      "description": "Implementations, overrides, and derived types of a symbol."
+    },
+    {
+      "name": "get_call_graph",
+      "description": "A cycle-safe caller/callee graph for a method, depth-bounded."
+    },
+    {
+      "name": "get_type_hierarchy",
+      "description": "A type's base-class chain, interfaces, and derived types."
+    },
+    {
+      "name": "edit_member",
+      "description": "Replace, add, or delete a single type member; preview-only by default."
+    },
+    {
+      "name": "rename_symbol",
+      "description": "Roslyn solution-wide rename of a symbol and all its references; preview-only by default."
+    }
   ],
   "compatibility": {
-    "platforms": ["darwin", "win32", "linux"]
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ]
   }
 }

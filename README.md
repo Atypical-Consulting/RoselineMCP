@@ -1,6 +1,6 @@
 # RoselineMCP
 
-<!-- mcp-name: io.github.atypical-consulting/roseline-mcp -->
+<!-- mcp-name: io.github.Atypical-Consulting/roseline-mcp -->
 
 > **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 81% fewer tokens →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
 

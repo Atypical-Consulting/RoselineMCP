@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-07-03
+
+### Fixed
+- **MCP Registry publish 403'd on namespace casing.** The registry namespace derived from GitHub
+  OIDC is case-sensitive and matches the org's canonical login (`Atypical-Consulting`), but
+  `server.json`'s `name` and the README ownership marker used lowercase
+  (`io.github.atypical-consulting/...`), so the first publish was `Forbidden`. Corrected both to
+  `io.github.Atypical-Consulting/roseline-mcp`. (The lowercase GHCR image name is unrelated and
+  stays lowercase, as Docker requires.)
+- **Docs `/releases` page didn't refresh on new releases.** The `release:` trigger on
+  `deploy-docs.yml` never fired because the release is created by the publish workflow's
+  `GITHUB_TOKEN`, and GitHub does not start workflows from token-created events. Switched to a
+  `workflow_run` trigger on the `Publish NuGet` workflow's completion, which keys off the workflow
+  (whose original trigger was a human tag push) and fires regardless of the publish outcome.
+
 ## [1.3.2] - 2026-07-03
 
 ### Documentation

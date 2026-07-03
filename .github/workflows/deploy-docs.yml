@@ -9,10 +9,15 @@ on:
     paths:
       - 'website/**'
       - '.github/workflows/deploy-docs.yml'
-  # Rebuild when a release is published/edited/removed so the /releases page (generated from the
-  # GitHub Releases API at build time) stays in sync without a manual website change.
-  release:
-    types: [published, edited, deleted]
+  # Rebuild after the release workflow finishes so the /releases page (generated from the GitHub
+  # Releases API at build time) picks up the new release. A `release:` trigger would NOT work here:
+  # the release is created by the publish workflow's GITHUB_TOKEN, and GitHub deliberately does not
+  # fire workflows from token-created events. `workflow_run` keys off the workflow's completion
+  # (its original trigger was a human tag push), so it fires - regardless of the publish outcome,
+  # so a failed registry step still refreshes the page with whatever release was created.
+  workflow_run:
+    workflows: ["Publish NuGet"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
