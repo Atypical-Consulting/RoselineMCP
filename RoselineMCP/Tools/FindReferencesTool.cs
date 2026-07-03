@@ -18,17 +18,17 @@ public static class FindReferencesTool
     /// Finds all references to a symbol across the solution.
     /// </summary>
     [McpServerTool(Title = "Find References", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Find every reference (use site) of a C# symbol across the solution, each as a file/line/column plus a one-line snippet — instead of reading the referencing files. Read-only: never modifies any files on disk.")]
+    [Description("List every use site of a C# symbol across the whole solution (file/line + a one-line snippet each) — instead of grepping and opening every referencing file. Prefer this over Grep/Read to answer 'where is this used'. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<ReferencesResponse>> FindReferences(
         ICodeNavigationService navigationService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("Symbol to find references for: a simple name or a fully-qualified name to disambiguate")]
         string symbol,
         [Description("If true, also include the symbol's own declaration among the results (default: false)")]
         bool includeDefinition = false,
         [Description("Maximum number of reference locations to return (default: 100)")]
         int max = 100,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,

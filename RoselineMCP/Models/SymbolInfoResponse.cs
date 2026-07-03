@@ -21,39 +21,42 @@ public class SymbolInfoResponse
     [JsonPropertyName("kind")]
     public string Kind { get; set; } = string.Empty;
 
-    /// <summary>Declared accessibility in lowercase.</summary>
-    [JsonPropertyName("accessibility")]
-    public string Accessibility { get; set; } = string.Empty;
-
-    /// <summary>Declaration modifiers present on the symbol, e.g. <c>static</c>, <c>abstract</c>, <c>sealed</c>, <c>async</c>, <c>readonly</c>.</summary>
+    /// <summary>Declaration modifiers present on the symbol, e.g. <c>static</c>, <c>abstract</c>, <c>sealed</c>, <c>async</c>, <c>readonly</c>. Omitted when none apply.</summary>
     [JsonPropertyName("modifiers")]
-    public List<string> Modifiers { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Modifiers { get; set; }
 
     /// <summary>Human-readable signature of the symbol.</summary>
     [JsonPropertyName("signature")]
     public string Signature { get; set; } = string.Empty;
 
-    /// <summary>Fully-qualified names of base types (for a type: its base class chain; for a member: empty).</summary>
+    /// <summary>Fully-qualified names of base types (a type's base-class chain). Omitted for members and types with no base chain.</summary>
     [JsonPropertyName("baseTypes")]
-    public List<string> BaseTypes { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? BaseTypes { get; set; }
 
-    /// <summary>Fully-qualified names of interfaces implemented by the type (empty for non-types).</summary>
+    /// <summary>Fully-qualified names of interfaces implemented by the type. Omitted for non-types and types implementing none.</summary>
     [JsonPropertyName("interfaces")]
-    public List<string> Interfaces { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Interfaces { get; set; }
 
-    /// <summary>XML documentation summary text for the symbol, if any.</summary>
+    /// <summary>XML documentation summary text for the symbol. Omitted when the symbol has no XML docs.</summary>
     [JsonPropertyName("documentation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Documentation { get; set; }
 
-    /// <summary>Absolute path to the source file declaring the symbol, or <c>null</c> if only available from metadata.</summary>
+    /// <summary>Source file (solution-root-relative) declaring the symbol. Omitted if only available from metadata.</summary>
     [JsonPropertyName("definitionFile")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DefinitionFile { get; set; }
 
-    /// <summary>1-based line number of the symbol's declaration, or <c>null</c> if metadata-only.</summary>
+    /// <summary>1-based line number of the symbol's declaration. Omitted if metadata-only.</summary>
     [JsonPropertyName("definitionLine")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? DefinitionLine { get; set; }
 
-    /// <summary>The exact source text of the symbol's declaration, included only when <c>includeSource</c> was requested.</summary>
+    /// <summary>The exact source text of the symbol's declaration, included only when <c>includeSource</c> was requested; omitted otherwise.</summary>
     [JsonPropertyName("source")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Source { get; set; }
 }

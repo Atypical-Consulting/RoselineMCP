@@ -18,11 +18,9 @@ public static class GetCallGraphTool
     /// Builds a caller and/or callee graph for a method with cycle detection.
     /// </summary>
     [McpServerTool(Title = "Get Call Graph", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Build a depth-bounded caller and/or callee graph for a C# method (with cycle detection) to trace control flow without reading method bodies. Read-only: never modifies any files on disk.")]
+    [Description("Trace who calls a C# method (and/or what it calls) as a depth-bounded, cycle-safe tree — instead of reading method bodies to follow control flow. Prefer this over Read to answer 'who calls this' / 'what does this call'. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<CallGraphResponse>> GetCallGraph(
         ICodeNavigationService navigationService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("Method to build the graph around (simple or fully-qualified name)")]
         string method,
         [Description("Traversal direction: 'callers' (default), 'callees', or 'both'")]
@@ -31,6 +29,8 @@ public static class GetCallGraphTool
         int depth = 1,
         [Description("Maximum number of nodes to expand per direction (default: 50)")]
         int max = 50,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,

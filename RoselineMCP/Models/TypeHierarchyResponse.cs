@@ -35,5 +35,6 @@ public class TypeHierarchyResponse
 
     /// <summary>Whether the derived-type list was capped at <c>max</c> (more derived types exist than were returned).</summary>
     [JsonPropertyName("derivedTypesTruncated")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool DerivedTypesTruncated { get; set; }
 }

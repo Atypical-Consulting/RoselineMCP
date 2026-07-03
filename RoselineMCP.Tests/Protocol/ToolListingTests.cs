@@ -87,21 +87,25 @@ public class ToolListingTests : McpProtocolTestBase
     /// container/request context, not supplied by callers.
     /// </summary>
     [Fact]
-    public async Task SearchSymbols_Schema_Requires_Only_Project()
+    public async Task SearchSymbols_Schema_Has_No_Required_Params()
     {
         var tool = await GetToolAsync("search_symbols");
 
-        GetRequired(tool).ShouldBe(["project"]);
+        // 'project' is now optional (auto-discovered from the working directory), and query/file are
+        // mutually-optional at the schema level, so nothing is strictly required.
+        GetRequired(tool).ShouldBeEmpty();
         GetPropertyNames(tool).ShouldBe(
             ["project", "query", "file", "kinds", "max"], ignoreOrder: true);
     }
 
     [Fact]
-    public async Task EditMember_Schema_Requires_Project_Symbol_And_Operation()
+    public async Task EditMember_Schema_Requires_Symbol_And_Operation()
     {
         var tool = await GetToolAsync("edit_member");
 
-        GetRequired(tool).ShouldBe(["project", "symbol", "operation"], ignoreOrder: true);
+        // 'project' is now optional (auto-discovered from the working directory); only 'symbol' and
+        // 'operation' remain required.
+        GetRequired(tool).ShouldBe(["symbol", "operation"], ignoreOrder: true);
         GetPropertyNames(tool).ShouldBe(
             ["project", "symbol", "operation", "newSource", "previewOnly"], ignoreOrder: true);
     }

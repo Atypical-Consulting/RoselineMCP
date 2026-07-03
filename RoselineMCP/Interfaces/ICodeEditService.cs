@@ -17,7 +17,7 @@ public interface ICodeEditService
     /// <paramref name="newSource"/> is the member declaration to insert.
     /// </summary>
     Task<EditMemberResponse> EditMemberAsync(
-        string project,
+        string? project,
         string symbol,
         string operation,
         string? newSource,
@@ -28,7 +28,7 @@ public interface ICodeEditService
     /// Renames a symbol and updates every reference across the solution using Roslyn's rename engine.
     /// </summary>
     Task<RenameSymbolResponse> RenameSymbolAsync(
-        string project,
+        string? project,
         string symbol,
         string newName,
         bool previewOnly,

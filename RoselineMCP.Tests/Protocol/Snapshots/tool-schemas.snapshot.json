@@ -128,8 +128,12 @@
         "type": "boolean"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "symbol": {
         "description": "For \u0027replace\u0027/\u0027delete\u0027: the member to edit. For \u0027add\u0027: the container type to add a member to. Simple or fully-qualified name.",
@@ -137,7 +141,6 @@
       }
     },
     "required": [
-      "project",
       "symbol",
       "operation"
     ],
@@ -151,8 +154,12 @@
         "type": "integer"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "symbol": {
         "description": "Interface, class, or member to find implementations/overrides/derived types for (simple or fully-qualified name)",
@@ -160,7 +167,6 @@
       }
     },
     "required": [
-      "project",
       "symbol"
     ],
     "type": "object"
@@ -178,8 +184,12 @@
         "type": "integer"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "symbol": {
         "description": "Symbol to find references for: a simple name or a fully-qualified name to disambiguate",
@@ -187,7 +197,6 @@
       }
     },
     "required": [
-      "project",
       "symbol"
     ],
     "type": "object"
@@ -214,12 +223,15 @@
         "type": "string"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [
-      "project",
       "method"
     ],
     "type": "object"
@@ -232,8 +244,12 @@
         "type": "boolean"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "symbol": {
         "description": "Symbol to describe: a simple name (e.g. \u0027UserService\u0027) or a fully-qualified name (e.g. \u0027Acme.Users.UserService.GetUser\u0027) to disambiguate",
@@ -241,7 +257,6 @@
       }
     },
     "required": [
-      "project",
       "symbol"
     ],
     "type": "object"
@@ -259,8 +274,12 @@
         "type": "integer"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "type": {
         "description": "Type to inspect (simple or fully-qualified name)",
@@ -268,7 +287,6 @@
       }
     },
     "required": [
-      "project",
       "type"
     ],
     "type": "object"
@@ -330,8 +348,12 @@
         "type": "boolean"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "symbol": {
         "description": "Symbol to rename (simple or fully-qualified name)",
@@ -339,7 +361,6 @@
       }
     },
     "required": [
-      "project",
       "symbol",
       "newName"
     ],
@@ -375,8 +396,12 @@
         "type": "integer"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "query": {
         "default": null,
@@ -387,9 +412,6 @@
         ]
       }
     },
-    "required": [
-      "project"
-    ],
     "type": "object"
   }
 }

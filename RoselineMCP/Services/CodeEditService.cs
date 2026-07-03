@@ -33,7 +33,7 @@ public class CodeEditService : ICodeEditService
 
     /// <inheritdoc/>
     public async Task<EditMemberResponse> EditMemberAsync(
-        string project,
+        string? project,
         string symbol,
         string operation,
         string? newSource,
@@ -215,7 +215,7 @@ public class CodeEditService : ICodeEditService
 
     /// <inheritdoc/>
     public async Task<RenameSymbolResponse> RenameSymbolAsync(
-        string project,
+        string? project,
         string symbol,
         string newName,
         bool previewOnly,

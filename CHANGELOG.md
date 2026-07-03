@@ -7,12 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-04
+
+### Added
+- **Server-level tool guidance to drive adoption.** The server now sends MCP `instructions` — a
+  decision policy telling the model to prefer these structural tools over reading whole files
+  (especially on large codebases) — and each read-only tool's description is rewritten as a decision
+  rule ("prefer over Read/Grep to answer 'where is this used'") rather than a feature list. In
+  end-to-end testing this flipped the agent from never calling the tools to using them unprompted on
+  large solutions. See [`docs/AGENT-BENCHMARK.md`](docs/AGENT-BENCHMARK.md#follow-up--making-the-model-actually-use-the-tools).
+- **`project` is now optional on the Roslyn-backed tools** (`search_symbols`, `get_symbol_info`,
+  `find_references`, `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `edit_member`,
+  `rename_symbol`) — when omitted it is auto-discovered from the working directory (searching the
+  cwd, a few parent directories, and immediate subdirectories) — and a `.sln` path is now accepted
+  wherever `project` is passed. Reduces the friction that made agents fail calls guessing the
+  project (they naturally tried the `.sln`, which used to fail).
+
 ### Changed
+- **BREAKING: leaner response shapes for the read-only navigation tools and `get_symbol_info`** — a
+  token-efficiency pass trimmed redundant and always-present fields from the JSON these tools
+  return (tool names and input parameters are unchanged). Concretely:
+  - **Relative file paths.** Every `file`/`definitionFile` is now solution-root-relative with
+    forward slashes (e.g. `RoselineMCP/Services/Foo.cs`) instead of an absolute path — across
+    `search_symbols`, `get_symbol_info`, `find_references`, `find_implementations`,
+    `get_call_graph`, and `get_type_hierarchy`.
+  - **`truncated` is omitted when `false`.** Its absence now means "not truncated" — for
+    `search_symbols`, `find_references`, `find_implementations`, every `get_call_graph` node, and
+    `get_type_hierarchy`'s `derivedTypesTruncated`.
+  - **`find_references`** drops the `column` field from each reference (now just `file`, `line`,
+    `snippet`).
+  - **`get_call_graph`** drops each node's `signature`; the node `fullName` now renders parameter
+    **types as simple names** (e.g. `RoselineMCP.Services.Foo.Bar(string, CancellationToken)`),
+    still parameter-qualified so overloads stay distinct — call `get_symbol_info` for a method's
+    full signature.
+  - **Redundant fields dropped from symbol summaries and `get_symbol_info`.** `accessibility` is
+    gone (it is already inside `signature`) from `get_symbol_info` and the project-wide summaries;
+    `containingType` is gone from the full summaries (it is already the prefix of `fullName`). The
+    single-file outline of `search_symbols` still emits `containingType`, but now as the *simple*,
+    unqualified type name.
+  - **`get_symbol_info`** now omits `modifiers`, `baseTypes`, `interfaces`, `documentation`, and
+    `source` when they are empty/absent, so a minimal symbol collapses to `name`, `fullName`,
+    `kind`, and `signature`.
+
+  Net effect: tool output is ~35% smaller, lifting the benchmark headline savings from a pooled
+  **81% to 88%** (median per task 76% → 85%) on RoselineMCP's own source. These are breaking
+  changes to the read-only tools' response wire shapes; update any client that parsed the removed
+  fields or relied on absolute paths.
 - `deploy-docs.yml` retries the GitHub Pages deploy up to 3× — it intermittently returns
   "Deployment failed, try again later" (a Pages backend hiccup, not a build failure) that clears on
   re-run. The first two attempts tolerate failure, so a transient miss no longer fails the job.
 
 ### Documentation
+- **End-to-end agent benchmark** ([`docs/AGENT-BENCHMARK.md`](docs/AGENT-BENCHMARK.md)) — a controlled
+  A/B (vanilla Claude Code vs. + RoselineMCP, same task, same model, quality-gated) measuring whether
+  an agent actually consumes fewer tokens in practice. Finding: ~50% fewer tokens at equal quality on
+  large-file codebases, break-even on tiny repos, and the model must be steered to use the tools.
 - **Tools page aligned to the v1.4.0 contract.** Added a response-envelope callout
   (`{ ok, data }` / `{ ok, error }`, `structuredContent`/`outputSchema`), surfaced each tool's
   human `Title` and capability pills (`progress`, `confirms`/elicitation), gave every tool an anchor

@@ -124,20 +124,23 @@ Generates unified diff patches between text versions.
 
 ### Code Navigation Tools (read-only, token-efficient)
 These return precise structure instead of whole files (backed by `ICodeNavigationService` /
-`CodeNavigationService`, which loads via `IProjectLoader`). All take a `project` (name, directory,
-or `.csproj` path); the containing solution is loaded when present so references/renames span
-projects.
+`CodeNavigationService`, which loads via `IProjectLoader`). All take an **optional** `project`
+(name, directory, `.csproj` path, or `.sln` path); when omitted, RoselineMCP auto-discovers the
+solution/project from its working directory (searching the cwd, a few parent directories, and
+immediate subdirectories, and failing with an actionable message only when the match is empty or
+ambiguous). The containing solution is loaded when present so references/renames span projects.
 
 - **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
-- **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/accessibility/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source).
-- **7. FindReferences** — `project`, `symbol`, `includeDefinition`, `max`. Returns use sites (file/line/column/snippet).
+- **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source); accessibility is inside `signature`, and empty/absent fields are omitted.
+- **7. FindReferences** — `project`, `symbol`, `includeDefinition`, `max`. Returns use sites (file/line/snippet).
 - **8. FindImplementations** — `project`, `symbol`, `max`. Returns implementations/overrides/derived types.
 - **9. GetCallGraph** — `project`, `method`, `direction` (callers|callees|both), `depth` (1-3), `max`. Returns a cycle-safe call tree.
 - **10. GetTypeHierarchy** — `project`, `type`, `direction` (base|derived|both). Returns base chain, interfaces, derived types.
 
 ### Code Editing Tools (write, `previewOnly` defaults to true)
 Surgical edits (backed by `ICodeEditService` / `CodeEditService`, reusing `IDiffService`). Like
-`ApplyFixes`, nothing is written unless `previewOnly: false` is passed explicitly.
+`ApplyFixes`, nothing is written unless `previewOnly: false` is passed explicitly. `project` is
+optional here too (same auto-discovery and `.sln` support as the navigation tools).
 
 - **11. EditMember** — `project`, `symbol`, `operation` (replace|add|delete), `newSource`, `previewOnly`. Returns changed files + unified diff.
 - **12. RenameSymbol** — `project`, `symbol`, `newName`, `previewOnly`. Roslyn solution-wide rename; returns changed files + unified diff.

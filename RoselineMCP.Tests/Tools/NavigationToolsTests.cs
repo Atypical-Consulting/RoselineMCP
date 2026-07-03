@@ -31,7 +31,7 @@ public class NavigationToolsTests
                     Symbols = [new SymbolSummary { Name = "UserService", Kind = "class" }]
                 }));
 
-            var result = await SearchSymbolsTool.SearchSymbols(_service, "Demo", "*Service");
+            var result = await SearchSymbolsTool.SearchSymbols(_service, "*Service", project: "Demo");
 
             result.Ok.ShouldBeTrue();
             result.Data.ShouldNotBeNull();
@@ -42,7 +42,7 @@ public class NavigationToolsTests
         [Fact]
         public async Task Should_Return_Validation_Error_When_No_Query_Or_File()
         {
-            var result = await SearchSymbolsTool.SearchSymbols(_service, "Demo");
+            var result = await SearchSymbolsTool.SearchSymbols(_service, project: "Demo");
 
             result.Ok.ShouldBeFalse();
             result.Error.ShouldNotBeNull();
@@ -60,7 +60,7 @@ public class NavigationToolsTests
             A.CallTo(() => _service.SearchSymbolsAsync("Demo", "User", "User.cs", kinds, 25, A<CancellationToken>._))
                 .Returns(Task.FromResult(new SymbolSearchResponse()));
 
-            await SearchSymbolsTool.SearchSymbols(_service, "Demo", "User", "User.cs", kinds, 25);
+            await SearchSymbolsTool.SearchSymbols(_service, "User", "User.cs", kinds, 25, "Demo");
 
             A.CallTo(() => _service.SearchSymbolsAsync("Demo", "User", "User.cs", kinds, 25, A<CancellationToken>._))
                 .MustHaveHappenedOnceExactly();
@@ -72,7 +72,7 @@ public class NavigationToolsTests
             A.CallTo(() => _service.SearchSymbolsAsync(A<string>._, A<string?>._, A<string?>._, A<string[]?>._, A<int>._, A<CancellationToken>._))
                 .Throws(new KeyNotFoundException("File not found in project"));
 
-            var result = await SearchSymbolsTool.SearchSymbols(_service, "Demo", file: "Missing.cs");
+            var result = await SearchSymbolsTool.SearchSymbols(_service, file: "Missing.cs", project: "Demo");
 
             result.Ok.ShouldBeFalse();
             result.Error.ShouldNotBeNull();
@@ -96,7 +96,7 @@ public class NavigationToolsTests
                     Kind = "method"
                 }));
 
-            var result = await GetSymbolInfoTool.GetSymbolInfo(_service, "Demo", "GetUser");
+            var result = await GetSymbolInfoTool.GetSymbolInfo(_service, "GetUser", project: "Demo");
 
             result.Ok.ShouldBeTrue();
             result.Data.ShouldNotBeNull();
@@ -111,7 +111,7 @@ public class NavigationToolsTests
                 .Invokes((string _, string _, bool includeSource, CancellationToken _) => captured = includeSource)
                 .Returns(Task.FromResult(new SymbolInfoResponse()));
 
-            await GetSymbolInfoTool.GetSymbolInfo(_service, "Demo", "GetUser");
+            await GetSymbolInfoTool.GetSymbolInfo(_service, "GetUser", project: "Demo");
 
             captured.ShouldBe(true);
         }
@@ -122,7 +122,7 @@ public class NavigationToolsTests
             A.CallTo(() => _service.GetSymbolInfoAsync(A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
                 .Throws(new ArgumentException("Ambiguous symbol 'Get'"));
 
-            var result = await GetSymbolInfoTool.GetSymbolInfo(_service, "Demo", "Get");
+            var result = await GetSymbolInfoTool.GetSymbolInfo(_service, "Get", project: "Demo");
 
             result.Ok.ShouldBeFalse();
             result.Error.ShouldNotBeNull();
@@ -146,7 +146,7 @@ public class NavigationToolsTests
                     References = [new ReferenceLocation { File = "A.cs", Line = 3 }]
                 }));
 
-            var result = await FindReferencesTool.FindReferences(_service, "Demo", "GetUser");
+            var result = await FindReferencesTool.FindReferences(_service, "GetUser", project: "Demo");
 
             result.Ok.ShouldBeTrue();
             result.Data.ShouldNotBeNull();
@@ -161,7 +161,7 @@ public class NavigationToolsTests
                 .Invokes((string _, string _, bool includeDefinition, int _, CancellationToken _) => captured = includeDefinition)
                 .Returns(Task.FromResult(new ReferencesResponse()));
 
-            await FindReferencesTool.FindReferences(_service, "Demo", "GetUser");
+            await FindReferencesTool.FindReferences(_service, "GetUser", project: "Demo");
 
             captured.ShouldBe(false);
         }
@@ -183,7 +183,7 @@ public class NavigationToolsTests
                     Implementations = [new SymbolSummary { Name = "SqlRepository", Kind = "class" }]
                 }));
 
-            var result = await FindImplementationsTool.FindImplementations(_service, "Demo", "IRepository");
+            var result = await FindImplementationsTool.FindImplementations(_service, "IRepository", project: "Demo");
 
             result.Ok.ShouldBeTrue();
             result.Data.ShouldNotBeNull();
@@ -207,7 +207,7 @@ public class NavigationToolsTests
                     Callers = [new CallGraphNode { FullName = "Controller.Post" }]
                 }));
 
-            var result = await GetCallGraphTool.GetCallGraph(_service, "Demo", "Handle");
+            var result = await GetCallGraphTool.GetCallGraph(_service, "Handle", project: "Demo");
 
             result.Ok.ShouldBeTrue();
             result.Data.ShouldNotBeNull();
@@ -224,7 +224,7 @@ public class NavigationToolsTests
                 .Invokes((string _, string _, string dir, int d, int _, CancellationToken _) => { direction = dir; depth = d; })
                 .Returns(Task.FromResult(new CallGraphResponse()));
 
-            await GetCallGraphTool.GetCallGraph(_service, "Demo", "Handle");
+            await GetCallGraphTool.GetCallGraph(_service, "Handle", project: "Demo");
 
             direction.ShouldBe("callers");
             depth.ShouldBe(1);
@@ -246,7 +246,7 @@ public class NavigationToolsTests
                     BaseTypes = [new SymbolSummary { Name = "RepositoryBase" }]
                 }));
 
-            var result = await GetTypeHierarchyTool.GetTypeHierarchy(_service, "Demo", "SqlRepository");
+            var result = await GetTypeHierarchyTool.GetTypeHierarchy(_service, "SqlRepository", project: "Demo");
 
             result.Ok.ShouldBeTrue();
             result.Data.ShouldNotBeNull();
@@ -262,7 +262,7 @@ public class NavigationToolsTests
         [Fact]
         public async Task Should_Return_Validation_Error_For_Invalid_Operation()
         {
-            var result = await EditMemberTool.EditMember(_service, "Demo", "Foo.Bar", "frobnicate");
+            var result = await EditMemberTool.EditMember(_service, "Foo.Bar", "frobnicate", project: "Demo");
 
             result.Ok.ShouldBeFalse();
             result.Error.ShouldNotBeNull();
@@ -282,7 +282,7 @@ public class NavigationToolsTests
                 .Invokes((string _, string _, string _, string? _, bool previewOnly, CancellationToken _) => captured = previewOnly)
                 .Returns(Task.FromResult(new EditMemberResponse()));
 
-            await EditMemberTool.EditMember(_service, "Demo", "Foo.Bar", "delete");
+            await EditMemberTool.EditMember(_service, "Foo.Bar", "delete", project: "Demo");
 
             captured.ShouldBe(true);
         }
@@ -296,7 +296,7 @@ public class NavigationToolsTests
                 .Invokes((string _, string _, string _, string? src, bool preview, CancellationToken _) => { capturedSource = src; capturedPreview = preview; })
                 .Returns(Task.FromResult(new EditMemberResponse { Applied = true }));
 
-            await EditMemberTool.EditMember(_service, "Demo", "Foo", "add", "public int X => 1;", previewOnly: false);
+            await EditMemberTool.EditMember(_service, "Foo", "add", "public int X => 1;", previewOnly: false, project: "Demo");
 
             capturedSource.ShouldBe("public int X => 1;");
             capturedPreview.ShouldBe(false);
@@ -310,7 +310,7 @@ public class NavigationToolsTests
         [Fact]
         public async Task Should_Return_Validation_Error_When_NewName_Missing()
         {
-            var result = await RenameSymbolTool.RenameSymbol(_service, "Demo", "Foo.Bar", "");
+            var result = await RenameSymbolTool.RenameSymbol(_service, "Foo.Bar", "", project: "Demo");
 
             result.Ok.ShouldBeFalse();
             result.Error.ShouldNotBeNull();
@@ -328,7 +328,7 @@ public class NavigationToolsTests
                 .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) => captured = previewOnly)
                 .Returns(Task.FromResult(new RenameSymbolResponse()));
 
-            await RenameSymbolTool.RenameSymbol(_service, "Demo", "Foo.Bar", "Baz");
+            await RenameSymbolTool.RenameSymbol(_service, "Foo.Bar", "Baz", project: "Demo");
 
             captured.ShouldBe(true);
         }
@@ -345,7 +345,7 @@ public class NavigationToolsTests
                     Patch = "--- a/Foo.cs"
                 }));
 
-            var result = await RenameSymbolTool.RenameSymbol(_service, "Demo", "Bar", "Baz");
+            var result = await RenameSymbolTool.RenameSymbol(_service, "Bar", "Baz", project: "Demo");
 
             result.Ok.ShouldBeTrue();
             result.Data.ShouldNotBeNull();
