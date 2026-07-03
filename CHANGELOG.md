@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`publish-nuget.yml` now creates a GitHub Release and verifies the artifact before publishing.**
+  A git tag is not a GitHub Release, and nothing was creating one — so tagged versions published to
+  NuGet without a corresponding Release (`v1.3.0` had to be backfilled by hand). The release job now:
+  (1) fails the build if the packed `.nupkg` is missing `.mcp/server.json` or its embedded version
+  doesn't match the tag — a guard that would have caught the original `dnx`-fetches-`1.0.0` bug at
+  the source rather than in the wild; and (2) after a successful NuGet push, creates (or heals) the
+  matching GitHub Release with notes extracted from this CHANGELOG and the `.nupkg` attached.
+
 ## [1.3.0] - 2026-07-03
 
 ### Added
