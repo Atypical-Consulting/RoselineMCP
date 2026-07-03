@@ -211,7 +211,7 @@ const starLabel =
              aria-label={stars == null ? 'Star RoselineMCP on GitHub' : `Star RoselineMCP on GitHub — ${stars} stars`}>
             <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.767 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
             <span class="ghlabel">Star</span>
-            {starLabel && <span class="ghcount">{starLabel}</span>}
+            <span class="ghcount" id="gh-star-count" hidden={!starLabel}>{starLabel}</span>
           </a>
           <a class="btn ghost nav-cta" href={active === 'home' ? '#install' : base + '#install'}>Install</a>
         </nav>
@@ -224,6 +224,23 @@ const starLabel =
     </div></footer>
 
     <script>
+      // Refresh the top-bar star count client-side so it's current, not just the build-time
+      // snapshot. Unauthenticated (60/hr per IP) — on rate-limit or error we keep the built-in value.
+      (async () => {
+        const el = document.getElementById('gh-star-count');
+        if (!el) return;
+        try {
+          const res = await fetch('https://api.github.com/repos/Atypical-Consulting/RoselineMCP', {
+            headers: { Accept: 'application/vnd.github+json' },
+          });
+          if (!res.ok) return;
+          const n = (await res.json()).stargazers_count;
+          if (typeof n !== 'number') return;
+          el.textContent = n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
+          el.hidden = false;
+        } catch { /* keep the build-time value */ }
+      })();
+
       document.addEventListener('click', (e) => {
         const btn = (e.target as HTMLElement).closest('.copy');
         if (!btn) return;

@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Documentation
-- Docs site: added a **GitHub "Star" button** in the top bar showing the live star count (fetched at
-  build time, authenticated in CI; degrades to a plain Star link if the fetch fails).
+- Docs site: added a **GitHub "Star" button** in the top bar showing the star count. Renders a
+  build-time snapshot instantly, then a tiny client-side fetch refreshes it to the current count
+  (falls back to the build-time value on rate-limit/error).
 
 ## [1.4.0] - 2026-07-03
 
