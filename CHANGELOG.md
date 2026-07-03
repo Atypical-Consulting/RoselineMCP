@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Automated MCP Registry publishing.** `publish-nuget.yml` now has a `publish-registry` job that,
+  after a successful NuGet publish, waits for the version to index, then authenticates via GitHub
+  OIDC (`mcp-publisher login github-oidc`, no secret) and publishes `.mcp/server.json` to the
+  official registry (`registry.modelcontextprotocol.io`) — so the server is discoverable by any
+  client/aggregator that reads the registry. Ownership is proven by an `mcp-name:` marker added to
+  the packed `README.md`, which the registry cross-checks against the NuGet package. The manifest
+  `$schema` was migrated from the deprecated `2025-10-17` to the current `2025-12-11` (a URL-only
+  change; the format is unchanged for stdio package servers). Takes effect on the next tagged release.
+
 ### Security
 - Pinned `Microsoft.Bcl.Memory` to `10.0.9` (aligned with the `net10.0` TFM) in
   `RoselineMCP.TokenBenchmark` to override the `9.0.4`
