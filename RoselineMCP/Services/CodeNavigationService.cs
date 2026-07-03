@@ -87,8 +87,8 @@ public class CodeNavigationService : ICodeNavigationService
         var kindFilter = NormalizeKinds(kinds);
 
         var symbols = file != null
-            ? await OutlineFileAsync(loaded.Project, file, query, cancellationToken)
-            : await SearchProjectAsync(loaded.Project, query!, cancellationToken);
+            ? await OutlineFileAsync(loaded.Solution, loaded.Project, file, query, cancellationToken)
+            : await SearchSolutionAsync(loaded.Solution, loaded.Project, query!, cancellationToken);
 
         var filtered = symbols.Where(s => MatchesKinds(s, kindFilter)).ToList();
 
@@ -98,8 +98,8 @@ public class CodeNavigationService : ICodeNavigationService
             .ToList();
 
         // A single-file outline shares one file and puts accessibility inside each signature, so it
-        // returns a lean per-symbol projection; a project-wide search spans files and needs the full
-        // summary (file + fully-qualified name).
+        // returns a lean per-symbol projection; a solution-wide search spans files and needs the
+        // full summary (file + fully-qualified name).
         Func<ISymbol, SymbolSummary> toSummary = file != null ? LeanOutlineSummary : SymbolResolver.ToSummary;
         var capped = ordered.Take(Math.Max(1, max)).Select(toSummary).ToList();
         RelativizePaths(capped, BaseDirOf(loaded));
@@ -115,21 +115,36 @@ public class CodeNavigationService : ICodeNavigationService
         };
     }
 
-    private static async Task<List<ISymbol>> SearchProjectAsync(Project project, string query, CancellationToken cancellationToken)
+    /// <summary>
+    /// Searches the source declarations of every C# project in <paramref name="solution"/> (not just
+    /// the <paramref name="anchor"/>), deduplicating the same declaration seen through multiple
+    /// project compilations by declaring source location, preferring the anchor's symbol instance.
+    /// </summary>
+    private static async Task<List<ISymbol>> SearchSolutionAsync(Solution solution, Project anchor, string query, CancellationToken cancellationToken)
     {
         var matcher = BuildNameMatcher(query);
-        var found = await SymbolFinder.FindSourceDeclarationsAsync(project, matcher, SymbolFilter.All, cancellationToken);
-        return found
-            .Where(s => s.Locations.Any(l => l.IsInSource))
-            .Distinct(SymbolEqualityComparer.Default)
-            .Cast<ISymbol>()
-            .ToList();
+        var results = new List<ISymbol>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var project in SymbolResolver.OrderedCSharpProjects(solution, anchor))
+        {
+            var found = await SymbolFinder.FindSourceDeclarationsAsync(project, matcher, SymbolFilter.All, cancellationToken);
+            foreach (var symbol in found)
+            {
+                if (symbol.Locations.Any(l => l.IsInSource) && seen.Add(SymbolResolver.DeclarationKeyOf(symbol)))
+                {
+                    results.Add(symbol);
+                }
+            }
+        }
+
+        return results;
     }
 
-    private async Task<List<ISymbol>> OutlineFileAsync(Project project, string file, string? query, CancellationToken cancellationToken)
+    private async Task<List<ISymbol>> OutlineFileAsync(Solution solution, Project anchor, string file, string? query, CancellationToken cancellationToken)
     {
-        var document = FindDocument(project, file)
-            ?? throw new KeyNotFoundException($"File not found in project '{project.Name}': {file}");
+        var document = FindDocument(solution, anchor, file)
+            ?? throw new KeyNotFoundException($"File not found in the loaded solution: {file}");
 
         var model = await document.GetSemanticModelAsync(cancellationToken);
         var root = await document.GetSyntaxRootAsync(cancellationToken);
@@ -189,7 +204,7 @@ public class CodeNavigationService : ICodeNavigationService
         CancellationToken cancellationToken = default)
     {
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, symbol, cancellationToken);
+        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
 
         var (file, line) = SymbolResolver.LocationOf(resolved);
 
@@ -246,7 +261,7 @@ public class CodeNavigationService : ICodeNavigationService
         CancellationToken cancellationToken = default)
     {
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, symbol, cancellationToken);
+        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
 
         var referenced = await SymbolFinder.FindReferencesAsync(resolved, loaded.Solution, cancellationToken);
 
@@ -312,7 +327,7 @@ public class CodeNavigationService : ICodeNavigationService
         CancellationToken cancellationToken = default)
     {
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, symbol, cancellationToken);
+        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
         var solution = loaded.Solution;
 
         var results = new List<ISymbol>();
@@ -373,7 +388,7 @@ public class CodeNavigationService : ICodeNavigationService
         var boundedDepth = Math.Clamp(depth <= 0 ? 1 : depth, 1, MaxCallGraphDepth);
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, method, cancellationToken);
+        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, method, cancellationToken);
 
         if (resolved is not IMethodSymbol methodSymbol)
         {
@@ -545,7 +560,7 @@ public class CodeNavigationService : ICodeNavigationService
         var normalizedDirection = NormalizeDirection(direction, "base", "derived", "both", defaultValue: "both");
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, type, cancellationToken);
+        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, type, cancellationToken);
 
         if (resolved is not INamedTypeSymbol namedType)
         {
@@ -627,11 +642,18 @@ public class CodeNavigationService : ICodeNavigationService
         };
     }
 
-    private static Document? FindDocument(Project project, string file)
+    /// <summary>
+    /// Locates <paramref name="file"/> across every C# project in <paramref name="solution"/>,
+    /// preferring path-suffix matches over bare-filename matches, and the <paramref name="anchor"/>'s
+    /// documents over sibling projects', so an outline works for files the anchor doesn't own.
+    /// </summary>
+    private static Document? FindDocument(Solution solution, Project anchor, string file)
     {
         var normalized = file.Replace('\\', '/');
-        return project.Documents.FirstOrDefault(d => IsPathSuffixMatch(d.FilePath, normalized))
-               ?? project.Documents.FirstOrDefault(d =>
+        var projects = SymbolResolver.OrderedCSharpProjects(solution, anchor);
+
+        return projects.SelectMany(p => p.Documents).FirstOrDefault(d => IsPathSuffixMatch(d.FilePath, normalized))
+               ?? projects.SelectMany(p => p.Documents).FirstOrDefault(d =>
                    d.Name.Equals(Path.GetFileName(file), StringComparison.OrdinalIgnoreCase));
     }
 

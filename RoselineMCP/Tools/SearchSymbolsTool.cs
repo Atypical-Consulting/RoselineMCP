@@ -15,7 +15,8 @@ namespace RoselineMCP.Tools;
 public static class SearchSymbolsTool
 {
     /// <summary>
-    /// Searches a project's symbols by wildcard/substring pattern, or returns a file's outline.
+    /// Searches the loaded solution's symbols (every project in it) by wildcard/substring pattern,
+    /// or returns a file's outline.
     /// </summary>
     [McpServerTool(Title = "Search Symbols", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Locate C# symbols by name (wildcard/substring), or outline a whole file, WITHOUT opening it. Prefer this over Read/Grep to find or survey code in an existing solution — it returns compact signatures + locations and costs far fewer tokens than reading files, especially large ones. Read-only: never modifies any files on disk.")]
