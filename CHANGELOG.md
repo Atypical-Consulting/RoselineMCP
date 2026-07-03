@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`analyze_solution` reports honest numbers.** `diagnosticSummary` now counts every diagnostic
+  passing the filters — previously each project's diagnostics were capped at `maxDiagnostics`
+  *before* counting, undercounting any project with more. `topDiagnostics` is now the true
+  solution-wide top-N by severity — previously it kept the first N diagnostics encountered in
+  project order, so warnings from an early project could crowd out errors from a later one.
+
 ## [2.0.0] - 2026-07-04
 
 ### Added

@@ -120,9 +120,6 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         int progressOffset,
         CancellationToken cancellationToken)
     {
-        var allDiagnostics = new List<DiagnosticDetail>();
-        var summary = new DiagnosticSummary();
-
         // Materialize the set of projects that will actually be analyzed so per-project progress
         // can report a meaningful total.
         var projectsToAnalyze = solution.Projects
@@ -133,12 +130,16 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         // reported value strictly increases across the whole operation, as MCP requires.
         var total = progressOffset + projectsToAnalyze.Count;
 
+        // Each project's result lands in its own slot, so per-project analysis stays independent
+        // and the merged output is deterministic regardless of analysis order.
+        var results = new ProjectAnalysisResult[projectsToAnalyze.Count];
+
         for (var i = 0; i < projectsToAnalyze.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var project = projectsToAnalyze[i];
-            await AnalyzeProjectAsync(project, allDiagnostics, summary, context, cancellationToken);
+            results[i] = await AnalyzeProjectAsync(project, context, cancellationToken);
 
             progress?.Report(new ProgressNotificationValue
             {
@@ -148,13 +149,11 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             });
         }
 
-        return (allDiagnostics, summary);
+        return MergeProjectResults(results, context.MaxDiagnostics);
     }
 
-    private async Task AnalyzeProjectAsync(
+    private async Task<ProjectAnalysisResult> AnalyzeProjectAsync(
         Project project,
-        List<DiagnosticDetail> allDiagnostics,
-        DiagnosticSummary summary,
         AnalysisContext context,
         CancellationToken cancellationToken)
     {
@@ -164,36 +163,77 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         if (compilation == null)
         {
             _logger.LogWarning("Failed to get compilation for project: {ProjectName}", project.Name);
-            return;
+            return new ProjectAnalysisResult();
         }
 
         var diagnostics = GetFilteredDiagnostics(compilation, context, cancellationToken);
-        ProcessProjectDiagnostics(diagnostics, project.Name, allDiagnostics, summary, context.MaxDiagnostics);
+        return ProcessProjectDiagnostics(diagnostics, project.Name, context.MaxDiagnostics);
     }
 
-    private IEnumerable<Diagnostic> GetFilteredDiagnostics(Compilation compilation, AnalysisContext context, CancellationToken cancellationToken)
+    private List<Diagnostic> GetFilteredDiagnostics(Compilation compilation, AnalysisContext context, CancellationToken cancellationToken)
     {
+        // Deliberately no Take() here: the summary must count every diagnostic that passes the
+        // filters. Capping to MaxDiagnostics happens per project in ProcessProjectDiagnostics,
+        // after sorting, so no high-severity diagnostic is dropped in favor of a lower one.
         return compilation.GetDiagnostics(cancellationToken)
             .Where(d => _filterService.ShouldIncludeDiagnostic(d, context.Severity))
-            .Take(context.MaxDiagnostics);
+            .ToList();
     }
 
-    private void ProcessProjectDiagnostics(
-        IEnumerable<Diagnostic> diagnostics,
+    private ProjectAnalysisResult ProcessProjectDiagnostics(
+        IReadOnlyCollection<Diagnostic> diagnostics,
         string projectName,
-        List<DiagnosticDetail> allDiagnostics,
-        DiagnosticSummary summary,
         int maxDiagnostics)
     {
+        var summary = new DiagnosticSummary();
         foreach (var diagnostic in diagnostics)
         {
             UpdateSummary(summary, diagnostic.Severity);
-
-            if (allDiagnostics.Count < maxDiagnostics)
-            {
-                allDiagnostics.Add(CreateDiagnosticDetail(diagnostic, projectName));
-            }
         }
+
+        // Keep only this project's best maxDiagnostics candidates, ranked by the same key the
+        // final global selection uses (severity desc, then file, then line). The global top-N can
+        // never contain more than N entries from a single project, so this bounds memory without
+        // changing which diagnostics make the final cut.
+        var topDiagnostics = diagnostics
+            .OrderByDescending(d => _filterService.GetSeverityPriority(d.Severity.ToString()))
+            .ThenBy(d => d.Location.GetLineSpan().Path ?? "Unknown")
+            .ThenBy(d => d.Location.GetLineSpan().StartLinePosition.Line)
+            .Take(maxDiagnostics)
+            .Select(d => CreateDiagnosticDetail(d, projectName))
+            .ToList();
+
+        return new ProjectAnalysisResult { TopDiagnostics = topDiagnostics, Summary = summary };
+    }
+
+    private (List<DiagnosticDetail> diagnostics, DiagnosticSummary summary) MergeProjectResults(
+        IReadOnlyList<ProjectAnalysisResult> results,
+        int maxDiagnostics)
+    {
+        var summary = new DiagnosticSummary();
+        var candidates = new List<DiagnosticDetail>();
+
+        foreach (var result in results)
+        {
+            summary.Error += result.Summary.Error;
+            summary.Warning += result.Summary.Warning;
+            summary.Info += result.Summary.Info;
+            summary.Hidden += result.Summary.Hidden;
+            candidates.AddRange(result.TopDiagnostics);
+        }
+
+        return (OrderDiagnostics(candidates, maxDiagnostics), summary);
+    }
+
+    /// <summary>
+    /// Per-project analysis output: severity counts covering <b>every</b> diagnostic that passed
+    /// the filters, plus at most MaxDiagnostics highest-ranked diagnostics as candidates for the
+    /// global top selection.
+    /// </summary>
+    private sealed class ProjectAnalysisResult
+    {
+        public List<DiagnosticDetail> TopDiagnostics { get; init; } = [];
+        public DiagnosticSummary Summary { get; init; } = new();
     }
 
     private DiagnosticDetail CreateDiagnosticDetail(Diagnostic diagnostic, string projectName)

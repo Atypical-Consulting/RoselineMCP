@@ -1,5 +1,11 @@
+using System.Reflection;
 using FakeItEasy;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
+using RoselineMCP.Models;
 using RoselineMCP.Services;
 using RoselineMCP.Interfaces;
 using Shouldly;
@@ -120,6 +126,112 @@ public class SolutionAnalyzerServiceTests
                 await _sut.ListDiagnosticsAsync("irrelevant.csproj", cancellationToken: cts.Token));
 
             A.CallTo(() => _msBuildService.CreateWorkspace()).MustNotHaveHappened();
+        }
+    }
+
+    /// <summary>
+    /// End-to-end aggregation tests over AnalyzeProjectsAsync using real in-memory Roslyn
+    /// compilations (AdhocWorkspace, no MSBuild) and the real DiagnosticFilterService. These
+    /// pin down the honest-numbers contract: the summary counts every diagnostic passing the
+    /// filters (never capped by maxDiagnostics), and topDiagnostics is the global top-N by
+    /// severity across all projects — not the first N encountered in project order.
+    /// </summary>
+    public class DiagnosticAggregationTests
+    {
+        private readonly SolutionAnalyzerService _aggregationSut;
+
+        public DiagnosticAggregationTests()
+        {
+            var logger = A.Fake<ILogger<SolutionAnalyzerService>>();
+            var msBuildService = A.Fake<IMSBuildService>();
+            var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
+            var realFilterService = new DiagnosticFilterService(codeFixProviderFactory);
+            _aggregationSut = new SolutionAnalyzerService(logger, msBuildService, realFilterService);
+        }
+
+        private static readonly MetadataReference CoreLibReference =
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
+
+        /// <summary>Adds a compilable project (CoreLib referenced, DLL output) with one source file.</summary>
+        private static Solution AddProject(Solution solution, string name, string code)
+        {
+            var projectId = ProjectId.CreateNewId();
+            var projectInfo = ProjectInfo.Create(
+                projectId, VersionStamp.Create(), name, name, LanguageNames.CSharp,
+                metadataReferences: new[] { CoreLibReference },
+                compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            solution = solution.AddProject(projectInfo);
+            return solution.AddDocument(
+                DocumentId.CreateNewId(projectId), $"{name}.cs", SourceText.From(code),
+                filePath: $"/{name}/{name}.cs");
+        }
+
+        /// <summary>Produces exactly <paramref name="count"/> CS0168 warnings (unused locals).</summary>
+        private static string WarningCode(string className, int count)
+        {
+            var locals = string.Join(" ", Enumerable.Range(1, count).Select(i => $"int u{i};"));
+            return $"class {className} {{ void M() {{ {locals} }} }}";
+        }
+
+        /// <summary>Produces exactly <paramref name="count"/> CS0103 errors (calls to undefined methods).</summary>
+        private static string ErrorCode(string className, int count)
+        {
+            var calls = string.Join(" ", Enumerable.Range(1, count).Select(i => $"Undefined{i}();"));
+            return $"class {className} {{ void M() {{ {calls} }} }}";
+        }
+
+        private async Task<(List<DiagnosticDetail> Diagnostics, DiagnosticSummary Summary)> RunAnalyzeProjectsAsync(
+            Solution solution, int maxDiagnostics, IProgress<ProgressNotificationValue>? progress = null)
+        {
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
+            var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, maxDiagnostics);
+
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "AnalyzeProjectsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            return await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
+                method.Invoke(_aggregationSut, new object?[] { solution, context, progress, 0, CancellationToken.None })!;
+        }
+
+        [Fact]
+        public async Task Summary_Should_Count_All_Diagnostics_Even_Beyond_MaxDiagnostics()
+        {
+            // Arrange — one project with 10 warnings, but maxDiagnostics = 3.
+            using var workspace = new AdhocWorkspace();
+            var solution = AddProject(workspace.CurrentSolution, "WarnProject", WarningCode("W", 10));
+
+            // Act
+            var (diagnostics, summary) = await RunAnalyzeProjectsAsync(solution, maxDiagnostics: 3);
+
+            // Assert — details are capped, but the summary counts every diagnostic.
+            summary.Warning.ShouldBe(10);
+            summary.Error.ShouldBe(0);
+            diagnostics.Count.ShouldBe(3);
+        }
+
+        [Fact]
+        public async Task TopDiagnostics_Should_Prefer_Later_Project_Errors_Over_Earlier_Project_Warnings()
+        {
+            // Arrange — the first project has 5 warnings, a later project has 3 errors.
+            // With maxDiagnostics = 4 the old first-N-encountered behavior returned only
+            // warnings from the first project and dropped every error.
+            using var workspace = new AdhocWorkspace();
+            var solution = workspace.CurrentSolution;
+            solution = AddProject(solution, "AAA_Warnings", WarningCode("W", 5));
+            solution = AddProject(solution, "ZZZ_Errors", ErrorCode("E", 3));
+
+            // Act
+            var (diagnostics, summary) = await RunAnalyzeProjectsAsync(solution, maxDiagnostics: 4);
+
+            // Assert — every error made the cut, ranked above the warnings.
+            summary.Error.ShouldBe(3);
+            summary.Warning.ShouldBe(5);
+            diagnostics.Count.ShouldBe(4);
+            diagnostics.Count(d => d.Severity == "error").ShouldBe(3);
+            diagnostics.Take(3).ShouldAllBe(d => d.Project == "ZZZ_Errors" && d.Severity == "error");
+            diagnostics[3].Severity.ShouldBe("warning");
+            diagnostics[3].Project.ShouldBe("AAA_Warnings");
         }
     }
 

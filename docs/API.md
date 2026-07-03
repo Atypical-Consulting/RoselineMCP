@@ -74,6 +74,9 @@ directory that is deleted once analysis finishes; no other URL scheme (`ssh://`,
 
 **Returns:** the solution's file name, project count, a diagnostic count summary by severity, and
 the top diagnostics (capped at `maxDiagnostics`, ordered by severity then file then line).
+`diagnosticSummary` counts **every** diagnostic that passes the filters across all projects — it is
+never capped by `maxDiagnostics`; only `topDiagnostics` is. `topDiagnostics` is the solution-wide
+top selection by severity, so a later project's errors always outrank an earlier project's warnings.
 
 ```typescript
 {
