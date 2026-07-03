@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
-- Pinned `Microsoft.Bcl.Memory` to `9.0.14` in `RoselineMCP.TokenBenchmark` to override the `9.0.4`
+- Pinned `Microsoft.Bcl.Memory` to `10.0.9` (aligned with the `net10.0` TFM) in
+  `RoselineMCP.TokenBenchmark` to override the `9.0.4`
   that `Microsoft.ML.Tokenizers` `2.0.0` pulled in transitively, which was vulnerable to
   CVE-2026-26127 (GHSA-73j8-2gch-69rq, high severity — Base64Url out-of-bounds-read DoS). The
   benchmark harness is never packaged and is not referenced by the shipped `RoselineMCP` package,

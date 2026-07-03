@@ -26,8 +26,9 @@
     <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" Version="2.0.0" />
     <!-- Security override: Microsoft.ML.Tokenizers 2.0.0 pulls in Microsoft.Bcl.Memory 9.0.4
          transitively, which is vulnerable to CVE-2026-26127 (GHSA-73j8-2gch-69rq, high severity:
-         Base64Url out-of-bounds-read DoS; fixed in 9.0.14). Pin the patched version directly to
-         override the transitive one. Remove once Microsoft.ML.Tokenizers references a fixed build. -->
+         Base64Url out-of-bounds-read DoS; fixed in 9.0.14 / 10.0.4). Pin a patched version
+         directly (10.0.9, aligned with this project's net10.0 TFM) to override the transitive one.
+         Remove once Microsoft.ML.Tokenizers references a fixed build. -->
     <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.9" />
   </ItemGroup>
 
