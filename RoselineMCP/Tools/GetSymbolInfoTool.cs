@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -18,9 +18,9 @@ public static class GetSymbolInfoTool
     /// Returns declaration details (kind, accessibility, modifiers, signature, base types,
     /// interfaces, docs, definition location and optional source) for a symbol.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]
+    [McpServerTool(Title = "Get Symbol Info", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Get a C# symbol's kind, accessibility, modifiers, signature, base types, interfaces, XML docs, and definition location (optionally its source) — instead of reading the whole file. Read-only: never modifies any files on disk.")]
-    public static async Task<string> GetSymbolInfo(
+    public static async Task<ToolResult<SymbolInfoResponse>> GetSymbolInfo(
         ICodeNavigationService navigationService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -30,9 +30,10 @@ public static class GetSymbolInfoTool
         bool includeSource = true,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(GetSymbolInfo), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(GetSymbolInfo), loggerFactory, server);
         using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
         try
@@ -40,19 +41,18 @@ public static class GetSymbolInfoTool
             var result = await navigationService.GetSymbolInfoAsync(
                 project, symbol, includeSource, timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<SymbolInfoResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<SymbolInfoResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<SymbolInfoResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

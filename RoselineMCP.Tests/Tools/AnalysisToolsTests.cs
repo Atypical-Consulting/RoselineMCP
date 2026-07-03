@@ -1,5 +1,5 @@
-using System.Text.Json;
 using FakeItEasy;
+using ModelContextProtocol;
 using RoselineMCP.Models;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Tools;
@@ -19,7 +19,7 @@ public class AnalysisToolsTests
         }
 
         [Fact]
-        public async Task Should_Return_Json_Response_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             // Arrange
             var expectedResponse = new AnalyzeSolutionResponse
@@ -37,6 +37,7 @@ public class AnalysisToolsTests
                 A<string?>._,
                 A<string?>._,
                 A<int>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
 
@@ -46,15 +47,15 @@ public class AnalysisToolsTests
                 "test.sln");
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
-            var parsedResult = JsonSerializer.Deserialize<AnalyzeSolutionResponse>(result);
-            parsedResult.ShouldNotBeNull();
-            parsedResult.Solution.ShouldBe("Test.sln");
-            parsedResult.Projects.ShouldBe(3);
+            result.Ok.ShouldBeTrue();
+            result.Error.ShouldBeNull();
+            result.Data.ShouldNotBeNull();
+            result.Data.Solution.ShouldBe("Test.sln");
+            result.Data.Projects.ShouldBe(3);
         }
 
         [Fact]
-        public async Task Should_Return_Error_Json_On_Exception()
+        public async Task Should_Return_Error_Envelope_On_Exception()
         {
             // Arrange
             A.CallTo(() => _analyzerService.AnalyzeSolutionAsync(
@@ -64,6 +65,7 @@ public class AnalysisToolsTests
                 A<string?>._,
                 A<string?>._,
                 A<int>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new FileNotFoundException("Solution not found"));
 
@@ -73,9 +75,11 @@ public class AnalysisToolsTests
                 "test.sln");
 
             // Assert
-            result.ShouldContain("error");
-            result.ShouldContain("Solution not found");
-            result.ShouldContain("NotFoundError");
+            result.Ok.ShouldBeFalse();
+            result.Data.ShouldBeNull();
+            result.Error.ShouldNotBeNull();
+            result.Error.Message.ShouldContain("Solution not found");
+            result.Error.Type.ShouldBe("NotFoundError");
         }
 
         [Fact]
@@ -96,6 +100,7 @@ public class AnalysisToolsTests
                 exclude,
                 severity,
                 maxDiagnostics,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(new AnalyzeSolutionResponse()));
 
@@ -117,6 +122,7 @@ public class AnalysisToolsTests
                 exclude,
                 severity,
                 maxDiagnostics,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .MustHaveHappenedOnceExactly();
         }
@@ -132,7 +138,7 @@ public class AnalysisToolsTests
         }
 
         [Fact]
-        public async Task Should_Return_Json_Response_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             // Arrange
             var expectedResponse = new ListDiagnosticsResponse
@@ -158,11 +164,10 @@ public class AnalysisToolsTests
                 "TestProject");
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
-            var parsedResult = JsonSerializer.Deserialize<ListDiagnosticsResponse>(result);
-            parsedResult.ShouldNotBeNull();
-            parsedResult.Project.ShouldBe("TestProject");
-            parsedResult.TotalDiagnostics.ShouldBe(10);
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.Project.ShouldBe("TestProject");
+            result.Data.TotalDiagnostics.ShouldBe(10);
         }
 
         [Fact]
@@ -221,7 +226,7 @@ public class AnalysisToolsTests
                 "TestProject");
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
+            result.Ok.ShouldBeTrue();
         }
     }
 
@@ -244,9 +249,10 @@ public class AnalysisToolsTests
                 Array.Empty<string>());
 
             // Assert
-            result.ShouldContain("\"error\"");
-            result.ShouldContain("No diagnostic IDs provided");
-            result.ShouldContain("ValidationError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Message.ShouldContain("No diagnostic IDs provided");
+            result.Error.Type.ShouldBe("ValidationError");
         }
 
         /// <summary>
@@ -265,8 +271,9 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
-                .Invokes((string _, List<string> _, bool previewOnly, CancellationToken _) =>
+                .Invokes((string _, List<string> _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 {
                     capturedPreviewOnly = previewOnly;
                 })
@@ -284,7 +291,7 @@ public class AnalysisToolsTests
         }
 
         [Fact]
-        public async Task Should_Return_Json_Response_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             // Arrange
             var expectedResponse = new ApplyFixesResponse
@@ -300,6 +307,7 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
 
@@ -311,12 +319,11 @@ public class AnalysisToolsTests
                 true);
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
-            var parsedResult = JsonSerializer.Deserialize<ApplyFixesResponse>(result);
-            parsedResult.ShouldNotBeNull();
-            parsedResult.Project.ShouldBe("TestProject");
-            parsedResult.FixedCount.ShouldBe(1);
-            parsedResult.PreviewOnly.ShouldBeTrue();
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.Project.ShouldBe("TestProject");
+            result.Data.FixedCount.ShouldBe(1);
+            result.Data.PreviewOnly.ShouldBeTrue();
         }
 
         [Fact]
@@ -332,8 +339,9 @@ public class AnalysisToolsTests
                 project,
                 A<List<string>>._,
                 previewOnly,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
-                .Invokes((string _, List<string> i, bool _, CancellationToken _) =>
+                .Invokes((string _, List<string> i, bool _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 {
                     capturedIds = i;
                 })
@@ -364,7 +372,7 @@ public class AnalysisToolsTests
         }
 
         [Fact]
-        public void Should_Return_Json_Response_On_Success()
+        public void Should_Return_Success_Envelope()
         {
             // Arrange
             var expectedResponse = new CreatePatchResponse
@@ -395,15 +403,14 @@ public class AnalysisToolsTests
                 "test.txt");
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
-            var parsedResult = JsonSerializer.Deserialize<CreatePatchResponse>(result);
-            parsedResult.ShouldNotBeNull();
-            parsedResult.HasChanges.ShouldBeTrue();
-            parsedResult.FileName.ShouldBe("test.txt");
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.HasChanges.ShouldBeTrue();
+            result.Data.FileName.ShouldBe("test.txt");
         }
 
         [Fact]
-        public void Should_Return_Error_Json_On_Exception()
+        public void Should_Return_Error_Envelope_On_Exception()
         {
             // Arrange
             A.CallTo(() => _patchService.CreatePatchWithOptions(
@@ -423,9 +430,10 @@ public class AnalysisToolsTests
                 "new");
 
             // Assert
-            result.ShouldContain("error");
-            result.ShouldContain("Failed to create patch");
-            result.ShouldContain("AnalysisError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Message.ShouldContain("Failed to create patch");
+            result.Error.Type.ShouldBe("AnalysisError");
         }
 
         [Fact]

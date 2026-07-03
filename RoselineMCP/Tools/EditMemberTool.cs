@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -28,9 +28,9 @@ public static class EditMemberTool
     /// <see cref="McpServerToolAttribute.Destructive"/> hint is a static worst-case annotation: the
     /// tool *can* write a file when preview mode is turned off.
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false)]
+    [McpServerTool(Title = "Edit Member", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Surgically replace, add, or delete a single C# member (method/property/field/etc.) and return a unified diff — instead of rewriting the whole file. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the change to disk.")]
-    public static async Task<string> EditMember(
+    public static async Task<ToolResult<EditMemberResponse>> EditMember(
         ICodeEditService editService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -44,14 +44,15 @@ public static class EditMemberTool
         bool previewOnly = true,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(EditMember), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(EditMember), loggerFactory, server);
 
         if (string.IsNullOrWhiteSpace(operation) || !ValidOperations.Contains(operation))
         {
             invocation.MarkFailure("validation: invalid operation");
-            return ToolExecutionHelper.SerializeValidationError(
+            return ToolExecutionHelper.ValidationError<EditMemberResponse>(
                 $"Invalid or missing operation '{operation}'.",
                 invocation.CorrelationId,
                 "Valid operations are: replace, add, delete.");
@@ -61,22 +62,40 @@ public static class EditMemberTool
 
         try
         {
-            var result = await editService.EditMemberAsync(
-                project, symbol, operation, newSource, previewOnly, timeoutSource.Token);
+            var effectivePreviewOnly = previewOnly;
+            string? declineNote = null;
+            // Use the caller's request token (not the wall-clock timeout) for the human confirmation
+            // round-trip: think-time must not be charged against the analysis budget.
+            if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
+                    server,
+                    $"Write the '{operation}' of member '{symbol}' in '{project}' to disk?",
+                    cancellationToken))
+            {
+                effectivePreviewOnly = true;
+                declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";
+            }
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            var result = await editService.EditMemberAsync(
+                project, symbol, operation, newSource, effectivePreviewOnly, timeoutSource.Token);
+
+            if (declineNote is not null)
+            {
+                result.PreviewOnly = true;
+                result.Notes.Add(declineNote);
+            }
+
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<EditMemberResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<EditMemberResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<EditMemberResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

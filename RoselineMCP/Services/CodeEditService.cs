@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 
@@ -218,6 +219,7 @@ public class CodeEditService : ICodeEditService
         string symbol,
         string newName,
         bool previewOnly,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(newName))
@@ -230,7 +232,11 @@ public class CodeEditService : ICodeEditService
             throw new ArgumentException($"'{newName}' is not a valid C# identifier.");
         }
 
+        // Progress values must strictly increase (MCP requirement), so the three phases are 1/2/3.
+        progress?.Report(new ProgressNotificationValue { Progress = 1, Message = "Loading project via MSBuild…" });
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
+
+        progress?.Report(new ProgressNotificationValue { Progress = 2, Message = $"Resolving symbol '{symbol}'…" });
         var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, symbol, cancellationToken);
 
         if (!resolved.Locations.Any(l => l.IsInSource))
@@ -239,6 +245,7 @@ public class CodeEditService : ICodeEditService
         }
 
         var originalSolution = loaded.Solution;
+        progress?.Report(new ProgressNotificationValue { Progress = 3, Message = "Renaming across the solution…" });
         var newSolution = await Renamer.RenameSymbolAsync(
             originalSolution, resolved, new SymbolRenameOptions(), newName, cancellationToken);
 

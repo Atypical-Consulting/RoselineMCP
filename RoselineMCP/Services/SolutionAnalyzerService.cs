@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 
@@ -50,6 +51,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         string? excludePattern = null,
         string? severity = null,
         int maxDiagnostics = 100,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
         string? clonedDirectory = null;
@@ -58,11 +60,16 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Progress values must strictly increase (MCP requirement): the two pre-analysis phases
+            // occupy steps 1 and 2, and the per-project loop continues from step 3 (see the
+            // progressOffset passed to AnalyzeProjectsAsync below).
+            progress?.Report(new ProgressNotificationValue { Progress = 1, Message = "Resolving solution source…" });
             var (solutionPath, cloneDirectory) = await ResolveSolutionPathAsync(pathOrGit, branch, cancellationToken);
             clonedDirectory = cloneDirectory;
             ValidateSolutionPath(solutionPath);
 
             using var workspace = _msBuildService.CreateWorkspace();
+            progress?.Report(new ProgressNotificationValue { Progress = 2, Message = "Loading solution via MSBuild…" });
             var solution = await LoadSolutionAsync(workspace, solutionPath, cancellationToken);
 
             var analysisContext = new AnalysisContext
@@ -73,7 +80,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 MaxDiagnostics = maxDiagnostics
             };
 
-            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, cancellationToken);
+            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, progress, progressOffset: 2, cancellationToken);
 
             return BuildAnalyzeSolutionResponse(solutionPath, solution, diagnostics, summary, maxDiagnostics);
         }
@@ -109,21 +116,36 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     private async Task<(List<DiagnosticDetail> diagnostics, DiagnosticSummary summary)> AnalyzeProjectsAsync(
         Solution solution,
         AnalysisContext context,
+        IProgress<ProgressNotificationValue>? progress,
+        int progressOffset,
         CancellationToken cancellationToken)
     {
         var allDiagnostics = new List<DiagnosticDetail>();
         var summary = new DiagnosticSummary();
 
-        foreach (var project in solution.Projects)
+        // Materialize the set of projects that will actually be analyzed so per-project progress
+        // can report a meaningful total.
+        var projectsToAnalyze = solution.Projects
+            .Where(p => _filterService.ShouldAnalyzeProject(p.Name, context.IncludePattern, context.ExcludePattern))
+            .ToList();
+
+        // Progress continues from progressOffset (the number of phases already reported) so the
+        // reported value strictly increases across the whole operation, as MCP requires.
+        var total = progressOffset + projectsToAnalyze.Count;
+
+        for (var i = 0; i < projectsToAnalyze.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!_filterService.ShouldAnalyzeProject(project.Name, context.IncludePattern, context.ExcludePattern))
-            {
-                continue;
-            }
-
+            var project = projectsToAnalyze[i];
             await AnalyzeProjectAsync(project, allDiagnostics, summary, context, cancellationToken);
+
+            progress?.Report(new ProgressNotificationValue
+            {
+                Progress = progressOffset + i + 1,
+                Total = total,
+                Message = $"Analyzed {project.Name} ({i + 1}/{projectsToAnalyze.Count})"
+            });
         }
 
         return (allDiagnostics, summary);

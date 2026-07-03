@@ -1,5 +1,5 @@
-using System.Text.Json;
 using FakeItEasy;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Tools;
@@ -22,13 +22,14 @@ public class AnalysisToolsAdditionalTests
         }
 
         [Fact]
-        public async Task Should_Return_Error_Json_On_Exception()
+        public async Task Should_Return_Error_Envelope_On_Exception()
         {
             // Arrange
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new InvalidOperationException("Workspace failed to load"));
 
@@ -39,9 +40,10 @@ public class AnalysisToolsAdditionalTests
                 new[] { "CS0168" });
 
             // Assert
-            result.ShouldContain("\"error\"");
-            result.ShouldContain("Workspace failed to load");
-            result.ShouldContain("AnalysisError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Message.ShouldContain("Workspace failed to load");
+            result.Error.Type.ShouldBe("AnalysisError");
         }
 
         [Fact]
@@ -54,8 +56,9 @@ public class AnalysisToolsAdditionalTests
                 null!);
 
             // Assert
-            result.ShouldContain("\"error\"");
-            result.ShouldContain("No diagnostic IDs provided");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Message.ShouldContain("No diagnostic IDs provided");
         }
 
         [Fact]
@@ -66,6 +69,7 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>>._,
                 false,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(new ApplyFixesResponse
                 {
@@ -81,20 +85,21 @@ public class AnalysisToolsAdditionalTests
                 false);
 
             // Assert
-            var parsed = JsonSerializer.Deserialize<ApplyFixesResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed!.PreviewOnly.ShouldBeFalse();
-            parsed.FixedCount.ShouldBe(3);
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.PreviewOnly.ShouldBeFalse();
+            result.Data.FixedCount.ShouldBe(3);
         }
 
         [Fact]
-        public async Task Should_Return_Valid_Json_With_File_Not_Found()
+        public async Task Should_Return_NotFound_Error_When_File_Not_Found()
         {
             // Arrange
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new FileNotFoundException("Project file not found"));
 
@@ -105,27 +110,25 @@ public class AnalysisToolsAdditionalTests
                 new[] { "CS0168" });
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
-            // Should be valid JSON
-            var doc = JsonDocument.Parse(result);
-            doc.RootElement.TryGetProperty("error", out _).ShouldBeTrue();
-            doc.RootElement.TryGetProperty("type", out var typeEl).ShouldBeTrue();
-            typeEl.GetString().ShouldBe("NotFoundError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("NotFoundError");
         }
 
         /// <summary>
         /// Proves that when the underlying service reports cancellation, the tool never lets the
-        /// exception escape to the MCP layer — it renders a graceful JSON response instead, per
+        /// exception escape to the MCP layer — it renders a graceful failure envelope instead, per
         /// the project's "never throw to MCP" convention.
         /// </summary>
         [Fact]
-        public async Task Should_Return_Graceful_Json_When_Service_Reports_Cancellation()
+        public async Task Should_Return_Graceful_Envelope_When_Service_Reports_Cancellation()
         {
             // Arrange
             A.CallTo(() => _codeFixService.ApplyFixesAsync(
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new OperationCanceledException());
 
@@ -136,11 +139,9 @@ public class AnalysisToolsAdditionalTests
                 new[] { "CS0168" });
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
-            var doc = JsonDocument.Parse(result);
-            doc.RootElement.TryGetProperty("error", out _).ShouldBeTrue();
-            doc.RootElement.TryGetProperty("type", out var typeEl).ShouldBeTrue();
-            typeEl.GetString().ShouldBe("CancelledError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("CancelledError");
         }
     }
 
@@ -154,7 +155,7 @@ public class AnalysisToolsAdditionalTests
         }
 
         [Fact]
-        public async Task Should_Return_Error_Json_On_Exception()
+        public async Task Should_Return_Error_Envelope_On_Exception()
         {
             // Arrange
             A.CallTo(() => _analyzerService.ListDiagnosticsAsync(
@@ -171,13 +172,14 @@ public class AnalysisToolsAdditionalTests
                 "TestProject");
 
             // Assert
-            result.ShouldContain("\"error\"");
-            result.ShouldContain("Project not found in solution");
-            result.ShouldContain("AnalysisError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Message.ShouldContain("Project not found in solution");
+            result.Error.Type.ShouldBe("AnalysisError");
         }
 
         [Fact]
-        public async Task Should_Return_Error_Json_On_File_Not_Found()
+        public async Task Should_Return_Error_Envelope_On_File_Not_Found()
         {
             // Arrange
             A.CallTo(() => _analyzerService.ListDiagnosticsAsync(
@@ -194,11 +196,9 @@ public class AnalysisToolsAdditionalTests
                 "/nonexistent/project.csproj");
 
             // Assert
-            result.ShouldNotBeNullOrEmpty();
-            var doc = JsonDocument.Parse(result);
-            doc.RootElement.TryGetProperty("error", out _).ShouldBeTrue();
-            doc.RootElement.TryGetProperty("type", out var typeEl).ShouldBeTrue();
-            typeEl.GetString().ShouldBe("NotFoundError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("NotFoundError");
         }
 
         [Fact]
@@ -231,7 +231,7 @@ public class AnalysisToolsAdditionalTests
         }
 
         [Fact]
-        public async Task Should_Return_Valid_Json_With_IndentedOutput()
+        public async Task Should_Return_Success_Envelope_With_Data()
         {
             // Arrange
             A.CallTo(() => _analyzerService.ListDiagnosticsAsync(
@@ -251,9 +251,11 @@ public class AnalysisToolsAdditionalTests
                 _analyzerService,
                 "MyProject");
 
-            // Assert - should be indented JSON
-            result.ShouldContain("\n");
-            result.ShouldContain("MyProject");
+            // Assert
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.Project.ShouldBe("MyProject");
+            result.Data.TotalDiagnostics.ShouldBe(5);
         }
     }
 }

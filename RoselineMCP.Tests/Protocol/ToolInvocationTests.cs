@@ -23,8 +23,8 @@ public class ToolInvocationTests : McpProtocolTestBase
     {
         string? capturedPath = null;
         A.CallTo(() => AnalyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
-            .Invokes((string path, string? _, string? _, string? _, string? _, int _, CancellationToken _) => capturedPath = path)
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string path, string? _, string? _, string? _, string? _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) => capturedPath = path)
             .Returns(Task.FromResult(new AnalyzeSolutionResponse
             {
                 Solution = "Test.sln",
@@ -54,7 +54,7 @@ public class ToolInvocationTests : McpProtocolTestBase
         AssertMcpLevelError(result);
 
         A.CallTo(() => AnalyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -97,8 +97,8 @@ public class ToolInvocationTests : McpProtocolTestBase
     {
         List<string>? capturedIds = null;
         A.CallTo(() => CodeFixService.ApplyFixesAsync(
-                A<string>._, A<List<string>>._, A<bool>._, A<CancellationToken>._))
-            .Invokes((string _, List<string> ids, bool _, CancellationToken _) => capturedIds = ids)
+                A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string _, List<string> ids, bool _, IProgress<ProgressNotificationValue>? _, CancellationToken _) => capturedIds = ids)
             .Returns(Task.FromResult(new ApplyFixesResponse
             {
                 Project = "TestProject",
@@ -131,7 +131,7 @@ public class ToolInvocationTests : McpProtocolTestBase
         AssertMcpLevelError(result);
 
         A.CallTo(() => CodeFixService.ApplyFixesAsync(
-                A<string>._, A<List<string>>._, A<bool>._, A<CancellationToken>._))
+                A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -204,8 +204,10 @@ public class ToolInvocationTests : McpProtocolTestBase
 
     /// <summary>
     /// Asserts the shape every successful tool response must have: not flagged as an error, and
-    /// exactly one text content block whose text is well-formed JSON. Returns the parsed payload
-    /// so callers can assert on individual fields.
+    /// exactly one text content block whose text is the well-formed <c>ToolResult&lt;T&gt;</c>
+    /// envelope (<c>ok: true</c> with a <c>data</c> payload). Returns the unwrapped <c>data</c>
+    /// element so callers can assert on individual fields, and confirms the SDK also emitted a
+    /// matching <c>structuredContent</c> block (the point of <c>UseStructuredContent</c>).
     /// </summary>
     private static JsonElement AssertWellFormedSuccess(CallToolResult result)
     {
@@ -214,7 +216,12 @@ public class ToolInvocationTests : McpProtocolTestBase
         var text = block.ShouldBeOfType<TextContentBlock>();
         text.Text.ShouldNotBeNullOrWhiteSpace();
 
-        return JsonDocument.Parse(text.Text).RootElement.Clone();
+        // The SDK emits structured content alongside the text block when UseStructuredContent is set.
+        result.StructuredContent.ShouldNotBeNull();
+
+        var root = JsonDocument.Parse(text.Text).RootElement;
+        root.GetProperty("ok").GetBoolean().ShouldBeTrue();
+        return root.GetProperty("data").Clone();
     }
 
     /// <summary>

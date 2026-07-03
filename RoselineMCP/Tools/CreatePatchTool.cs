@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -16,9 +16,9 @@ public static class CreatePatchTool
     /// <summary>
     /// Creates a unified diff patch between two text blobs.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]
+    [McpServerTool(Title = "Create Patch", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Create a unified diff patch between two text blobs. Read-only: operates purely on the provided strings and never touches the filesystem.")]
-    public static string CreatePatch(
+    public static ToolResult<CreatePatchResponse> CreatePatch(
         IPatchService patchService,
         [Description("The original text content (before changes)")]
         string before,
@@ -32,9 +32,10 @@ public static class CreatePatchTool
         bool ignoreCase = false,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(CreatePatch), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(CreatePatch), loggerFactory, server);
         using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
         try
@@ -47,23 +48,18 @@ public static class CreatePatchTool
                 ignoreCase: ignoreCase,
                 cancellationToken: timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<CreatePatchResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<CreatePatchResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<CreatePatchResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

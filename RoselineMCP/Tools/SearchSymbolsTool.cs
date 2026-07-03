@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -17,9 +17,9 @@ public static class SearchSymbolsTool
     /// <summary>
     /// Searches a project's symbols by wildcard/substring pattern, or returns a file's outline.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]
+    [McpServerTool(Title = "Search Symbols", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Find C# symbols (types, methods, properties, etc.) by name pattern, or outline a single file — returning compact signatures and locations instead of whole-file contents. Read-only: never modifies any files on disk.")]
-    public static async Task<string> SearchSymbols(
+    public static async Task<ToolResult<SymbolSearchResponse>> SearchSymbols(
         ICodeNavigationService navigationService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -33,14 +33,15 @@ public static class SearchSymbolsTool
         int max = 50,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(SearchSymbols), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(SearchSymbols), loggerFactory, server);
 
         if (string.IsNullOrWhiteSpace(query) && string.IsNullOrWhiteSpace(file))
         {
             invocation.MarkFailure("validation: no query or file");
-            return ToolExecutionHelper.SerializeValidationError(
+            return ToolExecutionHelper.ValidationError<SymbolSearchResponse>(
                 "Provide a 'query' pattern or a 'file' to outline.",
                 invocation.CorrelationId,
                 "Pass a name pattern (e.g. query: \"*Service\") to search, or a file (e.g. file: \"UserService.cs\") to outline its symbols.");
@@ -53,19 +54,18 @@ public static class SearchSymbolsTool
             var result = await navigationService.SearchSymbolsAsync(
                 project, query, file, kinds, max, timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<SymbolSearchResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<SymbolSearchResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<SymbolSearchResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

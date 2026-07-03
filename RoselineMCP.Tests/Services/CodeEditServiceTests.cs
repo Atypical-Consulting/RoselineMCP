@@ -1,6 +1,7 @@
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -150,7 +151,7 @@ public class CodeEditServiceTests
         var service = CreateService("Demo", ("Calc.cs",
             "public class Calc { public int Add(int a, int b) { return a + b; } public int Twice(int x) { return Add(x, x); } }"));
 
-        var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, CancellationToken.None);
+        var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.NewName.ShouldBe("Sum");
         result.PreviewOnly.ShouldBeTrue();
@@ -160,13 +161,35 @@ public class CodeEditServiceTests
     }
 
     [Fact]
+    public async Task RenameSymbol_Reports_Strictly_Increasing_Progress()
+    {
+        var service = CreateService("Demo", ("Calc.cs",
+            "public class Calc { public int Add(int a, int b) { return a + b; } public int Twice(int x) { return Add(x, x); } }"));
+
+        var reports = new List<ProgressNotificationValue>();
+        var progress = A.Fake<IProgress<ProgressNotificationValue>>();
+        A.CallTo(() => progress.Report(A<ProgressNotificationValue>._))
+            .Invokes((ProgressNotificationValue v) => reports.Add(v));
+
+        await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, progress, CancellationToken.None);
+
+        // The load/resolve/rename phases each report progress, and the value must strictly increase
+        // (MCP requirement).
+        reports.Count.ShouldBeGreaterThanOrEqualTo(3);
+        for (var i = 1; i < reports.Count; i++)
+        {
+            reports[i].Progress.ShouldBeGreaterThan(reports[i - 1].Progress);
+        }
+    }
+
+    [Fact]
     public async Task RenameSymbol_Invalid_Identifier_Throws_ArgumentException()
     {
         var service = CreateService("Demo", ("Calc.cs",
             "public class Calc { public int Add(int a, int b) { return a + b; } }"));
 
         await Should.ThrowAsync<ArgumentException>(
-            () => service.RenameSymbolAsync("Demo", "Add", "123bad", previewOnly: true, CancellationToken.None));
+            () => service.RenameSymbolAsync("Demo", "Add", "123bad", previewOnly: true, cancellationToken: CancellationToken.None));
     }
 
     [Fact]
@@ -183,7 +206,7 @@ public class CodeEditServiceTests
             var (workspace, project) = AdhocProjectBuilder.Create("Demo", [("Calc.cs", code)], baseDirectory);
             var service = CreateService(workspace, project);
 
-            var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: false, CancellationToken.None);
+            var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: false, cancellationToken: CancellationToken.None);
 
             result.Applied.ShouldBeTrue();
             var updated = await File.ReadAllTextAsync(filePath);

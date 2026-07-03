@@ -58,7 +58,9 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
     /// <see cref="RoselineMCP.Interfaces.ICodeFixService"/>, <see cref="RoselineMCP.Interfaces.IPatchService"/>, etc.)
     /// the tools depend on. Tests typically register fakes here to avoid any real MSBuild/Git/filesystem work.
     /// </param>
-    public static async Task<McpProtocolTestHost> StartAsync(Action<IServiceCollection> configureServices)
+    public static async Task<McpProtocolTestHost> StartAsync(
+        Action<IServiceCollection> configureServices,
+        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler = null)
     {
         // Two independent duplex pipes give us four unidirectional streams: the client writes to
         // clientToServer and the server reads from it, while the server writes to serverToClient and
@@ -97,7 +99,21 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
             serverInput: clientToServer.Writer.AsStream(),
             serverOutput: serverToClient.Reader.AsStream());
 
-        var client = await McpClient.CreateAsync(clientTransport);
+        // When a test supplies an elicitation handler, advertise the client's elicitation capability
+        // and wire the handler so the server's ElicitAsync round-trips to it (rather than failing the
+        // capability check and falling back).
+        McpClientOptions? clientOptions = elicitationHandler is null
+            ? null
+            : new McpClientOptions
+            {
+                Capabilities = new ClientCapabilities
+                {
+                    Elicitation = new ElicitationCapability { Form = new FormElicitationCapability() },
+                },
+                Handlers = new McpClientHandlers { ElicitationHandler = elicitationHandler },
+            };
+
+        var client = await McpClient.CreateAsync(clientTransport, clientOptions);
 
         return new McpProtocolTestHost(host, client);
     }

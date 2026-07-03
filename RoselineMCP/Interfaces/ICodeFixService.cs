@@ -1,3 +1,4 @@
+using ModelContextProtocol;
 using RoselineMCP.Models;
 
 namespace RoselineMCP.Interfaces;
@@ -18,11 +19,13 @@ public interface ICodeFixService
     /// non-destructive, read-only behavior — callers must opt in explicitly by passing
     /// <see langword="false"/> to write changes to disk.
     /// </param>
+    /// <param name="progress">Optional sink for progress updates (project load / per-diagnostic fixing).</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
     /// <returns>Response containing changed files, patch, and fix statistics.</returns>
     Task<ApplyFixesResponse> ApplyFixesAsync(
         string project,
         List<string> ids,
         bool previewOnly = true,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default);
 }

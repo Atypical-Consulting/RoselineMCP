@@ -1,5 +1,5 @@
-using System.Text.Json;
 using FakeItEasy;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Tools;
@@ -9,8 +9,9 @@ namespace RoselineMCP.Tests.Tools;
 
 /// <summary>
 /// Unit tests for the navigation and edit MCP tools. These invoke the static tool methods directly
-/// with a faked service (mirroring <see cref="AnalysisToolsTests"/>), asserting JSON shaping,
-/// argument pass-through, the error contract, and preview-by-default safety.
+/// with a faked service (mirroring <see cref="AnalysisToolsTests"/>), asserting the typed
+/// <see cref="ToolResult{T}"/> envelope, argument pass-through, the error contract, and
+/// preview-by-default safety.
 /// </summary>
 public class NavigationToolsTests
 {
@@ -19,7 +20,7 @@ public class NavigationToolsTests
         private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();
 
         [Fact]
-        public async Task Should_Return_Json_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             A.CallTo(() => _service.SearchSymbolsAsync(A<string>._, A<string?>._, A<string?>._, A<string[]?>._, A<int>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new SymbolSearchResponse
@@ -32,10 +33,10 @@ public class NavigationToolsTests
 
             var result = await SearchSymbolsTool.SearchSymbols(_service, "Demo", "*Service");
 
-            var parsed = JsonSerializer.Deserialize<SymbolSearchResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed.Query.ShouldBe("*Service");
-            parsed.Symbols.ShouldHaveSingleItem().Name.ShouldBe("UserService");
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.Query.ShouldBe("*Service");
+            result.Data.Symbols.ShouldHaveSingleItem().Name.ShouldBe("UserService");
         }
 
         [Fact]
@@ -43,8 +44,10 @@ public class NavigationToolsTests
         {
             var result = await SearchSymbolsTool.SearchSymbols(_service, "Demo");
 
-            result.ShouldContain("ValidationError");
-            result.ShouldContain("query");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("ValidationError");
+            result.Error.Message.ShouldContain("query");
 
             A.CallTo(() => _service.SearchSymbolsAsync(A<string>._, A<string?>._, A<string?>._, A<string[]?>._, A<int>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
@@ -71,8 +74,10 @@ public class NavigationToolsTests
 
             var result = await SearchSymbolsTool.SearchSymbols(_service, "Demo", file: "Missing.cs");
 
-            result.ShouldContain("NotFoundError");
-            result.ShouldContain("File not found");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("NotFoundError");
+            result.Error.Message.ShouldContain("File not found");
         }
     }
 
@@ -81,7 +86,7 @@ public class NavigationToolsTests
         private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();
 
         [Fact]
-        public async Task Should_Return_Json_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             A.CallTo(() => _service.GetSymbolInfoAsync(A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new SymbolInfoResponse
@@ -93,9 +98,9 @@ public class NavigationToolsTests
 
             var result = await GetSymbolInfoTool.GetSymbolInfo(_service, "Demo", "GetUser");
 
-            var parsed = JsonSerializer.Deserialize<SymbolInfoResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed.FullName.ShouldBe("Acme.UserService.GetUser");
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.FullName.ShouldBe("Acme.UserService.GetUser");
         }
 
         [Fact]
@@ -119,8 +124,10 @@ public class NavigationToolsTests
 
             var result = await GetSymbolInfoTool.GetSymbolInfo(_service, "Demo", "Get");
 
-            result.ShouldContain("ValidationError");
-            result.ShouldContain("Ambiguous");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("ValidationError");
+            result.Error.Message.ShouldContain("Ambiguous");
         }
     }
 
@@ -129,7 +136,7 @@ public class NavigationToolsTests
         private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();
 
         [Fact]
-        public async Task Should_Return_Json_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             A.CallTo(() => _service.FindReferencesAsync(A<string>._, A<string>._, A<bool>._, A<int>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new ReferencesResponse
@@ -141,9 +148,9 @@ public class NavigationToolsTests
 
             var result = await FindReferencesTool.FindReferences(_service, "Demo", "GetUser");
 
-            var parsed = JsonSerializer.Deserialize<ReferencesResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed.TotalReferences.ShouldBe(2);
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.TotalReferences.ShouldBe(2);
         }
 
         [Fact]
@@ -165,7 +172,7 @@ public class NavigationToolsTests
         private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();
 
         [Fact]
-        public async Task Should_Return_Json_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             A.CallTo(() => _service.FindImplementationsAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new ImplementationsResponse
@@ -178,9 +185,9 @@ public class NavigationToolsTests
 
             var result = await FindImplementationsTool.FindImplementations(_service, "Demo", "IRepository");
 
-            var parsed = JsonSerializer.Deserialize<ImplementationsResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed.Implementations.ShouldHaveSingleItem().Name.ShouldBe("SqlRepository");
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.Implementations.ShouldHaveSingleItem().Name.ShouldBe("SqlRepository");
         }
     }
 
@@ -189,7 +196,7 @@ public class NavigationToolsTests
         private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();
 
         [Fact]
-        public async Task Should_Return_Json_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             A.CallTo(() => _service.GetCallGraphAsync(A<string>._, A<string>._, A<string>._, A<int>._, A<int>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new CallGraphResponse
@@ -202,10 +209,10 @@ public class NavigationToolsTests
 
             var result = await GetCallGraphTool.GetCallGraph(_service, "Demo", "Handle");
 
-            var parsed = JsonSerializer.Deserialize<CallGraphResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed.Callers.ShouldNotBeNull();
-            parsed.Callers.ShouldHaveSingleItem().FullName.ShouldBe("Controller.Post");
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.Callers.ShouldNotBeNull();
+            result.Data.Callers.ShouldHaveSingleItem().FullName.ShouldBe("Controller.Post");
         }
 
         [Fact]
@@ -229,7 +236,7 @@ public class NavigationToolsTests
         private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();
 
         [Fact]
-        public async Task Should_Return_Json_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
             A.CallTo(() => _service.GetTypeHierarchyAsync(A<string>._, A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new TypeHierarchyResponse
@@ -241,10 +248,10 @@ public class NavigationToolsTests
 
             var result = await GetTypeHierarchyTool.GetTypeHierarchy(_service, "Demo", "SqlRepository");
 
-            var parsed = JsonSerializer.Deserialize<TypeHierarchyResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed.BaseTypes.ShouldNotBeNull();
-            parsed.BaseTypes.ShouldHaveSingleItem().Name.ShouldBe("RepositoryBase");
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.BaseTypes.ShouldNotBeNull();
+            result.Data.BaseTypes.ShouldHaveSingleItem().Name.ShouldBe("RepositoryBase");
         }
     }
 
@@ -257,8 +264,11 @@ public class NavigationToolsTests
         {
             var result = await EditMemberTool.EditMember(_service, "Demo", "Foo.Bar", "frobnicate");
 
-            result.ShouldContain("ValidationError");
-            result.ShouldContain("replace, add, delete");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("ValidationError");
+            result.Error.Hint.ShouldNotBeNull();
+            result.Error.Hint.ShouldContain("replace, add, delete");
 
             A.CallTo(() => _service.EditMemberAsync(A<string>._, A<string>._, A<string>._, A<string?>._, A<bool>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
@@ -302,9 +312,11 @@ public class NavigationToolsTests
         {
             var result = await RenameSymbolTool.RenameSymbol(_service, "Demo", "Foo.Bar", "");
 
-            result.ShouldContain("ValidationError");
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("ValidationError");
 
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
         }
 
@@ -312,8 +324,8 @@ public class NavigationToolsTests
         public async Task Should_Default_To_PreviewOnly_True()
         {
             bool? captured = null;
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
-                .Invokes((string _, string _, string _, bool previewOnly, CancellationToken _) => captured = previewOnly)
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+                .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) => captured = previewOnly)
                 .Returns(Task.FromResult(new RenameSymbolResponse()));
 
             await RenameSymbolTool.RenameSymbol(_service, "Demo", "Foo.Bar", "Baz");
@@ -322,9 +334,9 @@ public class NavigationToolsTests
         }
 
         [Fact]
-        public async Task Should_Return_Json_On_Success()
+        public async Task Should_Return_Success_Envelope()
         {
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new RenameSymbolResponse
                 {
                     Symbol = "Acme.Foo.Bar",
@@ -335,10 +347,10 @@ public class NavigationToolsTests
 
             var result = await RenameSymbolTool.RenameSymbol(_service, "Demo", "Bar", "Baz");
 
-            var parsed = JsonSerializer.Deserialize<RenameSymbolResponse>(result);
-            parsed.ShouldNotBeNull();
-            parsed.NewName.ShouldBe("Baz");
-            parsed.ChangedFiles.ShouldHaveSingleItem().ShouldBe("Foo.cs");
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.NewName.ShouldBe("Baz");
+            result.Data.ChangedFiles.ShouldHaveSingleItem().ShouldBe("Foo.cs");
         }
     }
 }

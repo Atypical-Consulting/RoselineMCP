@@ -1,5 +1,6 @@
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Services;
 using Shouldly;
@@ -94,14 +95,25 @@ public class CodeFixServiceIntegrationTests : IDisposable
                  }
                  """));
 
+            // Capture progress reports emitted while fixes are applied.
+            var reports = new List<ProgressNotificationValue>();
+            var progress = A.Fake<IProgress<ProgressNotificationValue>>();
+            A.CallTo(() => progress.Report(A<ProgressNotificationValue>._))
+                .Invokes((ProgressNotificationValue v) => reports.Add(v));
+
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false, progress: progress);
 
             // Assert
             result.FixedCount.ShouldBe(1);
             result.FixersApplied.ShouldContain("CS0219");
             result.ChangedFiles.ShouldContain("Program.cs");
             result.Patch.ShouldNotBeNullOrWhiteSpace();
+
+            // Progress was reported against the total number of diagnostic IDs requested.
+            reports.ShouldNotBeEmpty();
+            reports.ShouldContain(r => r.Total == 1);
+            reports.ShouldContain(r => r.Progress >= 1);
 
             var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs"));
             onDisk.ShouldNotContain("unused");

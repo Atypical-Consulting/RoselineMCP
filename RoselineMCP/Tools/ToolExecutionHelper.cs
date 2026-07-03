@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Diagnostics;
+using RoselineMCP.Models;
 
 namespace RoselineMCP.Tools;
 
@@ -55,6 +57,8 @@ internal sealed class ToolInvocation : IDisposable
 {
     private readonly Activity? _activity;
     private readonly IDisposable? _logScope;
+    private readonly ILogger? _clientLogger;
+    private readonly string _toolName;
 
     /// <summary>Per-invocation correlation ID, generated once at the start of the tool call.</summary>
     public string CorrelationId { get; } = Guid.NewGuid().ToString("n");
@@ -62,8 +66,9 @@ internal sealed class ToolInvocation : IDisposable
     /// <summary>Logger for this tool invocation, scoped with the correlation ID; <see langword="null"/> if no factory was supplied.</summary>
     public ILogger? Logger { get; }
 
-    public ToolInvocation(string toolName, ILoggerFactory? loggerFactory)
+    public ToolInvocation(string toolName, ILoggerFactory? loggerFactory, McpServer? server = null)
     {
+        _toolName = toolName;
         _activity = RoselineDiagnostics.ActivitySource.StartActivity(toolName);
         _activity?.SetTag(ActivityTags.ToolName, toolName);
         _activity?.SetTag(ActivityTags.CorrelationId, CorrelationId);
@@ -74,13 +79,41 @@ internal sealed class ToolInvocation : IDisposable
             ["CorrelationId"] = CorrelationId,
             ["Tool"] = toolName
         });
+
+        // A logger that forwards to the connected client as MCP `notifications/message` (only when
+        // the client has opted into logging at a matching level — otherwise a no-op). This surfaces
+        // the correlation ID in the client's own log stream, not just in the tool result.
+        try
+        {
+            _clientLogger = server?.AsClientLoggerProvider().CreateLogger($"RoselineMCP.Tools.{toolName}");
+        }
+        catch
+        {
+            _clientLogger = null;
+        }
     }
 
     /// <summary>Marks the current span as having completed successfully.</summary>
     public void MarkSuccess() => _activity?.SetStatus(ActivityStatusCode.Ok);
 
-    /// <summary>Marks the current span as failed, recording <paramref name="reason"/> as the status description.</summary>
-    public void MarkFailure(string reason) => _activity?.SetStatus(ActivityStatusCode.Error, reason);
+    /// <summary>
+    /// Marks the current span as failed, recording <paramref name="reason"/> as the status
+    /// description, and emits a client-facing log notification carrying the correlation ID so the
+    /// caller can tie the failure back to the full server-side log entry.
+    /// </summary>
+    public void MarkFailure(string reason)
+    {
+        _activity?.SetStatus(ActivityStatusCode.Error, reason);
+        try
+        {
+            _clientLogger?.LogWarning(
+                "Tool {Tool} failed (correlationId={CorrelationId}): {Reason}", _toolName, CorrelationId, reason);
+        }
+        catch
+        {
+            // Client-facing logging is best-effort; never let it affect the tool result.
+        }
+    }
 
     public void Dispose()
     {
@@ -92,21 +125,68 @@ internal sealed class ToolInvocation : IDisposable
 /// <summary>
 /// Shared helper used by every MCP tool method to combine the caller's request cancellation
 /// token with the configurable wall-clock timeout (RoselineMCP:DefaultTimeout), to start the
-/// per-invocation tracing/correlation context, and to render a consistent JSON response when an
-/// operation is cancelled, times out, or fails. Tools never throw to the MCP protocol layer — see
-/// the "Error Resilience" convention in CLAUDE.md.
+/// per-invocation tracing/correlation context, and to build a consistent typed failure envelope
+/// (<see cref="ToolResult{T}"/>) when an operation is cancelled, times out, or fails. Tools never
+/// throw to the MCP protocol layer — see the "Error Resilience" convention in CLAUDE.md.
 /// </summary>
 internal static class ToolExecutionHelper
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
-
     /// <summary>
     /// Starts the per-invocation tracing/correlation context for a tool call. Call this first,
     /// before any validation, so every code path — including early validation failures — gets a
-    /// correlation ID and is covered by the Activity span. See <see cref="ToolInvocation"/>.
+    /// correlation ID and is covered by the Activity span. When <paramref name="server"/> is
+    /// supplied, tool failures are also surfaced to the client as MCP log notifications. See
+    /// <see cref="ToolInvocation"/>.
     /// </summary>
-    public static ToolInvocation BeginInvocation(string toolName, ILoggerFactory? loggerFactory) =>
-        new(toolName, loggerFactory);
+    public static ToolInvocation BeginInvocation(
+        string toolName, ILoggerFactory? loggerFactory, McpServer? server = null) =>
+        new(toolName, loggerFactory, server);
+
+    /// <summary>
+    /// Best-effort confirmation gate for a destructive, disk-writing operation. Returns
+    /// <see langword="true"/> if the write should proceed, <see langword="false"/> only if the
+    /// caller's client actively declined it.
+    /// </summary>
+    /// <remarks>
+    /// This is a second guard behind the <c>previewOnly: false</c> opt-in, surfaced to the human via
+    /// MCP elicitation. It is deliberately best-effort: if no server is available, or the connected
+    /// client does not support elicitation (or the elicitation round-trip fails for any reason other
+    /// than cancellation), the explicit <c>previewOnly: false</c> opt-in stands and the write
+    /// proceeds — a client without elicitation support must not be silently prevented from writing.
+    /// Only an explicit decline (<see cref="ElicitResult.IsAccepted"/> is <see langword="false"/>)
+    /// stops the write.
+    /// </remarks>
+    public static async Task<bool> ConfirmDestructiveWriteAsync(
+        McpServer? server,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (server is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            // A field-less form: the user simply accepts or declines the confirmation prompt.
+            var request = new ElicitRequestParams
+            {
+                Message = message,
+                RequestedSchema = new ElicitRequestParams.RequestSchema(),
+            };
+            var result = await server.ElicitAsync(request, cancellationToken);
+            return result.IsAccepted;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Client does not support elicitation (or it failed) — honor the explicit opt-in.
+            return true;
+        }
+    }
 
     /// <summary>
     /// Creates a <see cref="CancellationTokenSource"/> linked to <paramref name="requestToken"/>
@@ -130,12 +210,12 @@ internal static class ToolExecutionHelper
     }
 
     /// <summary>
-    /// Builds the JSON error response for a cancelled operation, distinguishing a
+    /// Builds the typed failure envelope for a cancelled operation, distinguishing a
     /// caller-initiated cancellation from a wall-clock timeout. <paramref name="correlationId"/>
     /// (see <see cref="ToolInvocation.CorrelationId"/>) is echoed back so a user reporting the
     /// failure can supply one ID that ties back to full server-side logs.
     /// </summary>
-    public static string SerializeCancellation(
+    public static ToolResult<T> Cancellation<T>(
         CancellationToken requestToken,
         CancellationTokenSource timeoutSource,
         IOptions<RoselineMcpOptions>? options,
@@ -144,40 +224,42 @@ internal static class ToolExecutionHelper
         if (!requestToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
         {
             var timeoutMs = options?.Value.DefaultTimeout ?? 0;
-            return JsonSerializer.Serialize(new
+            return ToolResult<T>.Failure(new ToolError
             {
-                error = $"Operation timed out after {timeoutMs}ms",
-                type = ToolErrorTypes.Timeout,
-                correlationId
-            }, SerializerOptions);
+                Type = ToolErrorTypes.Timeout,
+                Message = $"Operation timed out after {timeoutMs}ms",
+                CorrelationId = correlationId
+            });
         }
 
-        return JsonSerializer.Serialize(new
+        return ToolResult<T>.Failure(new ToolError
         {
-            error = "Operation was cancelled",
-            type = ToolErrorTypes.Cancelled,
-            correlationId
-        }, SerializerOptions);
+            Type = ToolErrorTypes.Cancelled,
+            Message = "Operation was cancelled",
+            CorrelationId = correlationId
+        });
     }
 
     /// <summary>
-    /// Builds the JSON response for a caller-input validation failure detected before invoking
-    /// the underlying service (e.g. a missing required argument or an unrecognized enum-like
-    /// string). Unlike <see cref="SerializeError"/>, the caller supplies the message directly
+    /// Builds the typed failure envelope for a caller-input validation failure detected before
+    /// invoking the underlying service (e.g. a missing required argument or an unrecognized
+    /// enum-like string). Unlike <see cref="Error{T}"/>, the caller supplies the message directly
     /// since no exception has been thrown yet. <paramref name="hint"/> should suggest the
     /// concrete corrective action, e.g. the set of accepted values or which tool to call first.
     /// <paramref name="correlationId"/> (see <see cref="ToolInvocation.CorrelationId"/>) is echoed
     /// back so a user reporting the failure can supply one ID that ties back to full server-side logs.
     /// </summary>
-    public static string SerializeValidationError(string message, string correlationId, string? hint = null)
-    {
-        return hint is null
-            ? JsonSerializer.Serialize(new { error = message, type = ToolErrorTypes.Validation, correlationId }, SerializerOptions)
-            : JsonSerializer.Serialize(new { error = message, type = ToolErrorTypes.Validation, hint, correlationId }, SerializerOptions);
-    }
+    public static ToolResult<T> ValidationError<T>(string message, string correlationId, string? hint = null) =>
+        ToolResult<T>.Failure(new ToolError
+        {
+            Type = ToolErrorTypes.Validation,
+            Message = message,
+            Hint = hint,
+            CorrelationId = correlationId
+        });
 
     /// <summary>
-    /// Builds the standard JSON error response used across every tool for unhandled exceptions,
+    /// Builds the standard typed failure envelope used across every tool for unhandled exceptions,
     /// classifying <paramref name="ex"/> into the closed <see cref="ToolErrorTypes"/> set instead
     /// of surfacing its raw CLR type name. <see cref="ToolErrorTypes.Internal"/>-class failures
     /// are logged in full via <paramref name="logger"/> (never returned to the caller) and are
@@ -186,7 +268,7 @@ internal static class ToolExecutionHelper
     /// is always echoed back — including for InternalError responses — so a user reporting the
     /// failure can supply one ID that ties back to the full, unredacted server-side log entry.
     /// </summary>
-    public static string SerializeError(
+    public static ToolResult<T> Error<T>(
         Exception ex,
         string correlationId,
         ILogger? logger = null,
@@ -205,7 +287,12 @@ internal static class ToolExecutionHelper
             message = ex.Message;
         }
 
-        return JsonSerializer.Serialize(new { error = message, type, correlationId }, SerializerOptions);
+        return ToolResult<T>.Failure(new ToolError
+        {
+            Type = type,
+            Message = message,
+            CorrelationId = correlationId
+        });
     }
 
     /// <summary>

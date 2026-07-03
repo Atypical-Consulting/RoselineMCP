@@ -1,10 +1,11 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -27,9 +28,9 @@ public static class ApplyFixesTool
     /// the default call is non-destructive. The current MCP SDK annotation model has no way to
     /// express "destructive only for a specific parameter value".
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false)]
+    [McpServerTool(Title = "Apply Fixes", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Apply code fixes for specified diagnostic IDs in a project. Defaults to preview mode: with previewOnly left unset (or true), no files are changed and only a diff is returned. Pass previewOnly=false explicitly to write the fixes to disk.")]
-    public static async Task<string> ApplyFixes(
+    public static async Task<ToolResult<ApplyFixesResponse>> ApplyFixes(
         ICodeFixService codeFixService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -39,14 +40,16 @@ public static class ApplyFixesTool
         bool previewOnly = true,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        IProgress<ProgressNotificationValue>? progress = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(ApplyFixes), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(ApplyFixes), loggerFactory, server);
 
         if (ids == null || ids.Length == 0)
         {
             invocation.MarkFailure("validation: no diagnostic IDs provided");
-            return ToolExecutionHelper.SerializeValidationError(
+            return ToolExecutionHelper.ValidationError<ApplyFixesResponse>(
                 "No diagnostic IDs provided.",
                 invocation.CorrelationId,
                 "Call ListDiagnostics first to discover fixable diagnostic IDs for this project, then pass one or more of them, e.g. ids: [\"RCS1213\"].");
@@ -56,29 +59,44 @@ public static class ApplyFixesTool
 
         try
         {
+            var effectivePreviewOnly = previewOnly;
+            string? declineNote = null;
+            // Use the caller's request token (not the wall-clock timeout) for the human confirmation
+            // round-trip: think-time must not be charged against the analysis budget.
+            if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
+                    server,
+                    $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{project}' and write the changes to disk?",
+                    cancellationToken))
+            {
+                effectivePreviewOnly = true;
+                declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";
+            }
+
             var result = await codeFixService.ApplyFixesAsync(
                 project,
                 ids.ToList(),
-                previewOnly,
+                effectivePreviewOnly,
+                progress,
                 timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
+            if (declineNote is not null)
             {
-                WriteIndented = true
-            });
+                result.PreviewOnly = true;
+                result.Notes.Add(declineNote);
+            }
 
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<ApplyFixesResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ApplyFixesResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<ApplyFixesResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

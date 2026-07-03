@@ -1,10 +1,11 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -21,9 +22,9 @@ public static class AnalyzeSolutionTool
     /// <summary>
     /// Analyzes a C# solution and returns diagnostics summary with details about errors, warnings, and info messages.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]
+    [McpServerTool(Title = "Analyze Solution", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
     [Description("Analyze a C# solution and return diagnostics summary with details about errors, warnings, and info messages. Read-only: never modifies any files on disk.")]
-    public static async Task<string> AnalyzeSolution(
+    public static async Task<ToolResult<AnalyzeSolutionResponse>> AnalyzeSolution(
         ISolutionAnalyzerService analyzerService,
         [Description("Path to solution file or directory containing .sln file, or Git repository URL")]
         string pathOrGit,
@@ -39,14 +40,16 @@ public static class AnalyzeSolutionTool
         int maxDiagnostics = 100,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        IProgress<ProgressNotificationValue>? progress = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(AnalyzeSolution), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(AnalyzeSolution), loggerFactory, server);
 
         if (!string.IsNullOrEmpty(severity) && !ValidSeverities.Contains(severity))
         {
             invocation.MarkFailure("validation: unrecognized severity");
-            return ToolExecutionHelper.SerializeValidationError(
+            return ToolExecutionHelper.ValidationError<AnalyzeSolutionResponse>(
                 $"Unrecognized severity '{severity}'.",
                 invocation.CorrelationId,
                 "Valid severity values are: Error, Warning, Info, Hidden (case-insensitive).");
@@ -63,25 +66,21 @@ public static class AnalyzeSolutionTool
                 exclude,
                 severity,
                 maxDiagnostics,
+                progress,
                 timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<AnalyzeSolutionResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<AnalyzeSolutionResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<AnalyzeSolutionResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }

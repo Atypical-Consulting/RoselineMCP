@@ -134,6 +134,52 @@ public class ToolListingTests : McpProtocolTestBase
         properties.ShouldNotContain("editService");
     }
 
+    /// <summary>
+    /// The read-only navigation/edit tools operate on a local, already-loaded project — a closed
+    /// world — so they advertise <c>OpenWorldHint = false</c>. Only <c>analyze_solution</c> can
+    /// reach an "open world" of external entities (it accepts a Git URL to clone), so it alone
+    /// keeps <c>OpenWorldHint = true</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("analyze_solution", true)]
+    [InlineData("search_symbols", false)]
+    [InlineData("list_diagnostics", false)]
+    [InlineData("create_patch", false)]
+    [InlineData("apply_fixes", false)]
+    [InlineData("rename_symbol", false)]
+    public async Task Tool_OpenWorld_Hint_Reflects_Whether_The_Tool_Reaches_External_Entities(
+        string toolName, bool expectedOpenWorld)
+    {
+        var tool = await GetToolAsync(toolName);
+
+        tool.ProtocolTool.Annotations.ShouldNotBeNull();
+        tool.ProtocolTool.Annotations.OpenWorldHint.ShouldBe(expectedOpenWorld);
+    }
+
+    /// <summary>
+    /// Every tool advertises a human-readable <c>Title</c> (distinct from its programmatic
+    /// snake_case <c>Name</c>) for clients to render in tool pickers.
+    /// </summary>
+    [Theory]
+    [InlineData("analyze_solution", "Analyze Solution")]
+    [InlineData("list_diagnostics", "List Diagnostics")]
+    [InlineData("apply_fixes", "Apply Fixes")]
+    [InlineData("create_patch", "Create Patch")]
+    [InlineData("search_symbols", "Search Symbols")]
+    [InlineData("get_symbol_info", "Get Symbol Info")]
+    [InlineData("find_references", "Find References")]
+    [InlineData("find_implementations", "Find Implementations")]
+    [InlineData("get_call_graph", "Get Call Graph")]
+    [InlineData("get_type_hierarchy", "Get Type Hierarchy")]
+    [InlineData("edit_member", "Edit Member")]
+    [InlineData("rename_symbol", "Rename Symbol")]
+    public async Task Tool_Advertises_Human_Readable_Title(string toolName, string expectedTitle)
+    {
+        var tool = await GetToolAsync(toolName);
+
+        tool.ProtocolTool.Title.ShouldBe(expectedTitle);
+    }
+
     private async Task<ModelContextProtocol.Client.McpClientTool> GetToolAsync(string name)
     {
         var tools = await Client.ListToolsAsync();

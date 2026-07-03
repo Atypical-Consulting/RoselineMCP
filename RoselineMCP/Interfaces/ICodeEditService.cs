@@ -1,3 +1,4 @@
+using ModelContextProtocol;
 using RoselineMCP.Models;
 
 namespace RoselineMCP.Interfaces;
@@ -31,5 +32,6 @@ public interface ICodeEditService
         string symbol,
         string newName,
         bool previewOnly,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default);
 }

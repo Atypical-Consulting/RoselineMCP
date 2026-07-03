@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 namespace RoselineMCP.Tools;
 
 /// <summary>
@@ -17,9 +17,9 @@ public static class FindImplementationsTool
     /// <summary>
     /// Finds implementations, overrides, or derived types for a symbol.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]
+    [McpServerTool(Title = "Find Implementations", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Find implementations of an interface or interface member, overrides of a virtual/abstract member, or derived types of a class — as compact symbol summaries. Read-only: never modifies any files on disk.")]
-    public static async Task<string> FindImplementations(
+    public static async Task<ToolResult<ImplementationsResponse>> FindImplementations(
         ICodeNavigationService navigationService,
         [Description("Project name or path to .csproj file")]
         string project,
@@ -29,9 +29,10 @@ public static class FindImplementationsTool
         int max = 100,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(FindImplementations), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(FindImplementations), loggerFactory, server);
         using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
         try
@@ -39,19 +40,18 @@ public static class FindImplementationsTool
             var result = await navigationService.FindImplementationsAsync(
                 project, symbol, max, timeoutSource.Token);
 
-            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             invocation.MarkSuccess();
-            return json;
+            return ToolResult<ImplementationsResponse>.Success(result);
         }
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.SerializeCancellation(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ImplementationsResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
-            return ToolExecutionHelper.SerializeError(ex, invocation.CorrelationId, invocation.Logger);
+            return ToolExecutionHelper.Error<ImplementationsResponse>(ex, invocation.CorrelationId, invocation.Logger);
         }
     }
 }
