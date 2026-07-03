@@ -128,6 +128,47 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     </div>
   </section>
 
+  <!-- ─────────────── POWERED BY ROSLYN ─────────────── -->
+  <section class="roslyn">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Powered by Roslyn</span>
+        <h2>Not a parser. The compiler.</h2>
+        <p>RoselineMCP is built on <a href="https://github.com/dotnet/roslyn">Roslyn</a>, the .NET
+          Compiler Platform — the same engine that compiles your code in Visual Studio, <code>csc</code>,
+          and the .NET SDK. Every answer it gives is the compiler's answer, not a guess. That's the
+          difference between code intelligence you can act on and a fancy text search.</p>
+      </div>
+
+      <div class="roslyn-grid">
+        <div class="ladder" role="img" aria-label="grep sees text; tree-sitter sees structure; Roslyn sees your program.">
+          <div class="rung"><span class="rung-tool mono">grep</span><span class="rung-what">sees text</span></div>
+          <div class="rung"><span class="rung-tool mono">tree-sitter</span><span class="rung-what">sees structure</span></div>
+          <div class="rung hl"><span class="rung-tool mono">Roslyn</span><span class="rung-what">sees your <em>program</em></span></div>
+        </div>
+
+        <div class="why">
+          <div class="whyitem">
+            <h3>Semantic, not textual</h3>
+            <p>It resolves symbols, types, overloads, and generics across the whole solution — it knows the <code>Add</code> here is the <em>same</em> method as the call over there. Meaning, not string matches.</p>
+          </div>
+          <div class="whyitem">
+            <h3>Compiler-grade accuracy</h3>
+            <p><code>find_references</code> is exact. <code>rename_symbol</code> updates real references, not text. Call graphs follow real bindings — which is why the edits are safe and the navigation is precise.</p>
+          </div>
+          <div class="whyitem">
+            <h3>The whole solution, loaded</h3>
+            <p>MSBuildWorkspace loads your real project graph, references, and analyzers. RoselineMCP sees your code exactly the way it compiles — not a fuzzy approximation of it.</p>
+          </div>
+          <div class="whyitem">
+            <h3>First-party &amp; open source</h3>
+            <p>Roslyn is Microsoft's, powers every serious C# tool, and is <a href="https://github.com/dotnet/roslyn">open on GitHub</a>. RoselineMCP is a thin, honest layer on a foundation you already trust.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ─────────────── INSTALL ─────────────── -->
   <section id="install" class="install">
     <div class="wrap">
@@ -257,6 +298,24 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     .pstat .pn { font-family: var(--display); font-size: clamp(1.9rem, 4vw, 2.6rem); font-weight: 640; letter-spacing: -0.03em; color: var(--ink); line-height: 1; }
     .pstat .pn.save-big { color: var(--teal-ink); }
     .pstat .pl { margin-top: .5rem; font-size: .82rem; color: var(--muted); }
+
+    /* POWERED BY ROSLYN */
+    .roslyn { background: var(--surface); }
+    .roslyn-grid { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 2.8rem; align-items: start; margin-top: .5rem; }
+    .ladder { position: relative; display: flex; flex-direction: column; gap: 1.7rem; padding-left: 1.5rem; }
+    .ladder::before { content: ""; position: absolute; left: 5px; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: linear-gradient(var(--line), var(--rose)); }
+    .rung { position: relative; }
+    .rung::before { content: ""; position: absolute; left: calc(-1.5rem + 1px); top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); }
+    .rung.hl::before { background: var(--rose); border-color: var(--rose); box-shadow: 0 0 0 5px var(--rose-soft); }
+    .rung-tool { display: block; font-size: 1rem; color: var(--ink-2); line-height: 1.2; }
+    .rung-what { color: var(--muted); font-size: .9rem; }
+    .rung.hl .rung-tool { font-size: 1.5rem; color: var(--rose); font-weight: 500; letter-spacing: -.01em; }
+    .rung.hl .rung-what { color: var(--ink); font-size: 1.05rem; }
+    .rung.hl .rung-what em { color: var(--rose); font-style: normal; font-weight: 600; }
+    .why { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem 1.9rem; }
+    .whyitem h3 { margin: 0 0 .35rem; font-size: 1.05rem; }
+    .whyitem p { margin: 0; font-size: .92rem; }
+    @media (max-width: 900px) { .roslyn-grid { grid-template-columns: 1fr; gap: 2rem; } .why { grid-template-columns: 1fr; } }
 
     /* INSTALL — tabs */
     .itabs { max-width: 760px; }
