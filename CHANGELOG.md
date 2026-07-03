@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-03
+
 ### Added
 - **Token-efficient code navigation tools** — six new read-only MCP tools that let an AI agent
   retrieve precise structural/semantic information via Roslyn instead of reading whole files
@@ -42,6 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tokens (it repeated the file path and fully-qualified name on every symbol); it now returns a
   lean projection (name, kind, signature, line), flipping its median from −45% to +30%.
   `SymbolSummary` also omits null fields from its JSON. Project-wide search is unchanged.
+
+### Fixed
+- **`dnx`-based installs pulled an ancient `1.0.0`.** `.mcp/server.json` hardcoded `version`/
+  `packages[0].version` at `1.0.0` — a version that was never released (releases start at `1.2.0`)
+  — so any client resolving the MCP manifest was told to fetch `1.0.0`. Worse, despite
+  `PackageType=McpServer` the manifest was never packed into the `.nupkg` (it lives at the repo
+  root with no `<None Include>` wiring it in), so the McpServer package shipped without its own
+  manifest. Fixed by: (1) correcting the manifest to the current release, (2) packing
+  `../.mcp/server.json` into the package at `.mcp/server.json`, and (3) stamping the version into
+  the manifest from the release tag in `publish-nuget.yml` (mirroring `MinVerVersionOverride`) so
+  it can never drift out of lockstep with the package version again.
 
 ## [1.2.1] - 2026-07-02
 

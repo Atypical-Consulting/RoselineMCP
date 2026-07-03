@@ -23,6 +23,13 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
+      - name: Stamp MCP manifest version from tag
+        run: |
+          jq --arg v "${{ steps.version.outputs.VERSION }}" \
+            '.version = $v | .packages[0].version = $v' \
+            .mcp/server.json > .mcp/server.json.tmp
+          mv .mcp/server.json.tmp .mcp/server.json
+
       - name: Restore dependencies
         run: dotnet restore
 

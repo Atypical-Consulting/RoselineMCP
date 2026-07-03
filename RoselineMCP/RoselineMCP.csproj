@@ -65,6 +65,12 @@
 
   <ItemGroup>
     <None Include="../README.md" Pack="true" PackagePath="\" />
+    <!-- The MCP registry manifest MUST ship inside the McpServer package so `dnx`-based clients
+         resolve the version declared here. It lives at the repo root (where `mcp-publisher`
+         expects it), so include it via a relative path with an explicit PackagePath. Its version
+         is stamped from the release tag by publish-nuget.yml, keeping it in lockstep with the
+         package version - never hardcode/let it drift (that shipped clients an ancient 1.0.0). -->
+    <None Include="../.mcp/server.json" Pack="true" PackagePath=".mcp/server.json" />
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
