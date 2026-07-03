@@ -30,6 +30,32 @@ internal static class SymbolResolver
         .AddMemberOptions(SymbolDisplayMemberOptions.IncludeParameters)
         .WithParameterOptions(SymbolDisplayParameterOptions.IncludeType | SymbolDisplayParameterOptions.IncludeParamsRefOut);
 
+    /// <summary>Parameter <em>type</em> rendering as simple names (e.g. <c>CancellationToken</c>, <c>List&lt;string&gt;</c>).</summary>
+    private static readonly SymbolDisplayFormat ShortParamTypeFormat = new(
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameOnly,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters,
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+
+    /// <summary>
+    /// Identity string for a call-graph node: the namespace-qualified container and method name, with
+    /// parameter <em>types</em> rendered as simple names — e.g.
+    /// <c>RoselineMCP.Services.CodeNavigationService.SearchSymbolsAsync(string, string, string[], int, CancellationToken)</c>.
+    /// Keeps overload disambiguation and full container qualification (so it doubles as a stable cycle
+    /// key) while dropping the fully-qualified parameter-type namespaces that otherwise repeat on
+    /// every node.
+    /// </summary>
+    public static string CallNodeName(ISymbol symbol)
+    {
+        if (symbol is IMethodSymbol method)
+        {
+            var container = symbol.ToDisplayString(FullNameFormat);
+            var parameters = string.Join(", ", method.Parameters.Select(p => p.Type.ToDisplayString(ShortParamTypeFormat)));
+            return $"{container}({parameters})";
+        }
+
+        return symbol.ToDisplayString(FullNameWithParamsFormat);
+    }
+
     /// <summary>Human-readable signature: accessibility, modifiers, return type, name, parameters.</summary>
     public static readonly SymbolDisplayFormat SignatureFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
@@ -179,10 +205,13 @@ internal static class SymbolResolver
             FullName = symbol.ToDisplayString(FullNameFormat),
             Kind = KindOf(symbol),
             Signature = symbol.ToDisplayString(SignatureFormat),
-            Accessibility = symbol.DeclaredAccessibility.ToString().ToLowerInvariant(),
             File = file,
-            Line = line,
-            ContainingType = symbol.ContainingType?.ToDisplayString(FullNameFormat)
+            Line = line
+            // Accessibility is omitted: SignatureFormat already renders the accessibility keyword,
+            // so a separate field would just repeat it.
+            // ContainingType is intentionally omitted here: FullName already begins with the
+            // containing type, so repeating it on every result is pure redundancy. Only the file
+            // outline (which omits FullName) sets ContainingType — see LeanOutlineSummary.
         };
     }
 
@@ -211,6 +240,32 @@ internal static class SymbolResolver
 
         var span = location.GetLineSpan();
         return (span.Path, span.StartLinePosition.Line + 1);
+    }
+
+    /// <summary>
+    /// Rewrites an absolute source path as <paramref name="baseDir"/>-relative with forward slashes,
+    /// so navigation results don't repeat the workspace prefix on every symbol/reference/node (the
+    /// single biggest source of redundant tokens). Paths outside <paramref name="baseDir"/> — or when
+    /// it is unknown — are returned unchanged (slash-normalized), since a <c>../../</c> path saves
+    /// nothing and reads worse.
+    /// </summary>
+    public static string? Relativize(string? absolutePath, string? baseDir)
+    {
+        if (string.IsNullOrEmpty(absolutePath))
+        {
+            return absolutePath;
+        }
+
+        var normalized = absolutePath.Replace('\\', '/');
+        if (string.IsNullOrEmpty(baseDir))
+        {
+            return normalized;
+        }
+
+        var relative = Path.GetRelativePath(baseDir, absolutePath).Replace('\\', '/');
+        return relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative)
+            ? normalized
+            : relative;
     }
 
     /// <summary>Declaration modifiers present on a symbol (static/abstract/sealed/virtual/override/async/readonly/const).</summary>

@@ -22,6 +22,7 @@ public class ReferencesResponse
 
     /// <summary>Whether <see cref="TotalReferences"/> exceeded <c>max</c>, meaning <see cref="References"/> is truncated.</summary>
     [JsonPropertyName("truncated")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Truncated { get; set; }
 
     /// <summary>The reference locations (capped at the requested maximum).</summary>
@@ -32,17 +33,13 @@ public class ReferencesResponse
 /// <summary>A single reference (use site) of a symbol.</summary>
 public class ReferenceLocation
 {
-    /// <summary>Absolute path to the file containing the reference.</summary>
+    /// <summary>File (solution-root-relative) containing the reference.</summary>
     [JsonPropertyName("file")]
     public string File { get; set; } = string.Empty;
 
     /// <summary>1-based line number of the reference.</summary>
     [JsonPropertyName("line")]
     public int Line { get; set; }
-
-    /// <summary>1-based column number of the reference.</summary>
-    [JsonPropertyName("column")]
-    public int Column { get; set; }
 
     /// <summary>The trimmed source line containing the reference, for at-a-glance context.</summary>
     [JsonPropertyName("snippet")]

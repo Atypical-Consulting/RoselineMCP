@@ -30,6 +30,45 @@ public class CodeNavigationService : ICodeNavigationService
         _projectLoader = projectLoader;
     }
 
+    /// <summary>
+    /// Root the emitted file paths at, so navigation output is workspace-portable and doesn't repeat
+    /// the absolute prefix on every result. Prefers the solution directory (covers cross-project
+    /// references); falls back to the project directory when no <c>.sln</c> was loaded.
+    /// </summary>
+    private static string? BaseDirOf(LoadedProject loaded)
+        => Path.GetDirectoryName(loaded.Solution.FilePath ?? loaded.Project.FilePath);
+
+    /// <summary>Rewrites each summary's <see cref="SymbolSummary.File"/> to <paramref name="baseDir"/>-relative.</summary>
+    private static void RelativizePaths(IEnumerable<SymbolSummary>? summaries, string? baseDir)
+    {
+        if (summaries == null) return;
+        foreach (var summary in summaries)
+        {
+            summary.File = SymbolResolver.Relativize(summary.File, baseDir);
+        }
+    }
+
+    /// <summary>Rewrites each reference's <see cref="ReferenceLocation.File"/> to <paramref name="baseDir"/>-relative.</summary>
+    private static void RelativizePaths(IEnumerable<ReferenceLocation>? references, string? baseDir)
+    {
+        if (references == null) return;
+        foreach (var reference in references)
+        {
+            reference.File = SymbolResolver.Relativize(reference.File, baseDir) ?? reference.File;
+        }
+    }
+
+    /// <summary>Rewrites each call-graph node's <see cref="CallGraphNode.File"/> (and its children, recursively).</summary>
+    private static void RelativizePaths(IEnumerable<CallGraphNode>? nodes, string? baseDir)
+    {
+        if (nodes == null) return;
+        foreach (var node in nodes)
+        {
+            node.File = SymbolResolver.Relativize(node.File, baseDir);
+            RelativizePaths(node.Children, baseDir);
+        }
+    }
+
     /// <inheritdoc/>
     public async Task<SymbolSearchResponse> SearchSymbolsAsync(
         string project,
@@ -63,6 +102,7 @@ public class CodeNavigationService : ICodeNavigationService
         // summary (file + fully-qualified name).
         Func<ISymbol, SymbolSummary> toSummary = file != null ? LeanOutlineSummary : SymbolResolver.ToSummary;
         var capped = ordered.Take(Math.Max(1, max)).Select(toSummary).ToList();
+        RelativizePaths(capped, BaseDirOf(loaded));
 
         return new SymbolSearchResponse
         {
@@ -153,29 +193,36 @@ public class CodeNavigationService : ICodeNavigationService
 
         var (file, line) = SymbolResolver.LocationOf(resolved);
 
+        // Optional collections are left null when empty so they're omitted from the JSON instead of
+        // costing tokens as "[]" on every member response.
+        var modifiers = SymbolResolver.ModifiersOf(resolved);
+
         var response = new SymbolInfoResponse
         {
             Name = resolved.Name,
             FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
             Kind = SymbolResolver.KindOf(resolved),
-            Accessibility = resolved.DeclaredAccessibility.ToString().ToLowerInvariant(),
-            Modifiers = SymbolResolver.ModifiersOf(resolved),
+            Modifiers = modifiers.Count > 0 ? modifiers : null,
             Signature = resolved.ToDisplayString(SymbolResolver.SignatureFormat),
             Documentation = ExtractSummary(resolved.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
-            DefinitionFile = file,
+            DefinitionFile = SymbolResolver.Relativize(file, BaseDirOf(loaded)),
             DefinitionLine = line
         };
 
         if (resolved is INamedTypeSymbol namedType)
         {
+            var baseTypes = new List<string>();
             for (var baseType = namedType.BaseType; baseType != null && baseType.SpecialType != SpecialType.System_Object; baseType = baseType.BaseType)
             {
-                response.BaseTypes.Add(baseType.ToDisplayString(SymbolResolver.FullNameFormat));
+                baseTypes.Add(baseType.ToDisplayString(SymbolResolver.FullNameFormat));
             }
 
-            response.Interfaces = namedType.Interfaces
+            var interfaces = namedType.Interfaces
                 .Select(i => i.ToDisplayString(SymbolResolver.FullNameFormat))
                 .ToList();
+
+            response.BaseTypes = baseTypes.Count > 0 ? baseTypes : null;
+            response.Interfaces = interfaces.Count > 0 ? interfaces : null;
         }
 
         if (includeSource)
@@ -220,10 +267,10 @@ public class CodeNavigationService : ICodeNavigationService
             .Select(ToReferenceLocation)
             .OrderBy(r => r.File, StringComparer.Ordinal)
             .ThenBy(r => r.Line)
-            .ThenBy(r => r.Column)
             .ToList();
 
         var capped = ordered.Take(Math.Max(1, max)).ToList();
+        RelativizePaths(capped, BaseDirOf(loaded));
 
         return new ReferencesResponse
         {
@@ -253,7 +300,6 @@ public class CodeNavigationService : ICodeNavigationService
         {
             File = span.Path,
             Line = span.StartLinePosition.Line + 1,
-            Column = span.StartLinePosition.Character + 1,
             Snippet = snippet
         };
     }
@@ -301,6 +347,7 @@ public class CodeNavigationService : ICodeNavigationService
             .ToList();
 
         var capped = ordered.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
+        RelativizePaths(capped, BaseDirOf(loaded));
 
         return new ImplementationsResponse
         {
@@ -337,8 +384,9 @@ public class CodeNavigationService : ICodeNavigationService
         var response = new CallGraphResponse
         {
             Method = methodSymbol.Name,
-            // Parameter-qualified to match the node keys used for cycle detection below.
-            FullName = methodSymbol.ToDisplayString(SymbolResolver.FullNameWithParamsFormat),
+            // Parameter-qualified (with simple parameter-type names) to match the node keys used for
+            // cycle detection below.
+            FullName = SymbolResolver.CallNodeName(methodSymbol),
             Direction = normalizedDirection,
             Depth = boundedDepth
         };
@@ -357,6 +405,10 @@ public class CodeNavigationService : ICodeNavigationService
             response.Callees = await BuildCalleesAsync(methodSymbol, loaded.Solution, boundedDepth,
                 new HashSet<string> { response.FullName }, budget, cancellationToken);
         }
+
+        var baseDir = BaseDirOf(loaded);
+        RelativizePaths(response.Callers, baseDir);
+        RelativizePaths(response.Callees, baseDir);
 
         return response;
     }
@@ -474,9 +526,9 @@ public class CodeNavigationService : ICodeNavigationService
         return new CallGraphNode
         {
             // Parameter-qualified so overloads get distinct node keys — otherwise cycle detection
-            // would treat a call to a different overload of an ancestor as a false cycle.
-            FullName = symbol.ToDisplayString(SymbolResolver.FullNameWithParamsFormat),
-            Signature = symbol.ToDisplayString(SymbolResolver.SignatureFormat),
+            // would treat a call to a different overload of an ancestor as a false cycle. It also
+            // stands in for the signature, which is omitted from call-graph nodes to save tokens.
+            FullName = SymbolResolver.CallNodeName(symbol),
             File = file,
             Line = line
         };
@@ -546,6 +598,11 @@ public class CodeNavigationService : ICodeNavigationService
             response.DerivedTypesTruncated = orderedDerived.Count > cappedDerived.Count;
         }
 
+        var baseDir = BaseDirOf(loaded);
+        RelativizePaths(response.BaseTypes, baseDir);
+        RelativizePaths(response.Interfaces, baseDir);
+        RelativizePaths(response.DerivedTypes, baseDir);
+
         return response;
     }
 
@@ -564,7 +621,9 @@ public class CodeNavigationService : ICodeNavigationService
             Kind = SymbolResolver.KindOf(symbol),
             Signature = symbol.ToDisplayString(SymbolResolver.SignatureFormat),
             Line = line,
-            ContainingType = symbol.ContainingType?.ToDisplayString(SymbolResolver.FullNameFormat)
+            // Simple (unqualified) container name: within a single file's outline it disambiguates
+            // members without repeating the full namespace on every row (the file already scopes it).
+            ContainingType = symbol.ContainingType?.Name
         };
     }
 

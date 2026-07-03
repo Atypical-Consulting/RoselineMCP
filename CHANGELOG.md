@@ -8,6 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **BREAKING: leaner response shapes for the read-only navigation tools and `get_symbol_info`** — a
+  token-efficiency pass trimmed redundant and always-present fields from the JSON these tools
+  return (tool names and input parameters are unchanged). Concretely:
+  - **Relative file paths.** Every `file`/`definitionFile` is now solution-root-relative with
+    forward slashes (e.g. `RoselineMCP/Services/Foo.cs`) instead of an absolute path — across
+    `search_symbols`, `get_symbol_info`, `find_references`, `find_implementations`,
+    `get_call_graph`, and `get_type_hierarchy`.
+  - **`truncated` is omitted when `false`.** Its absence now means "not truncated" — for
+    `search_symbols`, `find_references`, `find_implementations`, every `get_call_graph` node, and
+    `get_type_hierarchy`'s `derivedTypesTruncated`.
+  - **`find_references`** drops the `column` field from each reference (now just `file`, `line`,
+    `snippet`).
+  - **`get_call_graph`** drops each node's `signature`; the node `fullName` now renders parameter
+    **types as simple names** (e.g. `RoselineMCP.Services.Foo.Bar(string, CancellationToken)`),
+    still parameter-qualified so overloads stay distinct — call `get_symbol_info` for a method's
+    full signature.
+  - **Redundant fields dropped from symbol summaries and `get_symbol_info`.** `accessibility` is
+    gone (it is already inside `signature`) from `get_symbol_info` and the project-wide summaries;
+    `containingType` is gone from the full summaries (it is already the prefix of `fullName`). The
+    single-file outline of `search_symbols` still emits `containingType`, but now as the *simple*,
+    unqualified type name.
+  - **`get_symbol_info`** now omits `modifiers`, `baseTypes`, `interfaces`, `documentation`, and
+    `source` when they are empty/absent, so a minimal symbol collapses to `name`, `fullName`,
+    `kind`, and `signature`.
+
+  Net effect: tool output is ~35% smaller, lifting the benchmark headline savings from a pooled
+  **81% to 88%** (median per task 76% → 85%) on RoselineMCP's own source. These are breaking
+  changes to the read-only tools' response wire shapes; update any client that parsed the removed
+  fields or relied on absolute paths.
 - `deploy-docs.yml` retries the GitHub Pages deploy up to 3× — it intermittently returns
   "Deployment failed, try again later" (a Pages backend hiccup, not a build failure) that clears on
   re-run. The first two attempts tolerate failure, so a transient miss no longer fails the job.

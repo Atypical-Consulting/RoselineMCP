@@ -292,25 +292,25 @@ At least one of `query` or `file` is required (otherwise `ValidationError`).
   query: string | null;
   file: string | null;
   totalFound: number;    // Count before `max` was applied
-  truncated: boolean;    // Whether the list was capped
+  truncated?: boolean;   // Present (and `true`) only when the list was capped; omitted when not truncated
   symbols: Array<{
     name: string;
     fullName: string;
     kind: string;             // e.g. "class", "method", "property"
-    signature: string;
-    accessibility: string;    // e.g. "public", "internal"
-    file: string | null;
+    signature: string;        // Already carries the accessibility keyword
+    file: string | null;      // Solution-root-relative, forward slashes (e.g. "RoselineMCP/Services/Foo.cs")
     line: number | null;      // 1-based
-    containingType: string | null;
   }>;
 }
 ```
 
 When outlining a single file (`file` set, `query` omitted), each symbol is returned as a **lean
-projection** — `name`, `kind`, `signature`, `line`, and `containingType` — omitting the per-symbol
-`file` (it is on the response), `fullName` (reconstructable from `containingType` + `name`), and
-`accessibility` (already inside `signature`). Project-wide search returns the full shape above.
-Null fields are omitted from the JSON throughout.
+projection** — `name`, `kind`, `signature`, `line`, and `containingType` (the *simple*, unqualified
+type name) — omitting the per-symbol `file` (it is on the response) and `fullName` (reconstructable
+from `containingType` + `name`). Project-wide search returns the shape above, which no longer emits
+`accessibility` (already inside `signature`) or `containingType` (already the prefix of `fullName`).
+Null fields are omitted from the JSON throughout, and `truncated` is omitted when the list was not
+capped.
 
 ### GetSymbolInfo
 
@@ -333,17 +333,20 @@ Declaration metadata, signature, and (optionally) the source of a single symbol.
   name: string;
   fullName: string;
   kind: string;
-  accessibility: string;
-  modifiers: string[];         // e.g. ["static","async"]
-  signature: string;
-  baseTypes: string[];         // Base-class chain (types only)
-  interfaces: string[];        // Directly-implemented interfaces (types only)
-  documentation: string | null;  // XML <summary> text, whitespace-collapsed
-  definitionFile: string | null;
-  definitionLine: number | null; // 1-based
-  source: string | null;          // Present only when includeSource is true
+  modifiers?: string[];        // e.g. ["static","async"]; omitted when empty
+  signature: string;           // Already carries the accessibility keyword
+  baseTypes?: string[];        // Base-class chain (types only); omitted when empty
+  interfaces?: string[];       // Directly-implemented interfaces (types only); omitted when empty
+  documentation?: string;      // XML <summary> text, whitespace-collapsed; omitted when absent
+  definitionFile?: string;     // Solution-root-relative, forward slashes; omitted when unknown
+  definitionLine?: number;     // 1-based; omitted when unknown
+  source?: string;             // Present only when includeSource is true
 }
 ```
+
+The `accessibility` field is not returned separately — it is already part of `signature`. Every
+optional field above is omitted from the JSON when empty/absent, so a minimal symbol collapses to
+just `name`, `fullName`, `kind`, and `signature`.
 
 ### FindReferences
 
@@ -367,11 +370,10 @@ Every use site of a symbol across the solution. **Read-only.**
   symbol: string;
   fullName: string;
   totalReferences: number;   // Count before `max`
-  truncated: boolean;
+  truncated?: boolean;       // Present (and `true`) only when capped; omitted when not truncated
   references: Array<{
-    file: string;
+    file: string;    // Solution-root-relative, forward slashes
     line: number;    // 1-based
-    column: number;  // 1-based
     snippet: string; // Trimmed source line
   }>;
 }
@@ -400,8 +402,8 @@ of a class. **Read-only.**
   fullName: string;
   kind: string;
   totalFound: number;
-  truncated: boolean;
-  implementations: SymbolSummary[]; // Same shape as SearchSymbols' `symbols`
+  truncated?: boolean;              // Present (and `true`) only when capped; omitted when not truncated
+  implementations: SymbolSummary[]; // Same shape as SearchSymbols' project-wide `symbols`
 }
 ```
 
@@ -435,14 +437,19 @@ A depth-bounded caller and/or callee graph for a method, with cycle detection. *
 
 // CallGraphNode
 {
-  fullName: string;
-  signature: string;
-  file: string | null;
+  fullName: string;            // Parameter-qualified, with parameter TYPES as simple names
+                               // (e.g. "RoselineMCP.Services.Foo.Bar(string, CancellationToken)"),
+                               // so overloads stay distinct. Call get_symbol_info for the full signature.
+  file: string | null;         // Solution-root-relative, forward slashes
   line: number | null;
-  truncated: boolean;          // Cycle detected, or depth/budget stopped expansion
+  truncated?: boolean;         // Present (and `true`) only when a cycle or depth/budget stopped expansion; omitted otherwise
   children?: CallGraphNode[];  // Next level, when expanded
 }
 ```
+
+Each node deliberately omits the full `signature` (return type, parameter names, accessibility) to
+keep the tree compact — the parameter-qualified `fullName` is enough to identify a method and
+disambiguate overloads; fetch the full signature with `GetSymbolInfo` when needed.
 
 ### GetTypeHierarchy
 
@@ -469,7 +476,7 @@ A type's base-class chain, implemented interfaces, and/or derived types. **Read-
   baseTypes?: SymbolSummary[];      // Present for "base"/"both" — nearest base first, excluding object
   interfaces?: SymbolSummary[];     // Present for "base"/"both" — all implemented interfaces
   derivedTypes?: SymbolSummary[];   // Present for "derived"/"both" (capped at max)
-  derivedTypesTruncated: boolean;   // True when more derived types exist than were returned
+  derivedTypesTruncated?: boolean;  // Present (and `true`) only when more derived types exist than were returned; omitted otherwise
 }
 ```
 
@@ -776,33 +783,40 @@ public class CreatePatchResponse
 ### SymbolSummary
 
 The compact per-symbol shape shared by `SearchSymbols`, `FindImplementations`, and
-`GetTypeHierarchy` (JSON property names in `camelCase`).
+`GetTypeHierarchy` (JSON property names in `camelCase`). Every nullable field below is omitted from
+the JSON when null.
 
 ```csharp
 public class SymbolSummary
 {
     public string Name { get; set; }
-    public string FullName { get; set; }
+    public string? FullName { get; set; }       // Omitted in the single-file outline
     public string Kind { get; set; }            // "class", "method", ...
-    public string Signature { get; set; }
-    public string Accessibility { get; set; }   // "public", "internal", ...
-    public string? File { get; set; }
+    public string Signature { get; set; }       // Already carries the accessibility keyword
+    public string? File { get; set; }           // Solution-root-relative; omitted in the outline
     public int? Line { get; set; }              // 1-based
-    public string? ContainingType { get; set; }
+    public string? ContainingType { get; set; } // Emitted ONLY in the single-file outline, as the simple type name
 }
 ```
+
+**Project-wide** results (`SearchSymbols` with a `query`, `FindImplementations`, and the
+`GetTypeHierarchy` base/interface/derived lists) emit `name`, `fullName`, `kind`, `signature`,
+`file`, and `line` — never `accessibility` (already inside `signature`) nor `containingType`
+(already the prefix of `fullName`). The **single-file outline** (`SearchSymbols` with `file`,
+`query` omitted) instead emits `name`, `kind`, `signature`, `line`, and `containingType` (the
+simple, unqualified type name), dropping `file` and `fullName`.
 
 ### Navigation & edit response models
 
 All navigation/edit responses use `camelCase` JSON property names. Their fields are documented in
 the [MCP Tools](#mcp-tools) sections above; the C# types are:
 
-- `SymbolSearchResponse` — `project`, `query`, `file`, `totalFound`, `truncated`, `symbols: SymbolSummary[]`
-- `SymbolInfoResponse` — `name`, `fullName`, `kind`, `accessibility`, `modifiers[]`, `signature`, `baseTypes[]`, `interfaces[]`, `documentation`, `definitionFile`, `definitionLine`, `source`
-- `ReferencesResponse` — `symbol`, `fullName`, `totalReferences`, `truncated`, `references: ReferenceLocation[]` (`file`, `line`, `column`, `snippet`)
-- `ImplementationsResponse` — `symbol`, `fullName`, `kind`, `totalFound`, `truncated`, `implementations: SymbolSummary[]`
-- `CallGraphResponse` — `method`, `fullName`, `direction`, `depth`, `callers?`, `callees?` of `CallGraphNode` (`fullName`, `signature`, `file`, `line`, `truncated`, `children?`)
-- `TypeHierarchyResponse` — `type`, `fullName`, `direction`, `baseTypes?`, `interfaces?`, `derivedTypes?` (all `SymbolSummary[]`), `derivedTypesTruncated`
+- `SymbolSearchResponse` — `project`, `query`, `file`, `totalFound`, `truncated?` (omitted when not capped), `symbols: SymbolSummary[]`
+- `SymbolInfoResponse` — `name`, `fullName`, `kind`, `signature`, and (omitted when empty/absent) `modifiers[]`, `baseTypes[]`, `interfaces[]`, `documentation`, `definitionFile`, `definitionLine`, `source` (no `accessibility` — it is inside `signature`)
+- `ReferencesResponse` — `symbol`, `fullName`, `totalReferences`, `truncated?` (omitted when not capped), `references: ReferenceLocation[]` (`file`, `line`, `snippet`)
+- `ImplementationsResponse` — `symbol`, `fullName`, `kind`, `totalFound`, `truncated?` (omitted when not capped), `implementations: SymbolSummary[]`
+- `CallGraphResponse` — `method`, `fullName`, `direction`, `depth`, `callers?`, `callees?` of `CallGraphNode` (`fullName` with simple parameter-type names, `file`, `line`, `truncated?`, `children?`; no per-node `signature`)
+- `TypeHierarchyResponse` — `type`, `fullName`, `direction`, `baseTypes?`, `interfaces?`, `derivedTypes?` (all `SymbolSummary[]`), `derivedTypesTruncated?` (omitted when not truncated)
 - `EditMemberResponse` — `project`, `operation`, `target`, `changedFiles[]`, `patch`, `previewOnly`, `applied`, `notes[]`
 - `RenameSymbolResponse` — `project`, `symbol`, `newName`, `changedFiles[]`, `patch`, `previewOnly`, `applied`, `notes[]`
 

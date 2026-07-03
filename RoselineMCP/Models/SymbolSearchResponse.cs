@@ -27,6 +27,7 @@ public class SymbolSearchResponse
 
     /// <summary>Whether <see cref="TotalFound"/> exceeded <c>max</c>, meaning <see cref="Symbols"/> is a truncated view.</summary>
     [JsonPropertyName("truncated")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Truncated { get; set; }
 
     /// <summary>The matching symbols (capped at the requested maximum).</summary>

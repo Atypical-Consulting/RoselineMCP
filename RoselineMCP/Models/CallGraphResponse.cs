@@ -36,15 +36,16 @@ public class CallGraphResponse
 /// <summary>A node in a call graph: one method plus its onward edges up to the depth limit.</summary>
 public class CallGraphNode
 {
-    /// <summary>Fully-qualified name of the method at this node.</summary>
+    /// <summary>
+    /// Parameter-qualified fully-qualified name of the method at this node (e.g.
+    /// <c>Ns.Type.Method(int, string)</c>) — identifies the method and disambiguates overloads. The
+    /// full signature (return type, parameter names, accessibility) is intentionally omitted to keep
+    /// the call tree compact; fetch it with <c>get_symbol_info</c> when needed.
+    /// </summary>
     [JsonPropertyName("fullName")]
     public string FullName { get; set; } = string.Empty;
 
-    /// <summary>Signature of the method at this node.</summary>
-    [JsonPropertyName("signature")]
-    public string Signature { get; set; } = string.Empty;
-
-    /// <summary>Absolute path to the file declaring the method, or <c>null</c> for metadata-only methods.</summary>
+    /// <summary>Source path (solution-root-relative) declaring the method, or <c>null</c> for metadata-only methods.</summary>
     [JsonPropertyName("file")]
     public string? File { get; set; }
 
@@ -57,6 +58,7 @@ public class CallGraphNode
     /// limit stopped further expansion, so <see cref="Children"/> is intentionally omitted.
     /// </summary>
     [JsonPropertyName("truncated")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Truncated { get; set; }
 
     /// <summary>The next level of callers/callees, or <c>null</c> when this node was not expanded.</summary>

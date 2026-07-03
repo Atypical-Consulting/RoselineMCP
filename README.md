@@ -2,7 +2,7 @@
 
 <!-- mcp-name: io.github.Atypical-Consulting/roseline-mcp -->
 
-> **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 81% fewer tokens →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
+> **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 88% fewer tokens →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
 
 <!-- Badges: Row 1 — Identity -->
 [![Atypical-Consulting - RoselineMCP](https://img.shields.io/static/v1?label=Atypical-Consulting&message=RoselineMCP&color=blue&logo=github)](https://github.com/Atypical-Consulting/RoselineMCP)
@@ -26,7 +26,7 @@
 
 <!-- Badges: Row 5 — Docs & result -->
 [![Docs & Benchmark](https://img.shields.io/badge/docs-site-e01e5a)](https://atypical-consulting.github.io/RoselineMCP/)
-[![Tokens saved](https://img.shields.io/badge/tokens-81%25_fewer-1baf7a)](https://atypical-consulting.github.io/RoselineMCP/benchmark)
+[![Tokens saved](https://img.shields.io/badge/tokens-88%25_fewer-1baf7a)](https://atypical-consulting.github.io/RoselineMCP/benchmark)
 
 **📖 [Documentation, tool reference & the honest benchmark →](https://atypical-consulting.github.io/RoselineMCP/)**
 
@@ -62,7 +62,7 @@ Instead of dumping source into the model, it answers *structural* questions prec
 this symbol used, what implements this interface, who calls this method, what's the shape of this
 file — and it edits **surgically**: a member-level diff, not a whole-file rewrite.
 
-On RoselineMCP's own source, the read-only navigation tools returned a **pooled 81% (median 74%)
+On RoselineMCP's own source, the read-only navigation tools returned a **pooled 88% (median 85%)
 fewer tokens** than reading the corresponding files —
 [measured honestly, weak cases included](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 
@@ -89,7 +89,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 
 ## Features
 
-- [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **81% pooled / 74% median** token reduction -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
+- [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **88% pooled / 85% median** token reduction -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 - [x] **Surgical code edits** -- replace/add/delete a member or rename a symbol solution-wide, emitting a unified diff instead of a whole-file rewrite. Preview by default.
 - [x] **Comprehensive analysis & auto-fix** -- diagnostics across a solution (Roslyn + Roslynator) with automated fixes and reviewable patches.
 - [x] **Read-only by default** -- the six navigation tools and the diagnostics/patch tools never touch disk; the three write tools require an explicit `previewOnly: false`.
@@ -382,7 +382,7 @@ searchSymbols({
 })
 ```
 
-**Returns:** `symbols` (name, fullName, kind, signature, accessibility, file, line, containingType), `totalFound`, `truncated`.
+**Returns:** `symbols` (name, fullName, kind, signature, file, line — file paths are solution-root-relative; the single-file outline instead returns name, kind, signature, line, containingType), `totalFound`, `truncated` (omitted when not capped).
 
 #### 6. GetSymbolInfo
 
@@ -396,7 +396,7 @@ getSymbolInfo({
 })
 ```
 
-**Returns:** name, fullName, kind, accessibility, modifiers, signature, baseTypes, interfaces, documentation, definitionFile/Line, and (optionally) source.
+**Returns:** name, fullName, kind, signature, and (each omitted when empty/absent) modifiers, baseTypes, interfaces, documentation, definitionFile/Line, and source. Accessibility is already part of `signature`; `definitionFile` is solution-root-relative.
 
 #### 7. FindReferences
 
@@ -406,7 +406,7 @@ Every use site of a symbol across the solution, as location + one-line snippet.
 findReferences({ project: "MyApp.Core", symbol: "GetUser", includeDefinition: false, max: 100 })
 ```
 
-**Returns:** `references` (file, line, column, snippet), `totalReferences`, `truncated`.
+**Returns:** `references` (file — solution-root-relative, line, snippet), `totalReferences`, `truncated` (omitted when not capped).
 
 #### 8. FindImplementations
 
@@ -432,7 +432,7 @@ getCallGraph({
 })
 ```
 
-**Returns:** `callers`/`callees` trees of nodes (fullName, signature, file, line, truncated, children).
+**Returns:** `callers`/`callees` trees of nodes (fullName with simple parameter-type names, file — solution-root-relative, line, truncated, children). Call GetSymbolInfo for a node's full signature.
 
 #### 10. GetTypeHierarchy
 

@@ -27,6 +27,7 @@ public class ImplementationsResponse
 
     /// <summary>Whether <see cref="TotalFound"/> exceeded <c>max</c>, meaning <see cref="Implementations"/> is truncated.</summary>
     [JsonPropertyName("truncated")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Truncated { get; set; }
 
     /// <summary>The implementing/overriding/derived symbols (capped at the requested maximum).</summary>
