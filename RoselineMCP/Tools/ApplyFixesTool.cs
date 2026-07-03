@@ -44,7 +44,7 @@ public static class ApplyFixesTool
         McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(ApplyFixes), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(ApplyFixes), loggerFactory, server);
 
         if (ids == null || ids.Length == 0)
         {

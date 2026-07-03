@@ -32,9 +32,10 @@ public static class CreatePatchTool
         bool ignoreCase = false,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(CreatePatch), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(CreatePatch), loggerFactory, server);
         using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
         try

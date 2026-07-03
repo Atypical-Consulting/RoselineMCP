@@ -29,9 +29,10 @@ public static class FindImplementationsTool
         int max = 100,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(FindImplementations), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(FindImplementations), loggerFactory, server);
         using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
         try

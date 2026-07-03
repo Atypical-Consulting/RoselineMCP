@@ -41,9 +41,10 @@ public static class AnalyzeSolutionTool
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         IProgress<ProgressNotificationValue>? progress = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(AnalyzeSolution), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(AnalyzeSolution), loggerFactory, server);
 
         if (!string.IsNullOrEmpty(severity) && !ValidSeverities.Contains(severity))
         {

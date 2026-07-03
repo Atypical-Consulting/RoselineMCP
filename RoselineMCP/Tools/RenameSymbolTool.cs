@@ -42,7 +42,7 @@ public static class RenameSymbolTool
         McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(RenameSymbol), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(RenameSymbol), loggerFactory, server);
 
         if (string.IsNullOrWhiteSpace(newName))
         {

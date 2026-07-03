@@ -33,9 +33,10 @@ public static class SearchSymbolsTool
         int max = 50,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(SearchSymbols), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(SearchSymbols), loggerFactory, server);
 
         if (string.IsNullOrWhiteSpace(query) && string.IsNullOrWhiteSpace(file))
         {

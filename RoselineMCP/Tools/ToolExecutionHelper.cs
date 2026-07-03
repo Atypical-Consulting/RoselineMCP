@@ -57,6 +57,8 @@ internal sealed class ToolInvocation : IDisposable
 {
     private readonly Activity? _activity;
     private readonly IDisposable? _logScope;
+    private readonly ILogger? _clientLogger;
+    private readonly string _toolName;
 
     /// <summary>Per-invocation correlation ID, generated once at the start of the tool call.</summary>
     public string CorrelationId { get; } = Guid.NewGuid().ToString("n");
@@ -64,8 +66,9 @@ internal sealed class ToolInvocation : IDisposable
     /// <summary>Logger for this tool invocation, scoped with the correlation ID; <see langword="null"/> if no factory was supplied.</summary>
     public ILogger? Logger { get; }
 
-    public ToolInvocation(string toolName, ILoggerFactory? loggerFactory)
+    public ToolInvocation(string toolName, ILoggerFactory? loggerFactory, McpServer? server = null)
     {
+        _toolName = toolName;
         _activity = RoselineDiagnostics.ActivitySource.StartActivity(toolName);
         _activity?.SetTag(ActivityTags.ToolName, toolName);
         _activity?.SetTag(ActivityTags.CorrelationId, CorrelationId);
@@ -76,13 +79,41 @@ internal sealed class ToolInvocation : IDisposable
             ["CorrelationId"] = CorrelationId,
             ["Tool"] = toolName
         });
+
+        // A logger that forwards to the connected client as MCP `notifications/message` (only when
+        // the client has opted into logging at a matching level — otherwise a no-op). This surfaces
+        // the correlation ID in the client's own log stream, not just in the tool result.
+        try
+        {
+            _clientLogger = server?.AsClientLoggerProvider().CreateLogger($"RoselineMCP.Tools.{toolName}");
+        }
+        catch
+        {
+            _clientLogger = null;
+        }
     }
 
     /// <summary>Marks the current span as having completed successfully.</summary>
     public void MarkSuccess() => _activity?.SetStatus(ActivityStatusCode.Ok);
 
-    /// <summary>Marks the current span as failed, recording <paramref name="reason"/> as the status description.</summary>
-    public void MarkFailure(string reason) => _activity?.SetStatus(ActivityStatusCode.Error, reason);
+    /// <summary>
+    /// Marks the current span as failed, recording <paramref name="reason"/> as the status
+    /// description, and emits a client-facing log notification carrying the correlation ID so the
+    /// caller can tie the failure back to the full server-side log entry.
+    /// </summary>
+    public void MarkFailure(string reason)
+    {
+        _activity?.SetStatus(ActivityStatusCode.Error, reason);
+        try
+        {
+            _clientLogger?.LogWarning(
+                "Tool {Tool} failed (correlationId={CorrelationId}): {Reason}", _toolName, CorrelationId, reason);
+        }
+        catch
+        {
+            // Client-facing logging is best-effort; never let it affect the tool result.
+        }
+    }
 
     public void Dispose()
     {
@@ -103,10 +134,13 @@ internal static class ToolExecutionHelper
     /// <summary>
     /// Starts the per-invocation tracing/correlation context for a tool call. Call this first,
     /// before any validation, so every code path — including early validation failures — gets a
-    /// correlation ID and is covered by the Activity span. See <see cref="ToolInvocation"/>.
+    /// correlation ID and is covered by the Activity span. When <paramref name="server"/> is
+    /// supplied, tool failures are also surfaced to the client as MCP log notifications. See
+    /// <see cref="ToolInvocation"/>.
     /// </summary>
-    public static ToolInvocation BeginInvocation(string toolName, ILoggerFactory? loggerFactory) =>
-        new(toolName, loggerFactory);
+    public static ToolInvocation BeginInvocation(
+        string toolName, ILoggerFactory? loggerFactory, McpServer? server = null) =>
+        new(toolName, loggerFactory, server);
 
     /// <summary>
     /// Best-effort confirmation gate for a destructive, disk-writing operation. Returns

@@ -30,9 +30,10 @@ public static class GetSymbolInfoTool
         bool includeSource = true,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(GetSymbolInfo), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(GetSymbolInfo), loggerFactory, server);
         using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
         try

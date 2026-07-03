@@ -47,7 +47,7 @@ public static class EditMemberTool
         McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(EditMember), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(EditMember), loggerFactory, server);
 
         if (string.IsNullOrWhiteSpace(operation) || !ValidOperations.Contains(operation))
         {

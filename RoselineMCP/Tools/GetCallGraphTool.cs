@@ -33,9 +33,10 @@ public static class GetCallGraphTool
         int max = 50,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        McpServer? server = null,
         CancellationToken cancellationToken = default)
     {
-        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(GetCallGraph), loggerFactory);
+        using var invocation = ToolExecutionHelper.BeginInvocation(nameof(GetCallGraph), loggerFactory, server);
         using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
         try
