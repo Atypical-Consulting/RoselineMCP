@@ -14,7 +14,7 @@ public interface ICodeNavigationService
     /// outline when <paramref name="file"/> is supplied without a query.
     /// </summary>
     Task<SymbolSearchResponse> SearchSymbolsAsync(
-        string project,
+        string? project,
         string? query,
         string? file,
         string[]? kinds,
@@ -27,14 +27,14 @@ public interface ICodeNavigationService
     /// definition source.
     /// </summary>
     Task<SymbolInfoResponse> GetSymbolInfoAsync(
-        string project,
+        string? project,
         string symbol,
         bool includeSource,
         CancellationToken cancellationToken = default);
 
     /// <summary>Finds every reference (use site) of a symbol across the solution.</summary>
     Task<ReferencesResponse> FindReferencesAsync(
-        string project,
+        string? project,
         string symbol,
         bool includeDefinition,
         int max,
@@ -45,14 +45,14 @@ public interface ICodeNavigationService
     /// member, or derived types of a class.
     /// </summary>
     Task<ImplementationsResponse> FindImplementationsAsync(
-        string project,
+        string? project,
         string symbol,
         int max,
         CancellationToken cancellationToken = default);
 
     /// <summary>Builds a depth-bounded caller and/or callee graph for a method, with cycle detection.</summary>
     Task<CallGraphResponse> GetCallGraphAsync(
-        string project,
+        string? project,
         string method,
         string direction,
         int depth,
@@ -61,7 +61,7 @@ public interface ICodeNavigationService
 
     /// <summary>Returns a type's base-class chain, implemented interfaces, and/or derived types (derived list capped at <paramref name="max"/>).</summary>
     Task<TypeHierarchyResponse> GetTypeHierarchyAsync(
-        string project,
+        string? project,
         string type,
         string direction,
         int max,

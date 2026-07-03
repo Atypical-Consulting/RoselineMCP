@@ -256,10 +256,13 @@ mcp call createPatch '{
 
 The remaining tools are **code navigation and editing** tools backed by Roslyn. They exist to save
 tokens: rather than reading whole files into an agent's context, they return only the structure
-(symbols, signatures, references, graphs) or a member-level diff. They all take a `project`
-argument (a project name, a directory, or a path to a `.csproj`). Local paths only — unlike
-`AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a solution, the whole
-solution is loaded so cross-project references and renames are complete.
+(symbols, signatures, references, graphs) or a member-level diff. They all take an **optional**
+`project` argument (a project name, a directory, a path to a `.csproj`, or a path to a `.sln`). When
+`project` is omitted, RoselineMCP auto-discovers the solution/project from its working directory —
+searching the working directory, a few parent directories, and immediate subdirectories, and
+returning a `ValidationError` only when no candidate is found or the choice is ambiguous. Local paths
+only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
+solution, the whole solution is loaded so cross-project references and renames are complete.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
@@ -274,7 +277,7 @@ Find symbols by name pattern, or outline a single file. **Read-only.**
 
 ```typescript
 {
-  project: string;    // Project name, directory, or path to .csproj
+  project?: string;   // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   query?: string;     // Substring, or wildcard with * and ?. Omit to outline via `file`.
   file?: string;      // Restrict to a file (name or path suffix); outlines it when `query` is omitted
   kinds?: string[];   // Filter, e.g. ["class","interface","method","property","field","enum"]; also "type"/"member"
@@ -320,7 +323,7 @@ Declaration metadata, signature, and (optionally) the source of a single symbol.
 
 ```typescript
 {
-  project: string;
+  project?: string;        // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   symbol: string;          // Simple or fully-qualified name
   includeSource?: boolean; // Include the declaration's source text (default: true)
 }
@@ -356,7 +359,7 @@ Every use site of a symbol across the solution. **Read-only.**
 
 ```typescript
 {
-  project: string;
+  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   symbol: string;
   includeDefinition?: boolean; // Also include the declaration (default: false)
   max?: number;                // Maximum references (default: 100)
@@ -388,7 +391,7 @@ of a class. **Read-only.**
 
 ```typescript
 {
-  project: string;
+  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   symbol: string;  // Interface, class, or member
   max?: number;    // Maximum results (default: 100)
 }
@@ -415,7 +418,7 @@ A depth-bounded caller and/or callee graph for a method, with cycle detection. *
 
 ```typescript
 {
-  project: string;
+  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   method: string;
   direction?: string; // "callers" (default) | "callees" | "both"
   depth?: number;     // Traversal depth, clamped to 1-3 (default: 1)
@@ -459,7 +462,7 @@ A type's base-class chain, implemented interfaces, and/or derived types. **Read-
 
 ```typescript
 {
-  project: string;
+  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   type: string;
   direction?: string; // "base" | "derived" | "both" (default)
   max?: number;       // Maximum derived types to return (default: 100)
@@ -490,7 +493,7 @@ Replace, add, or delete a single type member; returns a unified diff. **Defaults
 
 ```typescript
 {
-  project: string;
+  project?: string;    // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   symbol: string;      // The member (replace/delete), or the container type (add)
   operation: string;   // "replace" | "add" | "delete"
   newSource?: string;  // C# member declaration — required for "replace" and "add"
@@ -523,7 +526,7 @@ returns a unified diff. **Defaults to preview mode** (`previewOnly: true`)
 
 ```typescript
 {
-  project: string;
+  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   symbol: string;
   newName: string;       // Must be a valid C# identifier
   previewOnly?: boolean; // If true (default), only return a diff; pass false to write
@@ -658,27 +661,27 @@ Read-only structural/semantic navigation (backs the six navigation tools).
 public interface ICodeNavigationService
 {
     Task<SymbolSearchResponse> SearchSymbolsAsync(
-        string project, string? query, string? file, string[]? kinds, int max,
+        string? project, string? query, string? file, string[]? kinds, int max,
         CancellationToken cancellationToken = default);
 
     Task<SymbolInfoResponse> GetSymbolInfoAsync(
-        string project, string symbol, bool includeSource,
+        string? project, string symbol, bool includeSource,
         CancellationToken cancellationToken = default);
 
     Task<ReferencesResponse> FindReferencesAsync(
-        string project, string symbol, bool includeDefinition, int max,
+        string? project, string symbol, bool includeDefinition, int max,
         CancellationToken cancellationToken = default);
 
     Task<ImplementationsResponse> FindImplementationsAsync(
-        string project, string symbol, int max,
+        string? project, string symbol, int max,
         CancellationToken cancellationToken = default);
 
     Task<CallGraphResponse> GetCallGraphAsync(
-        string project, string method, string direction, int depth, int max,
+        string? project, string method, string direction, int depth, int max,
         CancellationToken cancellationToken = default);
 
     Task<TypeHierarchyResponse> GetTypeHierarchyAsync(
-        string project, string type, string direction,
+        string? project, string type, string direction,
         CancellationToken cancellationToken = default);
 }
 ```
@@ -692,23 +695,26 @@ only when `previewOnly` is `false`.
 public interface ICodeEditService
 {
     Task<EditMemberResponse> EditMemberAsync(
-        string project, string symbol, string operation, string? newSource, bool previewOnly,
+        string? project, string symbol, string operation, string? newSource, bool previewOnly,
         CancellationToken cancellationToken = default);
 
     Task<RenameSymbolResponse> RenameSymbolAsync(
-        string project, string symbol, string newName, bool previewOnly,
+        string? project, string symbol, string newName, bool previewOnly,
         CancellationToken cancellationToken = default);
 }
 ```
 
 ### IProjectLoader
 
-Loads a project (and its solution, when found) into a fresh workspace for navigation/edits.
+Loads a project (and its solution, when found) into a fresh workspace for navigation/edits. Accepts
+a project name, directory, `.csproj` path, or `.sln` path; when `project` is `null`/whitespace the
+solution/project is auto-discovered from the working directory (throwing `ArgumentException` when the
+match is empty or ambiguous).
 
 ```csharp
 public interface IProjectLoader
 {
-    Task<LoadedProject> LoadAsync(string project, CancellationToken cancellationToken = default);
+    Task<LoadedProject> LoadAsync(string? project, CancellationToken cancellationToken = default);
 }
 ```
 

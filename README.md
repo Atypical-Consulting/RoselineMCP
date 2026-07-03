@@ -358,8 +358,9 @@ createPatch({
 
 These tools return **precise structure instead of whole files**, so an AI agent can orient itself
 in a codebase while spending far fewer tokens than reading source directly. All are read-only and
-operate on a `project` (name, directory, or `.csproj` path); when the project belongs to a
-solution, the whole solution is loaded so references/renames span projects. Full request/response
+take an **optional** `project` (name, directory, `.csproj` path, or `.sln` path) — when omitted,
+RoselineMCP auto-discovers the solution/project from its working directory. When the project belongs
+to a solution, the whole solution is loaded so references/renames span projects. Full request/response
 shapes are in [docs/API.md](docs/API.md).
 
 > **Tool names on the wire are `snake_case`.** The section headings below use friendly

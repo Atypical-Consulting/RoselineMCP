@@ -62,6 +62,34 @@ for greenfield work it is irrelevant. The highest-leverage improvement is **adop
 tool descriptions actively steer the model to prefer structural navigation over reading large files,
 so the win materialises in normal use rather than only when the agent is forced.
 
+## Follow-up — making the model actually use the tools
+
+The finding above (the model won't call the MCP by default) turned out to be fixable in-product.
+Three levers, each tested on the large-repo comprehension task in **plain mode** — the MCP available,
+**no external nudge**, so it reflects real product behavior:
+
+| Build | roseline calls (unprompted) | failed on `project` | Read | Tokens |
+|---|---|---|---|---|
+| Baseline — neutral descriptions, no server instructions | **0** | — | many | — |
+| + server `instructions` + decision-rule descriptions | 8 | **4** | 0 | 594k |
+| + optional `project` / `.sln` path accepted | **3** | **0** | 0 | **437k** |
+
+Reading the arc: an MCP that is merely *installed* is invisible — the model reaches for `Read`. What
+flips it:
+
+1. **Server-level `instructions`** stating a decision policy ("prefer these tools over reading whole
+   files, especially on large ones") — the single biggest lever; the client injects it every session.
+2. **Descriptions written as decision rules** ("prefer over Read/Grep to answer 'where is this
+   used'"), not feature lists.
+3. **Low-friction arguments.** With the tools adopted but `project` *required*, the model wasted 4
+   calls guessing it (it naturally tried the `.sln` path, which used to fail) and burned more tokens
+   than reading. Making `project` optional (auto-discovered) and accepting a `.sln` path collapsed it
+   to 3 clean calls that now beat vanilla `Read` (437k vs 500k) — all self-directed.
+
+Even so, self-directed use (437k) doesn't reach the *forced-minimal* path (239k): fixed
+tool-schema/instruction overhead plus a little extra exploration remain. The tools are a
+large-codebase win; the steering is what makes the model take it.
+
 ## Reproducing
 
 Drive two `claude -p` sessions over the same prompt and a fresh clone, toggling the MCP with

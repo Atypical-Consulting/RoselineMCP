@@ -18,11 +18,9 @@ public static class SearchSymbolsTool
     /// Searches a project's symbols by wildcard/substring pattern, or returns a file's outline.
     /// </summary>
     [McpServerTool(Title = "Search Symbols", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Find C# symbols (types, methods, properties, etc.) by name pattern, or outline a single file — returning compact signatures and locations instead of whole-file contents. Read-only: never modifies any files on disk.")]
+    [Description("Locate C# symbols by name (wildcard/substring), or outline a whole file, WITHOUT opening it. Prefer this over Read/Grep to find or survey code in an existing solution — it returns compact signatures + locations and costs far fewer tokens than reading files, especially large ones. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<SymbolSearchResponse>> SearchSymbols(
         ICodeNavigationService navigationService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("Name pattern to match (substring, or wildcard with * and ?, e.g. '*Service' or 'Get*'). Omit to outline a single file via the 'file' parameter.")]
         string? query = null,
         [Description("Optional file (name or path suffix) to restrict the search to, or to outline when 'query' is omitted")]
@@ -31,6 +29,8 @@ public static class SearchSymbolsTool
         string[]? kinds = null,
         [Description("Maximum number of symbols to return (default: 50)")]
         int max = 50,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,

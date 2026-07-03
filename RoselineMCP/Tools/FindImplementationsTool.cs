@@ -18,15 +18,15 @@ public static class FindImplementationsTool
     /// Finds implementations, overrides, or derived types for a symbol.
     /// </summary>
     [McpServerTool(Title = "Find Implementations", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Find implementations of an interface or interface member, overrides of a virtual/abstract member, or derived types of a class — as compact symbol summaries. Read-only: never modifies any files on disk.")]
+    [Description("List the implementations of an interface/member, overrides of a virtual/abstract member, or derived types of a class — as compact summaries, instead of reading candidate files to find them. Prefer this over Grep/Read to answer 'who implements/overrides/derives from this'. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<ImplementationsResponse>> FindImplementations(
         ICodeNavigationService navigationService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("Interface, class, or member to find implementations/overrides/derived types for (simple or fully-qualified name)")]
         string symbol,
         [Description("Maximum number of results to return (default: 100)")]
         int max = 100,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,

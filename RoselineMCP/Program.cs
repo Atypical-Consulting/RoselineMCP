@@ -69,7 +69,7 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
 
             // Configure MCP Server
             services
-                .AddMcpServer()
+                .AddMcpServer(options => options.ServerInstructions = RoselineMCP.RoselineToolGuidance.Instructions)
                 .WithStdioServerTransport()
                 .WithToolsFromAssembly();
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Server-level tool guidance to drive adoption.** The server now sends MCP `instructions` — a
+  decision policy telling the model to prefer these structural tools over reading whole files
+  (especially on large codebases) — and each read-only tool's description is rewritten as a decision
+  rule ("prefer over Read/Grep to answer 'where is this used'") rather than a feature list. In
+  end-to-end testing this flipped the agent from never calling the tools to using them unprompted on
+  large solutions. See [`docs/AGENT-BENCHMARK.md`](docs/AGENT-BENCHMARK.md#follow-up--making-the-model-actually-use-the-tools).
+- **`project` is now optional on the Roslyn-backed tools** (`search_symbols`, `get_symbol_info`,
+  `find_references`, `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `edit_member`,
+  `rename_symbol`) — when omitted it is auto-discovered from the working directory (searching the
+  cwd, a few parent directories, and immediate subdirectories) — and a `.sln` path is now accepted
+  wherever `project` is passed. Reduces the friction that made agents fail calls guessing the
+  project (they naturally tried the `.sln`, which used to fail).
+
 ### Changed
 - **BREAKING: leaner response shapes for the read-only navigation tools and `get_symbol_info`** — a
   token-efficiency pass trimmed redundant and always-present fields from the JSON these tools

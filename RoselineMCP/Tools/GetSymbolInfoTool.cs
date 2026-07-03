@@ -19,15 +19,15 @@ public static class GetSymbolInfoTool
     /// interfaces, docs, definition location and optional source) for a symbol.
     /// </summary>
     [McpServerTool(Title = "Get Symbol Info", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Get a C# symbol's kind, accessibility, modifiers, signature, base types, interfaces, XML docs, and definition location (optionally its source) — instead of reading the whole file. Read-only: never modifies any files on disk.")]
+    [Description("Look up one C# symbol's kind, modifiers, signature, base types/interfaces, XML docs, and definition location — the token-cheap 'go to definition'. Prefer this over reading the whole file; pass includeSource:true to get the member's exact body instead of Read. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<SymbolInfoResponse>> GetSymbolInfo(
         ICodeNavigationService navigationService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("Symbol to describe: a simple name (e.g. 'UserService') or a fully-qualified name (e.g. 'Acme.Users.UserService.GetUser') to disambiguate")]
         string symbol,
         [Description("If true (the default), include the exact source text of the symbol's declaration")]
         bool includeSource = true,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,

@@ -71,7 +71,7 @@ public class CodeNavigationService : ICodeNavigationService
 
     /// <inheritdoc/>
     public async Task<SymbolSearchResponse> SearchSymbolsAsync(
-        string project,
+        string? project,
         string? query,
         string? file,
         string[]? kinds,
@@ -183,7 +183,7 @@ public class CodeNavigationService : ICodeNavigationService
 
     /// <inheritdoc/>
     public async Task<SymbolInfoResponse> GetSymbolInfoAsync(
-        string project,
+        string? project,
         string symbol,
         bool includeSource,
         CancellationToken cancellationToken = default)
@@ -239,7 +239,7 @@ public class CodeNavigationService : ICodeNavigationService
 
     /// <inheritdoc/>
     public async Task<ReferencesResponse> FindReferencesAsync(
-        string project,
+        string? project,
         string symbol,
         bool includeDefinition,
         int max,
@@ -306,7 +306,7 @@ public class CodeNavigationService : ICodeNavigationService
 
     /// <inheritdoc/>
     public async Task<ImplementationsResponse> FindImplementationsAsync(
-        string project,
+        string? project,
         string symbol,
         int max,
         CancellationToken cancellationToken = default)
@@ -362,7 +362,7 @@ public class CodeNavigationService : ICodeNavigationService
 
     /// <inheritdoc/>
     public async Task<CallGraphResponse> GetCallGraphAsync(
-        string project,
+        string? project,
         string method,
         string direction,
         int depth,
@@ -536,7 +536,7 @@ public class CodeNavigationService : ICodeNavigationService
 
     /// <inheritdoc/>
     public async Task<TypeHierarchyResponse> GetTypeHierarchyAsync(
-        string project,
+        string? project,
         string type,
         string direction,
         int max,

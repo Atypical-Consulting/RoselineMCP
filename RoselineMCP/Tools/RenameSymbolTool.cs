@@ -28,14 +28,14 @@ public static class RenameSymbolTool
     [Description("Rename a C# symbol and update every reference across the solution using Roslyn, returning a unified diff. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the changes to disk.")]
     public static async Task<ToolResult<RenameSymbolResponse>> RenameSymbol(
         ICodeEditService editService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("Symbol to rename (simple or fully-qualified name)")]
         string symbol,
         [Description("New name for the symbol (must be a valid C# identifier)")]
         string newName,
         [Description("If true (the default), only preview the rename and return a diff — no files are modified. Set explicitly to false to write the changes to disk.")]
         bool previewOnly = true,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         IProgress<ProgressNotificationValue>? progress = null,

@@ -32,8 +32,6 @@ public static class EditMemberTool
     [Description("Surgically replace, add, or delete a single C# member (method/property/field/etc.) and return a unified diff — instead of rewriting the whole file. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the change to disk.")]
     public static async Task<ToolResult<EditMemberResponse>> EditMember(
         ICodeEditService editService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("For 'replace'/'delete': the member to edit. For 'add': the container type to add a member to. Simple or fully-qualified name.")]
         string symbol,
         [Description("Operation to perform: 'replace', 'add', or 'delete'")]
@@ -42,6 +40,8 @@ public static class EditMemberTool
         string? newSource = null,
         [Description("If true (the default), only preview the change and return a diff — no files are modified. Set explicitly to false to write the change to disk.")]
         bool previewOnly = true,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,
