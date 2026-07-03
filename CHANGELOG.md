@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-03
+
 ### Changed
 - **`publish-nuget.yml` now creates a GitHub Release and verifies the artifact before publishing.**
   A git tag is not a GitHub Release, and nothing was creating one — so tagged versions published to
@@ -15,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   doesn't match the tag — a guard that would have caught the original `dnx`-fetches-`1.0.0` bug at
   the source rather than in the wild; and (2) after a successful NuGet push, creates (or heals) the
   matching GitHub Release with notes extracted from this CHANGELOG and the `.nupkg` attached.
+
+### Dependencies
+- `Microsoft.ML.Tokenizers` and `Microsoft.ML.Tokenizers.Data.Cl100kBase` `1.0.3` → `2.0.0`
+  (`RoselineMCP.TokenBenchmark` only — not part of the shipped package) (#76)
+- Website: `astro` `5.x` → `7.0.0` (#77) and CI Node `20` → `24` (#75)
+- `actions/upload-pages-artifact` action `4` → `5` (#74)
 
 ## [1.3.0] - 2026-07-03
 
