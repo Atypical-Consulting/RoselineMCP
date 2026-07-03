@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-run. The first two attempts tolerate failure, so a transient miss no longer fails the job.
 
 ### Documentation
+- **End-to-end agent benchmark** ([`docs/AGENT-BENCHMARK.md`](docs/AGENT-BENCHMARK.md)) — a controlled
+  A/B (vanilla Claude Code vs. + RoselineMCP, same task, same model, quality-gated) measuring whether
+  an agent actually consumes fewer tokens in practice. Finding: ~50% fewer tokens at equal quality on
+  large-file codebases, break-even on tiny repos, and the model must be steered to use the tools.
 - **Tools page aligned to the v1.4.0 contract.** Added a response-envelope callout
   (`{ ok, data }` / `{ ok, error }`, `structuredContent`/`outputSchema`), surfaced each tool's
   human `Title` and capability pills (`progress`, `confirms`/elicitation), gave every tool an anchor

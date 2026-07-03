@@ -749,6 +749,8 @@ spans cost essentially nothing.
   (built from `website/`, deployed to GitHub Pages)
 - [docs/API.md](docs/API.md) -- Full request/response reference for every MCP tool, service
   interfaces, models, and the error-response contract
+- [docs/AGENT-BENCHMARK.md](docs/AGENT-BENCHMARK.md) -- End-to-end A/B: does an AI agent actually
+  spend fewer tokens with RoselineMCP? (honest answer — a large-codebase win, break-even on small)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) -- Layered architecture, data flow, and design
   patterns
 - [PROMPTS.md](PROMPTS.md) -- Example prompts and end-to-end workflows for each tool

@@ -6,6 +6,12 @@ and `ICodeFixService.ApplyFixesAsync` — bypassing the MCP protocol/JSON layer 
 to answer a question the rest of the docs don't: *how long does analysis/fixing actually take, and
 how does it scale with project size?*
 
+> **Three different benchmarks, three different questions:** this one measures **latency**;
+> [`RoselineMCP.TokenBenchmark`](RoselineMCP.TokenBenchmark) measures how compact a single tool
+> response is (the pooled **88%** headline); and [`docs/AGENT-BENCHMARK.md`](docs/AGENT-BENCHMARK.md)
+> measures whether an AI agent doing a real task **end to end** actually spends fewer tokens with
+> RoselineMCP installed (spoiler: on large codebases, yes — ~50%; on tiny ones, break-even).
+
 ## Running it
 
 ```bash
