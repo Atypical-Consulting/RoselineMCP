@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- **Docs site: a Releases page generated from GitHub Releases at build time** (notes rendered from
+  each release, plus direct `.mcpb`/`.nupkg` download buttons), a new *Claude Desktop (1-click)*
+  install tab, and a note that RoselineMCP is listed in the official MCP Registry. The Astro build
+  fetches the Releases API (authenticated in CI to avoid rate limits) and degrades to a GitHub
+  link-out if the fetch fails.
+
 ### Added
 - **One-click install for Claude Desktop (MCPB bundle).** A `mcpb/manifest.json` (MCPB spec 0.3)
   describes RoselineMCP as a `dnx`-launched server; the release now builds and attaches a

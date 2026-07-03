@@ -182,6 +182,7 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
       <div class="itabs" data-install-tabs>
         <div class="itablist" role="tablist" aria-label="Install method">
           <button class="itab" role="tab" id="tab-dnx" aria-controls="p-dnx" aria-selected="true">dnx <span class="tab-tag">recommended</span></button>
+          <button class="itab" role="tab" id="tab-mcpb" aria-controls="p-mcpb" aria-selected="false">Claude Desktop <span class="tab-tag">1-click</span></button>
           <button class="itab" role="tab" id="tab-nuget" aria-controls="p-nuget" aria-selected="false">NuGet tool</button>
           <button class="itab" role="tab" id="tab-docker" aria-controls="p-docker" aria-selected="false">Docker</button>
         </div>
@@ -193,6 +194,13 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
             <button class="copy" data-copy-target="#inst-dnx pre"><span class="copy-label">Copy</span></button>
             <pre><code>{dnx}</code></pre>
           </div>
+        </div>
+
+        <div class="ipanel" id="p-mcpb" role="tabpanel" aria-labelledby="tab-mcpb" hidden>
+          <p>Download the bundle and open it — Claude&nbsp;Desktop shows an install dialog, no JSON to edit.
+            It launches via <code>dnx</code> under the hood, so the .NET&nbsp;10 SDK is still required.</p>
+          <p><a class="btn primary" href={base + 'releases'}>Get <code>RoselineMCP.mcpb</code> →</a></p>
+          <p class="muted small">Attached to every <a href={base + 'releases'}>release</a>.</p>
         </div>
 
         <div class="ipanel" id="p-nuget" role="tabpanel" aria-labelledby="tab-nuget" hidden>
@@ -219,6 +227,8 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
         Verified with <strong>Claude Desktop</strong>, <strong>VS&nbsp;Code</strong> (Copilot / MCP),
         and <strong>Cursor</strong>. Per-client config in the
         <a href="https://github.com/Atypical-Consulting/RoselineMCP#mcp-client-compatibility">README</a>.
+        Also listed in the <a href="https://registry.modelcontextprotocol.io">official MCP Registry</a>,
+        so registry-aware clients can find it by name.
       </p>
     </div>
   </section>

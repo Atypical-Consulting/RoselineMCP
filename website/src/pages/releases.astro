@@ -1,0 +1,146 @@
+---
+import Base from '../layouts/Base.astro';
+import { marked } from 'marked';
+
+const base = import.meta.env.BASE_URL;
+const repo = 'Atypical-Consulting/RoselineMCP';
+const releasesUrl = `https://github.com/${repo}/releases`;
+
+// Build-time fetch of the GitHub Releases API. In CI a token is injected (see deploy-docs.yml) to
+// avoid the 60/hr unauthenticated rate limit; locally it falls back to unauthenticated. Wrapped so
+// a network/API failure degrades to a link-out rather than breaking the build.
+const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+const headers: Record<string, string> = {
+  Accept: 'application/vnd.github+json',
+  'User-Agent': 'RoselineMCP-docs-build',
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+};
+
+let releases: any[] = [];
+let fetchError: string | null = null;
+try {
+  const res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=30`, { headers });
+  if (!res.ok) throw new Error(`GitHub API responded ${res.status}`);
+  const raw = await res.json();
+  releases = (raw as any[])
+    .filter((r) => !r.draft)
+    .map((r) => ({
+      tag: r.tag_name as string,
+      name: (r.name || r.tag_name) as string,
+      prerelease: Boolean(r.prerelease),
+      date: r.published_at ? new Date(r.published_at) : null,
+      url: r.html_url as string,
+      bodyHtml: r.body ? marked.parse(r.body as string) : '',
+      assets: ((r.assets as any[]) || []).map((a) => ({
+        name: a.name as string,
+        url: a.browser_download_url as string,
+        size: a.size as number,
+      })),
+    }));
+} catch (e) {
+  fetchError = e instanceof Error ? e.message : String(e);
+}
+
+const latestTag = releases.find((r) => !r.prerelease)?.tag;
+const fmtDate = (d: Date | null) =>
+  d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+const fmtSize = (b: number) => (b >= 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`);
+const assetMeta = (name: string) =>
+  name.endsWith('.mcpb')
+    ? { label: 'Claude Desktop bundle', kind: 'mcpb' }
+    : name.endsWith('.nupkg')
+      ? { label: 'NuGet package', kind: 'nupkg' }
+      : { label: 'Asset', kind: 'file' };
+---
+<Base title="RoselineMCP — Releases" description="RoselineMCP release history, notes, and downloads — including the one-click Claude Desktop bundle." active="releases">
+  <section class="rel">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Releases</span>
+        <h2>Every version, its notes, and its downloads.</h2>
+        <p>Pulled straight from <a href={releasesUrl}>GitHub Releases</a> at build time. Grab the
+          <code>.mcpb</code> for a one-click Claude&nbsp;Desktop install, or the <code>.nupkg</code> to pin a version.</p>
+      </div>
+
+      {fetchError && (
+        <div class="note">
+          <h3>Couldn't load releases at build time</h3>
+          <p class="muted small">{fetchError}. See the full list on <a href={releasesUrl}>GitHub</a>.</p>
+        </div>
+      )}
+
+      <ol class="timeline">
+        {releases.map((r) => (
+          <li class="rel-item" id={r.tag}>
+            <div class="rel-head">
+              <div class="rel-title">
+                <a href={`#${r.tag}`} class="rel-tag mono">{r.tag}</a>
+                {r.tag === latestTag && <span class="pill read">latest</span>}
+                {r.prerelease && <span class="pill write">pre-release</span>}
+              </div>
+              <span class="rel-date mono">{fmtDate(r.date)}</span>
+            </div>
+            {r.name && r.name !== r.tag && <p class="rel-name">{r.name}</p>}
+
+            {r.assets.length > 0 && (
+              <div class="rel-assets">
+                {r.assets.map((a: any) => {
+                  const m = assetMeta(a.name);
+                  return (
+                    <a class={`asset asset-${m.kind}`} href={a.url} download>
+                      <span class="asset-name mono">{a.name}</span>
+                      <span class="asset-meta">{m.label} · {fmtSize(a.size)}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+
+            {r.bodyHtml && <div class="rel-notes" set:html={r.bodyHtml} />}
+            <p class="rel-link"><a href={r.url}>View on GitHub →</a></p>
+          </li>
+        ))}
+      </ol>
+
+      {!fetchError && releases.length === 0 && (
+        <p class="muted">No releases published yet. Check <a href={releasesUrl}>GitHub</a>.</p>
+      )}
+    </div>
+  </section>
+
+  <style>
+    .rel { padding-top: 3.4rem; }
+    .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.1rem; }
+    .rel-item { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+      padding: 1.4rem 1.5rem; box-shadow: var(--shadow); scroll-margin-top: 80px; }
+    .rel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .rel-title { display: inline-flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+    .rel-tag { font-size: 1.35rem; font-weight: 640; color: var(--ink); letter-spacing: -0.01em; }
+    .rel-tag:hover { color: var(--rose-ink); text-decoration: none; }
+    .rel-date { font-size: .82rem; color: var(--muted); }
+    .rel-name { margin: .35rem 0 0; color: var(--ink-2); font-weight: 500; }
+
+    .rel-assets { display: flex; flex-wrap: wrap; gap: .7rem; margin: 1rem 0 .4rem; }
+    .asset { display: inline-flex; flex-direction: column; gap: .15rem; padding: .55rem .85rem;
+      border: 1px solid var(--line); border-radius: 10px; background: var(--inset); min-width: 180px; transition: border-color .12s ease, transform .12s ease; }
+    .asset:hover { text-decoration: none; transform: translateY(-1px); border-color: var(--muted); }
+    .asset-name { font-size: .84rem; font-weight: 600; color: var(--ink); }
+    .asset-meta { font-size: .74rem; color: var(--muted); }
+    .asset-mcpb { border-color: color-mix(in srgb, var(--rose) 40%, var(--line)); background: var(--rose-soft); }
+    .asset-mcpb .asset-name { color: var(--rose-ink); }
+    .asset-nupkg { border-color: color-mix(in srgb, var(--teal) 38%, var(--line)); background: var(--teal-soft); }
+    .asset-nupkg .asset-name { color: var(--teal-ink); }
+
+    .rel-notes { margin-top: 1rem; color: var(--ink-2); font-size: .95rem; }
+    .rel-notes :global(h2), .rel-notes :global(h3) { font-size: 1rem; margin: 1.2rem 0 .5rem; color: var(--ink); }
+    .rel-notes :global(h2):first-child, .rel-notes :global(h3):first-child { margin-top: 0; }
+    .rel-notes :global(ul) { padding-left: 1.15rem; margin: .5rem 0; }
+    .rel-notes :global(li) { margin: .35rem 0; }
+    .rel-notes :global(p) { margin: .5rem 0; }
+    .rel-notes :global(code) { font-size: .82em; }
+    .rel-notes :global(a) { color: var(--rose-ink); }
+    .rel-link { margin: 1rem 0 0; }
+    .rel-link a { font-family: var(--mono); font-size: .82rem; }
+    .small { font-size: .85rem; }
+  </style>
+</Base>
