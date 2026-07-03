@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Docs `/releases` page could miss the just-published release.** The page is generated from the
+  GitHub Releases *listing* API at build time and is rebuilt immediately after the publish workflow,
+  but that listing endpoint can trail `/releases/latest` by a few minutes — so a new release could be
+  absent from the page until a manual re-deploy (as happened for v2.0.0). The build now cross-checks
+  `/releases/latest`, retries the listing until it includes that tag (bounded so the build never
+  hangs), and merges the latest release in directly as a fallback.
+
 ## [2.0.0] - 2026-07-04
 
 ### Added
