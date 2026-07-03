@@ -20,6 +20,23 @@ const repo = 'https://github.com/Atypical-Consulting/RoselineMCP';
 const site = Astro.site ?? new URL('https://atypical-consulting.github.io');
 const canonical = new URL(Astro.url.pathname, site).href;
 const ogImage = new URL(base + 'og.png', site).href;
+
+// Build-time GitHub star count for the "Star" button (authenticated in CI to dodge the rate
+// limit; degrades to a plain Star link if the fetch fails).
+let stars: number | null = null;
+try {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const res = await fetch('https://api.github.com/repos/Atypical-Consulting/RoselineMCP', {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'RoselineMCP-docs-build',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (res.ok) stars = (await res.json()).stargazers_count ?? null;
+} catch { /* leave stars null → plain Star link */ }
+const starLabel =
+  stars == null ? null : stars >= 1000 ? `${(stars / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(stars);
 ---
 <!doctype html>
 <html lang="en">
@@ -115,7 +132,15 @@ const ogImage = new URL(base + 'og.png', site).href;
       header.site nav a[aria-current="page"] { color: var(--ink); }
       header.site nav a[aria-current="page"]::after { content: ""; display: block; height: 2px; margin-top: 3px; background: var(--rose); border-radius: 2px; }
       .nav-cta { margin-left: .5rem; }
-      @media (max-width: 620px) { header.site nav .hide-sm { display: none; } }
+      /* GitHub star button */
+      .ghbtn { display: inline-flex; align-items: center; gap: .4rem; margin-left: .3rem; font-family: var(--sans);
+        font-weight: 550; font-size: .9rem; color: var(--ink-2); padding: .34rem .6rem; border: 1px solid var(--line);
+        border-radius: 8px; background: var(--surface); transition: border-color .12s ease, color .12s ease, transform .12s ease; }
+      .ghbtn:hover { color: var(--ink); border-color: var(--muted); text-decoration: none; transform: translateY(-1px); }
+      .ghbtn svg { color: #e3b341; flex: none; }
+      .ghcount { font-family: var(--mono); font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--ink);
+        padding-left: .42rem; border-left: 1px solid var(--line); }
+      @media (max-width: 620px) { header.site nav .hide-sm { display: none; } .ghbtn .ghlabel { display: none; } }
 
       /* buttons */
       .btn { display: inline-flex; align-items: center; gap: .5rem; font-family: var(--sans); font-weight: 560;
@@ -182,6 +207,12 @@ const ogImage = new URL(base + 'og.png', site).href;
         <a class="brand" href={base}><span class="mark" aria-hidden="true"></span>RoselineMCP</a>
         <nav>
           {nav.map((n) => <a href={n.href} class="hide-sm" aria-current={active === n.id ? 'page' : undefined}>{n.label}</a>)}
+          <a class="ghbtn" href={repo} target="_blank" rel="noopener noreferrer"
+             aria-label={stars == null ? 'Star RoselineMCP on GitHub' : `Star RoselineMCP on GitHub — ${stars} stars`}>
+            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.767 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+            <span class="ghlabel">Star</span>
+            {starLabel && <span class="ghcount">{starLabel}</span>}
+          </a>
           <a class="btn ghost nav-cta" href={active === 'home' ? '#install' : base + '#install'}>Install</a>
         </nav>
       </div>

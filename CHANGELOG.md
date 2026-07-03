@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- Docs site: added a **GitHub "Star" button** in the top bar showing the live star count (fetched at
+  build time, authenticated in CI; degrades to a plain Star link if the fetch fails).
+
 ## [1.4.0] - 2026-07-03
 
 ### Added
