@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`{ "ok": false, "error": { "type", "message", "hint?", "correlationId" } }`). The human-readable
   message moved from the top-level `error` field to `error.message`; `type`/`hint`/`correlationId`
   moved under `error`. See [`docs/API.md`](docs/API.md#response-envelope).
+- `server.json` `websiteUrl` now points at the documentation site
+  (`https://atypical-consulting.github.io/RoselineMCP/`) instead of the GitHub repo. Reaches the
+  live MCP Registry entry on the next published version.
 
 ## [1.3.3] - 2026-07-03
 
