@@ -6,6 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **RoselineMCP** is a .NET 10.0 MCP (Model Context Protocol) server that provides comprehensive code analysis and automated fixing capabilities for C# solutions using Roslyn analyzers and code fix providers.
 
+## Documentation Alignment (required)
+
+**Whenever you change code, you MUST check that the documentation is still aligned — and update
+whatever drifted in the same change.** A code change is not done until its docs match. This is a
+hard rule; treat stale docs as a bug in the change.
+
+When you add/remove a tool, or change a tool's parameters, response shape, annotations, or behavior,
+review and update every surface that mirrors it:
+
+- `docs/API.md` — per-tool request/response contract and the response-envelope section
+- `CLAUDE.md` — the "MCP Tools Available" list and the "Adding New MCP Tools" example/pattern
+- `README.md` — the tool list and any usage snippets
+- `website/src/data/tools.ts` and `website/src/pages/tools.astro` — the public tools reference
+  (name, title, kind, params, `data` payload, capability pills)
+- `mcpb/manifest.json` — the `tools[]` array (names + descriptions)
+- `CHANGELOG.md` — add an entry under `## [Unreleased]` for any user-facing change
+
+For non-tool changes, still check the docs that describe what you touched (architecture notes,
+security considerations, config, the release process below). When unsure whether a doc is affected,
+grep for the symbol/behavior name across `docs/`, `README.md`, `CLAUDE.md`, and `website/`.
+
 ## Architecture
 
 ### Service Layer Architecture

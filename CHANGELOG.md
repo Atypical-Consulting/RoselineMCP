@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Documentation
+- **Tools page aligned to the v1.4.0 contract.** Added a response-envelope callout
+  (`{ ok, data }` / `{ ok, error }`, `structuredContent`/`outputSchema`), surfaced each tool's
+  human `Title` and capability pills (`progress`, `confirms`/elicitation), gave every tool an anchor
+  link, and dropped the stale `new` badges (those tools shipped in 1.3.0). The page had been showing
+  the pre-1.4.0 flat response shape.
 - Docs site: added a **GitHub "Star" button** in the top bar showing the star count. Renders a
   build-time snapshot instantly, then a tiny client-side fetch refreshes it to the current count
   (falls back to the build-time value on rate-limit/error).

@@ -25,7 +25,22 @@ const groupBlurb: Record<string, string> = {
           diagnostics/patch tools never touch disk. The three write-capable tools
           (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
           <code>previewOnly: true</code> — they return a diff and write nothing unless you pass
-          <code>previewOnly: false</code>.</p>
+          <code>previewOnly: false</code>, and even then they <strong>ask your client to confirm</strong>
+          via MCP elicitation before writing (declining downgrades the call to a preview).</p>
+      </div>
+
+      <div class="envelope">
+        <div class="env-head"><h2>Response envelope</h2><span class="v-tag mono">v1.4.0</span></div>
+        <p>Every tool returns a typed <code>ToolResult&lt;T&gt;</code>. The <strong>returns</strong> shown
+          on each card below is the shape of <code>data</code> — the payload — not the whole envelope.</p>
+        <div class="env-shapes">
+          <div class="env-row"><span class="pill read">ok</span><code class="mono">{`{ "ok": true, "data": { … } }`}</code></div>
+          <div class="env-row"><span class="pill write">err</span><code class="mono">{`{ "ok": false, "error": { "type", "message", "correlationId" } }`}</code></div>
+        </div>
+        <p class="muted" style="margin-bottom:0">Tools set <code>UseStructuredContent</code>, so
+          <code>data</code> is also delivered as MCP <code>structuredContent</code> alongside an advertised
+          <code>outputSchema</code>. Long-running tools emit <strong>progress notifications</strong>;
+          failures carry a <code>correlationId</code> to the client’s log stream.</p>
       </div>
 
       {groups.map((g) => (
@@ -33,12 +48,14 @@ const groupBlurb: Record<string, string> = {
           <div class="rg-head"><h2>{g}</h2><span class="rg-blurb">{groupBlurb[g]}</span></div>
           <div class="rgrid">
             {tools.filter((t) => t.group === g).map((t) => (
-              <div class="rcard">
+              <div class="rcard" id={t.name}>
                 <div class="rc-top">
-                  <code class="rc-name">{t.name}</code>
+                  <a class="rc-name mono" href={`#${t.name}`}>{t.name}</a>
                   <span class={`pill ${t.kind === 'write' ? 'write' : 'read'}`}>{kindLabel[t.kind]}</span>
-                  {t.isNew && <span class="pill new">new</span>}
+                  {t.progress && <span class="pill cap">progress</span>}
+                  {t.confirms && <span class="pill cap">confirms</span>}
                 </div>
+                <div class="rc-title">{t.title}</div>
                 <p class="rc-sum">{t.summary}</p>
                 <dl class="rc-io">
                   <dt>params</dt><dd class="mono">{t.params}</dd>
@@ -60,6 +77,18 @@ const groupBlurb: Record<string, string> = {
   </section>
 
   <style>
+    /* response-envelope callout */
+    .envelope { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--teal);
+      border-radius: 12px; padding: 1.15rem 1.3rem; margin: 1.6rem 0 2.4rem; box-shadow: var(--shadow); }
+    .env-head { display: flex; align-items: baseline; gap: .7rem; margin-bottom: .5rem; }
+    .env-head h2 { margin: 0; font-size: 1.15rem; }
+    .v-tag { font-size: .68rem; color: var(--teal-ink); border: 1px solid color-mix(in srgb, var(--teal) 38%, var(--line));
+      background: var(--teal-soft); border-radius: 999px; padding: .1rem .45rem; }
+    .env-shapes { display: flex; flex-direction: column; gap: .5rem; margin: .9rem 0; }
+    .env-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+    .env-row code { background: var(--code-bg); color: var(--code-fg); border: 1px solid var(--code-line);
+      border-radius: 7px; padding: .3rem .6rem; font-size: .78rem; overflow-x: auto; }
+
     .rgroup { margin: 2.2rem 0; }
     .rg-head { display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; margin-bottom: 1rem;
       padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
@@ -68,9 +97,12 @@ const groupBlurb: Record<string, string> = {
     .rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
     .rcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.15rem; box-shadow: var(--shadow); transition: border-color .12s ease, transform .12s ease; }
     .rcard:hover { border-color: color-mix(in srgb, var(--rose) 26%, var(--line)); transform: translateY(-2px); }
-    .rc-top { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
-    .rc-name { background: none; border: none; padding: 0; color: var(--ink); font-size: 1rem; font-weight: 500; }
-    .pill.new { color: var(--rose-ink); border-color: color-mix(in srgb, var(--rose) 40%, var(--line)); }
+    .rc-top { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .3rem; }
+    .rc-name { background: none; border: none; padding: 0; color: var(--ink); font-size: 1rem; font-weight: 500; scroll-margin-top: 80px; }
+    .rc-name:hover { color: var(--rose-ink); text-decoration: none; }
+    .rcard:target { border-color: color-mix(in srgb, var(--rose) 45%, var(--line)); }
+    .pill.cap { color: var(--teal-ink); border-color: color-mix(in srgb, var(--teal) 34%, var(--line)); background: var(--teal-soft); }
+    .rc-title { font-size: .8rem; color: var(--muted); margin-bottom: .5rem; }
     .rc-sum { margin: 0 0 .8rem; font-size: .92rem; }
     .rc-io { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .25rem .7rem; align-items: baseline; }
     .rc-io dt { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
