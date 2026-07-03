@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Pinned `Microsoft.Bcl.Memory` to `9.0.14` in `RoselineMCP.TokenBenchmark` to override the `9.0.4`
+  that `Microsoft.ML.Tokenizers` `2.0.0` pulled in transitively, which was vulnerable to
+  CVE-2026-26127 (GHSA-73j8-2gch-69rq, high severity — Base64Url out-of-bounds-read DoS). The
+  benchmark harness is never packaged and is not referenced by the shipped `RoselineMCP` package,
+  so published users were never exposed; this clears the `NU1903` restore warning. Remove the pin
+  once `Microsoft.ML.Tokenizers` references a patched build.
+
 ## [1.3.1] - 2026-07-03
 
 ### Changed
