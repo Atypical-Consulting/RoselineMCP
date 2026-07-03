@@ -109,6 +109,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
             result.FixersApplied.ShouldContain("CS0219");
             result.ChangedFiles.ShouldContain("Program.cs");
             result.Patch.ShouldNotBeNullOrWhiteSpace();
+            result.PreviewOnly.ShouldBeFalse();
 
             // Progress was reported against the total number of diagnostic IDs requested.
             reports.ShouldNotBeEmpty();
@@ -148,6 +149,33 @@ public class CodeFixServiceIntegrationTests : IDisposable
 
             var onDisk = await File.ReadAllTextAsync(programPath);
             onDisk.ShouldBe(originalContent);
+        }
+
+        [Fact]
+        public async Task Should_Return_Empty_Response_When_No_Ids_Provided()
+        {
+            // Arrange — a loadable project, but an empty ids list (the MCP tool layer rejects
+            // this before the service is reached; the service itself just does nothing).
+            var csprojPath = CreateProject("NoIds.csproj",
+                ("Program.cs", """
+                 class Program
+                 {
+                     static void Main()
+                     {
+                         System.Console.WriteLine("hi");
+                     }
+                 }
+                 """));
+
+            // Act
+            var result = await _sut.ApplyFixesAsync(csprojPath, [], previewOnly: true);
+
+            // Assert
+            result.ShouldNotBeNull();
+            result.PreviewOnly.ShouldBeTrue();
+            result.FixersApplied.ShouldBeEmpty();
+            result.FixedCount.ShouldBe(0);
+            result.ChangedFiles.ShouldBeEmpty();
         }
 
         [Fact]

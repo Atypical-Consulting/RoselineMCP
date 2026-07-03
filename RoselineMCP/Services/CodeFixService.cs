@@ -62,13 +62,16 @@ public class CodeFixService : ICodeFixService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Resolve the project before creating a workspace so a missing project fails fast
+            // with FileNotFoundException (classified as NotFoundError at the tool boundary).
+            var projectPath = ResolveProjectPath(project);
+
             // Create a temporary workspace
             using var workspace = _msBuildService.CreateWorkspace();
 
             workspace.WorkspaceFailed += (sender, e) => _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
 
             // Load the project
-            var projectPath = ResolveProjectPath(project);
             _logger.LogInformation("Loading project for fixes: {Path}", projectPath);
             progress?.Report(new ProgressNotificationValue { Progress = 0, Total = ids.Count, Message = "Loading project via MSBuild…" });
 
@@ -232,19 +235,18 @@ public class CodeFixService : ICodeFixService
         }
         catch (OperationCanceledException)
         {
-            // Let cancellation (caller-initiated or the DefaultTimeout linked token) propagate
-            // uncaught rather than being folded into a normal-looking completed response — the
-            // MCP tool boundary (ApplyFixesTool) has a dedicated catch for this and reports it
-            // as a Cancelled/Timeout error instead of a fake success.
+            // Log for diagnosability, then let cancellation (caller-initiated or the
+            // DefaultTimeout linked token) propagate — the MCP tool boundary (ApplyFixesTool)
+            // has a dedicated catch for this and reports it as a Cancelled/Timeout error.
             _logger.LogWarning("Apply fixes operation was cancelled");
             throw;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to apply fixes");
-            response.Notes.Add($"Error: {ex.Message}");
-            return response;
-        }
+        // Any other exception (missing project, MSBuild load failure, ...) propagates to the
+        // MCP tool boundary, where ToolExecutionHelper.Error classifies it into the documented
+        // closed error-type set and returns the { ok: false, error: ... } envelope. Folding such
+        // failures into a normal-looking response here would make the tool report ok: true for
+        // an operation that actually failed. Per-diagnostic-ID fixer errors are still handled
+        // gracefully above (as Notes entries) so one broken fixer doesn't abort the whole run.
     }
 
     /// <summary>
