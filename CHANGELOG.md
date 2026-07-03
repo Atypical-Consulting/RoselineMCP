@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Symbol search and resolution now span every project in the loaded solution — previously only the anchor project was searched, so symbols declared in a sibling project it doesn't reference (e.g. the Tests project) were invisible to `search_symbols` (including the file outline) and made `get_symbol_info`, `find_references`, `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `edit_member`, and `rename_symbol` fail with "Symbol not found".
+
 ## [2.0.0] - 2026-07-04
 
 ### Added

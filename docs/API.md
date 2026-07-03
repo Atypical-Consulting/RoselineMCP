@@ -262,12 +262,15 @@ tokens: rather than reading whole files into an agent's context, they return onl
 searching the working directory, a few parent directories, and immediate subdirectories, and
 returning a `ValidationError` only when no candidate is found or the choice is ambiguous. Local paths
 only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
-solution, the whole solution is loaded so cross-project references and renames are complete.
+solution, the whole solution is loaded and symbol search/resolution spans **every project in it** —
+a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
+project) is still found — so cross-project references and renames are complete.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
-disambiguate. If a simple name matches more than one symbol, the tool returns a `ValidationError`
-listing the candidate fully-qualified names.
+disambiguate. If a simple name matches more than one symbol (including the same name declared in
+two different projects), the tool returns a `ValidationError` listing the candidate fully-qualified
+names.
 
 ### SearchSymbols
 
@@ -310,7 +313,7 @@ At least one of `query` or `file` is required (otherwise `ValidationError`).
 When outlining a single file (`file` set, `query` omitted), each symbol is returned as a **lean
 projection** — `name`, `kind`, `signature`, `line`, and `containingType` (the *simple*, unqualified
 type name) — omitting the per-symbol `file` (it is on the response) and `fullName` (reconstructable
-from `containingType` + `name`). Project-wide search returns the shape above, which no longer emits
+from `containingType` + `name`). Solution-wide search returns the shape above, which no longer emits
 `accessibility` (already inside `signature`) or `containingType` (already the prefix of `fullName`).
 Null fields are omitted from the JSON throughout, and `truncated` is omitted when the list was not
 capped.
@@ -406,7 +409,7 @@ of a class. **Read-only.**
   kind: string;
   totalFound: number;
   truncated?: boolean;              // Present (and `true`) only when capped; omitted when not truncated
-  implementations: SymbolSummary[]; // Same shape as SearchSymbols' project-wide `symbols`
+  implementations: SymbolSummary[]; // Same shape as SearchSymbols' solution-wide `symbols`
 }
 ```
 
@@ -805,7 +808,7 @@ public class SymbolSummary
 }
 ```
 
-**Project-wide** results (`SearchSymbols` with a `query`, `FindImplementations`, and the
+**Solution-wide** results (`SearchSymbols` with a `query`, `FindImplementations`, and the
 `GetTypeHierarchy` base/interface/derived lists) emit `name`, `fullName`, `kind`, `signature`,
 `file`, and `line` — never `accessibility` (already inside `signature`) nor `containingType`
 (already the prefix of `fullName`). The **single-file outline** (`SearchSymbols` with `file`,
