@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ApplyFixes` no longer reports `ok: true` with an `Error: …` note when the operation itself
   fails (e.g. project not found) — such failures now return the documented classified error
   envelope (`ok: false` with e.g. `NotFoundError`), like every other tool.
+- `ApplyFixes`, `EditMember`, and `RenameSymbol` now write changed files back with their original
+  encoding (BOM included) instead of silently re-encoding everything as BOM-less UTF-8.
 
 ## [2.0.0] - 2026-07-04
 

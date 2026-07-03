@@ -1,3 +1,4 @@
+using System.Text;
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
@@ -217,5 +218,80 @@ public class CodeEditServiceTests
         {
             Directory.Delete(baseDirectory, recursive: true);
         }
+    }
+
+    private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];
+
+    /// <summary>
+    /// Runs an on-disk apply scenario against a file written (and loaded) with the given encoding
+    /// and returns the resulting raw bytes, so each write path can assert the encoding survived.
+    /// </summary>
+    private static async Task<byte[]> RunApplyAsync(
+        Encoding encoding,
+        Func<CodeEditService, Task> applyAsync)
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-edit-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(baseDirectory);
+        var code = "public class Calc { public int Add(int a, int b) { return a + b; } public int Twice(int x) { return Add(x, x); } }";
+        var filePath = Path.Combine(baseDirectory, "Calc.cs");
+        await File.WriteAllTextAsync(filePath, code, encoding);
+
+        try
+        {
+            var (workspace, project) = AdhocProjectBuilder.Create("Demo", [("Calc.cs", code)], baseDirectory, encoding);
+            var service = CreateService(workspace, project);
+
+            await applyAsync(service);
+
+            return await File.ReadAllBytesAsync(filePath);
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task EditMember_Apply_Preserves_Utf8_Bom()
+    {
+        var bytes = await RunApplyAsync(new UTF8Encoding(encoderShouldEmitUTF8Identifier: true), async service =>
+        {
+            var result = await service.EditMemberAsync(
+                "Demo", "Add", "replace", "public int Add(int a, int b) { return a + b + 1; }",
+                previewOnly: false, CancellationToken.None);
+            result.Applied.ShouldBeTrue();
+        });
+
+        bytes.Take(3).ShouldBe(Utf8Bom, customMessage: "the UTF-8 BOM must be preserved on write");
+        Encoding.UTF8.GetString(bytes).ShouldContain("a + b + 1");
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Apply_Preserves_Utf8_Bom()
+    {
+        var bytes = await RunApplyAsync(new UTF8Encoding(encoderShouldEmitUTF8Identifier: true), async service =>
+        {
+            var result = await service.RenameSymbolAsync(
+                "Demo", "Add", "Sum", previewOnly: false, cancellationToken: CancellationToken.None);
+            result.Applied.ShouldBeTrue();
+        });
+
+        bytes.Take(3).ShouldBe(Utf8Bom, customMessage: "the UTF-8 BOM must be preserved on write");
+        Encoding.UTF8.GetString(bytes).ShouldContain("Sum");
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Apply_Preserves_Utf16_Encoding()
+    {
+        var bytes = await RunApplyAsync(Encoding.Unicode, async service =>
+        {
+            var result = await service.RenameSymbolAsync(
+                "Demo", "Add", "Sum", previewOnly: false, cancellationToken: CancellationToken.None);
+            result.Applied.ShouldBeTrue();
+        });
+
+        // UTF-16 LE byte order mark — the file must not have been re-encoded as UTF-8.
+        bytes.Take(2).ShouldBe([(byte)0xFF, (byte)0xFE], customMessage: "the UTF-16 LE BOM must be preserved on write");
+        Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2).ShouldContain("Sum");
     }
 }

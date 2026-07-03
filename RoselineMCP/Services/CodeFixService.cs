@@ -220,7 +220,8 @@ public class CodeFixService : ICodeFixService
                     if (document != null)
                     {
                         var text = await document.GetTextAsync(cancellationToken);
-                        await File.WriteAllTextAsync(filePath, text.ToString(), cancellationToken);
+                        // Write with the file's original encoding (BOM included) — see SourceTextWriter.
+                        await SourceTextWriter.WriteAsync(filePath, text, cancellationToken);
                     }
                 }
 

@@ -1,3 +1,4 @@
+using System.Text;
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
@@ -279,6 +280,49 @@ public class CodeFixServiceIntegrationTests : IDisposable
             var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Mixed.cs"));
             onDisk.ShouldNotContain("unusedDeclared");
             onDisk.ShouldNotContain("unusedAssigned");
+        }
+    }
+
+    /// <summary>
+    /// The disk-write path must re-encode a fixed file with the encoding it was originally read
+    /// with. Writing with a plain <c>File.WriteAllTextAsync(path, string)</c> always emitted
+    /// BOM-less UTF-8, silently stripping a UTF-8 BOM (or re-encoding UTF-16) on every applied fix.
+    /// </summary>
+    public class EncodingPreservationTests : CodeFixServiceIntegrationTests
+    {
+        private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];
+
+        [Fact]
+        public async Task Should_Preserve_Utf8_Bom_When_Writing_Fixed_File()
+        {
+            // Arrange — a source file explicitly written with a UTF-8 BOM
+            var csprojPath = CreateProject("BomRoundTrip.csproj");
+            var programPath = Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs");
+            await File.WriteAllTextAsync(programPath, """
+                class Program
+                {
+                    static void Main()
+                    {
+                        int unused = 1;
+                        System.Console.WriteLine("hi");
+                    }
+                }
+                """, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            // Sanity: the BOM really is on disk before the fix runs.
+            (await File.ReadAllBytesAsync(programPath)).Take(3).ShouldBe(Utf8Bom);
+
+            // Act
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false);
+
+            // Assert — the fix landed AND the BOM survived the rewrite
+            result.FixedCount.ShouldBe(1);
+            var bytes = await File.ReadAllBytesAsync(programPath);
+            bytes.Take(3).ShouldBe(Utf8Bom, customMessage: "the UTF-8 BOM must be preserved on write");
+
+            var onDisk = await File.ReadAllTextAsync(programPath);
+            onDisk.ShouldNotContain("unused");
+            onDisk.ShouldContain("System.Console.WriteLine(\"hi\");");
         }
     }
 
