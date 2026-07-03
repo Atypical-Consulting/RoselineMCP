@@ -16,7 +16,7 @@ public static class ListDiagnosticsTool
     /// <summary>
     /// Lists detailed diagnostics for a specific project with statistics and fixable suggestions.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Title = "List Diagnostics", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("List detailed diagnostics for a specific project with statistics and fixable suggestions. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<ListDiagnosticsResponse>> ListDiagnostics(
         ISolutionAnalyzerService analyzerService,

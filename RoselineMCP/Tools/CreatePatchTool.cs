@@ -16,7 +16,7 @@ public static class CreatePatchTool
     /// <summary>
     /// Creates a unified diff patch between two text blobs.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Title = "Create Patch", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Create a unified diff patch between two text blobs. Read-only: operates purely on the provided strings and never touches the filesystem.")]
     public static ToolResult<CreatePatchResponse> CreatePatch(
         IPatchService patchService,

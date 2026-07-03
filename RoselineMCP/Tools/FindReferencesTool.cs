@@ -17,7 +17,7 @@ public static class FindReferencesTool
     /// <summary>
     /// Finds all references to a symbol across the solution.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Title = "Find References", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Find every reference (use site) of a C# symbol across the solution, each as a file/line/column plus a one-line snippet — instead of reading the referencing files. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<ReferencesResponse>> FindReferences(
         ICodeNavigationService navigationService,

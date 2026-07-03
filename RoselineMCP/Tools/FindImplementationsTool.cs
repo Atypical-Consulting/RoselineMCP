@@ -17,7 +17,7 @@ public static class FindImplementationsTool
     /// <summary>
     /// Finds implementations, overrides, or derived types for a symbol.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Title = "Find Implementations", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Find implementations of an interface or interface member, overrides of a virtual/abstract member, or derived types of a class — as compact symbol summaries. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<ImplementationsResponse>> FindImplementations(
         ICodeNavigationService navigationService,

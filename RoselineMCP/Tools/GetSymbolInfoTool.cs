@@ -18,7 +18,7 @@ public static class GetSymbolInfoTool
     /// Returns declaration details (kind, accessibility, modifiers, signature, base types,
     /// interfaces, docs, definition location and optional source) for a symbol.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Title = "Get Symbol Info", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Get a C# symbol's kind, accessibility, modifiers, signature, base types, interfaces, XML docs, and definition location (optionally its source) — instead of reading the whole file. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<SymbolInfoResponse>> GetSymbolInfo(
         ICodeNavigationService navigationService,

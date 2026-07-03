@@ -28,7 +28,7 @@ public static class ApplyFixesTool
     /// the default call is non-destructive. The current MCP SDK annotation model has no way to
     /// express "destructive only for a specific parameter value".
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Title = "Apply Fixes", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Apply code fixes for specified diagnostic IDs in a project. Defaults to preview mode: with previewOnly left unset (or true), no files are changed and only a diff is returned. Pass previewOnly=false explicitly to write the fixes to disk.")]
     public static async Task<ToolResult<ApplyFixesResponse>> ApplyFixes(
         ICodeFixService codeFixService,

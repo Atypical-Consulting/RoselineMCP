@@ -156,6 +156,30 @@ public class ToolListingTests : McpProtocolTestBase
         tool.ProtocolTool.Annotations.OpenWorldHint.ShouldBe(expectedOpenWorld);
     }
 
+    /// <summary>
+    /// Every tool advertises a human-readable <c>Title</c> (distinct from its programmatic
+    /// snake_case <c>Name</c>) for clients to render in tool pickers.
+    /// </summary>
+    [Theory]
+    [InlineData("analyze_solution", "Analyze Solution")]
+    [InlineData("list_diagnostics", "List Diagnostics")]
+    [InlineData("apply_fixes", "Apply Fixes")]
+    [InlineData("create_patch", "Create Patch")]
+    [InlineData("search_symbols", "Search Symbols")]
+    [InlineData("get_symbol_info", "Get Symbol Info")]
+    [InlineData("find_references", "Find References")]
+    [InlineData("find_implementations", "Find Implementations")]
+    [InlineData("get_call_graph", "Get Call Graph")]
+    [InlineData("get_type_hierarchy", "Get Type Hierarchy")]
+    [InlineData("edit_member", "Edit Member")]
+    [InlineData("rename_symbol", "Rename Symbol")]
+    public async Task Tool_Advertises_Human_Readable_Title(string toolName, string expectedTitle)
+    {
+        var tool = await GetToolAsync(toolName);
+
+        tool.ProtocolTool.Title.ShouldBe(expectedTitle);
+    }
+
     private async Task<ModelContextProtocol.Client.McpClientTool> GetToolAsync(string name)
     {
         var tools = await Client.ListToolsAsync();

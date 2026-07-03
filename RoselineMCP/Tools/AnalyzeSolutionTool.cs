@@ -22,7 +22,7 @@ public static class AnalyzeSolutionTool
     /// <summary>
     /// Analyzes a C# solution and returns diagnostics summary with details about errors, warnings, and info messages.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
+    [McpServerTool(Title = "Analyze Solution", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
     [Description("Analyze a C# solution and return diagnostics summary with details about errors, warnings, and info messages. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<AnalyzeSolutionResponse>> AnalyzeSolution(
         ISolutionAnalyzerService analyzerService,

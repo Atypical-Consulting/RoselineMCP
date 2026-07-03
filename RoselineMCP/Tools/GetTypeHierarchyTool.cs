@@ -17,7 +17,7 @@ public static class GetTypeHierarchyTool
     /// <summary>
     /// Returns base types, interfaces, and/or derived types for a type.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Title = "Get Type Hierarchy", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Get a C# type's base-class chain, implemented interfaces, and/or derived types as compact summaries — instead of reading the declaring files. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<TypeHierarchyResponse>> GetTypeHierarchy(
         ICodeNavigationService navigationService,
