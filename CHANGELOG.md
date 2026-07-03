@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Configuration (`appsettings.json` / `appsettings.{Environment}.json`) now loads from the install
+  directory (`AppContext.BaseDirectory`) instead of the process working directory — a target
+  repository's own `appsettings.json` can no longer reconfigure the server, the settings packaged
+  with the dotnet tool are actually found, and the needless reload-on-change file watchers are
+  gone. Removed the dead `RoselineMCP:MaxDiagnostics` key from `appsettings.json`.
+
 ## [2.0.0] - 2026-07-04
 
 ### Added
