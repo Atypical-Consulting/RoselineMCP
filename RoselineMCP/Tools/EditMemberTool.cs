@@ -28,7 +28,7 @@ public static class EditMemberTool
     /// <see cref="McpServerToolAttribute.Destructive"/> hint is a static worst-case annotation: the
     /// tool *can* write a file when preview mode is turned off.
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, UseStructuredContent = true)]
+    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Surgically replace, add, or delete a single C# member (method/property/field/etc.) and return a unified diff — instead of rewriting the whole file. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the change to disk.")]
     public static async Task<ToolResult<EditMemberResponse>> EditMember(
         ICodeEditService editService,

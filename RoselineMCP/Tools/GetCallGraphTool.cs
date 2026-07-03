@@ -17,7 +17,7 @@ public static class GetCallGraphTool
     /// <summary>
     /// Builds a caller and/or callee graph for a method with cycle detection.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, UseStructuredContent = true)]
+    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Build a depth-bounded caller and/or callee graph for a C# method (with cycle detection) to trace control flow without reading method bodies. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<CallGraphResponse>> GetCallGraph(
         ICodeNavigationService navigationService,

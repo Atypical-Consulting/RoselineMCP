@@ -24,7 +24,7 @@ public static class RenameSymbolTool
     /// <see cref="McpServerToolAttribute.Destructive"/> hint is a static worst-case annotation: the
     /// tool *can* write files when preview mode is turned off.
     /// </remarks>
-    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, UseStructuredContent = true)]
+    [McpServerTool(ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Rename a C# symbol and update every reference across the solution using Roslyn, returning a unified diff. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the changes to disk.")]
     public static async Task<ToolResult<RenameSymbolResponse>> RenameSymbol(
         ICodeEditService editService,

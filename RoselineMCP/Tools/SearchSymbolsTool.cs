@@ -17,7 +17,7 @@ public static class SearchSymbolsTool
     /// <summary>
     /// Searches a project's symbols by wildcard/substring pattern, or returns a file's outline.
     /// </summary>
-    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, UseStructuredContent = true)]
+    [McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Find C# symbols (types, methods, properties, etc.) by name pattern, or outline a single file — returning compact signatures and locations instead of whole-file contents. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<SymbolSearchResponse>> SearchSymbols(
         ICodeNavigationService navigationService,

@@ -134,6 +134,28 @@ public class ToolListingTests : McpProtocolTestBase
         properties.ShouldNotContain("editService");
     }
 
+    /// <summary>
+    /// The read-only navigation/edit tools operate on a local, already-loaded project — a closed
+    /// world — so they advertise <c>OpenWorldHint = false</c>. Only <c>analyze_solution</c> can
+    /// reach an "open world" of external entities (it accepts a Git URL to clone), so it alone
+    /// keeps <c>OpenWorldHint = true</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("analyze_solution", true)]
+    [InlineData("search_symbols", false)]
+    [InlineData("list_diagnostics", false)]
+    [InlineData("create_patch", false)]
+    [InlineData("apply_fixes", false)]
+    [InlineData("rename_symbol", false)]
+    public async Task Tool_OpenWorld_Hint_Reflects_Whether_The_Tool_Reaches_External_Entities(
+        string toolName, bool expectedOpenWorld)
+    {
+        var tool = await GetToolAsync(toolName);
+
+        tool.ProtocolTool.Annotations.ShouldNotBeNull();
+        tool.ProtocolTool.Annotations.OpenWorldHint.ShouldBe(expectedOpenWorld);
+    }
+
     private async Task<ModelContextProtocol.Client.McpClientTool> GetToolAsync(string name)
     {
         var tools = await Client.ListToolsAsync();
