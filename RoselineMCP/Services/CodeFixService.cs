@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using System.Text;
@@ -48,6 +49,7 @@ public class CodeFixService : ICodeFixService
         string project,
         List<string> ids,
         bool previewOnly = true,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var response = new ApplyFixesResponse
@@ -68,6 +70,7 @@ public class CodeFixService : ICodeFixService
             // Load the project
             var projectPath = ResolveProjectPath(project);
             _logger.LogInformation("Loading project for fixes: {Path}", projectPath);
+            progress?.Report(new ProgressNotificationValue { Progress = 0, Total = ids.Count, Message = "Loading project via MSBuild…" });
 
             var msProject = await workspace.OpenProjectAsync(projectPath, cancellationToken: cancellationToken);
             response.Project = msProject.Name;
@@ -88,10 +91,18 @@ public class CodeFixService : ICodeFixService
             var currentSolution = originalSolution;
             var fixCount = 0;
 
+            var diagnosticIndex = 0;
             foreach (var diagnosticId in ids)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                diagnosticIndex++;
+                progress?.Report(new ProgressNotificationValue
+                {
+                    Progress = diagnosticIndex,
+                    Total = ids.Count,
+                    Message = $"Fixing {diagnosticId} ({diagnosticIndex}/{ids.Count})"
+                });
                 _logger.LogInformation("Attempting to fix diagnostic: {Id}", diagnosticId);
 
                 // Find code fix provider for this diagnostic

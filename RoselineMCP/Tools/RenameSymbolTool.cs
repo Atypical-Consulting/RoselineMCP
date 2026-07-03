@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
@@ -37,6 +38,7 @@ public static class RenameSymbolTool
         bool previewOnly = true,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
         using var invocation = ToolExecutionHelper.BeginInvocation(nameof(RenameSymbol), loggerFactory);
@@ -55,7 +57,7 @@ public static class RenameSymbolTool
         try
         {
             var result = await editService.RenameSymbolAsync(
-                project, symbol, newName, previewOnly, timeoutSource.Token);
+                project, symbol, newName, previewOnly, progress, timeoutSource.Token);
 
             invocation.MarkSuccess();
             return ToolResult<RenameSymbolResponse>.Success(result);

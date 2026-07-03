@@ -1,4 +1,5 @@
 using FakeItEasy;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Tools;
@@ -315,7 +316,7 @@ public class NavigationToolsTests
             result.Error.ShouldNotBeNull();
             result.Error.Type.ShouldBe("ValidationError");
 
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
         }
 
@@ -323,8 +324,8 @@ public class NavigationToolsTests
         public async Task Should_Default_To_PreviewOnly_True()
         {
             bool? captured = null;
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
-                .Invokes((string _, string _, string _, bool previewOnly, CancellationToken _) => captured = previewOnly)
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+                .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) => captured = previewOnly)
                 .Returns(Task.FromResult(new RenameSymbolResponse()));
 
             await RenameSymbolTool.RenameSymbol(_service, "Demo", "Foo.Bar", "Baz");
@@ -335,7 +336,7 @@ public class NavigationToolsTests
         [Fact]
         public async Task Should_Return_Success_Envelope()
         {
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new RenameSymbolResponse
                 {
                     Symbol = "Acme.Foo.Bar",

@@ -150,7 +150,7 @@ public class CodeEditServiceTests
         var service = CreateService("Demo", ("Calc.cs",
             "public class Calc { public int Add(int a, int b) { return a + b; } public int Twice(int x) { return Add(x, x); } }"));
 
-        var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, CancellationToken.None);
+        var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.NewName.ShouldBe("Sum");
         result.PreviewOnly.ShouldBeTrue();
@@ -166,7 +166,7 @@ public class CodeEditServiceTests
             "public class Calc { public int Add(int a, int b) { return a + b; } }"));
 
         await Should.ThrowAsync<ArgumentException>(
-            () => service.RenameSymbolAsync("Demo", "Add", "123bad", previewOnly: true, CancellationToken.None));
+            () => service.RenameSymbolAsync("Demo", "Add", "123bad", previewOnly: true, cancellationToken: CancellationToken.None));
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class CodeEditServiceTests
             var (workspace, project) = AdhocProjectBuilder.Create("Demo", [("Calc.cs", code)], baseDirectory);
             var service = CreateService(workspace, project);
 
-            var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: false, CancellationToken.None);
+            var result = await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: false, cancellationToken: CancellationToken.None);
 
             result.Applied.ShouldBeTrue();
             var updated = await File.ReadAllTextAsync(filePath);

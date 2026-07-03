@@ -23,8 +23,8 @@ public class ToolInvocationTests : McpProtocolTestBase
     {
         string? capturedPath = null;
         A.CallTo(() => AnalyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
-            .Invokes((string path, string? _, string? _, string? _, string? _, int _, CancellationToken _) => capturedPath = path)
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string path, string? _, string? _, string? _, string? _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) => capturedPath = path)
             .Returns(Task.FromResult(new AnalyzeSolutionResponse
             {
                 Solution = "Test.sln",
@@ -54,7 +54,7 @@ public class ToolInvocationTests : McpProtocolTestBase
         AssertMcpLevelError(result);
 
         A.CallTo(() => AnalyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -97,8 +97,8 @@ public class ToolInvocationTests : McpProtocolTestBase
     {
         List<string>? capturedIds = null;
         A.CallTo(() => CodeFixService.ApplyFixesAsync(
-                A<string>._, A<List<string>>._, A<bool>._, A<CancellationToken>._))
-            .Invokes((string _, List<string> ids, bool _, CancellationToken _) => capturedIds = ids)
+                A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string _, List<string> ids, bool _, IProgress<ProgressNotificationValue>? _, CancellationToken _) => capturedIds = ids)
             .Returns(Task.FromResult(new ApplyFixesResponse
             {
                 Project = "TestProject",
@@ -131,7 +131,7 @@ public class ToolInvocationTests : McpProtocolTestBase
         AssertMcpLevelError(result);
 
         A.CallTo(() => CodeFixService.ApplyFixesAsync(
-                A<string>._, A<List<string>>._, A<bool>._, A<CancellationToken>._))
+                A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 

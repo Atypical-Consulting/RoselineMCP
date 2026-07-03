@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Services;
@@ -333,12 +334,55 @@ public class SolutionAnalyzerServiceRoslynTests
                 "AnalyzeProjectsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
-                method.Invoke(_sut, new object[] { solution, context, CancellationToken.None })!;
+                method.Invoke(_sut, new object?[] { solution, context, null, CancellationToken.None })!;
 
             // Assert
             var (diagnostics, summary) = result;
             diagnostics.ShouldNotBeNull();
             summary.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task Should_Report_Progress_For_Each_Analyzed_Project()
+        {
+            // Arrange — two projects, mirroring Should_Analyze_All_Projects_In_Solution.
+            var workspace = new AdhocWorkspace();
+            var solution = workspace.CurrentSolution;
+            var versionStamp = VersionStamp.Create();
+            var projectId1 = ProjectId.CreateNewId();
+            var projectId2 = ProjectId.CreateNewId();
+            solution = solution.AddProject(ProjectInfo.Create(
+                projectId1, versionStamp, "Project1", "Project1", LanguageNames.CSharp));
+            solution = solution.AddProject(ProjectInfo.Create(
+                projectId2, versionStamp, "Project2", "Project2", LanguageNames.CSharp));
+            solution = solution.GetProject(projectId1)!
+                .AddDocument("File1.cs", SourceText.From("class A { }")).Project.Solution;
+            solution = solution.GetProject(projectId2)!
+                .AddDocument("File2.cs", SourceText.From("class B { }")).Project.Solution;
+
+            var contextType = typeof(SolutionAnalyzerService)
+                .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
+            var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
+            contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
+
+            // Capture progress reports synchronously (unlike Progress<T>, which posts async).
+            var reports = new List<ProgressNotificationValue>();
+            var progress = A.Fake<IProgress<ProgressNotificationValue>>();
+            A.CallTo(() => progress.Report(A<ProgressNotificationValue>._))
+                .Invokes((ProgressNotificationValue v) => reports.Add(v));
+
+            // Act
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "AnalyzeProjectsAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
+                method.Invoke(_sut, new object?[] { solution, context, progress, CancellationToken.None })!;
+
+            // Assert — a report per project, culminating in the full 2/2 count.
+            reports.ShouldNotBeEmpty();
+            reports.ShouldAllBe(r => r.Total == 2);
+            reports.Last().Progress.ShouldBe(2f);
+            reports.Count(r => r.Progress > 0).ShouldBe(2);
         }
 
         [Fact]
@@ -366,7 +410,7 @@ public class SolutionAnalyzerServiceRoslynTests
                 "AnalyzeProjectsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var result = await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
-                method.Invoke(_sut, new object[] { solution, context, CancellationToken.None })!;
+                method.Invoke(_sut, new object?[] { solution, context, null, CancellationToken.None })!;
 
             // Assert — project excluded by include pattern
             var (diagnostics, summary) = result;

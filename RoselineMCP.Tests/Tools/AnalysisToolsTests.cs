@@ -1,4 +1,5 @@
 using FakeItEasy;
+using ModelContextProtocol;
 using RoselineMCP.Models;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Tools;
@@ -36,6 +37,7 @@ public class AnalysisToolsTests
                 A<string?>._,
                 A<string?>._,
                 A<int>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
 
@@ -63,6 +65,7 @@ public class AnalysisToolsTests
                 A<string?>._,
                 A<string?>._,
                 A<int>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new FileNotFoundException("Solution not found"));
 
@@ -97,6 +100,7 @@ public class AnalysisToolsTests
                 exclude,
                 severity,
                 maxDiagnostics,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(new AnalyzeSolutionResponse()));
 
@@ -118,6 +122,7 @@ public class AnalysisToolsTests
                 exclude,
                 severity,
                 maxDiagnostics,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .MustHaveHappenedOnceExactly();
         }
@@ -266,8 +271,9 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
-                .Invokes((string _, List<string> _, bool previewOnly, CancellationToken _) =>
+                .Invokes((string _, List<string> _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 {
                     capturedPreviewOnly = previewOnly;
                 })
@@ -301,6 +307,7 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
 
@@ -332,8 +339,9 @@ public class AnalysisToolsTests
                 project,
                 A<List<string>>._,
                 previewOnly,
+                A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
-                .Invokes((string _, List<string> i, bool _, CancellationToken _) =>
+                .Invokes((string _, List<string> i, bool _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 {
                     capturedIds = i;
                 })

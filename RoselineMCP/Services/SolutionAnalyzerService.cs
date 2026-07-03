@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 
@@ -50,6 +51,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         string? excludePattern = null,
         string? severity = null,
         int maxDiagnostics = 100,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
         string? clonedDirectory = null;
@@ -58,11 +60,13 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            progress?.Report(new ProgressNotificationValue { Progress = 0, Message = "Resolving solution source…" });
             var (solutionPath, cloneDirectory) = await ResolveSolutionPathAsync(pathOrGit, branch, cancellationToken);
             clonedDirectory = cloneDirectory;
             ValidateSolutionPath(solutionPath);
 
             using var workspace = _msBuildService.CreateWorkspace();
+            progress?.Report(new ProgressNotificationValue { Progress = 0, Message = "Loading solution via MSBuild…" });
             var solution = await LoadSolutionAsync(workspace, solutionPath, cancellationToken);
 
             var analysisContext = new AnalysisContext
@@ -73,7 +77,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 MaxDiagnostics = maxDiagnostics
             };
 
-            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, cancellationToken);
+            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, progress, cancellationToken);
 
             return BuildAnalyzeSolutionResponse(solutionPath, solution, diagnostics, summary, maxDiagnostics);
         }
@@ -109,21 +113,38 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     private async Task<(List<DiagnosticDetail> diagnostics, DiagnosticSummary summary)> AnalyzeProjectsAsync(
         Solution solution,
         AnalysisContext context,
+        IProgress<ProgressNotificationValue>? progress,
         CancellationToken cancellationToken)
     {
         var allDiagnostics = new List<DiagnosticDetail>();
         var summary = new DiagnosticSummary();
 
-        foreach (var project in solution.Projects)
+        // Materialize the set of projects that will actually be analyzed so per-project progress
+        // can report a meaningful total.
+        var projectsToAnalyze = solution.Projects
+            .Where(p => _filterService.ShouldAnalyzeProject(p.Name, context.IncludePattern, context.ExcludePattern))
+            .ToList();
+
+        progress?.Report(new ProgressNotificationValue
+        {
+            Progress = 0,
+            Total = projectsToAnalyze.Count,
+            Message = $"Analyzing {projectsToAnalyze.Count} project(s)…"
+        });
+
+        for (var i = 0; i < projectsToAnalyze.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!_filterService.ShouldAnalyzeProject(project.Name, context.IncludePattern, context.ExcludePattern))
-            {
-                continue;
-            }
-
+            var project = projectsToAnalyze[i];
             await AnalyzeProjectAsync(project, allDiagnostics, summary, context, cancellationToken);
+
+            progress?.Report(new ProgressNotificationValue
+            {
+                Progress = i + 1,
+                Total = projectsToAnalyze.Count,
+                Message = $"Analyzed {project.Name} ({i + 1}/{projectsToAnalyze.Count})"
+            });
         }
 
         return (allDiagnostics, summary);

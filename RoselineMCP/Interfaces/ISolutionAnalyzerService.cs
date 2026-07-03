@@ -1,3 +1,4 @@
+using ModelContextProtocol;
 using RoselineMCP.Models;
 
 namespace RoselineMCP.Interfaces;
@@ -16,6 +17,7 @@ public interface ISolutionAnalyzerService
     /// <param name="excludePattern">Exclude pattern for project names.</param>
     /// <param name="severity">Minimum severity level to include.</param>
     /// <param name="maxDiagnostics">Maximum number of diagnostics to return.</param>
+    /// <param name="progress">Optional sink for progress updates (clone/load/per-project analysis).</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
     /// <returns>Analysis response containing diagnostics summary and details.</returns>
     Task<AnalyzeSolutionResponse> AnalyzeSolutionAsync(
@@ -25,6 +27,7 @@ public interface ISolutionAnalyzerService
         string? excludePattern = null,
         string? severity = null,
         int maxDiagnostics = 100,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

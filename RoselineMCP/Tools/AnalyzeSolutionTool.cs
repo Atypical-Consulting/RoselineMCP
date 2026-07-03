@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
@@ -39,6 +40,7 @@ public static class AnalyzeSolutionTool
         int maxDiagnostics = 100,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
         using var invocation = ToolExecutionHelper.BeginInvocation(nameof(AnalyzeSolution), loggerFactory);
@@ -63,6 +65,7 @@ public static class AnalyzeSolutionTool
                 exclude,
                 severity,
                 maxDiagnostics,
+                progress,
                 timeoutSource.Token);
 
             invocation.MarkSuccess();

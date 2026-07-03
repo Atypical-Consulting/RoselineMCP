@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
@@ -39,6 +40,7 @@ public static class ApplyFixesTool
         bool previewOnly = true,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
         using var invocation = ToolExecutionHelper.BeginInvocation(nameof(ApplyFixes), loggerFactory);
@@ -60,6 +62,7 @@ public static class ApplyFixesTool
                 project,
                 ids.ToList(),
                 previewOnly,
+                progress,
                 timeoutSource.Token);
 
             invocation.MarkSuccess();

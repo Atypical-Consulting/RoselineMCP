@@ -1,4 +1,5 @@
 using FakeItEasy;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Tools;
@@ -46,7 +47,7 @@ public class ToolErrorContractTests
     {
         var analyzerService = A.Fake<ISolutionAnalyzerService>();
         A.CallTo(() => analyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .Throws(thrown);
 
         var result = await AnalyzeSolutionTool.AnalyzeSolution(analyzerService, "test.sln");
@@ -74,7 +75,7 @@ public class ToolErrorContractTests
     {
         var codeFixService = A.Fake<ICodeFixService>();
         A.CallTo(() => codeFixService.ApplyFixesAsync(
-                A<string>._, A<List<string>>._, A<bool>._, A<CancellationToken>._))
+                A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .Throws(thrown);
 
         var result = await ApplyFixesTool.ApplyFixes(codeFixService, "TestProject", ["CS0168"]);
@@ -102,7 +103,7 @@ public class ToolErrorContractTests
         var analyzerService = A.Fake<ISolutionAnalyzerService>();
         const string sensitiveDetail = "at RoselineMCP.Internal.Secret.Method() line 42 in /Users/leak/path.cs";
         A.CallTo(() => analyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .Throws(new NullReferenceException(sensitiveDetail));
 
         var result = await AnalyzeSolutionTool.AnalyzeSolution(analyzerService, "test.sln");
@@ -139,7 +140,7 @@ public class ToolErrorContractTests
 
         // The service must never be called with a value the tool already rejected.
         A.CallTo(() => analyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .MustNotHaveHappened();
     }
 
@@ -153,7 +154,7 @@ public class ToolErrorContractTests
     {
         var analyzerService = A.Fake<ISolutionAnalyzerService>();
         A.CallTo(() => analyzerService.AnalyzeSolutionAsync(
-                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<CancellationToken>._))
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .Returns(Task.FromResult(new AnalyzeSolutionResponse()));
 
         var result = await AnalyzeSolutionTool.AnalyzeSolution(analyzerService, "test.sln", severity: severity);
