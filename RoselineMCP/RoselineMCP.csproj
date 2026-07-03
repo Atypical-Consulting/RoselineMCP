@@ -33,11 +33,11 @@
        restricts the package to RID-specific assets, breaking `dotnet tool install` on
        other platforms - and that restriction leaks in no matter how the Pack target is
        invoked (`dotnet pack`, `dotnet build -t:pack`, an IDE's Pack command, etc.), so a
-       conditional PropertyGroup here can never fully guard against it. The Docker image
-       (see Dockerfile) does a plain, portable `dotnet publish` with no `-r`/RuntimeIdentifier,
-       so it doesn't need this property either; if a future publish step needs to target
-       specific RIDs, pass `-p:RuntimeIdentifiers=linux-x64;linux-arm64` on that invocation's
-       command line instead of setting it globally in this file. -->
+       conditional PropertyGroup here can never fully guard against it. Publish steps that
+       need a RID pass it on the command line instead: the Docker image (see Dockerfile)
+       publishes framework-dependent ReadyToRun with `-r linux-musl-{x64,arm64}` and
+       `-p:PublishReadyToRun=true` on the `dotnet publish` invocation only, which never
+       leaks into this file or the packed tool. -->
 
   <ItemGroup>
     <PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="All" />

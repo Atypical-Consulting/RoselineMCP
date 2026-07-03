@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Docker image: now published ReadyToRun against the per-arch musl RID, precompiling IL to native code so the first tool call no longer pays most of the JIT cost.
+
 ## [2.0.0] - 2026-07-04
 
 ### Added
