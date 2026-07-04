@@ -92,7 +92,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 - [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **85% median** token reduction per task (88% pooled, size-weighted) -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 - [x] **Surgical code edits** -- replace/add/delete a member or rename a symbol solution-wide, emitting a unified diff instead of a whole-file rewrite. Preview by default.
 - [x] **Comprehensive analysis & auto-fix** -- diagnostics across a solution (Roslyn + Roslynator) with automated fixes and reviewable patches.
-- [x] **Read-only by default** -- the six navigation tools and the diagnostics/patch tools never touch disk; the three write tools require an explicit `previewOnly: false`.
+- [x] **Read-only by default** -- the seven navigation tools and the diagnostics/patch tools never touch disk; the three write tools require an explicit `previewOnly: false`.
 - [x] **Works with your client** -- Claude Desktop, VS Code (Copilot / MCP), Cursor. Install via `dnx`, NuGet global tool, or Docker.
 - [x] **Honest, reproducible benchmark** -- run it against your own solution: `dotnet run --project RoselineMCP.TokenBenchmark -c Release`.
 
@@ -373,7 +373,8 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > **Tool names on the wire are `snake_case`.** The section headings below use friendly
 > PascalCase/`camelCase` for readability, but the actual MCP tool names returned by `tools/list`
 > (and expected by `tools/call`) are: `search_symbols`, `get_symbol_info`, `find_references`,
-> `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `edit_member`, `rename_symbol`
+> `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `get_symbol_at_position`,
+> `edit_member`, `rename_symbol`
 > (matching the existing `analyze_solution` / `list_diagnostics` / `apply_fixes` / `create_patch`).
 
 #### 5. SearchSymbols
@@ -457,6 +458,22 @@ getTypeHierarchy({
 
 **Returns:** `baseTypes`, `interfaces`, `derivedTypes` (as symbol summaries).
 
+#### 13. GetSymbolAtPosition
+
+The symbol living at a `file:line(:column)` position — turn a diagnostic, stack trace, or grep hit
+into a symbol name without reading the file.
+
+```typescript
+getSymbolAtPosition({
+  project: "MyApp.Core",
+  file: "UserService.cs",  // File name or path suffix (same matching as SearchSymbols)
+  line: 42,                // 1-based
+  column: 17               // Optional (1-based) — omit to resolve the most relevant symbol on the line
+})
+```
+
+**Returns:** name, fullName, kind, signature, `isDeclaration` (whether the position sits on the symbol's own declaration), and (each omitted when empty/absent) containingType, documentation, definitionFile/Line (solution-root-relative). Line-only queries prefer declarations on the line over referenced symbols.
+
 ### Code Editing Tools (preview by default)
 
 Surgical edits that emit a member-level change rather than a whole-file rewrite. Like `ApplyFixes`,
@@ -508,6 +525,7 @@ RoselineMCP's SDK (`ModelContextProtocol` 1.4.0) supports the standard MCP tool
 | `FindImplementations` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `GetCallGraph` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `GetTypeHierarchy` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
+| `GetSymbolAtPosition` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `EditMember` | ❌ false | ⚠️ true | ❌ false | Same worst-case `destructiveHint` rationale as `ApplyFixes`: writes a file only when `previewOnly: false` is passed; the default call writes nothing. |
 | `RenameSymbol` | ❌ false | ⚠️ true | ❌ false | Same worst-case `destructiveHint` rationale as `ApplyFixes`: writes files only when `previewOnly: false` is passed; the default call writes nothing. |
 

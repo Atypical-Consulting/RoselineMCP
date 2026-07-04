@@ -19,6 +19,8 @@ internal static class RoselineToolGuidance
           (use `includeSource: true` to read its body instead of Read).
         - Find where a symbol is used → `find_references`. Who implements/overrides it → `find_implementations`.
           Who calls a method (and what it calls) → `get_call_graph`. A type's base/derived tree → `get_type_hierarchy`.
+        - Have a file:line (from a diagnostic, stack trace, grep, or find_references) and need the symbol
+          there → `get_symbol_at_position` (instead of opening the file to guess a name).
         - Change code → `edit_member` / `rename_symbol` (surgical diffs) instead of rewriting whole files.
 
         Reserve `Read`/`Grep` for non-C# files, or when you need the exact full text of a specific member

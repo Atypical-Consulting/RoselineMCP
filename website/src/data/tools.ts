@@ -50,6 +50,12 @@ export const tools: Tool[] = [
     params: 'project?, type, direction?, max?',
     returns: 'baseTypes?, interfaces?, derivedTypes? (summaries), derivedTypesTruncated?',
   },
+  {
+    name: 'get_symbol_at_position', title: 'Get Symbol At Position', group: 'Code navigation', kind: 'read',
+    summary: 'The symbol at a file:line(:column) — turn a diagnostic, stack trace, or grep hit into a symbol name.',
+    params: 'project?, file, line, column?',
+    returns: 'name, fullName, kind, signature, isDeclaration, then (omitted when empty/absent) containingType, documentation, definitionFile/Line',
+  },
   // ── Code editing (write, preview by default, confirms before writing) ──
   {
     name: 'edit_member', title: 'Edit Member', group: 'Code editing', kind: 'write', confirms: true,

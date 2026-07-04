@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New `get_symbol_at_position` navigation tool: resolves a `file:line(:column)` position (from a diagnostic, stack trace, grep hit, or `find_references` result) to the symbol living there — returning its name, fullName, kind, signature, definition location, and whether the position is the symbol's own declaration — so agents no longer have to read the file to guess a symbol name. Line-only queries prefer declarations on the line over referenced symbols.
 - **Analyzer diagnostics are real: the diagnostics tools now run Roslyn analyzers, and Roslynator
   fixes actually work.** Previously every diagnostics path used `compilation.GetDiagnostics()`
   (compiler-only), so RCS*/custom-analyzer diagnostics could never appear in

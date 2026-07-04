@@ -21,6 +21,7 @@ public class ToolListingTests : McpProtocolTestBase
         "create_patch",
         "search_symbols",
         "get_symbol_info",
+        "get_symbol_at_position",
         "find_references",
         "find_implementations",
         "get_call_graph",
@@ -103,6 +104,16 @@ public class ToolListingTests : McpProtocolTestBase
     }
 
     [Fact]
+    public async Task GetSymbolAtPosition_Schema_Requires_File_And_Line()
+    {
+        var tool = await GetToolAsync("get_symbol_at_position");
+
+        GetRequired(tool).ShouldBe(["file", "line"], ignoreOrder: true);
+        GetPropertyNames(tool).ShouldBe(
+            ["file", "line", "column", "project"], ignoreOrder: true);
+    }
+
+    [Fact]
     public async Task EditMember_Schema_Requires_Symbol_And_Operation()
     {
         var tool = await GetToolAsync("edit_member");
@@ -121,6 +132,7 @@ public class ToolListingTests : McpProtocolTestBase
     [InlineData("create_patch")]
     [InlineData("search_symbols")]
     [InlineData("get_symbol_info")]
+    [InlineData("get_symbol_at_position")]
     [InlineData("find_references")]
     [InlineData("find_implementations")]
     [InlineData("get_call_graph")]
@@ -151,6 +163,7 @@ public class ToolListingTests : McpProtocolTestBase
     [Theory]
     [InlineData("analyze_solution", true)]
     [InlineData("search_symbols", false)]
+    [InlineData("get_symbol_at_position", false)]
     [InlineData("list_diagnostics", false)]
     [InlineData("create_patch", false)]
     [InlineData("apply_fixes", false)]
@@ -175,6 +188,7 @@ public class ToolListingTests : McpProtocolTestBase
     [InlineData("create_patch", "Create Patch")]
     [InlineData("search_symbols", "Search Symbols")]
     [InlineData("get_symbol_info", "Get Symbol Info")]
+    [InlineData("get_symbol_at_position", "Get Symbol At Position")]
     [InlineData("find_references", "Find References")]
     [InlineData("find_implementations", "Find Implementations")]
     [InlineData("get_call_graph", "Get Call Graph")]

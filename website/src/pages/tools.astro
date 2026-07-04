@@ -10,11 +10,11 @@ const groupBlurb: Record<string, string> = {
 };
 ---
 <Base title="Tool reference — RoselineMCP" active="tools"
-      description="The 12 MCP tools RoselineMCP exposes: code navigation, code editing, and diagnostics.">
+      description="The 13 MCP tools RoselineMCP exposes: code navigation, code editing, and diagnostics.">
   <section>
     <div class="wrap">
       <span class="eyebrow">Reference</span>
-      <h1 style="margin:1rem 0">Twelve tools</h1>
+      <h1 style="margin:1rem 0">Thirteen tools</h1>
       <p class="lede">The navigation, editing, and diagnostics/fix tools take an <strong>optional</strong>
         <code>project</code> (name, directory, <code>.csproj</code>, or <code>.sln</code> path) — omit it
         and RoselineMCP auto-discovers the solution/project from its working directory. A
@@ -23,7 +23,7 @@ const groupBlurb: Record<string, string> = {
         <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/docs/API.md">docs/API.md</a>.</p>
 
       <div class="note" style="margin:1.6rem 0">
-        <p style="margin:0"><strong>Read-only by default.</strong> The six navigation tools and the
+        <p style="margin:0"><strong>Read-only by default.</strong> The seven navigation tools and the
           diagnostics/patch tools never touch disk. The three write-capable tools
           (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
           <code>previewOnly: true</code> — they return a diff and write nothing unless you pass
