@@ -16,7 +16,10 @@ public class DiagnosticFilterServiceAdditionalTests
 
     public DiagnosticFilterServiceAdditionalTests()
     {
-        _service = new DiagnosticFilterService(new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>()));
+        // Mirror the production wiring: the factory scans the bundled analyzer catalog
+        // (Roslynator fixers) in addition to the Roslyn built-ins.
+        var catalog = new AnalyzerCatalog(A.Fake<ILogger<AnalyzerCatalog>>());
+        _service = new DiagnosticFilterService(new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>(), catalog));
     }
 
     public class FilterByFilesTests : DiagnosticFilterServiceAdditionalTests
@@ -143,14 +146,13 @@ public class DiagnosticFilterServiceAdditionalTests
 
     /// <summary>
     /// IsFixableDiagnostic used to answer from a hand-maintained static list of ~50 hardcoded
-    /// diagnostic IDs (including a whole "StyleCop" block for SA1xxx rules) that was completely
-    /// disconnected from what ICodeFixProviderFactory actually discovers at runtime. In this
-    /// deployment StyleCop.Analyzers isn't even referenced and Roslynator.CodeFixes ships as an
-    /// analyzer-only package (no "lib" folder), so it never lands next to RoselineMCP.dll and
-    /// Assembly.Load("Roslynator.CodeFixes") always fails — meaning the old hardcoded list
-    /// claimed "RCS1213"/"SA1101" were fixable when ApplyFixes could never actually fix them.
-    /// These tests assert the service is now a pure pass-through over the factory's real,
-    /// dynamically-discovered set instead.
+    /// diagnostic IDs that was completely disconnected from what ICodeFixProviderFactory
+    /// actually discovers at runtime. It is now a pure pass-through over the factory's real,
+    /// dynamically-discovered set — and since RoselineMCP bundles the Roslynator analyzer/fixer
+    /// assemblies into an <c>analyzers/</c> folder next to RoselineMCP.dll (the packages are
+    /// analyzer-asset-only, so <c>Assembly.Load("Roslynator.CodeFixes")</c> alone could never
+    /// find them), the discovered set genuinely includes Roslynator's RCS fixers. StyleCop is
+    /// neither referenced nor bundled, so SA* IDs remain not fixable in this deployment.
     /// </summary>
     public class IsFixableDiagnosticTests : DiagnosticFilterServiceAdditionalTests
     {
@@ -159,6 +161,9 @@ public class DiagnosticFilterServiceAdditionalTests
         [InlineData("CS0219")] // Microsoft.CodeAnalysis.CSharp.RemoveUnusedVariable
         [InlineData("IDE0001")] // Microsoft.CodeAnalysis.CSharp.SimplifyTypeNames
         [InlineData("IDE0004")] // Microsoft.CodeAnalysis.CSharp.RemoveUnnecessaryCast
+        [InlineData("RCS1036")] // Roslynator RemoveUnnecessaryBlankLine (bundled analyzer catalog)
+        [InlineData("RCS1104")] // Roslynator SimplifyConditionalExpression (bundled analyzer catalog)
+        [InlineData("RCS1213")] // Roslynator RemoveUnusedMemberDeclaration (bundled analyzer catalog)
         public void Should_Return_True_For_Id_With_A_Real_Runtime_Provider(string id)
         {
             // Act
@@ -196,7 +201,8 @@ public class DiagnosticFilterServiceAdditionalTests
         public void Should_Return_True_For_Every_Id_The_Factory_Actually_Discovered()
         {
             // Arrange — ask the real, dynamically-loaded factory what it found
-            var factory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
+            var catalog = new AnalyzerCatalog(A.Fake<ILogger<AnalyzerCatalog>>());
+            var factory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>(), catalog);
             var service = new DiagnosticFilterService(factory);
             var discoveredIds = factory.GetFixableDiagnosticIds().ToList();
 
@@ -213,14 +219,26 @@ public class DiagnosticFilterServiceAdditionalTests
         }
 
         [Fact]
-        public void Should_Reject_Id_That_Has_No_Loaded_Provider_Even_If_It_Was_On_The_Old_Hardcoded_List()
+        public void Should_Reject_Id_That_Has_No_Loaded_Provider()
         {
-            // RCS1213 and SA1101 were both present in the old hand-maintained static HashSet,
-            // but no provider for either is actually loadable in this deployment (Roslynator's
-            // fix providers ship as analyzer-only assets, and StyleCop.Analyzers isn't
-            // referenced at all) — so IsFixableDiagnostic must now say "no" for both.
-            _service.IsFixableDiagnostic("RCS1213").ShouldBeFalse();
+            // StyleCop.Analyzers is neither referenced nor bundled in this deployment, so even
+            // though SA1101 sat on the old hand-maintained hardcoded list, no provider for it
+            // is actually loadable — IsFixableDiagnostic must say "no". (RCS IDs, by contrast,
+            // ARE fixable now that the Roslynator assemblies are bundled — see the
+            // Should_Return_True_For_Id_With_A_Real_Runtime_Provider cases.)
             _service.IsFixableDiagnostic("SA1101").ShouldBeFalse();
+        }
+
+        [Fact]
+        public void Should_Reject_Roslynator_Id_When_Factory_Has_No_Analyzer_Catalog()
+        {
+            // Without the bundled analyzer catalog the factory only sees the Roslyn built-ins:
+            // the Roslynator packages are analyzer-asset-only (no lib/), so the name-based
+            // Assembly.Load fallback can never find their fixers.
+            var factoryWithoutCatalog = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
+            var service = new DiagnosticFilterService(factoryWithoutCatalog);
+
+            service.IsFixableDiagnostic("RCS1213").ShouldBeFalse();
         }
 
         [Fact]
