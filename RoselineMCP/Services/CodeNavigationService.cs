@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
@@ -250,6 +251,187 @@ public class CodeNavigationService : ICodeNavigationService
         }
 
         return response;
+    }
+
+    /// <inheritdoc/>
+    public async Task<SymbolAtPositionResponse> GetSymbolAtPositionAsync(
+        string? project,
+        string file,
+        int line,
+        int? column,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            throw new ArgumentException("Provide a 'file' (name or path suffix) to resolve a position in.");
+        }
+
+        if (line < 1)
+        {
+            throw new ArgumentException($"Invalid line {line}: line numbers are 1-based.");
+        }
+
+        if (column is < 1)
+        {
+            throw new ArgumentException($"Invalid column {column}: column numbers are 1-based.");
+        }
+
+        using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
+
+        var document = FindDocument(loaded.Solution, loaded.Project, file)
+            ?? throw new KeyNotFoundException($"File not found in the loaded solution: {file}");
+
+        var text = await document.GetTextAsync(cancellationToken);
+        if (line > text.Lines.Count)
+        {
+            throw new ArgumentException(
+                $"Line {line} is out of range for '{file}' — the file has {text.Lines.Count} lines.");
+        }
+
+        var textLine = text.Lines[line - 1];
+        if (column.HasValue && column.Value - 1 > textLine.Span.Length)
+        {
+            throw new ArgumentException(
+                $"Column {column} is out of range for '{file}:{line}' — the line is {textLine.Span.Length} characters long.");
+        }
+
+        var model = await document.GetSemanticModelAsync(cancellationToken);
+        var root = await document.GetSyntaxRootAsync(cancellationToken);
+
+        ISymbol? symbol = null;
+        if (model != null && root != null)
+        {
+            symbol = column.HasValue
+                ? await ResolveAtPositionAsync(document, model, root, textLine.Start + column.Value - 1, cancellationToken)
+                : await ResolveOnLineAsync(document, model, root, textLine, cancellationToken);
+        }
+
+        if (symbol == null)
+        {
+            throw new KeyNotFoundException(
+                $"No symbol found at {file}:{line}" + (column.HasValue ? $":{column}" : string.Empty) +
+                ". Use search_symbols with this file to outline its symbols.");
+        }
+
+        var (definitionFile, definitionLine) = SymbolResolver.LocationOf(symbol);
+
+        return new SymbolAtPositionResponse
+        {
+            Name = symbol.Name,
+            FullName = symbol.ToDisplayString(SymbolResolver.FullNameFormat),
+            Kind = SymbolResolver.KindOf(symbol),
+            Signature = symbol.ToDisplayString(SymbolResolver.SignatureFormat),
+            // Simple (unqualified) container name, mirroring the file-outline convention — the
+            // fully-qualified container is already the prefix of FullName.
+            ContainingType = symbol.ContainingType?.Name,
+            IsDeclaration = IsDeclaredOnLine(symbol, document, line),
+            Documentation = ExtractSummary(symbol.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
+            DefinitionFile = SymbolResolver.Relativize(definitionFile, BaseDirOf(loaded)),
+            DefinitionLine = definitionLine
+        };
+    }
+
+    /// <summary>
+    /// Resolves the symbol at an exact character <paramref name="position"/>: whatever Roslyn binds
+    /// at that token first, then the enclosing declaration — so a position on the modifiers or
+    /// return type of a declaration still means that declaration.
+    /// </summary>
+    private static async Task<ISymbol?> ResolveAtPositionAsync(
+        Document document, SemanticModel model, SyntaxNode root, int position, CancellationToken cancellationToken)
+    {
+        var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, position, cancellationToken);
+        if (symbol != null)
+        {
+            return symbol;
+        }
+
+        return DeclaredSymbolOfEnclosingDeclaration(model, root.FindToken(position), cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the symbol for a line-only query. Declarations on the line win (so a method's
+    /// declaration line returns that method, not its return type), then the first token that binds
+    /// to a referenced symbol, then the enclosing declaration as a last resort.
+    /// </summary>
+    private static async Task<ISymbol?> ResolveOnLineAsync(
+        Document document, SemanticModel model, SyntaxNode root, TextLine line, CancellationToken cancellationToken)
+    {
+        var tokens = root.DescendantTokens(line.Span)
+            .Where(t => t.Span.IntersectsWith(line.Span))
+            .ToList();
+
+        foreach (var token in tokens)
+        {
+            if (token.Parent != null && model.GetDeclaredSymbol(token.Parent, cancellationToken) is { } declared)
+            {
+                return declared;
+            }
+        }
+
+        foreach (var token in tokens)
+        {
+            var symbol = await SymbolFinder.FindSymbolAtPositionAsync(document, token.SpanStart, cancellationToken);
+            if (symbol != null)
+            {
+                return symbol;
+            }
+        }
+
+        foreach (var token in tokens)
+        {
+            var enclosing = DeclaredSymbolOfEnclosingDeclaration(model, token, cancellationToken);
+            if (enclosing != null)
+            {
+                return enclosing;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Walks up from <paramref name="token"/> to the nearest ancestor node that declares a symbol
+    /// (variable declarator, member, type, ...). <c>GetDeclaredSymbol</c> returns null for
+    /// non-declaration nodes, so the loop simply keeps climbing until something declares.
+    /// </summary>
+    private static ISymbol? DeclaredSymbolOfEnclosingDeclaration(
+        SemanticModel model, SyntaxToken token, CancellationToken cancellationToken)
+    {
+        for (var node = token.Parent; node != null; node = node.Parent)
+        {
+            if (model.GetDeclaredSymbol(node, cancellationToken) is { } declared)
+            {
+                return declared;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="symbol"/> has an in-source declaration in <paramref name="document"/>
+    /// on the given 1-based <paramref name="line"/> — i.e. the requested position sits on the
+    /// symbol's own declaration rather than a use site.
+    /// </summary>
+    private static bool IsDeclaredOnLine(ISymbol symbol, Document document, int line)
+    {
+        foreach (var location in symbol.Locations)
+        {
+            if (!location.IsInSource)
+            {
+                continue;
+            }
+
+            var span = location.GetLineSpan();
+            if (string.Equals(span.Path, document.FilePath, StringComparison.OrdinalIgnoreCase)
+                && line - 1 >= span.StartLinePosition.Line
+                && line - 1 <= span.EndLinePosition.Line)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <inheritdoc/>

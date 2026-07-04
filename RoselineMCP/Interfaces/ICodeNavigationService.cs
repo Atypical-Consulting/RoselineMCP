@@ -32,6 +32,20 @@ public interface ICodeNavigationService
         bool includeSource,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Resolves the symbol at a <c>file:line(:column)</c> position (1-based). With no column, the
+    /// line's declarations win over referenced symbols; a position elsewhere on a declaration
+    /// (e.g. its modifiers or return type) resolves to the enclosing declaration. Throws
+    /// <see cref="ArgumentException"/> for an out-of-range line/column and
+    /// <see cref="KeyNotFoundException"/> when the file is unknown or no symbol lives there.
+    /// </summary>
+    Task<SymbolAtPositionResponse> GetSymbolAtPositionAsync(
+        string? project,
+        string file,
+        int line,
+        int? column,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Finds every reference (use site) of a symbol across the solution.</summary>
     Task<ReferencesResponse> FindReferencesAsync(
         string? project,
