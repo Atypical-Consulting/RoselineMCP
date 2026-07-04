@@ -128,7 +128,9 @@ These return precise structure instead of whole files (backed by `ICodeNavigatio
 (name, directory, `.csproj` path, or `.sln` path); when omitted, RoselineMCP auto-discovers the
 solution/project from its working directory (searching the cwd, a few parent directories, and
 immediate subdirectories, and failing with an actionable message only when the match is empty or
-ambiguous). The containing solution is loaded when present so references/renames span projects.
+ambiguous). The containing solution is loaded when present, and symbol search/resolution spans
+every project in it — a symbol declared only in a sibling project the anchor doesn't reference
+(e.g. the Tests project) is still found, and references/renames span projects.
 
 - **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
 - **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source); accessibility is inside `signature`, and empty/absent fields are omitted.
