@@ -580,10 +580,29 @@ Response includes a unified diff patch showing all changes that would be applied
 
 ## Configuration
 
+RoselineMCP reads `appsettings.json` and `appsettings.{Environment}.json` from the directory the
+server binary is installed in (`AppContext.BaseDirectory`) — **not** from the process working
+directory. Launching the server from inside a target repository never picks up that repository's
+own `appsettings.json`, and the settings packaged with the `dotnet tool` install are always found.
+Configuration is read once at startup; there is no reload-on-change file watching.
+
 ### Environment Variables
 
-- `ROSELINE_LOG_LEVEL`: Set logging level (Debug, Information, Warning, Error)
-- `ASPNETCORE_ENVIRONMENT`: Set environment (Development, Production)
+Environment variables prefixed with `ROSELINE_` override the JSON files, using `__` as the section
+separator. Settings under the `RoselineMCP` section therefore take a double prefix:
+
+```bash
+# RoselineMCP:EnableDiagnosticLogging
+ROSELINE_RoselineMCP__EnableDiagnosticLogging=true
+
+# RoselineMCP:DefaultTimeout (ms)
+ROSELINE_RoselineMCP__DefaultTimeout=300000
+
+# Logging:LogLevel:RoselineMCP
+ROSELINE_Logging__LogLevel__RoselineMCP=Debug
+```
+
+- `DOTNET_ENVIRONMENT`: Set environment (Development, Production)
 
 ### appsettings.json
 
@@ -708,7 +727,7 @@ RoselineMCP/
 Enable detailed logging:
 
 ```bash
-ROSELINE_LOG_LEVEL=Debug dotnet run --project RoselineMCP/RoselineMCP.csproj
+ROSELINE_Logging__LogLevel__RoselineMCP=Debug dotnet run --project RoselineMCP/RoselineMCP.csproj
 ```
 
 ### Tracing Individual Tool Calls

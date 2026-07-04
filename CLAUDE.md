@@ -82,7 +82,7 @@ dotnet test RoselineMCP.Tests/RoselineMCP.Tests.csproj
 dotnet run --project RoselineMCP/RoselineMCP.csproj
 
 # Run with specific environment
-ASPNETCORE_ENVIRONMENT=Development dotnet run --project RoselineMCP/RoselineMCP.csproj
+DOTNET_ENVIRONMENT=Development dotnet run --project RoselineMCP/RoselineMCP.csproj
 
 # Watch mode for development
 dotnet watch run --project RoselineMCP/RoselineMCP.csproj
@@ -237,10 +237,15 @@ dotnet test --logger html
 ## Environment Configuration
 
 The application supports environment-specific configuration through:
-- `appsettings.json`: Base configuration
-- `appsettings.{Environment}.json`: Environment-specific overrides
-- `ROSELINE_` prefixed environment variables
-- Command-line arguments
+- `appsettings.json`: Base configuration, loaded from the install directory
+  (`AppContext.BaseDirectory`, next to the binary) — never from the process working directory, so
+  a target repository's own `appsettings.json` cannot reconfigure the server
+- `appsettings.{Environment}.json`: Environment-specific overrides (same directory)
+- `ROSELINE_` prefixed environment variables — double prefix for the `RoselineMCP` section, e.g.
+  `ROSELINE_RoselineMCP__EnableDiagnosticLogging=true`
+- Command-line arguments (highest precedence)
+
+Configuration is read once at startup; no reload-on-change file watchers are registered.
 
 Logging levels adjust automatically:
 - **Development**: Debug level for RoselineMCP namespace
