@@ -34,4 +34,16 @@ public class RoselineMcpOptions
     /// workspace on every call.
     /// </summary>
     public bool WorkspaceCache { get; set; } = true;
+
+    /// <summary>
+    /// Whether the diagnostics tools (<c>AnalyzeSolution</c>, <c>ListDiagnostics</c>,
+    /// <c>ApplyFixes</c>) run Roslyn analyzers on top of compiler diagnostics. Enabled by
+    /// default: the bundled Roslynator analyzers plus any analyzers the target project itself
+    /// references are executed via <c>CompilationWithAnalyzers</c>, so RCS*/custom-analyzer
+    /// diagnostics surface and are fixable. Set to <see langword="false"/> for compiler-only
+    /// diagnostics — faster, but no analyzer diagnostics and no analyzer-backed fixes. Note that
+    /// running a target project's own analyzer references executes third-party code at analysis
+    /// time; see SECURITY.md.
+    /// </summary>
+    public bool RunAnalyzers { get; set; } = true;
 }

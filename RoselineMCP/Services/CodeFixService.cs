@@ -20,6 +20,7 @@ public class CodeFixService : ICodeFixService
     private readonly ICodeFixProviderFactory _codeFixProviderFactory;
     private readonly IDiffService _diffService;
     private readonly IMSBuildService _msBuildService;
+    private readonly IDiagnosticComputationService _diagnosticComputation;
 
     /// <summary>
     /// Initializes a new instance of the CodeFixService.
@@ -29,18 +30,24 @@ public class CodeFixService : ICodeFixService
     /// <param name="codeFixProviderFactory">Factory for creating code fix providers.</param>
     /// <param name="diffService">Service for generating diffs.</param>
     /// <param name="msBuildService">Service for MSBuild operations.</param>
+    /// <param name="diagnosticComputation">Computes compiler + analyzer diagnostics per project,
+    /// so analyzer-driven diagnostics (e.g. Roslynator RCS*) are visible to the fixers. When
+    /// omitted, falls back to compiler-only diagnostics (production DI always supplies the
+    /// analyzer-aware implementation).</param>
     public CodeFixService(
         ILogger<CodeFixService> logger,
         ISolutionAnalyzerService analyzerService,
         ICodeFixProviderFactory codeFixProviderFactory,
         IDiffService diffService,
-        IMSBuildService msBuildService)
+        IMSBuildService msBuildService,
+        IDiagnosticComputationService? diagnosticComputation = null)
     {
         _logger = logger;
         _analyzerService = analyzerService;
         _codeFixProviderFactory = codeFixProviderFactory;
         _diffService = diffService;
         _msBuildService = msBuildService;
+        _diagnosticComputation = diagnosticComputation ?? DiagnosticComputationService.CompilerOnly;
     }
 
 
@@ -305,10 +312,11 @@ public class CodeFixService : ICodeFixService
     }
 
     /// <summary>
-    /// The diagnostics with the given ID currently reported for the project: unsuppressed and
-    /// located in source (the only occurrences a code fix can be applied to).
+    /// The diagnostics with the given ID currently reported for the project — compiler and
+    /// analyzer diagnostics alike (see <see cref="IDiagnosticComputationService"/>):
+    /// unsuppressed and located in source (the only occurrences a code fix can be applied to).
     /// </summary>
-    private static async Task<List<Diagnostic>> GetMatchingDiagnosticsAsync(
+    private async Task<List<Diagnostic>> GetMatchingDiagnosticsAsync(
         Solution solution,
         ProjectId projectId,
         string diagnosticId,
@@ -320,7 +328,8 @@ public class CodeFixService : ICodeFixService
         var compilation = await project.GetCompilationAsync(cancellationToken);
         if (compilation == null) return [];
 
-        return compilation.GetDiagnostics(cancellationToken)
+        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        return allDiagnostics
             .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
             .ToList();
     }
@@ -415,9 +424,9 @@ public class CodeFixService : ICodeFixService
     }
 
     /// <summary>
-    /// Serves the compiler diagnostics already computed for the project snapshot a
-    /// <see cref="FixAllContext"/> is built from, so the batch fixer does not trigger another
-    /// full re-analysis. Every served diagnostic is located in source (see
+    /// Serves the diagnostics (compiler and analyzer alike) already computed for the project
+    /// snapshot a <see cref="FixAllContext"/> is built from, so the batch fixer does not trigger
+    /// another full re-analysis. Every served diagnostic is located in source (see
     /// <see cref="GetMatchingDiagnosticsAsync"/>), so there are no project-level diagnostics.
     /// </summary>
     private sealed class PrecomputedDiagnosticProvider(List<Diagnostic> diagnostics) : FixAllContext.DiagnosticProvider
@@ -487,11 +496,9 @@ public class CodeFixService : ICodeFixService
             var project = solution.GetProject(projectId);
             if (project == null) break;
 
-            var compilation = await project.GetCompilationAsync(cancellationToken);
-            if (compilation == null) break;
-
-            var diagnostic = compilation.GetDiagnostics(cancellationToken)
-                .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
+            // Compiler + analyzer diagnostics, recomputed against the latest snapshot.
+            var matchingDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken);
+            var diagnostic = matchingDiagnostics
                 .Where(d => !unfixableLocations.Contains((d.Location.SourceTree!.FilePath, d.Location.SourceSpan.Start, d.Location.SourceSpan.Length)))
                 .OrderBy(d => d.Location.SourceTree!.FilePath, StringComparer.Ordinal)
                 .ThenBy(d => d.Location.SourceSpan.Start)
