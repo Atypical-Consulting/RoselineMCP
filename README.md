@@ -618,13 +618,15 @@ Configure logging and other settings:
   },
   "RoselineMCP": {
     "DefaultTimeout": 120000,
-    "EnableDiagnosticLogging": false
+    "EnableDiagnosticLogging": false,
+    "WorkspaceCache": true
   }
 }
 ```
 
 - `RoselineMCP:DefaultTimeout`: Wall-clock timeout (ms) applied to each tool call, in addition to the caller's own cancellation. `0` disables it.
 - `RoselineMCP:EnableDiagnosticLogging`: Opt-in, local-only tracing of tool invocations — see [Debug Logging](#debug-logging). Disabled by default; enabled in `appsettings.Development.json`.
+- `RoselineMCP:WorkspaceCache`: Reuse the loaded MSBuild workspace across navigation/edit tool calls (enabled by default) — see [Performance](#performance). Set to `false` to load a fresh workspace on every call.
 
 ## Architecture
 
@@ -686,8 +688,15 @@ RoselineMCP/
 
 ## Performance
 
-- **Workspace Isolation** -- Each operation creates a fresh `MSBuildWorkspace`; nothing is cached
-  or reused across calls (see [Architecture](#architecture))
+- **Workspace Cache (navigation/edit tools)** -- The Roslyn-backed navigation and edit tools reuse
+  the loaded `MSBuildWorkspace` across calls, cutting hundreds of milliseconds of reload off every
+  call after the first. Cached entries are fingerprinted (last-write-time + size of the `.sln`,
+  every `.csproj`, and every source file, plus their directories) and re-checked on each call, so
+  any change on disk — including RoselineMCP's own edits — triggers a fresh reload. Disable with
+  `RoselineMCP:WorkspaceCache = false`
+- **Workspace Isolation (diagnostics tools)** -- `AnalyzeSolution`, `ListDiagnostics`, and
+  `ApplyFixes` still create a fresh `MSBuildWorkspace` per operation (see
+  [Architecture](#architecture))
 - **Sequential Project Analysis** -- Projects within a solution are analyzed one at a time, not
   concurrently, to keep MSBuild workspace state consistent
 - **Result Capping** -- `maxDiagnostics`/`max` bound how many diagnostics are returned per call,

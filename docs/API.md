@@ -712,10 +712,13 @@ public interface ICodeEditService
 
 ### IProjectLoader
 
-Loads a project (and its solution, when found) into a fresh workspace for navigation/edits. Accepts
+Loads a project (and its solution, when found) into a workspace for navigation/edits. Accepts
 a project name, directory, `.csproj` path, or `.sln` path; when `project` is `null`/whitespace the
 solution/project is auto-discovered from the working directory (throwing `ArgumentException` when the
-match is empty or ambiguous).
+match is empty or ambiguous). In production the interface resolves to `CachingProjectLoader`, a
+decorator that reuses the loaded workspace across calls and reloads it whenever the solution's files
+change on disk (disable via `RoselineMCP:WorkspaceCache = false`); returned handles should always be
+disposed — disposal releases owned workspaces and is a no-op for cached, shared ones.
 
 ```csharp
 public interface IProjectLoader

@@ -47,7 +47,15 @@ The application uses a dependency injection-based service architecture with clea
 
 ### Key Architectural Patterns
 
-- **Workspace Isolation**: Each operation creates a new MSBuildWorkspace to prevent state pollution
+- **Workspace Isolation (diagnostics tools)**: `AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`
+  create a new MSBuildWorkspace per operation to prevent state pollution
+- **Workspace Cache (navigation/edit tools)**: everything backed by `IProjectLoader` resolves to
+  `CachingProjectLoader`, which reuses the loaded MSBuildWorkspace across tool calls. Each entry is
+  fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, plus
+  their directories' mtimes to catch added/removed files) and re-stat'd on every load — any change
+  on disk disposes the cached workspace and reloads fresh, so RoselineMCP's own
+  `ApplyFixes`/`EditMember`/`RenameSymbol` writes self-invalidate it. Bounded (4 entries, LRU);
+  disable with `RoselineMCP:WorkspaceCache = false` to load a fresh workspace per call
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
   payload nested under `data` on success, error details under `error` on failure — and sets
@@ -269,8 +277,12 @@ Logging levels adjust automatically:
   `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
   `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against
   arbitrary/hostile callers.
-- Each operation creates a fresh `MSBuildWorkspace` (see "Workspace Isolation" above) — no
-  workspace state or MSBuild-loaded solution is shared or cached across calls.
+- The diagnostics tools (`AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`) create a fresh
+  `MSBuildWorkspace` per operation (see "Workspace Isolation" above). The navigation/edit tools
+  reuse a cached, read-only workspace across calls (see "Workspace Cache" above): Roslyn `Solution`
+  snapshots are immutable, and the cache is invalidated by an on-disk fingerprint check on every
+  call, so no stale state leaks between calls. Set `RoselineMCP:WorkspaceCache = false` to disable
+  caching entirely.
 - Changes from `ApplyFixes` are always returned as a unified diff patch in the response, in
   addition to (optionally) being written to disk.
 

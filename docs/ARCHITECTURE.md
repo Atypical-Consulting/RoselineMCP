@@ -238,11 +238,16 @@ Services act as repositories for their respective domains:
 
 ### MSBuildWorkspace Lifecycle
 
+For the diagnostics tools (`AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`):
+
 1. **Creation**: New workspace per operation
 2. **Configuration**: Set up MSBuild properties
 3. **Loading**: Load solution/project
 4. **Operation**: Perform analysis/fixes
 5. **Cleanup**: Dispose workspace
+
+The navigation/edit tools instead reuse a cached workspace across calls via
+`CachingProjectLoader` — see "Caching Strategies" under Performance Considerations below.
 
 ### Temporary Workspace Pattern
 
@@ -294,9 +299,21 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    `Activator.CreateInstance`.
 2. **MSBuild Location**: `MSBuildLocator` registration happens once per process
    (`MSBuildService._msBuildRegistered`, guarded by a lock).
-3. **MSBuildWorkspace**: intentionally **not** cached or reused — every `AnalyzeSolution`,
-   `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own `MSBuildWorkspace` (see
-   "Workspace Isolation" below), trading some reload cost for isolation between calls.
+3. **MSBuildWorkspace (diagnostics tools)**: intentionally **not** cached or reused — every
+   `AnalyzeSolution`, `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own
+   `MSBuildWorkspace` (see "Workspace Isolation" below), trading some reload cost for isolation
+   between calls.
+4. **MSBuildWorkspace (navigation/edit tools)**: cached across calls — `IProjectLoader` resolves
+   to `CachingProjectLoader`, a decorator over `ProjectLoader` that keeps up to 4 loaded
+   workspaces (LRU-evicted, evicted workspaces disposed), keyed by the resolved `.sln`/`.csproj`
+   path. Each entry stores a disk fingerprint — last-write-time + length of the `.sln`, every
+   `.csproj`, and every document, plus the last-write-time of their containing directories (which
+   catches added/removed files) — that is re-stat'd on every load; any mismatch disposes the
+   cached workspace and reloads fresh. Roslyn `Solution` snapshots are immutable, so a cache hit
+   can never observe another call's in-flight state, and RoselineMCP's own disk writes
+   (`ApplyFixes`/`EditMember`/`RenameSymbol`) self-invalidate the entry on the next call. Disable
+   with `RoselineMCP:WorkspaceCache = false` (every call then loads a fresh workspace, the
+   pre-cache behavior).
 
 ### Parallel Project Analysis
 
@@ -311,8 +328,10 @@ increases, as MCP requires (the project named in each message follows completion
 
 ### Memory Management
 
-- A new `MSBuildWorkspace` is created and disposed per tool call (see "Workspace Management"
-  above) rather than pooled or shared
+- The diagnostics tools create and dispose a new `MSBuildWorkspace` per tool call (see "Workspace
+  Management" above); the navigation/edit tools hold up to 4 cached workspaces in
+  `CachingProjectLoader` (see "Caching Strategies" above), disposed on invalidation, LRU eviction,
+  or host shutdown
 - `ApplyFixes` re-fetches the project's compilation after every individual fix is applied, so
   later fixes see up-to-date source text/positions
 
@@ -336,7 +355,10 @@ restating an idealized version.
 
 - Read-only by default: `AnalyzeSolution`, `ListDiagnostics`, and `CreatePatch` never write to
   disk; `ApplyFixes` defaults `previewOnly` to `true` at the MCP tool boundary.
-- A fresh `MSBuildWorkspace` per operation — no shared/cached workspace state across calls.
+- A fresh `MSBuildWorkspace` per operation for the diagnostics tools. The navigation/edit tools
+  share a fingerprint-invalidated workspace cache (`CachingProjectLoader`, see "Performance
+  Considerations") — cached `Solution` snapshots are immutable and reloaded whenever anything
+  changes on disk; `RoselineMCP:WorkspaceCache = false` disables the cache.
 - **MSBuild is not a sandbox.** Loading a `.sln`/`.csproj` is a design-time MSBuild evaluation
   that can execute build logic embedded in the project (`<Exec>` tasks, custom `UsingTask`
   assemblies, imported `.targets`/`.props`). Analyzing a fully untrusted repository or Git URL
