@@ -17,10 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="10.0.1">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <!-- coverlet.msbuild is the single coverage producer: the CI gate reads its output at
+         TestResults/coverage.cobertura.xml. Do not re-add coverlet.collector alongside it -
+         two producers meant two reports in different places and a nondeterministic gate. -->
     <PackageReference Include="coverlet.msbuild" Version="10.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

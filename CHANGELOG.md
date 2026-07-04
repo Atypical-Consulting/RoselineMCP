@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the provider supports it, instead of re-compiling the project after every individual fix;
   providers without FixAll support keep the per-occurrence path, and the response shape is
   unchanged.
+- Docker image: now published ReadyToRun against the per-arch musl RID, precompiling IL to native
+  code so the first tool call no longer pays most of the JIT cost.
 
 ### Performance
 - **The navigation/edit tools now cache the MSBuild workspace across calls** (~590 ms reload saved per call after the first), invalidated by a cheap on-disk fingerprint (mtime + size of the `.sln`, every `.csproj`, and every document) so any file change — including RoselineMCP's own edits — triggers a fresh reload; disable with `RoselineMCP:WorkspaceCache = false`.
