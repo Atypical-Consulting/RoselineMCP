@@ -381,14 +381,16 @@ restating an idealized version.
 
 ### Environment Variables
 
-- `ROSELINE_*`: Custom configuration
-- `ASPNETCORE_ENVIRONMENT`: Development/Production
+- `ROSELINE_*`: Custom configuration (double underscore as section separator, e.g.
+  `ROSELINE_RoselineMCP__EnableDiagnosticLogging=true`)
+- `DOTNET_ENVIRONMENT`: Development/Production
 - `DOTNET_*`: Runtime configuration
 
 ### Configuration Files
 
-- `appsettings.json`: Base configuration
-- `appsettings.{Environment}.json`: Environment overrides
+- `appsettings.json`: Base configuration, loaded from the install directory
+  (`AppContext.BaseDirectory`) — never from the process working directory
+- `appsettings.{Environment}.json`: Environment overrides (same directory)
 - Command-line arguments: Highest priority
 
 ### Logging Configuration
