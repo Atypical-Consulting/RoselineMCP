@@ -59,6 +59,17 @@ execution" guarantees that apply to the *analyzed application code itself*.
 RoselineMCP does not attempt to sandbox or disable MSBuild task execution
 during workspace loading.
 
+**Analyzer execution is a second, related surface.** The diagnostics tools
+(`AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`) run Roslyn analyzers by
+default: the Roslynator analyzers bundled with RoselineMCP *and* whatever
+analyzer assemblies the target project itself references. A referenced
+analyzer is arbitrary .NET code executed in-process at analysis time — an
+untrusted repository can therefore run code through its analyzer references
+even before any build target fires. Setting `RoselineMCP:RunAnalyzers` to
+`false` disables all analyzer execution (bundled and project-referenced
+alike), reducing the tools to compiler-only diagnostics; MSBuild evaluation
+itself (above) still applies.
+
 **Recommendations for operators:**
 
 - Only point RoselineMCP at repositories and branches you trust, or run it

@@ -52,6 +52,13 @@ delivered as MCP `structuredContent` alongside an advertised `outputSchema`.
 Analyzes an entire C# solution for diagnostics with filtering options. **Read-only** — never
 modifies files on disk (`readOnlyHint: true`, see [Tool Annotations](#tool-annotations)).
 
+Diagnostics are compiler diagnostics **plus analyzer diagnostics**: the bundled Roslynator
+analyzers and any analyzers the target project itself references are executed via
+`CompilationWithAnalyzers` (deduplicated by analyzer type), so RCS*/custom-analyzer diagnostics
+surface alongside CS* ones. Set `RoselineMCP:RunAnalyzers` to `false` for compiler-only
+diagnostics (faster; the pre-analyzer behavior). This applies equally to `ListDiagnostics` and to
+the diagnostics `ApplyFixes` sees.
+
 `pathOrGit` accepts a local `.sln` file, a directory containing one, or an `http(s)://` Git URL.
 A Git URL is shallow-cloned (`git clone --depth 1`, optionally with `--branch`) into a temporary
 directory that is deleted once analysis finishes; no other URL scheme (`ssh://`, `git://`,
@@ -114,7 +121,8 @@ mcp call analyzeSolution '{
 ### ListDiagnostics
 
 Gets detailed diagnostics for a specific project with statistics. **Read-only** — never modifies
-files on disk.
+files on disk. Like `AnalyzeSolution`, reports compiler **and** analyzer diagnostics (bundled
+Roslynator + the project's own analyzer references; disable with `RoselineMCP:RunAnalyzers = false`).
 
 #### Request
 
@@ -919,8 +927,12 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 `RoselineMCP:DefaultTimeout` above and `docs/ARCHITECTURE.md`). Rough complexity per call:
 
 - **AnalyzeSolution**: proportional to the number of projects times diagnostics per project;
-  projects within a solution are analyzed concurrently, bounded by the processor count
-- **ListDiagnostics**: proportional to diagnostics in the target project
+  projects within a solution are analyzed concurrently, bounded by the processor count. Running
+  analyzers (the default) adds a `CompilationWithAnalyzers` pass per project — noticeably slower
+  than compiler-only on large solutions; set `RoselineMCP:RunAnalyzers = false` when only
+  compiler diagnostics are needed
+- **ListDiagnostics**: proportional to diagnostics in the target project (plus one analyzer pass
+  unless `RoselineMCP:RunAnalyzers = false`)
 - **ApplyFixes**: proportional to files touched times diagnostics fixed per file; when the fix
   provider supports FixAll at project scope (most built-in and Roslynator fixers do), all
   occurrences of a diagnostic ID are fixed in a single batch pass. Providers without FixAll
@@ -938,6 +950,15 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 
 ## Supported Diagnostic IDs
 
+Diagnostics come from three sources, all surfaced through the same tools: the C# compiler, the
+**bundled Roslynator analyzers** (shipped inside RoselineMCP as an `analyzers/` folder next to
+`RoselineMCP.dll` and executed via `CompilationWithAnalyzers`), and **the target project's own
+analyzer references** (whatever the analyzed repository has installed — StyleCop, custom rules,
+…). Fixability is always determined at runtime: `suggestedFixableIds` reflects the code fix
+providers actually discovered from the Roslyn built-ins and the bundled Roslynator fixer
+assemblies. Setting `RoselineMCP:RunAnalyzers` to `false` limits everything to compiler
+diagnostics.
+
 ### Roslyn (CS/BC)
 - CS0168: Variable declared but never used
 - CS0219: Variable assigned but never used
@@ -946,11 +967,15 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 - And 1000+ more...
 
 ### Roslynator (RCS)
+Bundled and executed by default — reported by `AnalyzeSolution`/`ListDiagnostics` and fixable via
+`ApplyFixes` when Roslynator ships a fixer for the rule (most rules; ~440 fixable IDs are
+discovered at runtime). Examples:
 - RCS1001: Add braces
-- RCS1018: Add accessibility modifiers
-- RCS1036: Remove redundant empty line
-- RCS1097: Remove redundant 'ToString' call
-- And 500+ more...
+- RCS1036: Remove unnecessary blank line
+- RCS1104: Simplify conditional expression
+- RCS1213: Remove unused member declaration
+- And 500+ more... (rules disabled by default in Roslynator, e.g. most RCS0xxx formatting rules,
+  stay disabled unless the analyzed project enables them via `.editorconfig`)
 
 ### IDE (IDE)
 - IDE0001: Simplify name
