@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Configuration (`appsettings.json` / `appsettings.{Environment}.json`) now loads from the install
+  directory (`AppContext.BaseDirectory`) instead of the process working directory — a target
+  repository's own `appsettings.json` can no longer reconfigure the server, the settings packaged
+  with the dotnet tool are actually found, and the needless reload-on-change file watchers are
+  gone. Removed the dead `RoselineMCP:MaxDiagnostics` key from `appsettings.json`.
+- MSBuild registration now picks the newest installed SDK instead of whatever
+  `MSBuildLocator` enumerates first, and `CreateWorkspace` fails fast with an actionable error
+  when no MSBuild/.NET SDK instance could be registered (instead of surfacing a confusing
+  workspace load failure later).
 - Whitespace-only changes are no longer silently dropped from diffs (the diff engine ignored
   whitespace unconditionally): a whitespace-only `edit_member` no longer reports "No changes were
   produced" and skips the write even with `previewOnly: false`, `apply_fixes` patches no longer
@@ -20,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   absent from the page until a manual re-deploy (as happened for v2.0.0). The build now cross-checks
   `/releases/latest`, retries the listing until it includes that tag (bounded so the build never
   hangs), and merges the latest release in directly as a fallback.
+>>>>>>> origin/dev
 
 ## [2.0.0] - 2026-07-04
 
