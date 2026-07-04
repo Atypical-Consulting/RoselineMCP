@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OG card, manifest, docs) are synced. The benchmark also no longer depends on its working
   directory: tool-emitted relative paths resolve against the loaded solution's root, and a failed
   baseline file read now skips that task with a message instead of crashing the run.
+- Solution/project auto-discovery is now nearest-level-first: the working directory wins when it has exactly one candidate, then each parent directory (up to 3) in order, then immediate subdirectories — so a solution in the cwd is no longer reported as "ambiguous" just because an ancestor directory (e.g. the main checkout above a git worktree) also has one; only a single level with multiple candidates of its own is an ambiguity.
+- `serverInfo.version` in the MCP `initialize` handshake now reports the real package semver (the assembly's InformationalVersion minus any `+buildmetadata` suffix) instead of the MinVer-pinned `{Major}.0.0.0` AssemblyVersion — a released 2.1.0 build introduced itself as `2.0.0.0`.
 - Social/Open Graph card (`og.png`) refreshed: the baked-in token-savings figure is now the
   median (85% at the time; since re-measured to **89%**, see above — was the stale pooled 81%),
   and the card is regenerable from a checked-in template (`website/og-card.html`) instead of

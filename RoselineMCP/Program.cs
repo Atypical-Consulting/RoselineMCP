@@ -88,7 +88,15 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
 
             // Configure MCP Server
             services
-                .AddMcpServer(options => options.ServerInstructions = RoselineMCP.RoselineToolGuidance.Instructions)
+                .AddMcpServer(options =>
+                {
+                    options.ServerInstructions = RoselineMCP.RoselineToolGuidance.Instructions;
+                    // Explicit serverInfo: the SDK's default takes the AssemblyVersion, which
+                    // MinVer pins to {Major}.0.0.0 — so a released 2.1.0 build would report
+                    // "2.0.0.0" in the initialize handshake. RoselineServerInfo advertises the
+                    // real package semver (InformationalVersion minus +buildmetadata) instead.
+                    options.ServerInfo = RoselineMCP.RoselineServerInfo.Create();
+                })
                 .WithStdioServerTransport()
                 .WithToolsFromAssembly();
 

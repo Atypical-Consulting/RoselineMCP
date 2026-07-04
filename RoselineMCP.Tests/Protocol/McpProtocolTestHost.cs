@@ -78,7 +78,9 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
         hostBuilder.ConfigureServices(services =>
         {
             services
-                .AddMcpServer()
+                // Mirror Program.cs's explicit serverInfo (real package semver instead of the
+                // SDK's AssemblyVersion default) so the handshake tested here is the shipped one.
+                .AddMcpServer(options => options.ServerInfo = RoselineServerInfo.Create())
                 .WithStreamServerTransport(clientToServer.Reader.AsStream(), serverToClient.Writer.AsStream())
                 .WithToolsFromAssembly(typeof(AnalyzeSolutionTool).Assembly);
 

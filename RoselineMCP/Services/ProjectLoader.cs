@@ -161,85 +161,97 @@ public class ProjectLoader : IProjectLoader
     }
 
     /// <summary>
-    /// Auto-discovers a single solution/project near <paramref name="baseDirectory"/>: prefers a
-    /// solution, then a project, searching the directory itself, up to
-    /// <see cref="AutoDiscoveryParentDepth"/> parent directories, and immediate subdirectories.
-    /// Throws <see cref="ArgumentException"/> with an actionable message when zero or multiple
-    /// candidates are found.
+    /// Auto-discovers a single solution/project near <paramref name="baseDirectory"/>, nearest
+    /// level first: the base directory itself, then each parent directory (up to
+    /// <see cref="AutoDiscoveryParentDepth"/>) in order, then the base directory's immediate
+    /// subdirectories as the final level. The first level that yields exactly one candidate wins,
+    /// so a solution in the working directory is never made ambiguous by another one further up
+    /// the tree (e.g. a git worktree nested inside its main checkout). A level that itself yields
+    /// multiple candidates is a genuine ambiguity and fails, listing that level's candidates.
+    /// Solutions are preferred over projects: the <c>.csproj</c> fallback (same nearest-level-first
+    /// walk) only runs when no level yields a <c>.sln</c> at all. Throws
+    /// <see cref="ArgumentException"/> with an actionable message when nothing is found or a level
+    /// is ambiguous.
     /// </summary>
     private static string AutoDiscover(string baseDirectory)
     {
-        var searchDirectories = DiscoveryDirectories(baseDirectory);
+        var levels = DiscoveryLevels(baseDirectory);
 
-        var solutions = FindFilesAcross(searchDirectories, "*.sln");
-        if (solutions.Count == 1)
+        var solution = FindNearest(levels, "*.sln", "solution (.sln)");
+        if (solution != null)
         {
-            return solutions[0];
+            return solution;
         }
 
-        if (solutions.Count > 1)
+        var project = FindNearest(levels, "*.csproj", "project (.csproj)");
+        if (project != null)
         {
-            throw new ArgumentException(BuildAmbiguityMessage("solution (.sln)", solutions));
-        }
-
-        var projects = FindFilesAcross(searchDirectories, "*.csproj");
-        if (projects.Count == 1)
-        {
-            return projects[0];
-        }
-
-        if (projects.Count > 1)
-        {
-            throw new ArgumentException(BuildAmbiguityMessage("project (.csproj)", projects));
+            return project;
         }
 
         throw new ArgumentException(
             $"Could not auto-discover a C# solution or project from '{baseDirectory}' " +
-            "(searched the working directory, up to 3 parent directories, and immediate subdirectories). " +
+            "(searched the working directory first, then up to 3 parent directories, then immediate subdirectories). " +
             "Pass an explicit 'project' — a project name, a directory, or a path to a .csproj or .sln file.");
     }
 
     /// <summary>
-    /// The set of directories auto-discovery inspects, in priority order: the base directory, up to
-    /// <see cref="AutoDiscoveryParentDepth"/> parents, then the base directory's immediate
-    /// subdirectories. Duplicates and non-existent directories are skipped.
+    /// Walks <paramref name="levels"/> nearest-first and returns the single file matching
+    /// <paramref name="pattern"/> from the first level that has any. Throws
+    /// <see cref="ArgumentException"/> when that level itself contains multiple candidates
+    /// (a genuine ambiguity — farther levels never contribute to it); returns <c>null</c> when no
+    /// level has a match.
     /// </summary>
-    private static List<string> DiscoveryDirectories(string baseDirectory)
+    private static string? FindNearest(IEnumerable<IReadOnlyList<string>> levels, string pattern, string kind)
     {
-        var directories = new List<string>();
-
-        void Add(string? directory)
+        foreach (var level in levels)
         {
-            if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+            var candidates = FindFilesAcross(level, pattern);
+            if (candidates.Count == 1)
             {
-                return;
+                return candidates[0];
             }
 
-            var full = Path.GetFullPath(directory);
-            if (!directories.Any(d => PathsEqual(d, full)))
+            if (candidates.Count > 1)
             {
-                directories.Add(full);
+                throw new ArgumentException(BuildAmbiguityMessage(kind, candidates));
             }
         }
 
-        Add(baseDirectory);
+        return null;
+    }
 
-        var parent = Directory.Exists(baseDirectory) ? Directory.GetParent(baseDirectory) : null;
+    /// <summary>
+    /// The levels auto-discovery inspects, nearest first: the base directory; each parent
+    /// directory (up to <see cref="AutoDiscoveryParentDepth"/>) as its own level; then the base
+    /// directory's immediate subdirectories together as the final level. Non-existent directories
+    /// are skipped.
+    /// </summary>
+    private static List<IReadOnlyList<string>> DiscoveryLevels(string baseDirectory)
+    {
+        var levels = new List<IReadOnlyList<string>>();
+
+        if (!Directory.Exists(baseDirectory))
+        {
+            return levels;
+        }
+
+        levels.Add([Path.GetFullPath(baseDirectory)]);
+
+        var parent = Directory.GetParent(baseDirectory);
         for (var i = 0; i < AutoDiscoveryParentDepth && parent != null; i++)
         {
-            Add(parent.FullName);
+            levels.Add([parent.FullName]);
             parent = parent.Parent;
         }
 
-        if (Directory.Exists(baseDirectory))
+        var subdirectories = Directory.GetDirectories(baseDirectory);
+        if (subdirectories.Length > 0)
         {
-            foreach (var subdirectory in Directory.GetDirectories(baseDirectory))
-            {
-                Add(subdirectory);
-            }
+            levels.Add(subdirectories.Select(Path.GetFullPath).ToList());
         }
 
-        return directories;
+        return levels;
     }
 
     /// <summary>Collects distinct files matching <paramref name="pattern"/> across <paramref name="directories"/> (top level of each).</summary>
