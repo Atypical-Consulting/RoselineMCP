@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-07-04
+
 ### Fixed
 - The token-savings benchmark (`RoselineMCP.TokenBenchmark`) now measures the **model-visible MCP
   wire text**: each tool payload is wrapped in the `ToolResult<T>` envelope and serialized with the
@@ -405,7 +407,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ApplyFixes**: Apply automated code fixes
 - **CreatePatch**: Generate unified diffs
 
-[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.4.0...v2.0.0
 [1.4.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.3.3...v1.4.0
