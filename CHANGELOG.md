@@ -8,10 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- The token-savings benchmark (`RoselineMCP.TokenBenchmark`) now measures the **model-visible MCP
+  wire text**: each tool payload is wrapped in the `ToolResult<T>` envelope and serialized with the
+  MCP SDK's own serializer (`McpJsonUtilities.DefaultOptions` — minified camelCase, default JSON
+  escaping), verified byte-identical to the text content block the real server emits over stdio.
+  Previous figures measured each tool's bare, un-enveloped DTO with an indented serializer the SDK
+  never uses. Re-measured headline: median **85% → 89%**, pooled (size-weighted) **88% → 93%**
+  (568 tasks; on identical code the methodology correction alone moves the median 86% → 89% —
+  minification outweighs the envelope + escaping overhead). All published numbers (README, site,
+  OG card, manifest, docs) are synced. The benchmark also no longer depends on its working
+  directory: tool-emitted relative paths resolve against the loaded solution's root, and a failed
+  baseline file read now skips that task with a message instead of crashing the run.
 - Social/Open Graph card (`og.png`) refreshed: the baked-in token-savings figure is now the
-  median **85%** (was the stale pooled 81%), and the card is regenerable from a checked-in
-  template (`website/og-card.html`) instead of existing only as a rendered PNG; `og:image:alt`
-  updated to match.
+  median (85% at the time; since re-measured to **89%**, see above — was the stale pooled 81%),
+  and the card is regenerable from a checked-in template (`website/og-card.html`) instead of
+  existing only as a rendered PNG; `og:image:alt` updated to match.
 
 ## [2.1.0] - 2026-07-04
 

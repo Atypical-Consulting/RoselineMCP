@@ -1,7 +1,7 @@
 {
   "metadata": {
     "generatedAt": "2026-07-04",
-    "commit": "aab3b98",
+    "commit": "7c397b7",
     "solution": "RoselineMCP.sln",
     "targetProject": "RoselineMCP",
     "tokenizer": "cl100k_base (Microsoft.ML.Tokenizers, gpt-4) \u2014 a proxy for Claude\u0027s tokenizer",

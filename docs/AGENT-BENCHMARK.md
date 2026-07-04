@@ -2,8 +2,8 @@
 
 [`BENCHMARKS.md`](../BENCHMARKS.md) measures raw service latency, and the
 [token-savings benchmark](../RoselineMCP.TokenBenchmark) measures a single number in isolation: the
-tokens one tool call emits versus reading the corresponding file (a **median 85%** reduction per
-task on this repo's own source; pooled, size-weighted: 88%). That's a *unit* measurement. It answers
+tokens one tool call emits versus reading the corresponding file (a **median 89%** reduction per
+task on this repo's own source; pooled, size-weighted: 93%). That's a *unit* measurement. It answers
 "how compact is one tool response?" — not "does an AI agent, doing a real task end to end, actually
 consume fewer tokens because RoselineMCP is installed?"
 
@@ -49,7 +49,7 @@ So RoselineMCP was never a *correctness* factor here; the only variable that mov
    (RoselineMCP's own ~700-line services) navigating structurally instead of reading whole files
    **roughly halved** the tokens for the same correct answer, in half the turns (3 tool calls
    total) — under forced use, i.e. the ceiling. This is where the unit benchmark's per-call savings
-   (85% median) convert into real end-to-end savings. On tiny files it is
+   (89% median) convert into real end-to-end savings. On tiny files it is
    **break-even to slightly worse** — reading a 30-line file is already cheap, so the fixed cost of
    the MCP's tool schemas plus per-call round-trips cancels the saving.
 

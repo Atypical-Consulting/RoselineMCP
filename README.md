@@ -2,7 +2,7 @@
 
 <!-- mcp-name: io.github.Atypical-Consulting/roseline-mcp -->
 
-> **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 85% fewer tokens (median) →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
+> **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 89% fewer tokens (median) →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
 
 <!-- Badges: Row 1 — Identity -->
 [![Atypical-Consulting - RoselineMCP](https://img.shields.io/static/v1?label=Atypical-Consulting&message=RoselineMCP&color=blue&logo=github)](https://github.com/Atypical-Consulting/RoselineMCP)
@@ -26,7 +26,7 @@
 
 <!-- Badges: Row 5 — Docs & result -->
 [![Docs & Benchmark](https://img.shields.io/badge/docs-site-e01e5a)](https://atypical-consulting.github.io/RoselineMCP/)
-[![Tokens saved](https://img.shields.io/badge/tokens-85%25_fewer_(median)-1baf7a)](https://atypical-consulting.github.io/RoselineMCP/benchmark)
+[![Tokens saved](https://img.shields.io/badge/tokens-89%25_fewer_(median)-1baf7a)](https://atypical-consulting.github.io/RoselineMCP/benchmark)
 
 **📖 [Documentation, tool reference & the honest benchmark →](https://atypical-consulting.github.io/RoselineMCP/)**
 
@@ -62,11 +62,11 @@ Instead of dumping source into the model, it answers *structural* questions prec
 this symbol used, what implements this interface, who calls this method, what's the shape of this
 file — and it edits **surgically**: a member-level diff, not a whole-file rewrite.
 
-On RoselineMCP's own source, the read-only navigation tools returned a **median 85% fewer tokens
-per task** (pooled, size-weighted: 88%) than reading the corresponding files —
+On RoselineMCP's own source, the read-only navigation tools returned a **median 89% fewer tokens
+per task** (pooled, size-weighted: 93%) than reading the corresponding files —
 [measured honestly, weak cases included](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 
-> `search_symbols` on `Program.cs`: **1,154 tokens → 125** (−89%). The agent gets the shape of the
+> `search_symbols` on `Program.cs`: **1,638 tokens → 71** (−96%). The agent gets the shape of the
 > file; you skip the wall.
 
 ## Quick Start
@@ -89,7 +89,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 
 ## Features
 
-- [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **85% median** token reduction per task (88% pooled, size-weighted) -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
+- [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **89% median** token reduction per task (93% pooled, size-weighted) -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 - [x] **Surgical code edits** -- replace/add/delete a member or rename a symbol solution-wide, emitting a unified diff instead of a whole-file rewrite. Preview by default.
 - [x] **Comprehensive analysis & auto-fix** -- diagnostics across a solution (Roslyn + Roslynator) with automated fixes and reviewable patches.
 - [x] **Read-only by default** -- the seven navigation tools and the diagnostics/patch tools never touch disk; the three write tools require an explicit `previewOnly: false`.
