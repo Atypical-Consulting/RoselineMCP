@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ApplyFixes`, `EditMember`, and `RenameSymbol` now write changed files back with their original
   encoding (BOM included) instead of silently re-encoding everything as BOM-less UTF-8.
 
+### Changed
+- `ApplyFixes` now fixes all occurrences of a diagnostic ID in a single FixAll (batch) pass when
+  the provider supports it, instead of re-compiling the project after every individual fix;
+  providers without FixAll support keep the per-occurrence path, and the response shape is
+  unchanged.
+
 ## [2.0.0] - 2026-07-04
 
 ### Added

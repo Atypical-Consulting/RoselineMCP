@@ -370,5 +370,62 @@ public class CodeFixServiceIntegrationTests : IDisposable
             fileA.ShouldNotContain("unusedInA");
             fileB.ShouldNotContain("unusedInB");
         }
+
+        /// <summary>
+        /// Several occurrences of the same two diagnostic IDs, spread over two documents, fixed
+        /// by the real compiler fix providers in one call. With the FixAll (batch) fast path,
+        /// each ID is fixed in a single pass rather than one full re-analysis per occurrence —
+        /// the response contract (FixedCount = occurrences fixed) must be unchanged.
+        /// </summary>
+        [Fact]
+        public async Task Should_Fix_Many_Occurrences_Of_Both_Ids_Across_Files()
+        {
+            // Arrange — FileA: 2× CS0219 + 1× CS0168; FileB: 1× CS0219 + 1× CS0168
+            var csprojPath = CreateProject(
+                "Many.csproj",
+                ("FileA.cs", """
+                 class FileA
+                 {
+                     static void MethodA()
+                     {
+                         int assignedA1 = 1;
+                         int assignedA2 = 2;
+                         int declaredA;
+                         System.Console.WriteLine("a");
+                     }
+                 }
+                 """),
+                ("FileB.cs", """
+                 class FileB
+                 {
+                     static void MethodB()
+                     {
+                         int assignedB = 3;
+                         int declaredB;
+                         System.Console.WriteLine("b");
+                     }
+                 }
+                 """));
+
+            // Act
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219", "CS0168"], previewOnly: false);
+
+            // Assert
+            result.FixedCount.ShouldBe(5);
+            result.FixersApplied.ShouldBe(["CS0219", "CS0168"], ignoreOrder: true);
+            result.ChangedFiles.ShouldContain("FileA.cs");
+            result.ChangedFiles.ShouldContain("FileB.cs");
+
+            var projectDir = Path.GetDirectoryName(csprojPath)!;
+            var fileA = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileA.cs"));
+            var fileB = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileB.cs"));
+            fileA.ShouldNotContain("assignedA1");
+            fileA.ShouldNotContain("assignedA2");
+            fileA.ShouldNotContain("declaredA");
+            fileB.ShouldNotContain("assignedB");
+            fileB.ShouldNotContain("declaredB");
+            fileA.ShouldContain("System.Console.WriteLine(\"a\");");
+            fileB.ShouldContain("System.Console.WriteLine(\"b\");");
+        }
     }
 }
