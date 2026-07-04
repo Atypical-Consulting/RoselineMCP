@@ -37,7 +37,7 @@ jobs:
       # lock files) cannot be used - cache the global NuGet package folder directly instead.
       # Autobuild below runs the restore that benefits from this.
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}

@@ -21,7 +21,7 @@ jobs:
       # The repo has no packages.lock.json, so setup-dotnet's `cache: true` (which requires
       # lock files) cannot be used - cache the global NuGet package folder directly instead.
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
