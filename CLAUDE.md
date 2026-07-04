@@ -37,8 +37,16 @@ The application uses a dependency injection-based service architecture with clea
 2. **Service Implementations** (`Services/`): Business logic separated by responsibility
    - `SolutionAnalyzerService`: Roslyn-based solution/project analysis
    - `CodeFixService`: Automated code fix application
+   - `AnalyzerCatalog`: Loads the bundled Roslynator analyzer/fixer assemblies from the
+     `analyzers/` folder next to RoselineMCP.dll (the packages are analyzer-asset-only, so the
+     csproj mirrors them there at build time)
+   - `DiagnosticComputationService`: The one shared "compiler + analyzer diagnostics" pass
+     (`CompilationWithAnalyzers`) used by all three diagnostics tools — bundled catalog plus the
+     target project's own analyzer references, deduped by analyzer type; disabled via
+     `RoselineMCP:RunAnalyzers = false` (compiler-only)
    - `DiagnosticFilterService`: Filtering and categorization of diagnostics
-   - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers
+   - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers (scans the
+     Roslyn built-ins plus the `AnalyzerCatalog` assemblies)
    - `PatchService`/`DiffService`: Unified diff generation for code changes
    - `MSBuildService`: MSBuildWorkspace management and initialization
 
@@ -47,9 +55,12 @@ The application uses a dependency injection-based service architecture with clea
 
 ### Key Architectural Patterns
 
-- **Workspace Isolation (diagnostics tools)**: `AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`
-  create a new MSBuildWorkspace per operation to prevent state pollution
-- **Workspace Cache (navigation/edit tools)**: everything backed by `IProjectLoader` resolves to
+- **Workspace Isolation (AnalyzeSolution)**: `AnalyzeSolution` creates a new MSBuildWorkspace per
+  operation to prevent state pollution
+- **Unified project loading**: `ListDiagnostics`, `ApplyFixes`, and all navigation/edit tools load
+  their `project` through the single shared `IProjectLoader` (`ProjectLoader`) — one resolution
+  behavior (auto-discovery, `.sln` support, exact-name project selection) everywhere
+- **Workspace Cache (IProjectLoader-backed tools)**: `IProjectLoader` resolves to
   `CachingProjectLoader`, which reuses the loaded MSBuildWorkspace across tool calls. Each entry is
   fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, plus
   their directories' mtimes to catch added/removed files) and re-stat'd on every load — any change
@@ -110,20 +121,27 @@ dotnet list package --outdated
 
 ## MCP Tools Available
 
+> The diagnostics tools (1–3) report compiler **and** analyzer diagnostics: the bundled
+> Roslynator analyzers plus the target project's own analyzer references are executed via
+> `CompilationWithAnalyzers` (`DiagnosticComputationService`). `RoselineMCP:RunAnalyzers = false`
+> makes them compiler-only.
+
 ### 1. AnalyzeSolution
 Analyzes entire C# solutions for diagnostics with filtering options.
 - **Parameters**: pathOrGit, branch, include, exclude, severity, maxDiagnostics
 - **Returns**: Solution summary, project counts, top diagnostics with location details
 
 ### 2. ListDiagnostics  
-Gets detailed diagnostics for specific projects with statistics.
-- **Parameters**: project, ids[], files[], max
+Gets detailed diagnostics for specific projects with statistics. Loads via `IProjectLoader`, so
+`project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
+- **Parameters**: project (optional), ids[], files[], max
 - **Returns**: Diagnostics list, statistics by ID/severity, suggested fixable IDs
 
 ### 3. ApplyFixes
-Applies automated code fixes for specified diagnostic IDs.
-- **Parameters**: project, ids[], previewOnly
-- **Returns**: Changed files, unified diff patch, applied fixers list
+Applies automated code fixes for specified diagnostic IDs. Loads via `IProjectLoader`, so
+`project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
+- **Parameters**: ids[], project (optional), previewOnly
+- **Returns**: Changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list
 
 ### 4. CreatePatch
 Generates unified diff patches between text versions.
@@ -231,9 +249,15 @@ dotnet test --logger html
 - **Microsoft.CodeAnalysis.Features**: Code fix providers
 
 ### Analyzers and Rules
-- **Roslynator.Analyzers**: Additional C# analyzers
-- **Roslynator.CodeFixes**: Code fix providers
-- **Roslynator.Formatting.Analyzers**: Formatting rules
+- **Roslynator.Analyzers**: Additional C# analyzers (RCS1xxx) + their fixers
+- **Roslynator.CodeAnalysis.Analyzers**: Analyzers for Roslyn-API code (RCS9xxx)
+- **Roslynator.CodeFixes**: Code fix providers for compiler (CS) diagnostics
+- **Roslynator.Formatting.Analyzers**: Formatting rules (RCS0xxx, mostly disabled by default)
+
+These four packages are **analyzer-asset-only** (no `lib/` folder), so RoselineMCP.csproj mirrors
+their `analyzers/dotnet/roslyn4.7/cs/*.dll` into an `analyzers/` folder in the build/publish/tool
+output (see the `RoslynatorAnalyzerAsset` item group). At runtime `AnalyzerCatalog` loads them
+from there via `Assembly.LoadFrom`; nothing references them as ordinary lib dependencies.
 
 ### Utilities
 - **DiffPlex**: Unified diff generation
@@ -274,16 +298,20 @@ Logging levels adjust automatically:
   (`<Exec>` tasks, custom `UsingTask` assemblies, imported `.targets`/`.props`). Analyzing a fully
   untrusted repository or URL carries a real code-execution risk on the host running RoselineMCP.
   See `SECURITY.md` for the full write-up and operator recommendations.
+- **Analyzer execution is code execution**: the diagnostics tools run Roslyn analyzers by default —
+  the bundled Roslynator set *and* the target project's own analyzer references, which are
+  third-party code executed in-process at analysis time. `RoselineMCP:RunAnalyzers = false`
+  disables all analyzer execution (compiler-only diagnostics). See `SECURITY.md`.
 - **No dedicated path-traversal sanitization**: solution/project paths are resolved with plain
   `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
   `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against
   arbitrary/hostile callers.
-- The diagnostics tools (`AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`) create a fresh
-  `MSBuildWorkspace` per operation (see "Workspace Isolation" above). The navigation/edit tools
-  reuse a cached, read-only workspace across calls (see "Workspace Cache" above): Roslyn `Solution`
-  snapshots are immutable, and the cache is invalidated by an on-disk fingerprint check on every
-  call, so no stale state leaks between calls. Set `RoselineMCP:WorkspaceCache = false` to disable
-  caching entirely.
+- `AnalyzeSolution` creates a fresh `MSBuildWorkspace` per operation (see "Workspace Isolation"
+  above). Every other project-loading tool (`ListDiagnostics`/`ApplyFixes`/navigation/edit) loads
+  through `IProjectLoader` and reuses a cached, read-only workspace across calls (see "Workspace
+  Cache" above): Roslyn `Solution` snapshots are immutable, and the cache is invalidated by an
+  on-disk fingerprint check on every call, so no stale state leaks between calls — including after
+  `ApplyFixes`' own writes. Set `RoselineMCP:WorkspaceCache = false` to disable caching entirely.
 - Changes from `ApplyFixes` are always returned as a unified diff patch in the response, in
   addition to (optionally) being written to disk.
 

@@ -53,6 +53,13 @@ delivered as MCP `structuredContent` alongside an advertised `outputSchema`.
 Analyzes an entire C# solution for diagnostics with filtering options. **Read-only** — never
 modifies files on disk (`readOnlyHint: true`, see [Tool Annotations](#tool-annotations)).
 
+Diagnostics are compiler diagnostics **plus analyzer diagnostics**: the bundled Roslynator
+analyzers and any analyzers the target project itself references are executed via
+`CompilationWithAnalyzers` (deduplicated by analyzer type), so RCS*/custom-analyzer diagnostics
+surface alongside CS* ones. Set `RoselineMCP:RunAnalyzers` to `false` for compiler-only
+diagnostics (faster; the pre-analyzer behavior). This applies equally to `ListDiagnostics` and to
+the diagnostics `ApplyFixes` sees.
+
 `pathOrGit` accepts a local `.sln` file, a directory containing one, or an `http(s)://` Git URL.
 A Git URL is shallow-cloned (`git clone --depth 1`, optionally with `--branch`) into a temporary
 directory that is deleted once analysis finishes; no other URL scheme (`ssh://`, `git://`,
@@ -115,13 +122,17 @@ mcp call analyzeSolution '{
 ### ListDiagnostics
 
 Gets detailed diagnostics for a specific project with statistics. **Read-only** — never modifies
-files on disk.
+files on disk. The project is resolved and loaded the same way as the code navigation/editing
+tools below (`IProjectLoader`): auto-discovery when `project` is omitted, `.sln` paths accepted,
+exact-name project selection. Like `AnalyzeSolution`, reports compiler **and** analyzer diagnostics
+(bundled Roslynator + the project's own analyzer references; disable with
+`RoselineMCP:RunAnalyzers = false`).
 
 #### Request
 
 ```typescript
 {
-  project: string;        // Project name or path to .csproj
+  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   ids?: string[];        // Filter by diagnostic IDs (exact match)
   files?: string[];      // Substring match against each diagnostic's file path (case-insensitive; NOT a glob pattern)
   max?: number;          // Maximum diagnostics (default: 100)
@@ -173,14 +184,16 @@ Applies automated code fixes for specified diagnostic IDs. **Defaults to preview
 `ApplyFixes` MCP tool defaults `previewOnly` to `true`, so calling it without setting the
 parameter never writes to disk — pass `previewOnly: false` explicitly to write changes
 (`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation; see
-[Tool Annotations](#tool-annotations)).
+[Tool Annotations](#tool-annotations)). The project is resolved and loaded the same way as the
+code navigation/editing tools below (`IProjectLoader`): auto-discovery when `project` is omitted,
+`.sln` paths accepted, exact-name project selection.
 
 #### Request
 
 ```typescript
 {
-  project: string;       // Project name or path to .csproj
   ids: string[];         // Diagnostic IDs to fix (required, at least one)
+  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   previewOnly?: boolean; // If true (the default), only generate a diff — no files written. Pass false to apply.
 }
 ```
@@ -197,8 +210,8 @@ parameter never writes to disk — pass `previewOnly: false` explicitly to write
   project: string;           // Project name
   fixedCount: number;        // Total number of individual fixes applied across all requested IDs
   fixersApplied: string[];   // Diagnostic IDs that were successfully fixed at least once
-  changedFiles: string[];    // Relative paths of files that were modified
-  patch: string;             // Unified diff across all changed files
+  changedFiles: string[];    // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln) of files that were modified
+  patch: string;             // Unified diff across all changed files (headers use the same relative paths)
   notes: string[];           // Per-ID status messages: skipped (no provider/no diagnostics), errors, or "applied N fixes to M files" / "Preview mode - no changes were saved to disk"
   previewOnly: boolean;      // Echoes back whether this call actually wrote to disk
 }
@@ -269,6 +282,8 @@ only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the proje
 solution, the whole solution is loaded and symbol search/resolution spans **every project in it** —
 a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
 project) is still found — so cross-project references and renames are complete.
+`ListDiagnostics` and `ApplyFixes` resolve and load their `project` through this same mechanism, so
+every tool accepts the same references and reports the same solution-root-relative paths.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
@@ -553,7 +568,7 @@ Replace, add, or delete a single type member; returns a unified diff. **Defaults
   project: string;
   operation: string;
   target: string;          // Fully-qualified name of the member/type edited
-  changedFiles: string[];  // Relative path(s) modified (or that would be)
+  changedFiles: string[];  // Solution-root-relative path(s) modified (or that would be); forward slashes, project-dir-relative when no .sln
   patch: string;           // Unified diff
   previewOnly: boolean;
   applied: boolean;        // True only when previewOnly was false and there were changes
@@ -585,7 +600,7 @@ returns a unified diff. **Defaults to preview mode** (`previewOnly: true`)
   project: string;
   symbol: string;          // Fully-qualified name that was renamed
   newName: string;
-  changedFiles: string[];
+  changedFiles: string[];  // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln)
   patch: string;           // Unified diff across all changed files
   previewOnly: boolean;
   applied: boolean;
@@ -640,7 +655,7 @@ public interface ISolutionAnalyzerService
         int maxDiagnostics = 100);
 
     Task<ListDiagnosticsResponse> ListDiagnosticsAsync(
-        string project,
+        string? project,           // null → auto-discovered via IProjectLoader
         List<string>? ids = null,
         List<string>? files = null,
         int max = 100);
@@ -653,7 +668,7 @@ public interface ISolutionAnalyzerService
 public interface ICodeFixService
 {
     Task<ApplyFixesResponse> ApplyFixesAsync(
-        string project,
+        string? project,            // null → auto-discovered via IProjectLoader
         List<string> ids,
         bool previewOnly = false); // NOTE: this C# default is `false`; the MCP `ApplyFixes`
                                     // tool always passes an explicit value and defaults to
@@ -964,8 +979,12 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 `RoselineMCP:DefaultTimeout` above and `docs/ARCHITECTURE.md`). Rough complexity per call:
 
 - **AnalyzeSolution**: proportional to the number of projects times diagnostics per project;
-  projects within a solution are analyzed concurrently, bounded by the processor count
-- **ListDiagnostics**: proportional to diagnostics in the target project
+  projects within a solution are analyzed concurrently, bounded by the processor count. Running
+  analyzers (the default) adds a `CompilationWithAnalyzers` pass per project — noticeably slower
+  than compiler-only on large solutions; set `RoselineMCP:RunAnalyzers = false` when only
+  compiler diagnostics are needed
+- **ListDiagnostics**: proportional to diagnostics in the target project (plus one analyzer pass
+  unless `RoselineMCP:RunAnalyzers = false`)
 - **ApplyFixes**: proportional to files touched times diagnostics fixed per file; when the fix
   provider supports FixAll at project scope (most built-in and Roslynator fixers do), all
   occurrences of a diagnostic ID are fixed in a single batch pass. Providers without FixAll
@@ -983,6 +1002,15 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 
 ## Supported Diagnostic IDs
 
+Diagnostics come from three sources, all surfaced through the same tools: the C# compiler, the
+**bundled Roslynator analyzers** (shipped inside RoselineMCP as an `analyzers/` folder next to
+`RoselineMCP.dll` and executed via `CompilationWithAnalyzers`), and **the target project's own
+analyzer references** (whatever the analyzed repository has installed — StyleCop, custom rules,
+…). Fixability is always determined at runtime: `suggestedFixableIds` reflects the code fix
+providers actually discovered from the Roslyn built-ins and the bundled Roslynator fixer
+assemblies. Setting `RoselineMCP:RunAnalyzers` to `false` limits everything to compiler
+diagnostics.
+
 ### Roslyn (CS/BC)
 - CS0168: Variable declared but never used
 - CS0219: Variable assigned but never used
@@ -991,11 +1019,15 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 - And 1000+ more...
 
 ### Roslynator (RCS)
+Bundled and executed by default — reported by `AnalyzeSolution`/`ListDiagnostics` and fixable via
+`ApplyFixes` when Roslynator ships a fixer for the rule (most rules; ~440 fixable IDs are
+discovered at runtime). Examples:
 - RCS1001: Add braces
-- RCS1018: Add accessibility modifiers
-- RCS1036: Remove redundant empty line
-- RCS1097: Remove redundant 'ToString' call
-- And 500+ more...
+- RCS1036: Remove unnecessary blank line
+- RCS1104: Simplify conditional expression
+- RCS1213: Remove unused member declaration
+- And 500+ more... (rules disabled by default in Roslynator, e.g. most RCS0xxx formatting rules,
+  stay disabled unless the analyzed project enables them via `.editorconfig`)
 
 ### IDE (IDE)
 - IDE0001: Simplify name

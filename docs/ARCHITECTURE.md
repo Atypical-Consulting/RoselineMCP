@@ -37,6 +37,8 @@ RoselineMCP is built on a layered architecture that separates concerns and promo
 │  ├──────────────────────────────────────────────────┤  │
 │  │  • SolutionAnalyzerService                       │  │
 │  │  • CodeFixService                                │  │
+│  │  • AnalyzerCatalog                               │  │
+│  │  • DiagnosticComputationService                  │  │
 │  │  • DiagnosticFilterService                       │  │
 │  │  • CodeFixProviderFactory                        │  │
 │  │  • PatchService / DiffService                    │  │
@@ -111,9 +113,25 @@ Location: `Services/` and `Interfaces/`
 
 **SolutionAnalyzerService**
 - Analyzes C# solutions and projects
-- Collects diagnostics from Roslyn compilation
+- Collects diagnostics via `DiagnosticComputationService` (compiler + analyzers)
 - Filters and aggregates results
 - Manages MSBuildWorkspace lifecycle
+
+**AnalyzerCatalog**
+- Loads the Roslynator analyzer/fixer assemblies bundled in the `analyzers/` folder next to
+  `RoselineMCP.dll` (the Roslynator packages are analyzer-asset-only — no `lib/` — so the csproj
+  mirrors them into the build/publish/tool output)
+- Instantiates every C#-supporting `DiagnosticAnalyzer` once (lazy, cached)
+- Exposes the raw assemblies for `CodeFixProviderFactory` to scan
+
+**DiagnosticComputationService**
+- The single shared "diagnostics for this project" pass behind `AnalyzeSolution`,
+  `ListDiagnostics`, and `ApplyFixes`
+- Combines `Compilation.GetDiagnostics()` with `CompilationWithAnalyzers` over the bundled
+  catalog plus the target project's own `AnalyzerReferences` (deduped by analyzer type)
+- Per-analyzer exceptions are logged and skipped (`onAnalyzerException`); a failed analyzer pass
+  degrades to compiler-only rather than failing the tool
+- `RoselineMCP:RunAnalyzers = false` skips analyzers entirely (compiler-only)
 
 **CodeFixService**
 - Applies automated code fixes
@@ -238,7 +256,7 @@ Services act as repositories for their respective domains:
 
 ### MSBuildWorkspace Lifecycle
 
-For the diagnostics tools (`AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`):
+For `AnalyzeSolution`:
 
 1. **Creation**: New workspace per operation
 2. **Configuration**: Set up MSBuild properties
@@ -246,7 +264,8 @@ For the diagnostics tools (`AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`):
 4. **Operation**: Perform analysis/fixes
 5. **Cleanup**: Dispose workspace
 
-The navigation/edit tools instead reuse a cached workspace across calls via
+Every other project-loading tool (`ListDiagnostics`, `ApplyFixes`, and the navigation/edit tools)
+loads through the shared `IProjectLoader` and reuses a cached workspace across calls via
 `CachingProjectLoader` — see "Caching Strategies" under Performance Considerations below.
 
 ### Temporary Workspace Pattern
@@ -299,11 +318,11 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    `Activator.CreateInstance`.
 2. **MSBuild Location**: `MSBuildLocator` registration happens once per process
    (`MSBuildService._msBuildRegistered`, guarded by a lock).
-3. **MSBuildWorkspace (diagnostics tools)**: intentionally **not** cached or reused — every
-   `AnalyzeSolution`, `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own
-   `MSBuildWorkspace` (see "Workspace Isolation" below), trading some reload cost for isolation
-   between calls.
-4. **MSBuildWorkspace (navigation/edit tools)**: cached across calls — `IProjectLoader` resolves
+3. **MSBuildWorkspace (AnalyzeSolution)**: intentionally **not** cached or reused — every
+   `AnalyzeSolution` call creates and disposes its own `MSBuildWorkspace` (see "Workspace
+   Isolation" below), trading some reload cost for isolation between calls.
+4. **MSBuildWorkspace (IProjectLoader-backed tools — `ListDiagnostics`, `ApplyFixes`,
+   navigation/edit)**: cached across calls — `IProjectLoader` resolves
    to `CachingProjectLoader`, a decorator over `ProjectLoader` that keeps up to 4 loaded
    workspaces (LRU-evicted, evicted workspaces disposed), keyed by the resolved `.sln`/`.csproj`
    path. Each entry stores a disk fingerprint — last-write-time + length of the `.sln`, every
@@ -319,8 +338,9 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
 
 Projects within a solution are analyzed **concurrently** — `AnalyzeSolution` runs the per-project
 compilation/diagnostics work through `Parallel.ForEachAsync` bounded by
-`Environment.ProcessorCount`. `Project.GetCompilationAsync`/`Compilation.GetDiagnostics` are safe
-to run in parallel across independent projects of one loaded solution. Each project writes its
+`Environment.ProcessorCount`. `Project.GetCompilationAsync`/`Compilation.GetDiagnostics` — and the
+per-project `CompilationWithAnalyzers` analyzer pass (itself run with `concurrentAnalysis: true`)
+— are safe to run in parallel across independent projects of one loaded solution. Each project writes its
 result into its own slot (no shared mutable state across workers) and results are merged
 afterwards, so the output is deterministic regardless of completion order; progress notifications
 are emitted from a completed-project counter under a lock so the reported value strictly
@@ -355,10 +375,11 @@ restating an idealized version.
 
 - Read-only by default: `AnalyzeSolution`, `ListDiagnostics`, and `CreatePatch` never write to
   disk; `ApplyFixes` defaults `previewOnly` to `true` at the MCP tool boundary.
-- A fresh `MSBuildWorkspace` per operation for the diagnostics tools. The navigation/edit tools
-  share a fingerprint-invalidated workspace cache (`CachingProjectLoader`, see "Performance
-  Considerations") — cached `Solution` snapshots are immutable and reloaded whenever anything
-  changes on disk; `RoselineMCP:WorkspaceCache = false` disables the cache.
+- A fresh `MSBuildWorkspace` per operation for `AnalyzeSolution`. Every other project-loading
+  tool (`ListDiagnostics`, `ApplyFixes`, navigation/edit) shares a fingerprint-invalidated
+  workspace cache (`CachingProjectLoader`, see "Performance Considerations") — cached `Solution`
+  snapshots are immutable and reloaded whenever anything changes on disk;
+  `RoselineMCP:WorkspaceCache = false` disables the cache.
 - **MSBuild is not a sandbox.** Loading a `.sln`/`.csproj` is a design-time MSBuild evaluation
   that can execute build logic embedded in the project (`<Exec>` tasks, custom `UsingTask`
   assemblies, imported `.targets`/`.props`). Analyzing a fully untrusted repository or Git URL
@@ -395,9 +416,16 @@ restating an idealized version.
 
 ### Adding New Analyzers
 
-1. Add analyzer NuGet package
-2. Automatically discovered by Roslyn
-3. Fix providers loaded dynamically
+Two paths, depending on whose analyzers they are:
+
+1. **In the analyzed solution** — add the analyzer NuGet package to the *target* project;
+   RoselineMCP picks it up from the project's `AnalyzerReferences` at analysis time (no
+   RoselineMCP change needed). Fixes require a fixer RoselineMCP can load.
+2. **Bundled with RoselineMCP** — reference the package in `RoselineMCP.csproj` with
+   `GeneratePathProperty="true"` and add its `analyzers/dotnet/.../cs/*.dll` to the
+   `RoslynatorAnalyzerAsset` item group so the DLLs land in the output `analyzers/` folder;
+   `AnalyzerCatalog` discovers analyzers and `CodeFixProviderFactory` discovers fixers from
+   there automatically.
 
 ## Configuration
 

@@ -32,10 +32,10 @@ public static class ApplyFixesTool
     [Description("Apply code fixes for specified diagnostic IDs in a project. Defaults to preview mode: with previewOnly left unset (or true), no files are changed and only a diff is returned. Pass previewOnly=false explicitly to write the fixes to disk.")]
     public static async Task<ToolResult<ApplyFixesResponse>> ApplyFixes(
         ICodeFixService codeFixService,
-        [Description("Project name or path to .csproj file")]
-        string project,
         [Description("List of diagnostic IDs to fix (e.g., ['RCS1213', 'SA1101'])")]
         string[] ids,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         [Description("If true (the default), only preview changes and return a diff — no files are modified. Set explicitly to false to apply the fixes and write changes to disk.")]
         bool previewOnly = true,
         IOptions<RoselineMcpOptions>? options = null,
@@ -65,7 +65,7 @@ public static class ApplyFixesTool
             // round-trip: think-time must not be charged against the analysis budget.
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
-                    $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{project}' and write the changes to disk?",
+                    $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{project ?? "the auto-discovered project"}' and write the changes to disk?",
                     cancellationToken))
             {
                 effectivePreviewOnly = true;

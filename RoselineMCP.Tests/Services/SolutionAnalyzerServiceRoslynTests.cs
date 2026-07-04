@@ -28,7 +28,7 @@ public class SolutionAnalyzerServiceRoslynTests
         var msBuildService = A.Fake<IMSBuildService>();
         var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
         _realFilterService = new DiagnosticFilterService(codeFixProviderFactory);
-        _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService);
+        _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService, A.Fake<IProjectLoader>());
     }
 
     #region Helpers
@@ -122,7 +122,7 @@ public class SolutionAnalyzerServiceRoslynTests
 
     #endregion
 
-    #region GetFilteredDiagnostics
+    #region GetFilteredDiagnosticsAsync
 
     public class GetFilteredDiagnosticsTests : SolutionAnalyzerServiceRoslynTests
     {
@@ -148,9 +148,9 @@ public class SolutionAnalyzerServiceRoslynTests
 
             // Act
             var method = typeof(SolutionAnalyzerService).GetMethod(
-                "GetFilteredDiagnostics",
+                "GetFilteredDiagnosticsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance);
-            var result = (IEnumerable<Diagnostic>)method!.Invoke(_sut, new object[] { compilation!, context, CancellationToken.None })!;
+            var result = await (Task<List<Diagnostic>>)method!.Invoke(_sut, new object[] { project, compilation!, context, CancellationToken.None })!;
 
             // Assert
             result.ShouldNotBeNull();
@@ -171,9 +171,9 @@ public class SolutionAnalyzerServiceRoslynTests
             contextType.GetProperty("Severity")!.SetValue(context, "Error"); // Only errors
 
             var method = typeof(SolutionAnalyzerService).GetMethod(
-                "GetFilteredDiagnostics",
+                "GetFilteredDiagnosticsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            var result = (IEnumerable<Diagnostic>)method.Invoke(_sut, new object[] { compilation!, context, CancellationToken.None })!;
+            var result = await (Task<List<Diagnostic>>)method.Invoke(_sut, new object[] { project, compilation!, context, CancellationToken.None })!;
 
             // Assert — filter by "Error" should exclude warnings/info
             result.ShouldNotBeNull();
@@ -488,7 +488,7 @@ public class SolutionAnalyzerServiceRoslynTests
 
     #endregion
 
-    #region GetProjectDiagnostics
+    #region GetProjectDiagnosticsAsync
 
     public class GetProjectDiagnosticsTests : SolutionAnalyzerServiceRoslynTests
     {
@@ -503,10 +503,10 @@ public class SolutionAnalyzerServiceRoslynTests
 
             // Act
             var method = typeof(SolutionAnalyzerService).GetMethod(
-                "GetProjectDiagnostics",
+                "GetProjectDiagnosticsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            var result = (List<Diagnostic>)method.Invoke(_sut,
-                new object?[] { compilation!, (List<string>?)null, (List<string>?)null, CancellationToken.None })!;
+            var result = await (Task<List<Diagnostic>>)method.Invoke(_sut,
+                new object?[] { project, compilation!, (List<string>?)null, (List<string>?)null, CancellationToken.None })!;
 
             // Assert
             result.ShouldNotBeNull();
@@ -525,10 +525,10 @@ public class SolutionAnalyzerServiceRoslynTests
             // Act — filter to only show specific IDs
             var ids = allDiagnostics.Select(d => d.Id).Take(1).ToList();
             var method = typeof(SolutionAnalyzerService).GetMethod(
-                "GetProjectDiagnostics",
+                "GetProjectDiagnosticsAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            var result = (List<Diagnostic>)method.Invoke(_sut,
-                new object?[] { compilation!, ids, (List<string>?)null, CancellationToken.None })!;
+            var result = await (Task<List<Diagnostic>>)method.Invoke(_sut,
+                new object?[] { project, compilation!, ids, (List<string>?)null, CancellationToken.None })!;
 
             // Assert — all results should match the filter
             result.ShouldNotBeNull();

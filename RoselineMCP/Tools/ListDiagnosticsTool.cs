@@ -20,8 +20,8 @@ public static class ListDiagnosticsTool
     [Description("List detailed diagnostics for a specific project with statistics and fixable suggestions. Read-only: never modifies any files on disk.")]
     public static async Task<ToolResult<ListDiagnosticsResponse>> ListDiagnostics(
         ISolutionAnalyzerService analyzerService,
-        [Description("Project name or path to .csproj file")]
-        string project,
+        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        string? project = null,
         [Description("Optional list of diagnostic IDs to filter (e.g., ['CS0168', 'CS0219'])")]
         string[]? ids = null,
         [Description("Optional list of file patterns to filter (e.g., ['Controller.cs', 'Service.cs'])")]

@@ -28,7 +28,7 @@ public class SolutionAnalyzerServiceGitCloneTests : IDisposable
         var logger = A.Fake<ILogger<SolutionAnalyzerService>>();
         var msBuildService = A.Fake<IMSBuildService>();
         var filterService = A.Fake<IDiagnosticFilterService>();
-        _sut = new SolutionAnalyzerService(logger, msBuildService, filterService);
+        _sut = new SolutionAnalyzerService(logger, msBuildService, filterService, A.Fake<IProjectLoader>());
 
         _testDirectory = Path.Combine(Path.GetTempPath(), $"RoselineGitCloneTests_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_testDirectory);

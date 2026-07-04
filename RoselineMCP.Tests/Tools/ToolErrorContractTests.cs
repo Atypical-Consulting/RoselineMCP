@@ -80,7 +80,7 @@ public class ToolErrorContractTests
                 A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .Throws(thrown);
 
-        var result = await ApplyFixesTool.ApplyFixes(codeFixService, "TestProject", ["CS0168"]);
+        var result = await ApplyFixesTool.ApplyFixes(codeFixService, ["CS0168"], "TestProject");
 
         AssertDocumentedType(result, expectedType);
     }
@@ -114,9 +114,9 @@ public class ToolErrorContractTests
             A.Fake<ISolutionAnalyzerService>(),
             A.Fake<ICodeFixProviderFactory>(),
             A.Fake<IDiffService>(),
-            A.Fake<IMSBuildService>());
+            new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), A.Fake<IMSBuildService>()));
 
-        var result = await ApplyFixesTool.ApplyFixes(codeFixService, "/nonexistent/x.csproj", ["CS0168"]);
+        var result = await ApplyFixesTool.ApplyFixes(codeFixService, ["CS0168"], "/nonexistent/x.csproj");
 
         AssertDocumentedType(result, "NotFoundError");
         result.Data.ShouldBeNull();
@@ -144,7 +144,7 @@ public class ToolErrorContractTests
     {
         var codeFixService = A.Fake<ICodeFixService>();
 
-        var result = await ApplyFixesTool.ApplyFixes(codeFixService, "TestProject", []);
+        var result = await ApplyFixesTool.ApplyFixes(codeFixService, [], "TestProject");
 
         result.Error.ShouldNotBeNull();
         result.Error.Type.ShouldBe("ValidationError");

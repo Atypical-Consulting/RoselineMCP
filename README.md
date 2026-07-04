@@ -304,10 +304,13 @@ analyzeSolution({
 ### 2. ListDiagnostics
 
 Gets detailed diagnostics for a specific project. Read-only — never modifies files on disk.
+`project` is **optional** and accepts the same references as the navigation tools (name,
+directory, `.csproj`, or `.sln` path); when omitted, the solution/project is auto-discovered from
+the working directory.
 
 ```typescript
 listDiagnostics({
-  project: "MyProject.csproj",
+  project: "MyProject.csproj",     // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
   ids: ["CS0168", "CS0219"],       // Optional: Filter by diagnostic IDs
   files: ["Controller.cs"],        // Optional: substring match against each diagnostic's file path (case-insensitive; NOT a glob pattern)
   max: 50                          // Optional: Maximum results
@@ -322,18 +325,21 @@ provider is actually registered for.
 
 Applies automated code fixes for specified diagnostics. **Defaults to preview mode**:
 `previewOnly` defaults to `true`, so calling this tool without setting it never writes to disk —
-you must pass `previewOnly: false` explicitly to apply changes.
+you must pass `previewOnly: false` explicitly to apply changes. `project` is **optional** and
+accepts the same references as the navigation tools (name, directory, `.csproj`, or `.sln` path);
+when omitted, the solution/project is auto-discovered from the working directory.
 
 ```typescript
 applyFixes({
-  project: "MyProject.csproj",
   ids: ["CS0168", "RCS1001"],   // Diagnostic IDs to fix
+  project: "MyProject.csproj",  // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
   previewOnly: false             // Optional (default: true). Set false to write changes to disk.
 })
 ```
 
 **Returns:** project name, `fixedCount`, `fixersApplied` (diagnostic IDs actually fixed),
-`changedFiles`, a unified diff `patch`, `notes` (skipped/failed IDs and status messages), and
+`changedFiles` (solution-root-relative, forward slashes — the same path base as the navigation
+tools), a unified diff `patch`, `notes` (skipped/failed IDs and status messages), and
 `previewOnly` echoing back whether anything was written.
 
 ### 4. CreatePatch
@@ -546,13 +552,21 @@ top of.
 
 ## Supported Analyzers
 
-RoselineMCP includes support for:
+The diagnostics tools (`analyze_solution`, `list_diagnostics`, `apply_fixes`) report compiler
+diagnostics plus analyzer diagnostics, executed via Roslyn's `CompilationWithAnalyzers`:
 
 - **Roslyn Analyzers** -- Built-in C# compiler diagnostics
-- **Roslynator** -- 500+ analyzers, refactorings, and fixes for C#
-- **Custom Analyzers** -- Any Roslyn-based analyzer referenced by your solution (loaded and run
-  the same way as Roslynator; there is no built-in StyleCop.Analyzers reference in this
-  repository's own `.csproj` — add it to your analyzed solution if you want SA* diagnostics)
+- **Roslynator** -- 500+ analyzers and fixes for C#, **bundled with RoselineMCP** (shipped as an
+  `analyzers/` folder next to `RoselineMCP.dll`) and executed by default, so RCS* diagnostics
+  surface and are fixable out of the box
+- **Custom Analyzers** -- Any Roslyn-based analyzer referenced by your analyzed solution is
+  loaded from the project's analyzer references and run alongside the bundled ones (there is no
+  built-in StyleCop.Analyzers reference — add it to your analyzed solution if you want SA*
+  diagnostics; analyzer-reported rules are auto-fixable only when a matching fixer is loadable)
+
+Set `RoselineMCP:RunAnalyzers` to `false` for compiler-only diagnostics (faster on big
+solutions; see [Configuration](#configuration) and the analyzer-execution note in
+[`SECURITY.md`](SECURITY.md)).
 
 ## Examples
 
@@ -621,6 +635,9 @@ ROSELINE_RoselineMCP__EnableDiagnosticLogging=true
 # RoselineMCP:DefaultTimeout (ms)
 ROSELINE_RoselineMCP__DefaultTimeout=300000
 
+# RoselineMCP:RunAnalyzers (compiler-only diagnostics when false)
+ROSELINE_RoselineMCP__RunAnalyzers=false
+
 # Logging:LogLevel:RoselineMCP
 ROSELINE_Logging__LogLevel__RoselineMCP=Debug
 ```
@@ -642,7 +659,8 @@ Configure logging and other settings:
   "RoselineMCP": {
     "DefaultTimeout": 120000,
     "EnableDiagnosticLogging": false,
-    "WorkspaceCache": true
+    "WorkspaceCache": true,
+    "RunAnalyzers": true
   }
 }
 ```
@@ -650,6 +668,7 @@ Configure logging and other settings:
 - `RoselineMCP:DefaultTimeout`: Wall-clock timeout (ms) applied to each tool call, in addition to the caller's own cancellation. `0` disables it.
 - `RoselineMCP:EnableDiagnosticLogging`: Opt-in, local-only tracing of tool invocations — see [Debug Logging](#debug-logging). Disabled by default; enabled in `appsettings.Development.json`.
 - `RoselineMCP:WorkspaceCache`: Reuse the loaded MSBuild workspace across navigation/edit tool calls (enabled by default) — see [Performance](#performance). Set to `false` to load a fresh workspace on every call.
+- `RoselineMCP:RunAnalyzers`: Run Roslyn analyzers (bundled Roslynator + the target project's own analyzer references) in the diagnostics tools (enabled by default) — see [Supported Analyzers](#supported-analyzers). Set to `false` for compiler-only diagnostics.
 
 ## Architecture
 
@@ -711,15 +730,15 @@ RoselineMCP/
 
 ## Performance
 
-- **Workspace Cache (navigation/edit tools)** -- The Roslyn-backed navigation and edit tools reuse
-  the loaded `MSBuildWorkspace` across calls, cutting hundreds of milliseconds of reload off every
-  call after the first. Cached entries are fingerprinted (last-write-time + size of the `.sln`,
-  every `.csproj`, and every source file, plus their directories) and re-checked on each call, so
-  any change on disk — including RoselineMCP's own edits — triggers a fresh reload. Disable with
+- **Workspace Cache** -- The navigation, edit, and diagnostics/fix tools (`ListDiagnostics`,
+  `ApplyFixes`, and everything backed by `IProjectLoader`) reuse the loaded `MSBuildWorkspace`
+  across calls, cutting hundreds of milliseconds of reload off every call after the first. Cached
+  entries are fingerprinted (last-write-time + size of the `.sln`, every `.csproj`, and every
+  source file, plus their directories) and re-checked on each call, so any change on disk —
+  including RoselineMCP's own edits — triggers a fresh reload. Disable with
   `RoselineMCP:WorkspaceCache = false`
-- **Workspace Isolation (diagnostics tools)** -- `AnalyzeSolution`, `ListDiagnostics`, and
-  `ApplyFixes` still create a fresh `MSBuildWorkspace` per operation (see
-  [Architecture](#architecture))
+- **Workspace Isolation (AnalyzeSolution)** -- `AnalyzeSolution` still creates a fresh
+  `MSBuildWorkspace` per operation (see [Architecture](#architecture))
 - **Sequential Project Analysis** -- Projects within a solution are analyzed one at a time, not
   concurrently, to keep MSBuild workspace state consistent
 - **Result Capping** -- `maxDiagnostics`/`max` bound how many diagnostics are returned per call,
@@ -741,6 +760,11 @@ RoselineMCP/
   repository or URL carries a real code-execution risk on the host. **See
   [`SECURITY.md`](SECURITY.md)** for the full write-up and operator recommendations before
   pointing RoselineMCP at untrusted input.
+- **Analyzer Execution Is Code Execution** -- the diagnostics tools also run the target project's
+  own referenced Roslyn analyzers in-process (see
+  [Supported Analyzers](#supported-analyzers)); an analyzer from an untrusted repository is
+  arbitrary code. `RoselineMCP:RunAnalyzers = false` disables all analyzer execution (bundled
+  Roslynator included). See [`SECURITY.md`](SECURITY.md).
 - **No Dedicated Path-Traversal Sandbox** -- paths are resolved with plain existence checks, not
   canonicalized against an allowed root; treat `pathOrGit`/`project`/`branch` as trusted operator
   input.
@@ -751,7 +775,7 @@ RoselineMCP/
 
 1. **MSBuild not found**: Ensure .NET SDK is installed and in PATH
 2. **Solution won't load**: Check for missing NuGet packages, run `dotnet restore`
-3. **No diagnostics found**: Verify analyzers are installed in the target project
+3. **No analyzer (RCS*/SA*) diagnostics found**: Verify `RoselineMCP:RunAnalyzers` isn't set to `false`; for non-bundled rule sets (e.g. StyleCop), verify the analyzer is installed in the target project
 4. **Permission denied**: Ensure read access to solution files
 
 ### Debug Logging

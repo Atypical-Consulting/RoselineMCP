@@ -24,7 +24,8 @@ internal static class RoselineToolGuidance
         - Change code → `edit_member` / `rename_symbol` (surgical diffs) instead of rewriting whole files.
 
         Reserve `Read`/`Grep` for non-C# files, or when you need the exact full text of a specific member
-        (`get_symbol_info` with `includeSource: true` covers that too). Every tool takes a `project`
-        (a project name, directory, or `.csproj`/`.sln` path).
+        (`get_symbol_info` with `includeSource: true` covers that too). Every tool takes an optional `project`
+        (a project name, directory, or `.csproj`/`.sln` path); omit it and the solution/project is
+        auto-discovered from the working directory.
         """;
 }

@@ -31,16 +31,20 @@ public interface ISolutionAnalyzerService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lists detailed diagnostics for a specific project.
+    /// Lists detailed diagnostics for a specific project. Loaded via <see cref="IProjectLoader"/>,
+    /// so the same references the navigation/edit tools accept work here too.
     /// </summary>
-    /// <param name="project">Project name or path to .csproj file.</param>
+    /// <param name="project">
+    /// Project name, directory, <c>.csproj</c> path, or <c>.sln</c> path. When <see langword="null"/>
+    /// or whitespace, the solution/project is auto-discovered from the working directory.
+    /// </param>
     /// <param name="ids">Optional list of diagnostic IDs to filter.</param>
     /// <param name="files">Optional list of file patterns to filter.</param>
     /// <param name="max">Maximum number of diagnostic details to return.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
     /// <returns>Response containing diagnostics list and statistics.</returns>
     Task<ListDiagnosticsResponse> ListDiagnosticsAsync(
-        string project,
+        string? project,
         List<string>? ids = null,
         List<string>? files = null,
         int max = 100,

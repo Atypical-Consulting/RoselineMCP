@@ -38,7 +38,8 @@ public class AnalyzeSolutionBenchmarks
         var msBuildService = new MSBuildService(NullLogger<MSBuildService>.Instance);
         var codeFixProviderFactory = new CodeFixProviderFactory(NullLogger<CodeFixProviderFactory>.Instance);
         var filterService = new DiagnosticFilterService(codeFixProviderFactory);
-        _service = new SolutionAnalyzerService(NullLogger<SolutionAnalyzerService>.Instance, msBuildService, filterService);
+        var projectLoader = new ProjectLoader(NullLogger<ProjectLoader>.Instance, msBuildService);
+        _service = new SolutionAnalyzerService(NullLogger<SolutionAnalyzerService>.Instance, msBuildService, filterService, projectLoader);
 
         // Small: a single project, a handful of files — a "quick sanity check" scale solution.
         _small = BenchmarkSolutionFixture.Create(_tempRoot, "Small", projectCount: 1, filesPerProject: 5);

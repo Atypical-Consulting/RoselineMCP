@@ -19,7 +19,8 @@ public class CodeFixService : ICodeFixService
     private readonly ISolutionAnalyzerService _analyzerService;
     private readonly ICodeFixProviderFactory _codeFixProviderFactory;
     private readonly IDiffService _diffService;
-    private readonly IMSBuildService _msBuildService;
+    private readonly IProjectLoader _projectLoader;
+    private readonly IDiagnosticComputationService _diagnosticComputation;
 
     /// <summary>
     /// Initializes a new instance of the CodeFixService.
@@ -28,25 +29,31 @@ public class CodeFixService : ICodeFixService
     /// <param name="analyzerService">Service for analyzing solutions.</param>
     /// <param name="codeFixProviderFactory">Factory for creating code fix providers.</param>
     /// <param name="diffService">Service for generating diffs.</param>
-    /// <param name="msBuildService">Service for MSBuild operations.</param>
+    /// <param name="projectLoader">Loader used to resolve/load the target project.</param>
+    /// <param name="diagnosticComputation">Computes compiler + analyzer diagnostics per project,
+    /// so analyzer-driven diagnostics (e.g. Roslynator RCS*) are visible to the fixers. When
+    /// omitted, falls back to compiler-only diagnostics (production DI always supplies the
+    /// analyzer-aware implementation).</param>
     public CodeFixService(
         ILogger<CodeFixService> logger,
         ISolutionAnalyzerService analyzerService,
         ICodeFixProviderFactory codeFixProviderFactory,
         IDiffService diffService,
-        IMSBuildService msBuildService)
+        IProjectLoader projectLoader,
+        IDiagnosticComputationService? diagnosticComputation = null)
     {
         _logger = logger;
         _analyzerService = analyzerService;
         _codeFixProviderFactory = codeFixProviderFactory;
         _diffService = diffService;
-        _msBuildService = msBuildService;
+        _projectLoader = projectLoader;
+        _diagnosticComputation = diagnosticComputation ?? DiagnosticComputationService.CompilerOnly;
     }
 
 
     /// <inheritdoc/>
     public async Task<ApplyFixesResponse> ApplyFixesAsync(
-        string project,
+        string? project,
         List<string> ids,
         bool previewOnly = true,
         IProgress<ProgressNotificationValue>? progress = null,
@@ -54,7 +61,7 @@ public class CodeFixService : ICodeFixService
     {
         var response = new ApplyFixesResponse
         {
-            Project = project,
+            Project = project ?? string.Empty,
             PreviewOnly = previewOnly
         };
 
@@ -62,24 +69,24 @@ public class CodeFixService : ICodeFixService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Resolve the project before creating a workspace so a missing project fails fast
-            // with FileNotFoundException (classified as NotFoundError at the tool boundary).
-            var projectPath = ResolveProjectPath(project);
-
-            // Create a temporary workspace
-            using var workspace = _msBuildService.CreateWorkspace();
-
-            workspace.WorkspaceFailed += (sender, e) => _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
-
-            // Load the project
-            _logger.LogInformation("Loading project for fixes: {Path}", projectPath);
+            // Load through IProjectLoader — the same resolution the navigation/edit tools use
+            // (auto-discovery when 'project' is omitted, .sln paths accepted, exact-name project
+            // selection). A missing project still fails fast with FileNotFoundException
+            // (classified as NotFoundError at the tool boundary) before any workspace is opened.
+            // The caching loader's on-disk fingerprint self-invalidates after this tool's writes.
+            _logger.LogInformation("Loading project for fixes: {Project}", project ?? "(auto-discovered)");
             progress?.Report(new ProgressNotificationValue { Progress = 0, Total = ids.Count, Message = "Loading project via MSBuild…" });
 
-            var msProject = await workspace.OpenProjectAsync(projectPath, cancellationToken: cancellationToken);
+            using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
+            var msProject = loaded.Project;
             response.Project = msProject.Name;
 
+            // Emitted paths are solution-root-relative (falling back to the project directory when
+            // no .sln was loaded), matching the navigation and edit tools.
+            var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? msProject.FilePath);
+
             // Get the original solution text for diff generation
-            var originalSolution = workspace.CurrentSolution;
+            var originalSolution = loaded.Solution;
             var originalTexts = new Dictionary<string, string>();
 
             foreach (var document in msProject.Documents)
@@ -176,7 +183,7 @@ public class CodeFixService : ICodeFixService
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var relativePath = Path.GetRelativePath(Path.GetDirectoryName(projectPath)!, filePath);
+                    var relativePath = SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
                     response.ChangedFiles.Add(relativePath);
 
                     var newDocument = currentSolution.Projects
@@ -305,10 +312,11 @@ public class CodeFixService : ICodeFixService
     }
 
     /// <summary>
-    /// The diagnostics with the given ID currently reported for the project: unsuppressed and
-    /// located in source (the only occurrences a code fix can be applied to).
+    /// The diagnostics with the given ID currently reported for the project — compiler and
+    /// analyzer diagnostics alike (see <see cref="IDiagnosticComputationService"/>):
+    /// unsuppressed and located in source (the only occurrences a code fix can be applied to).
     /// </summary>
-    private static async Task<List<Diagnostic>> GetMatchingDiagnosticsAsync(
+    private async Task<List<Diagnostic>> GetMatchingDiagnosticsAsync(
         Solution solution,
         ProjectId projectId,
         string diagnosticId,
@@ -320,7 +328,8 @@ public class CodeFixService : ICodeFixService
         var compilation = await project.GetCompilationAsync(cancellationToken);
         if (compilation == null) return [];
 
-        return compilation.GetDiagnostics(cancellationToken)
+        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        return allDiagnostics
             .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
             .ToList();
     }
@@ -415,9 +424,9 @@ public class CodeFixService : ICodeFixService
     }
 
     /// <summary>
-    /// Serves the compiler diagnostics already computed for the project snapshot a
-    /// <see cref="FixAllContext"/> is built from, so the batch fixer does not trigger another
-    /// full re-analysis. Every served diagnostic is located in source (see
+    /// Serves the diagnostics (compiler and analyzer alike) already computed for the project
+    /// snapshot a <see cref="FixAllContext"/> is built from, so the batch fixer does not trigger
+    /// another full re-analysis. Every served diagnostic is located in source (see
     /// <see cref="GetMatchingDiagnosticsAsync"/>), so there are no project-level diagnostics.
     /// </summary>
     private sealed class PrecomputedDiagnosticProvider(List<Diagnostic> diagnostics) : FixAllContext.DiagnosticProvider
@@ -487,11 +496,9 @@ public class CodeFixService : ICodeFixService
             var project = solution.GetProject(projectId);
             if (project == null) break;
 
-            var compilation = await project.GetCompilationAsync(cancellationToken);
-            if (compilation == null) break;
-
-            var diagnostic = compilation.GetDiagnostics(cancellationToken)
-                .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
+            // Compiler + analyzer diagnostics, recomputed against the latest snapshot.
+            var matchingDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken);
+            var diagnostic = matchingDiagnostics
                 .Where(d => !unfixableLocations.Contains((d.Location.SourceTree!.FilePath, d.Location.SourceSpan.Start, d.Location.SourceSpan.Length)))
                 .OrderBy(d => d.Location.SourceTree!.FilePath, StringComparer.Ordinal)
                 .ThenBy(d => d.Location.SourceSpan.Start)
@@ -547,35 +554,6 @@ public class CodeFixService : ICodeFixService
         }
 
         return (solution, fixedCount);
-    }
-
-    private string ResolveProjectPath(string project)
-    {
-        // If it's already a full path to a .csproj file
-        if (File.Exists(project) && project.EndsWith(".csproj"))
-        {
-            return project;
-        }
-
-        // If it's a directory, look for .csproj files
-        if (Directory.Exists(project))
-        {
-            var csprojFiles = Directory.GetFiles(project, "*.csproj", SearchOption.TopDirectoryOnly);
-            if (csprojFiles.Length > 0)
-            {
-                return csprojFiles.First();
-            }
-        }
-
-        // Try to find in current directory
-        var currentDirFiles = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.csproj", SearchOption.AllDirectories);
-        var match = currentDirFiles.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(project, StringComparison.OrdinalIgnoreCase));
-        if (match != null)
-        {
-            return match;
-        }
-
-        throw new FileNotFoundException($"Project not found: {project}");
     }
 
 }

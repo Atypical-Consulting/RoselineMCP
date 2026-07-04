@@ -36,8 +36,8 @@ public class AnalysisToolsAdditionalTests
             // Act
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "TestProject",
-                new[] { "CS0168" });
+                new[] { "CS0168" },
+                "TestProject");
 
             // Assert
             result.Ok.ShouldBeFalse();
@@ -52,8 +52,8 @@ public class AnalysisToolsAdditionalTests
             // Act
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "TestProject",
-                null!);
+                null!,
+                "TestProject");
 
             // Assert
             result.Ok.ShouldBeFalse();
@@ -80,8 +80,8 @@ public class AnalysisToolsAdditionalTests
             // Act
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "TestProject",
                 new[] { "CS0168" },
+                "TestProject",
                 false);
 
             // Assert
@@ -106,8 +106,8 @@ public class AnalysisToolsAdditionalTests
             // Act
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "missing.csproj",
-                new[] { "CS0168" });
+                new[] { "CS0168" },
+                "missing.csproj");
 
             // Assert
             result.Ok.ShouldBeFalse();
@@ -135,8 +135,8 @@ public class AnalysisToolsAdditionalTests
             // Act
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "TestProject",
-                new[] { "CS0168" });
+                new[] { "CS0168" },
+                "TestProject");
 
             // Assert
             result.Ok.ShouldBeFalse();

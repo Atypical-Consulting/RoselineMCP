@@ -24,7 +24,11 @@ public class SolutionAnalyzerServiceWorkspaceTests : IDisposable
         _msBuildService = A.Fake<IMSBuildService>();
         var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
         var filterService = new DiagnosticFilterService(codeFixProviderFactory);
-        _sut = new SolutionAnalyzerService(logger, _msBuildService, filterService);
+        // ListDiagnostics loads through IProjectLoader; a real ProjectLoader over the faked
+        // IMSBuildService keeps these tests exercising the same "real files on disk, null
+        // workspace" seam as before.
+        var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), _msBuildService);
+        _sut = new SolutionAnalyzerService(logger, _msBuildService, filterService, projectLoader);
 
         _testDirectory = Path.Combine(Path.GetTempPath(), $"RoselineWSTests_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDirectory);
@@ -93,14 +97,13 @@ public class SolutionAnalyzerServiceWorkspaceTests : IDisposable
     }
 
     /// <summary>
-    /// Tests that when a .csproj file exists, ListDiagnosticsAsync attempts to load it
-    /// via the workspace (null workspace → NPE, caught + rethrown).
-    /// This exercises TryLoadProjectDirectlyAsync with the "file exists" branch.
+    /// Tests that when a .csproj file exists, ListDiagnosticsAsync attempts to load it through the
+    /// shared <see cref="ProjectLoader"/> (null workspace → NPE, caught + rethrown).
     /// </summary>
     public class ListDiagnosticsWithRealCsprojTests : SolutionAnalyzerServiceWorkspaceTests
     {
         [Fact]
-        public async Task Should_Attempt_OpenProjectAsync_When_Csproj_File_Exists()
+        public async Task Should_Attempt_Workspace_Load_When_Csproj_File_Exists()
         {
             // Arrange — create a real .csproj file
             var csprojPath = Path.Combine(_testDirectory, "TestProject.csproj");
@@ -108,8 +111,7 @@ public class SolutionAnalyzerServiceWorkspaceTests : IDisposable
             A.CallTo(() => _msBuildService.CreateWorkspace()).Returns(null!);
 
             // Act & Assert
-            // File.Exists → true, ends with .csproj → true
-            // → workspace.OpenProjectAsync → NPE (workspace is null)
+            // ProjectLoader resolves the .csproj path → workspace load → NPE (workspace is null)
             await Should.ThrowAsync<Exception>(async () =>
                 await _sut.ListDiagnosticsAsync(csprojPath));
 
@@ -117,22 +119,98 @@ public class SolutionAnalyzerServiceWorkspaceTests : IDisposable
         }
 
         [Fact]
-        public async Task Should_Search_Solution_File_When_Csproj_Not_Found_Directly()
+        public async Task Should_Open_Containing_Solution_When_One_Exists_Above_The_Csproj()
         {
             // Arrange — create a .csproj file in a subdir, and a .sln in the parent
             var subDir = Path.Combine(_testDirectory, "src");
             Directory.CreateDirectory(subDir);
             var csprojPath = Path.Combine(subDir, "MyProject.csproj");
             File.WriteAllText(csprojPath, "<Project />");
-            // Also create a .sln in the parent dir so FindSolutionFile can find it
+            // Also create a .sln in the parent dir so ProjectLoader's FindSolutionFile can find it
             var slnPath = Path.Combine(_testDirectory, "MySolution.sln");
             File.WriteAllText(slnPath, "placeholder");
             A.CallTo(() => _msBuildService.CreateWorkspace()).Returns(null!);
 
-            // Act & Assert
-            // TryLoadProjectDirectlyAsync → returns project (NPE on OpenProjectAsync)
+            // Act & Assert — the containing solution is opened first (NPE on the null workspace)
             await Should.ThrowAsync<Exception>(async () =>
                 await _sut.ListDiagnosticsAsync(csprojPath));
         }
+    }
+}
+
+/// <summary>
+/// End-to-end (real MSBuild, real <see cref="ProjectLoader"/>): ListDiagnostics accepts a
+/// <c>.sln</c> path — a reference the old private resolution copy rejected — and reports
+/// diagnostics for the solution's primary project.
+/// </summary>
+public class ListDiagnosticsProjectLoaderIntegrationTests : IDisposable
+{
+    private readonly string _testDirectory;
+    private readonly SolutionAnalyzerService _sut;
+
+    public ListDiagnosticsProjectLoaderIntegrationTests()
+    {
+        _testDirectory = Path.Combine(Path.GetTempPath(), $"RoselineListDiagSln_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_testDirectory);
+
+        var msBuildService = new MSBuildService(A.Fake<ILogger<MSBuildService>>());
+        var filterService = new DiagnosticFilterService(
+            new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>()));
+        var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
+        _sut = new SolutionAnalyzerService(
+            A.Fake<ILogger<SolutionAnalyzerService>>(), msBuildService, filterService, projectLoader);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+    }
+
+    [Fact]
+    public async Task Accepts_A_Sln_Path_And_Lists_Diagnostics_For_Its_Primary_Project()
+    {
+        // Arrange — a real SDK-style project (one CS0219 warning) referenced by a real .sln.
+        var projectDir = Path.Combine(_testDirectory, "App");
+        Directory.CreateDirectory(projectDir);
+        File.WriteAllText(Path.Combine(projectDir, "App.csproj"),
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+              </PropertyGroup>
+            </Project>
+            """);
+        File.WriteAllText(Path.Combine(projectDir, "Widget.cs"),
+            "namespace App { public class Widget { public void M() { int unused = 1; } } }");
+
+        var slnPath = Path.Combine(_testDirectory, "App.sln");
+        File.WriteAllText(slnPath,
+            """
+            Microsoft Visual Studio Solution File, Format Version 12.00
+            # Visual Studio Version 17
+            VisualStudioVersion = 17.0.31903.59
+            MinimumVisualStudioVersion = 10.0.40219.1
+            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
+            EndProject
+            Global
+            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+            		Debug|Any CPU = Debug|Any CPU
+            	EndGlobalSection
+            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU
+            	EndGlobalSection
+            EndGlobal
+            """);
+
+        // Act — pass the .sln path directly.
+        var result = await _sut.ListDiagnosticsAsync(slnPath, ids: ["CS0219"]);
+
+        // Assert — the primary project was analyzed and the expected diagnostic reported.
+        result.Project.ShouldBe("App");
+        result.TotalDiagnostics.ShouldBe(1);
+        result.Diagnostics.ShouldHaveSingleItem().Id.ShouldBe("CS0219");
     }
 }
