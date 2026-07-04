@@ -131,6 +131,85 @@ public class NavigationToolsTests
         }
     }
 
+    public class GetSymbolAtPositionTests
+    {
+        private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();
+
+        [Fact]
+        public async Task Should_Return_Success_Envelope()
+        {
+            A.CallTo(() => _service.GetSymbolAtPositionAsync(A<string>._, A<string>._, A<int>._, A<int?>._, A<CancellationToken>._))
+                .Returns(Task.FromResult(new SymbolAtPositionResponse
+                {
+                    Name = "Deposit",
+                    FullName = "Acme.Account.Deposit",
+                    Kind = "method",
+                    IsDeclaration = true
+                }));
+
+            var result = await GetSymbolAtPositionTool.GetSymbolAtPosition(_service, "Account.cs", 3, project: "Demo");
+
+            result.Ok.ShouldBeTrue();
+            result.Data.ShouldNotBeNull();
+            result.Data.FullName.ShouldBe("Acme.Account.Deposit");
+            result.Data.IsDeclaration.ShouldBeTrue();
+        }
+
+        [Fact]
+        public async Task Should_Return_Validation_Error_When_File_Missing()
+        {
+            var result = await GetSymbolAtPositionTool.GetSymbolAtPosition(_service, "", 3, project: "Demo");
+
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("ValidationError");
+            result.Error.Message.ShouldContain("file");
+
+            A.CallTo(() => _service.GetSymbolAtPositionAsync(A<string>._, A<string>._, A<int>._, A<int?>._, A<CancellationToken>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_Return_Validation_Error_For_NonPositive_Line()
+        {
+            var result = await GetSymbolAtPositionTool.GetSymbolAtPosition(_service, "Account.cs", 0, project: "Demo");
+
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("ValidationError");
+            result.Error.Message.ShouldContain("1-based");
+
+            A.CallTo(() => _service.GetSymbolAtPositionAsync(A<string>._, A<string>._, A<int>._, A<int?>._, A<CancellationToken>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_Pass_All_Parameters_To_Service()
+        {
+            A.CallTo(() => _service.GetSymbolAtPositionAsync("Demo", "Account.cs", 12, 5, A<CancellationToken>._))
+                .Returns(Task.FromResult(new SymbolAtPositionResponse()));
+
+            await GetSymbolAtPositionTool.GetSymbolAtPosition(_service, "Account.cs", 12, 5, "Demo");
+
+            A.CallTo(() => _service.GetSymbolAtPositionAsync("Demo", "Account.cs", 12, 5, A<CancellationToken>._))
+                .MustHaveHappenedOnceExactly();
+        }
+
+        [Fact]
+        public async Task Should_Return_NotFound_Error_When_Service_Throws_KeyNotFound()
+        {
+            A.CallTo(() => _service.GetSymbolAtPositionAsync(A<string>._, A<string>._, A<int>._, A<int?>._, A<CancellationToken>._))
+                .Throws(new KeyNotFoundException("No symbol found at Account.cs:7"));
+
+            var result = await GetSymbolAtPositionTool.GetSymbolAtPosition(_service, "Account.cs", 7, project: "Demo");
+
+            result.Ok.ShouldBeFalse();
+            result.Error.ShouldNotBeNull();
+            result.Error.Type.ShouldBe("NotFoundError");
+            result.Error.Message.ShouldContain("No symbol found");
+        }
+    }
+
     public class FindReferencesTests
     {
         private readonly ICodeNavigationService _service = A.Fake<ICodeNavigationService>();

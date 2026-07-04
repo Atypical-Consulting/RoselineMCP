@@ -366,4 +366,141 @@ public class CodeNavigationServiceTests
 
         result.Symbols.Select(s => s.Name).ShouldContain("Spin");
     }
+
+    // --- get_symbol_at_position: file:line(:column) → symbol ---
+
+    /// <summary>
+    /// Line 3 declares Deposit ('D' at column 17); line 5 calls Log ('L' at column 9); line 8
+    /// declares Log.
+    /// </summary>
+    private const string AccountSource =
+        "public class Account\n" +
+        "{\n" +
+        "    public void Deposit(int amount)\n" +
+        "    {\n" +
+        "        Log(amount);\n" +
+        "    }\n" +
+        "\n" +
+        "    public void Log(int value)\n" +
+        "    {\n" +
+        "    }\n" +
+        "}\n";
+
+    [Fact]
+    public async Task GetSymbolAtPosition_On_Method_Declaration_Returns_That_Method_As_Declaration()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        var result = await service.GetSymbolAtPositionAsync("Demo", "Account.cs", 3, 17, CancellationToken.None);
+
+        result.Name.ShouldBe("Deposit");
+        result.Kind.ShouldBe("method");
+        result.IsDeclaration.ShouldBeTrue();
+        result.ContainingType.ShouldBe("Account");
+        result.DefinitionFile.ShouldBe("Account.cs");
+        result.DefinitionLine.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_On_Usage_Returns_The_Referenced_Symbol()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        var result = await service.GetSymbolAtPositionAsync("Demo", "Account.cs", 5, 9, CancellationToken.None);
+
+        result.Name.ShouldBe("Log");
+        result.Kind.ShouldBe("method");
+        result.IsDeclaration.ShouldBeFalse();
+        result.DefinitionLine.ShouldBe(8);
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_LineOnly_On_Declaration_Line_Prefers_The_Declaration()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        var result = await service.GetSymbolAtPositionAsync("Demo", "Account.cs", 3, null, CancellationToken.None);
+
+        result.Name.ShouldBe("Deposit");
+        result.IsDeclaration.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_LineOnly_On_Usage_Line_Returns_The_Referenced_Symbol()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        var result = await service.GetSymbolAtPositionAsync("Demo", "Account.cs", 5, null, CancellationToken.None);
+
+        result.Name.ShouldBe("Log");
+        result.IsDeclaration.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_On_Modifier_Column_Falls_Back_To_The_Enclosing_Declaration()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        // Column 5 is the 'p' of 'public' on Deposit's declaration line — no token binds there,
+        // so the enclosing declaration wins.
+        var result = await service.GetSymbolAtPositionAsync("Demo", "Account.cs", 3, 5, CancellationToken.None);
+
+        result.Name.ShouldBe("Deposit");
+        result.IsDeclaration.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_Out_Of_Range_Line_Throws_ArgumentException()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        var ex = await Should.ThrowAsync<ArgumentException>(
+            () => service.GetSymbolAtPositionAsync("Demo", "Account.cs", 999, null, CancellationToken.None));
+
+        ex.Message.ShouldContain("999");
+        ex.Message.ShouldContain("lines");
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_Out_Of_Range_Column_Throws_ArgumentException()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        await Should.ThrowAsync<ArgumentException>(
+            () => service.GetSymbolAtPositionAsync("Demo", "Account.cs", 3, 999, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_Unknown_File_Throws_KeyNotFound()
+    {
+        var service = CreateService("Demo", ("Account.cs", AccountSource));
+
+        await Should.ThrowAsync<KeyNotFoundException>(
+            () => service.GetSymbolAtPositionAsync("Demo", "Missing.cs", 1, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_Resolves_File_In_Unreferenced_Sibling_Project()
+    {
+        var service = CreateSolutionService(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("Lib", [("Widget.cs",
+                "namespace LibNs\n" +
+                "{\n" +
+                "    public class Widget\n" +
+                "    {\n" +
+                "        public void Spin()\n" +
+                "        {\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n")])
+        ]);
+
+        var result = await service.GetSymbolAtPositionAsync("App", "Widget.cs", 5, null, CancellationToken.None);
+
+        result.Name.ShouldBe("Spin");
+        result.FullName.ShouldBe("LibNs.Widget.Spin");
+        result.IsDeclaration.ShouldBeTrue();
+    }
 }

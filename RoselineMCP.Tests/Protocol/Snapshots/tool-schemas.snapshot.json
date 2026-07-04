@@ -236,6 +236,39 @@
     ],
     "type": "object"
   },
+  "get_symbol_at_position": {
+    "properties": {
+      "column": {
+        "default": null,
+        "description": "Optional 1-based column. Omit to resolve the most relevant symbol on the line (declarations win over references).",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "file": {
+        "description": "File to resolve the position in (name or path suffix, e.g. \u0027UserService.cs\u0027 or \u0027Services/UserService.cs\u0027)",
+        "type": "string"
+      },
+      "line": {
+        "description": "1-based line number of the position",
+        "type": "integer"
+      },
+      "project": {
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "file",
+      "line"
+    ],
+    "type": "object"
+  },
   "get_symbol_info": {
     "properties": {
       "includeSource": {
