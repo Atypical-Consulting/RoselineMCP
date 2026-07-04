@@ -18,25 +18,61 @@ const headers: Record<string, string> = {
 
 let releases: any[] = [];
 let fetchError: string | null = null;
+
+const mapRelease = (r: any) => ({
+  tag: r.tag_name as string,
+  name: (r.name || r.tag_name) as string,
+  prerelease: Boolean(r.prerelease),
+  date: r.published_at ? new Date(r.published_at) : null,
+  url: r.html_url as string,
+  bodyHtml: r.body ? marked.parse(r.body as string) : '',
+  assets: ((r.assets as any[]) || []).map((a: any) => ({
+    name: a.name as string,
+    url: a.browser_download_url as string,
+    size: a.size as number,
+  })),
+});
+
+const ghJson = async (path: string) => {
+  const res = await fetch(`https://api.github.com/repos/${repo}/${path}`, { headers });
+  if (!res.ok) throw new Error(`GitHub API responded ${res.status} for ${path}`);
+  return res.json();
+};
+
 try {
-  const res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=30`, { headers });
-  if (!res.ok) throw new Error(`GitHub API responded ${res.status}`);
-  const raw = await res.json();
-  releases = (raw as any[])
+  // The releases LISTING endpoint (?per_page=…) can trail /releases/latest by a few minutes right
+  // after a publish. This page is rebuilt immediately after the release workflow, so a lagging
+  // listing would silently drop the newest release (exactly what happened for v2.0.0). Guard it:
+  // learn the known-latest full release, retry the listing until it includes that tag (bounded so
+  // the build never hangs), and merge the latest in as a last resort if the listing never catches up.
+  let latestTag: string | undefined;
+  try {
+    latestTag = (await ghJson('releases/latest'))?.tag_name;
+  } catch {
+    // 404s when there are zero full releases (or on an unauthenticated rate-limit locally) — then
+    // there is nothing to wait for and we just render whatever the listing returns.
+  }
+
+  let raw: any[] = [];
+  for (let attempt = 0; attempt < 6; attempt++) {
+    raw = (await ghJson('releases?per_page=30')) as any[];
+    if (!latestTag || raw.some((r) => r.tag_name === latestTag)) break;
+    await new Promise((r) => setTimeout(r, 10_000)); // ~50s max, only while the listing is lagging
+  }
+
+  // Belt-and-suspenders: if the listing still lacks the latest release, pull it in directly.
+  if (latestTag && !raw.some((r) => r.tag_name === latestTag)) {
+    try {
+      raw.unshift(await ghJson(`releases/tags/${latestTag}`));
+    } catch {
+      // keep the listing as-is; a later rebuild will pick up the release once the API settles.
+    }
+  }
+
+  releases = raw
     .filter((r) => !r.draft)
-    .map((r) => ({
-      tag: r.tag_name as string,
-      name: (r.name || r.tag_name) as string,
-      prerelease: Boolean(r.prerelease),
-      date: r.published_at ? new Date(r.published_at) : null,
-      url: r.html_url as string,
-      bodyHtml: r.body ? marked.parse(r.body as string) : '',
-      assets: ((r.assets as any[]) || []).map((a) => ({
-        name: a.name as string,
-        url: a.browser_download_url as string,
-        size: a.size as number,
-      })),
-    }));
+    .map(mapRelease)
+    .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
 } catch (e) {
   fetchError = e instanceof Error ? e.message : String(e);
 }

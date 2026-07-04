@@ -13,12 +13,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   envelope (`ok: false` with e.g. `NotFoundError`), like every other tool.
 - `ApplyFixes`, `EditMember`, and `RenameSymbol` now write changed files back with their original
   encoding (BOM included) instead of silently re-encoding everything as BOM-less UTF-8.
+- Symbol search and resolution now span every project in the loaded solution — previously only the anchor project was searched, so symbols declared in a sibling project it doesn't reference (e.g. the Tests project) were invisible to `search_symbols` (including the file outline) and made `get_symbol_info`, `find_references`, `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `edit_member`, and `rename_symbol` fail with "Symbol not found".
+- **`analyze_solution` reports honest numbers.** `diagnosticSummary` now counts every diagnostic
+  passing the filters — previously each project's diagnostics were capped at `maxDiagnostics`
+  *before* counting, undercounting any project with more. `topDiagnostics` is now the true
+  solution-wide top-N by severity — previously it kept the first N diagnostics encountered in
+  project order, so warnings from an early project could crowd out errors from a later one.
+- Configuration (`appsettings.json` / `appsettings.{Environment}.json`) now loads from the install
+  directory (`AppContext.BaseDirectory`) instead of the process working directory — a target
+  repository's own `appsettings.json` can no longer reconfigure the server, the settings packaged
+  with the dotnet tool are actually found, and the needless reload-on-change file watchers are
+  gone. Removed the dead `RoselineMCP:MaxDiagnostics` key from `appsettings.json`.
+- MSBuild registration now picks the newest installed SDK instead of whatever
+  `MSBuildLocator` enumerates first, and `CreateWorkspace` fails fast with an actionable error
+  when no MSBuild/.NET SDK instance could be registered (instead of surfacing a confusing
+  workspace load failure later).
+- Whitespace-only changes are no longer silently dropped from diffs (the diff engine ignored
+  whitespace unconditionally): a whitespace-only `edit_member` no longer reports "No changes were
+  produced" and skips the write even with `previewOnly: false`, `apply_fixes` patches no longer
+  omit whitespace-only changes that were written to disk, and `create_patch`'s `ignoreWhitespace`
+  parameter now actually controls the behavior (default `false`); `create_patch` line counts also
+  no longer miss content lines that themselves start with `++`/`--`.
+- **Docs `/releases` page could miss the just-published release.** The page is generated from the
+  GitHub Releases *listing* API at build time and is rebuilt immediately after the publish workflow,
+  but that listing endpoint can trail `/releases/latest` by a few minutes — so a new release could be
+  absent from the page until a manual re-deploy (as happened for v2.0.0). The build now cross-checks
+  `/releases/latest`, retries the listing until it includes that tag (bounded so the build never
+  hangs), and merges the latest release in directly as a fallback.
 
 ### Changed
 - `ApplyFixes` now fixes all occurrences of a diagnostic ID in a single FixAll (batch) pass when
   the provider supports it, instead of re-compiling the project after every individual fix;
   providers without FixAll support keep the per-occurrence path, and the response shape is
   unchanged.
+
+### Performance
+- **`analyze_solution` analyzes projects in parallel** (bounded by the processor count) instead of
+  one at a time; results are merged deterministically and progress values still strictly increase.
 
 ## [2.0.0] - 2026-07-04
 

@@ -82,7 +82,7 @@ dotnet test RoselineMCP.Tests/RoselineMCP.Tests.csproj
 dotnet run --project RoselineMCP/RoselineMCP.csproj
 
 # Run with specific environment
-ASPNETCORE_ENVIRONMENT=Development dotnet run --project RoselineMCP/RoselineMCP.csproj
+DOTNET_ENVIRONMENT=Development dotnet run --project RoselineMCP/RoselineMCP.csproj
 
 # Watch mode for development
 dotnet watch run --project RoselineMCP/RoselineMCP.csproj
@@ -128,7 +128,9 @@ These return precise structure instead of whole files (backed by `ICodeNavigatio
 (name, directory, `.csproj` path, or `.sln` path); when omitted, RoselineMCP auto-discovers the
 solution/project from its working directory (searching the cwd, a few parent directories, and
 immediate subdirectories, and failing with an actionable message only when the match is empty or
-ambiguous). The containing solution is loaded when present so references/renames span projects.
+ambiguous). The containing solution is loaded when present, and symbol search/resolution spans
+every project in it — a symbol declared only in a sibling project the anchor doesn't reference
+(e.g. the Tests project) is still found, and references/renames span projects.
 
 - **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
 - **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source); accessibility is inside `signature`, and empty/absent fields are omitted.
@@ -235,10 +237,15 @@ dotnet test --logger html
 ## Environment Configuration
 
 The application supports environment-specific configuration through:
-- `appsettings.json`: Base configuration
-- `appsettings.{Environment}.json`: Environment-specific overrides
-- `ROSELINE_` prefixed environment variables
-- Command-line arguments
+- `appsettings.json`: Base configuration, loaded from the install directory
+  (`AppContext.BaseDirectory`, next to the binary) — never from the process working directory, so
+  a target repository's own `appsettings.json` cannot reconfigure the server
+- `appsettings.{Environment}.json`: Environment-specific overrides (same directory)
+- `ROSELINE_` prefixed environment variables — double prefix for the `RoselineMCP` section, e.g.
+  `ROSELINE_RoselineMCP__EnableDiagnosticLogging=true`
+- Command-line arguments (highest precedence)
+
+Configuration is read once at startup; no reload-on-change file watchers are registered.
 
 Logging levels adjust automatically:
 - **Development**: Debug level for RoselineMCP namespace

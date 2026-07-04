@@ -53,7 +53,7 @@ public class CodeEditService : ICodeEditService
         }
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, symbol, cancellationToken);
+        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
 
         var syntaxRef = resolved.DeclaringSyntaxReferences.FirstOrDefault()
             ?? throw new InvalidOperationException($"'{symbol}' has no source declaration to edit (it is metadata-only).");
@@ -240,7 +240,7 @@ public class CodeEditService : ICodeEditService
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
 
         progress?.Report(new ProgressNotificationValue { Progress = 2, Message = $"Resolving symbol '{symbol}'…" });
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Project, symbol, cancellationToken);
+        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
 
         if (!resolved.Locations.Any(l => l.IsInSource))
         {
