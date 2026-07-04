@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Social/Open Graph card (`og.png`) refreshed: the baked-in token-savings figure is now the
+  median **85%** (was the stale pooled 81%), and the card is regenerable from a checked-in
+  template (`website/og-card.html`) instead of existing only as a rendered PNG; `og:image:alt`
+  updated to match.
+
 ## [2.1.0] - 2026-07-04
 
 ### Added

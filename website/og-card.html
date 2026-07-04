@@ -1,0 +1,121 @@
+<!doctype html>
+<!--
+  og-card.html — the source template for public/og.png (the social/Open Graph card).
+
+  This file is NOT part of the built site; it exists so the card can be regenerated
+  instead of living only as a baked PNG. To regenerate:
+
+    1. Open this file in Chrome (file://…/website/og-card.html).
+    2. Screenshot the page at a 1200×630 viewport with deviceScaleFactor 2
+       (→ a 2400×1260 PNG, matching the og:image:width/height in Base.astro), e.g.
+       headless: chrome ⌐-headless ⌐-screenshot=og.png ⌐-window-size=1200,630 ⌐-force-device-scale-factor=2 og-card.html
+       (replace ⌐- with two dashes; or use any DevTools-protocol screenshot tool)
+    3. Save over website/public/og.png and keep og:image:alt in src/layouts/Base.astro
+       in sync with the number shown here.
+
+  Colors/typography mirror the site's DARK design tokens in src/layouts/Base.astro
+  (:root dark block): update both together. Fonts load from Google Fonts at render
+  time only — the shipped site self-hosts via @fontsource.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>RoselineMCP OG card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  /* Dark design tokens from src/layouts/Base.astro */
+  :root {
+    --paper: #14161e;          /* card background (site code-panel navy) */
+    --ink: #f2f3f0;            /* headline line 1 */
+    --ink-2: #b0b5bf;          /* caption */
+    --muted: #757b87;          /* kicker */
+    --rose: #ff4f80;           /* headline line 2, pill text */
+    --rose-bar: #e01e5a;       /* left signature bar + logo mark */
+    --teal: #33d6c1;           /* stat */
+    --display: 'Bricolage Grotesque', sans-serif;
+    --sans: 'Hanken Grotesk', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: var(--paper);
+    border-left: 7px solid var(--rose-bar);
+    position: relative;
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .brand {
+    position: absolute; top: 64px; left: 82px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .brand svg { display: block; }
+  .brand .name {
+    font-family: var(--display); font-weight: 700; font-size: 34px;
+    color: var(--ink); letter-spacing: -.01em;
+  }
+
+  .kicker {
+    position: absolute; top: 216px; left: 86px;
+    font-family: var(--mono); font-weight: 500; font-size: 19px;
+    letter-spacing: .36em; color: var(--muted);
+  }
+
+  .headline {
+    position: absolute; top: 252px; left: 82px; right: 60px;
+    font-family: var(--display); font-weight: 700;
+    font-size: 88px; line-height: 1.03; letter-spacing: -.025em;
+  }
+  .headline .l1 { color: var(--ink); }
+  .headline .l2 { color: var(--rose); }
+
+  .stat-row {
+    position: absolute; left: 86px; bottom: 66px; right: 60px;
+    display: flex; align-items: center; gap: 34px;
+  }
+  .stat {
+    font-family: var(--display); font-weight: 800; font-size: 108px;
+    letter-spacing: -.03em; color: var(--teal); line-height: 1;
+  }
+  .stat .pct { font-size: 78px; }
+  .caption {
+    font-family: var(--sans); font-weight: 400; font-size: 27px;
+    line-height: 1.4; color: var(--ink-2); white-space: nowrap; flex-shrink: 0;
+  }
+  .pill {
+    margin-left: auto;
+    font-family: var(--mono); font-weight: 500; font-size: 24px;
+    color: var(--rose);
+    border: 2px solid rgba(255, 79, 128, .45);
+    border-radius: 999px; padding: 16px 30px;
+    white-space: nowrap;
+  }
+  .pill .sep { color: rgba(255, 79, 128, .6); }
+</style>
+</head>
+<body>
+  <div class="brand">
+    <!-- the "rose line" mark: a vertical reference line with a bud -->
+    <svg width="18" height="52" viewBox="0 0 18 52" fill="none" aria-hidden="true">
+      <line x1="9" y1="2" x2="9" y2="50" stroke="#e01e5a" stroke-width="3.4" stroke-linecap="round"/>
+      <ellipse cx="9" cy="15" rx="6.4" ry="8.2" fill="#e01e5a"/>
+    </svg>
+    <span class="name">RoselineMCP</span>
+  </div>
+
+  <div class="kicker">ROSLYN CODE INTELLIGENCE&nbsp;&nbsp;·&nbsp;&nbsp;MCP</div>
+
+  <div class="headline">
+    <div class="l1">Read the code,</div>
+    <div class="l2">not the whole file.</div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat">85<span class="pct">%</span></div>
+    <div class="caption">fewer tokens for AI agents on<br />your C# solution — measured</div>
+    <div class="pill">Claude <span class="sep">·</span> Cursor <span class="sep">·</span> Copilot</div>
+  </div>
+</body>
+</html>
