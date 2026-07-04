@@ -27,42 +27,30 @@ public class CodeFixServiceTests
 
     public class ApplyFixesAsyncTests : CodeFixServiceTests
     {
+        /// <summary>
+        /// A failure of the operation itself (here: the project doesn't exist) must propagate as
+        /// an exception so the MCP tool boundary (ApplyFixesTool) classifies it into the
+        /// documented error envelope (FileNotFoundException → NotFoundError). It must NOT be
+        /// folded into a normal-looking response with an "Error: ..." note — that made the tool
+        /// report ok: true for an operation that actually failed.
+        /// </summary>
         [Fact]
-        public async Task Should_Return_Empty_Response_When_No_Ids_Provided()
-        {
-            // Arrange
-            var project = "TestProject";
-            var ids = new List<string>();
-
-            // Act
-            var result = await _sut.ApplyFixesAsync(project, ids, true);
-
-            // Assert
-            result.ShouldNotBeNull();
-            result.Project.ShouldBe(project);
-            result.PreviewOnly.ShouldBeTrue();
-            result.FixersApplied.ShouldBeEmpty();
-            result.FixedCount.ShouldBe(0);
-        }
-
-        [Fact]
-        public async Task Should_Handle_Project_Not_Found()
+        public async Task Should_Throw_FileNotFoundException_When_Project_Not_Found()
         {
             // Arrange
             var nonExistentProject = "/nonexistent/project.csproj";
             var ids = new List<string> { "CS0168" };
 
-            // Act & Assert - The method returns a response with error notes rather than throwing
-            var result = await _sut.ApplyFixesAsync(nonExistentProject, ids);
-            result.Notes.ShouldContain(n => n.Contains("Error"));
+            // Act & Assert
+            await Should.ThrowAsync<FileNotFoundException>(
+                () => _sut.ApplyFixesAsync(nonExistentProject, ids));
         }
 
         /// <summary>
-        /// Proves that a pre-cancelled token is actually honored: unlike other failures (which
-        /// ApplyFixesAsync folds into a graceful response per the "never throw to the MCP layer"
-        /// convention), cancellation must propagate as an <see cref="OperationCanceledException"/>
-        /// so that ApplyFixesTool's dedicated cancellation handling fires and reports a
-        /// Cancelled/Timeout error instead of a fake-success response.
+        /// Proves that a pre-cancelled token is actually honored: cancellation must propagate as
+        /// an <see cref="OperationCanceledException"/> so that ApplyFixesTool's dedicated
+        /// cancellation handling fires and reports a Cancelled/Timeout error instead of a
+        /// fake-success response.
         /// </summary>
         [Fact]
         public async Task Should_Throw_OperationCanceledException_When_Token_Already_Cancelled()
@@ -76,28 +64,6 @@ public class CodeFixServiceTests
             // Act & Assert — cancellation must propagate, not be swallowed into a response.
             await Should.ThrowAsync<OperationCanceledException>(
                 () => _sut.ApplyFixesAsync(project, ids, previewOnly: true, cancellationToken: cts.Token));
-        }
-
-        [Fact]
-        public async Task Should_Set_PreviewOnly_Flag_Correctly()
-        {
-            // Arrange
-            var project = "TestProject";
-            var ids = new List<string> { "CS0168" };
-
-            // Act
-            try
-            {
-                var previewResult = await _sut.ApplyFixesAsync(project, ids, true);
-                previewResult.PreviewOnly.ShouldBeTrue();
-
-                var applyResult = await _sut.ApplyFixesAsync(project, ids, previewOnly: false);
-                applyResult.PreviewOnly.ShouldBeFalse();
-            }
-            catch (FileNotFoundException)
-            {
-                // Expected if test project doesn't exist
-            }
         }
     }
 

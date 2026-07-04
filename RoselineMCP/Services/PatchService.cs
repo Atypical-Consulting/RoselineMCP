@@ -54,18 +54,33 @@ public class PatchService : IPatchService
                 return response;
             }
 
-            // Calculate statistics from the patch
+            // Calculate statistics from the patch. Only lines inside hunks (after a "@@" header)
+            // are counted, so the "---"/"+++" file headers are excluded by position rather than by
+            // prefix — a content line that itself starts with "++" or "--" (rendered as "+++<text>"
+            // or "---<text>") is still counted correctly.
             var linesAdded = 0;
             var linesRemoved = 0;
+            var inHunk = false;
 
             var patchLines = patch.Split('\n');
             foreach (var line in patchLines)
             {
-                if (line.StartsWith("+") && !line.StartsWith("+++"))
+                if (line.StartsWith("@@"))
+                {
+                    inHunk = true;
+                    continue;
+                }
+
+                if (!inHunk)
+                {
+                    continue;
+                }
+
+                if (line.StartsWith('+'))
                 {
                     linesAdded++;
                 }
-                else if (line.StartsWith("-") && !line.StartsWith("---"))
+                else if (line.StartsWith('-'))
                 {
                     linesRemoved++;
                 }

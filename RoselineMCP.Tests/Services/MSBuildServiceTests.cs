@@ -1,3 +1,4 @@
+using System.Reflection;
 using FakeItEasy;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
@@ -74,6 +75,48 @@ public class MSBuildServiceTests
         }
     }
 
+
+    /// <summary>
+    /// Tests the instance-selection policy via reflection (the repo's established pattern for
+    /// internal helpers): <c>VisualStudioInstance</c> has an internal constructor, so the policy
+    /// is a generic internal helper exercised here with a stand-in type.
+    /// </summary>
+    public class SelectPreferredInstanceTests
+    {
+        private sealed record FakeInstance(string Name, Version Version);
+
+        private static FakeInstance? Select(params FakeInstance[] instances)
+        {
+            var method = typeof(MSBuildService)
+                .GetMethod("SelectPreferredInstance", BindingFlags.NonPublic | BindingFlags.Static)
+                .ShouldNotBeNull()
+                .MakeGenericMethod(typeof(FakeInstance));
+
+            return (FakeInstance?)method.Invoke(null, [instances, (Func<FakeInstance, Version>)(i => i.Version)]);
+        }
+
+        [Fact]
+        public void Should_Pick_Highest_Version_Not_First()
+        {
+            // Arrange — the newest SDK is deliberately not first in enumeration order
+            var older = new FakeInstance(".NET SDK 8", new Version(8, 0, 100));
+            var newest = new FakeInstance(".NET SDK 10", new Version(10, 0, 100));
+            var middle = new FakeInstance(".NET SDK 9", new Version(9, 0, 200));
+
+            // Act
+            var selected = Select(older, newest, middle);
+
+            // Assert
+            selected.ShouldBe(newest);
+        }
+
+        [Fact]
+        public void Should_Return_Null_When_No_Instances()
+        {
+            // Act & Assert
+            Select().ShouldBeNull();
+        }
+    }
 
     public class ThreadSafetyTests : MSBuildServiceTests
     {

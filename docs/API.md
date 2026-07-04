@@ -74,6 +74,9 @@ directory that is deleted once analysis finishes; no other URL scheme (`ssh://`,
 
 **Returns:** the solution's file name, project count, a diagnostic count summary by severity, and
 the top diagnostics (capped at `maxDiagnostics`, ordered by severity then file then line).
+`diagnosticSummary` counts **every** diagnostic that passes the filters across all projects — it is
+never capped by `maxDiagnostics`; only `topDiagnostics` is. `topDiagnostics` is the solution-wide
+top selection by severity, so a later project's errors always outrank an earlier project's warnings.
 
 ```typescript
 {
@@ -262,12 +265,15 @@ tokens: rather than reading whole files into an agent's context, they return onl
 searching the working directory, a few parent directories, and immediate subdirectories, and
 returning a `ValidationError` only when no candidate is found or the choice is ambiguous. Local paths
 only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
-solution, the whole solution is loaded so cross-project references and renames are complete.
+solution, the whole solution is loaded and symbol search/resolution spans **every project in it** —
+a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
+project) is still found — so cross-project references and renames are complete.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
-disambiguate. If a simple name matches more than one symbol, the tool returns a `ValidationError`
-listing the candidate fully-qualified names.
+disambiguate. If a simple name matches more than one symbol (including the same name declared in
+two different projects), the tool returns a `ValidationError` listing the candidate fully-qualified
+names.
 
 ### SearchSymbols
 
@@ -310,7 +316,7 @@ At least one of `query` or `file` is required (otherwise `ValidationError`).
 When outlining a single file (`file` set, `query` omitted), each symbol is returned as a **lean
 projection** — `name`, `kind`, `signature`, `line`, and `containingType` (the *simple*, unqualified
 type name) — omitting the per-symbol `file` (it is on the response) and `fullName` (reconstructable
-from `containingType` + `name`). Project-wide search returns the shape above, which no longer emits
+from `containingType` + `name`). Solution-wide search returns the shape above, which no longer emits
 `accessibility` (already inside `signature`) or `containingType` (already the prefix of `fullName`).
 Null fields are omitted from the JSON throughout, and `truncated` is omitted when the list was not
 capped.
@@ -406,7 +412,7 @@ of a class. **Read-only.**
   kind: string;
   totalFound: number;
   truncated?: boolean;              // Present (and `true`) only when capped; omitted when not truncated
-  implementations: SymbolSummary[]; // Same shape as SearchSymbols' project-wide `symbols`
+  implementations: SymbolSummary[]; // Same shape as SearchSymbols' solution-wide `symbols`
 }
 ```
 
@@ -808,7 +814,7 @@ public class SymbolSummary
 }
 ```
 
-**Project-wide** results (`SearchSymbols` with a `query`, `FindImplementations`, and the
+**Solution-wide** results (`SearchSymbols` with a `query`, `FindImplementations`, and the
 `GetTypeHierarchy` base/interface/derived lists) emit `name`, `fullName`, `kind`, `signature`,
 `file`, and `line` — never `accessibility` (already inside `signature`) nor `containingType`
 (already the prefix of `fullName`). The **single-file outline** (`SearchSymbols` with `file`,
@@ -913,10 +919,13 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 `RoselineMCP:DefaultTimeout` above and `docs/ARCHITECTURE.md`). Rough complexity per call:
 
 - **AnalyzeSolution**: proportional to the number of projects times diagnostics per project;
-  projects within a solution are analyzed sequentially, not concurrently
+  projects within a solution are analyzed concurrently, bounded by the processor count
 - **ListDiagnostics**: proportional to diagnostics in the target project
-- **ApplyFixes**: proportional to files touched times diagnostics fixed per file; each diagnostic
-  ID is fixed occurrence-by-occurrence, re-analyzing the solution after every applied fix
+- **ApplyFixes**: proportional to files touched times diagnostics fixed per file; when the fix
+  provider supports FixAll at project scope (most built-in and Roslynator fixers do), all
+  occurrences of a diagnostic ID are fixed in a single batch pass. Providers without FixAll
+  support fall back to occurrence-by-occurrence fixing, re-analyzing the solution after every
+  applied fix
 - **CreatePatch**: proportional to the number of lines in the two inputs
 
 ### Recommendations

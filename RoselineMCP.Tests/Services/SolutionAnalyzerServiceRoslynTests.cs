@@ -187,6 +187,14 @@ public class SolutionAnalyzerServiceRoslynTests
 
     public class ProcessProjectDiagnosticsTests : SolutionAnalyzerServiceRoslynTests
     {
+        private static (List<DiagnosticDetail> TopDiagnostics, DiagnosticSummary Summary) ReadResult(object result)
+        {
+            var resultType = result.GetType();
+            var top = (List<DiagnosticDetail>)resultType.GetProperty("TopDiagnostics")!.GetValue(result)!;
+            var summary = (DiagnosticSummary)resultType.GetProperty("Summary")!.GetValue(result)!;
+            return (top, summary);
+        }
+
         [Fact]
         public async Task Should_Process_Diagnostics_From_Real_Compilation()
         {
@@ -194,43 +202,41 @@ public class SolutionAnalyzerServiceRoslynTests
             var (_, project) = CreateInMemoryProject("TestProject",
                 "class Foo { void Bar() { int unusedVar; } }");
             var compilation = await project.GetCompilationAsync();
-            var diagnostics = compilation!.GetDiagnostics();
-
-            var allDiagnosticDetails = new List<DiagnosticDetail>();
-            var summary = new DiagnosticSummary();
+            var diagnostics = compilation!.GetDiagnostics().ToList();
 
             // Act
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "ProcessProjectDiagnostics",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            method.Invoke(_sut, new object[] { diagnostics, "TestProject", allDiagnosticDetails, summary, 100 });
+            var result = method.Invoke(_sut, new object[] { diagnostics, "TestProject", 100 })!;
 
             // Assert
-            // Some diagnostics from the compilation
-            allDiagnosticDetails.ShouldNotBeNull();
+            var (topDiagnostics, summary) = ReadResult(result);
+            topDiagnostics.ShouldNotBeNull();
+            summary.ShouldNotBeNull();
         }
 
         [Fact]
-        public async Task Should_Respect_MaxDiagnostics_Limit()
+        public async Task Should_Respect_MaxDiagnostics_Limit_But_Count_All_Diagnostics()
         {
             // Arrange — create lots of diagnostics
             var code = string.Join("\n", Enumerable.Range(1, 20).Select(i =>
                 $"class Foo{i} {{ void Bar() {{ int unused{i}; }} }}"));
             var (_, project) = CreateInMemoryProject("TestProject", code);
             var compilation = await project.GetCompilationAsync();
-            var diagnostics = compilation!.GetDiagnostics();
-
-            var allDiagnosticDetails = new List<DiagnosticDetail>();
-            var summary = new DiagnosticSummary();
+            var diagnostics = compilation!.GetDiagnostics().ToList();
 
             // Act — with max of 5
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "ProcessProjectDiagnostics",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            method.Invoke(_sut, new object[] { diagnostics, "TestProject", allDiagnosticDetails, summary, 5 });
+            var result = method.Invoke(_sut, new object[] { diagnostics, "TestProject", 5 })!;
 
-            // Assert — should not exceed max
-            allDiagnosticDetails.Count.ShouldBeLessThanOrEqualTo(5);
+            // Assert — details capped at max, but the summary counts every diagnostic
+            var (topDiagnostics, summary) = ReadResult(result);
+            topDiagnostics.Count.ShouldBeLessThanOrEqualTo(5);
+            var totalCounted = summary.Error + summary.Warning + summary.Info + summary.Hidden;
+            totalCounted.ShouldBe(diagnostics.Count);
         }
     }
 
@@ -240,14 +246,28 @@ public class SolutionAnalyzerServiceRoslynTests
 
     public class AnalyzeProjectAsyncTests : SolutionAnalyzerServiceRoslynTests
     {
+        private async Task<(List<DiagnosticDetail> TopDiagnostics, DiagnosticSummary Summary)> AnalyzeAsync(
+            Project project, object context)
+        {
+            var method = typeof(SolutionAnalyzerService).GetMethod(
+                "AnalyzeProjectAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var task = (Task)method.Invoke(_sut, new object[] { project, context, CancellationToken.None })!;
+            await task;
+
+            // Task<ProjectAnalysisResult> where the result type is private — unwrap via reflection.
+            var result = task.GetType().GetProperty("Result")!.GetValue(task)!;
+            var resultType = result.GetType();
+            var top = (List<DiagnosticDetail>)resultType.GetProperty("TopDiagnostics")!.GetValue(result)!;
+            var summary = (DiagnosticSummary)resultType.GetProperty("Summary")!.GetValue(result)!;
+            return (top, summary);
+        }
+
         [Fact]
         public async Task Should_Analyze_Real_Project_With_AdhocWorkspace()
         {
             // Arrange — a simple C# class that can be compiled in-memory
             var (_, project) = CreateInMemoryProject("TestProject", "class Foo { }");
-
-            var allDiagnosticDetails = new List<DiagnosticDetail>();
-            var summary = new DiagnosticSummary();
 
             // Need to create an AnalysisContext instance
             var contextType = typeof(SolutionAnalyzerService)
@@ -256,13 +276,10 @@ public class SolutionAnalyzerServiceRoslynTests
             contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
 
             // Act — call AnalyzeProjectAsync via reflection
-            var method = typeof(SolutionAnalyzerService).GetMethod(
-                "AnalyzeProjectAsync",
-                BindingFlags.NonPublic | BindingFlags.Instance)!;
-            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context, CancellationToken.None })!;
+            var (topDiagnostics, summary) = await AnalyzeAsync(project, context);
 
             // Assert — the project compiled successfully (no exceptions)
-            allDiagnosticDetails.ShouldNotBeNull();
+            topDiagnostics.ShouldNotBeNull();
             summary.ShouldNotBeNull();
         }
 
@@ -273,22 +290,16 @@ public class SolutionAnalyzerServiceRoslynTests
             var (_, project) = CreateInMemoryProject("TestProject",
                 "class Foo { void Bar() { int unused; } }");
 
-            var allDiagnosticDetails = new List<DiagnosticDetail>();
-            var summary = new DiagnosticSummary();
-
             var contextType = typeof(SolutionAnalyzerService)
                 .GetNestedType("AnalysisContext", BindingFlags.NonPublic)!;
             var context = contextType.GetConstructor(Type.EmptyTypes)!.Invoke(null);
             contextType.GetProperty("MaxDiagnostics")!.SetValue(context, 100);
 
             // Act
-            var method = typeof(SolutionAnalyzerService).GetMethod(
-                "AnalyzeProjectAsync",
-                BindingFlags.NonPublic | BindingFlags.Instance)!;
-            await (Task)method.Invoke(_sut, new object[] { project, allDiagnosticDetails, summary, context, CancellationToken.None })!;
+            var (topDiagnostics, _) = await AnalyzeAsync(project, context);
 
             // Assert — diagnostics from unused variable
-            allDiagnosticDetails.ShouldNotBeNull();
+            topDiagnostics.ShouldNotBeNull();
         }
     }
 

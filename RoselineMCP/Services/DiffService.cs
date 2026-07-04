@@ -18,7 +18,10 @@ public class DiffService : IDiffService
     public string GenerateUnifiedDiff(string oldText, string newText, string oldPath, string newPath)
     {
         var diffBuilder = new InlineDiffBuilder(new Differ());
-        var diff = diffBuilder.BuildDiffModel(oldText, newText);
+        // The 2-arg BuildDiffModel overload defaults ignoreWhitespace to TRUE, which silently
+        // drops whitespace-only changes (e.g. reindentation) from the diff. Internally generated
+        // diffs must never ignore whitespace; callers that want that opt in via NormalizeWhitespace.
+        var diff = diffBuilder.BuildDiffModel(oldText, newText, ignoreWhitespace: false);
 
         if (!diff.HasDifferences)
         {

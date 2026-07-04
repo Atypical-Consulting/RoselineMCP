@@ -14,11 +14,17 @@ namespace RoselineMCP.Tests.Services;
 /// </summary>
 internal static class AdhocProjectBuilder
 {
-    /// <summary>Creates a workspace + project containing <paramref name="files"/> (name → C# source).</summary>
+    /// <summary>
+    /// Creates a workspace + project containing <paramref name="files"/> (name → C# source).
+    /// <paramref name="encoding"/> is attached to each document's <see cref="SourceText"/>, mirroring
+    /// how MSBuildWorkspace records the on-disk encoding when it loads real files (null = in-memory
+    /// text with no encoding).
+    /// </summary>
     public static (AdhocWorkspace Workspace, Project Project) Create(
         string projectName,
         IEnumerable<(string Name, string Code)> files,
-        string? baseDirectory = null)
+        string? baseDirectory = null,
+        System.Text.Encoding? encoding = null)
     {
         baseDirectory ??= Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
 
@@ -47,12 +53,71 @@ internal static class AdhocProjectBuilder
         {
             var documentId = DocumentId.CreateNewId(projectId);
             solution = solution.AddDocument(
-                documentId, name, SourceText.From(code),
+                documentId, name, SourceText.From(code, encoding),
                 filePath: Path.Combine(baseDirectory, name));
         }
 
         var project = solution.GetProject(projectId)!;
         return (workspace, project);
+    }
+
+    /// <summary>
+    /// Creates a workspace containing multiple sibling projects (mirroring a loaded <c>.sln</c>) and
+    /// returns the workspace plus the anchor (first) project. Projects don't reference each other
+    /// unless listed in <paramref name="projectReferences"/> (From → To by project name), so tests
+    /// can model a sibling project the anchor cannot see through references.
+    /// </summary>
+    public static (AdhocWorkspace Workspace, Project Anchor) CreateSolution(
+        (string ProjectName, (string Name, string Code)[] Files)[] projects,
+        (string From, string To)[]? projectReferences = null,
+        string? baseDirectory = null)
+    {
+        baseDirectory ??= Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
+
+        var workspace = new AdhocWorkspace();
+        var solution = workspace.CurrentSolution;
+
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+            .Split(Path.PathSeparator)
+            .Where(p => p.Length > 0)
+            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
+            .ToList();
+
+        var projectIds = new Dictionary<string, ProjectId>(StringComparer.Ordinal);
+
+        foreach (var (projectName, files) in projects)
+        {
+            var projectId = ProjectId.CreateNewId();
+            projectIds[projectName] = projectId;
+            var projectDirectory = Path.Combine(baseDirectory, projectName);
+
+            var projectInfo = ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                projectName,
+                projectName,
+                LanguageNames.CSharp,
+                filePath: Path.Combine(projectDirectory, projectName + ".csproj"),
+                metadataReferences: references,
+                compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+            solution = solution.AddProject(projectInfo);
+
+            foreach (var (name, code) in files)
+            {
+                solution = solution.AddDocument(
+                    DocumentId.CreateNewId(projectId), name, SourceText.From(code),
+                    filePath: Path.Combine(projectDirectory, name));
+            }
+        }
+
+        foreach (var (from, to) in projectReferences ?? [])
+        {
+            solution = solution.AddProjectReference(projectIds[from], new ProjectReference(projectIds[to]));
+        }
+
+        var anchor = solution.GetProject(projectIds[projects[0].ProjectName])!;
+        return (workspace, anchor);
     }
 
     /// <summary>Creates a fake <see cref="IProjectLoader"/> that always returns the given project.</summary>

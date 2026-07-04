@@ -29,34 +29,71 @@ public class MSBuildService : IMSBuildService
     {
         lock (_msBuildLock)
         {
-            if (!_msBuildRegistered)
+            if (_msBuildRegistered)
             {
-                try
+                return;
+            }
+
+            // Someone else in the process may already have registered MSBuild (RegisterInstance
+            // throws in that case) — treat that as success rather than a failure to limp past.
+            if (MSBuildLocator.IsRegistered)
+            {
+                _msBuildRegistered = true;
+                return;
+            }
+
+            try
+            {
+                // Register the newest SDK, not whatever the locator happens to enumerate first —
+                // older SDKs may not be able to load projects targeting newer frameworks.
+                var instance = SelectPreferredInstance(
+                    MSBuildLocator.QueryVisualStudioInstances().ToArray(),
+                    i => i.Version);
+                if (instance is not null)
                 {
-                    var instances = MSBuildLocator.QueryVisualStudioInstances().ToArray();
-                    if (instances.Length > 0)
-                    {
-                        MSBuildLocator.RegisterInstance(instances.First());
-                        _msBuildRegistered = true;
-                        _logger.LogInformation("MSBuild registered successfully");
-                    }
-                    else
-                    {
-                        _logger.LogWarning("No MSBuild instances found");
-                    }
+                    MSBuildLocator.RegisterInstance(instance);
+                    _msBuildRegistered = true;
+                    _logger.LogInformation(
+                        "MSBuild registered: {Name} {Version} ({Path})",
+                        instance.Name,
+                        instance.Version,
+                        instance.MSBuildPath);
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogError(ex, "Failed to register MSBuild");
+                    _logger.LogWarning("No MSBuild instances found");
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to register MSBuild");
             }
         }
     }
+
+    /// <summary>
+    /// Picks the instance with the highest version. Generic so the selection policy is unit
+    /// testable — <see cref="VisualStudioInstance"/> has an internal constructor and cannot be
+    /// faked in tests.
+    /// </summary>
+    internal static T? SelectPreferredInstance<T>(IReadOnlyList<T> instances, Func<T, Version> getVersion)
+        where T : class
+        => instances.OrderByDescending(getVersion).FirstOrDefault();
 
     /// <inheritdoc/>
     public MSBuildWorkspace CreateWorkspace()
     {
         EnsureMSBuildRegistered();
+
+        // Without a registered MSBuild instance, MSBuildWorkspace.Create() succeeds but every
+        // subsequent load fails with a confusing assembly-resolution error. Fail fast with an
+        // actionable message instead.
+        if (!_msBuildRegistered)
+        {
+            throw new InvalidOperationException(
+                "No MSBuild/.NET SDK instance could be registered — install the .NET SDK or check that 'dotnet' is on PATH. See earlier log entries for the underlying registration error.");
+        }
+
         var workspace = MSBuildWorkspace.Create();
 
         workspace.WorkspaceFailed += (sender, e) =>
