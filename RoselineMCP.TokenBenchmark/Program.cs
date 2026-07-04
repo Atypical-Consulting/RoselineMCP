@@ -5,7 +5,9 @@ using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.ML.Tokenizers;
+using ModelContextProtocol;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 using RoselineMCP.Services;
 using RoselineMCP.TokenBenchmark;
 
@@ -43,16 +45,35 @@ var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4");
 int Tokens(string s) => tokenizer.CountTokens(s);
 Measure M(string s) => new(s.Length, Tokens(s));
 
-var toolJson = new JsonSerializerOptions { WriteIndented = true }; // exactly what the MCP tools serialize
-string Ser(object o) => JsonSerializer.Serialize(o, toolJson);
+// The exact wire text a model reads. Every tool returns a ToolResult<T> envelope, and the MCP SDK
+// renders it as ONE text content block via
+//   JsonSerializer.Serialize(result, AIFunction.JsonSerializerOptions.GetTypeInfo(typeof(object)))
+// (AIFunctionMcpServerTool) with McpJsonUtilities.DefaultOptions: camelCase Web defaults, nulls
+// omitted, minified, System.Text.Json's default (non-relaxed) escaping — so `<`, `>`, `&`, `+`
+// and non-ASCII arrive as \uXXXX escapes. Reproduce that serialization byte-for-byte here.
+var wireJson = McpJsonUtilities.DefaultOptions;
+string Ser<T>(T payload) =>
+    JsonSerializer.Serialize(ToolResult<T>.Success(payload), wireJson.GetTypeInfo(typeof(object)));
+
+// Tool-emitted file paths are solution-root-relative (falling back to the project directory when
+// no .sln was loaded) — resolve them against that root, never the process cwd, so the benchmark
+// produces identical numbers no matter where it is launched from.
+var solutionRoot = Path.GetDirectoryName(solution.FilePath ?? project.FilePath)
+    ?? throw new InvalidOperationException("Could not determine the solution root from the loaded solution.");
 
 var fileCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 string ReadFile(string path)
 {
-    if (!fileCache.TryGetValue(path, out var text))
+    var full = Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(solutionRoot, path));
+    if (!fileCache.TryGetValue(full, out var text))
     {
-        text = File.ReadAllText(path);
-        fileCache[path] = text;
+        if (!File.Exists(full))
+        {
+            throw new FileNotFoundException(
+                $"Baseline read failed: '{path}' resolved to '{full}' (solution root '{solutionRoot}'), which does not exist.");
+        }
+        text = File.ReadAllText(full);
+        fileCache[full] = text;
     }
     return text;
 }
@@ -136,10 +157,17 @@ foreach (var sym in refSample)
     catch { continue; }
     if (resp.References.Count == 0) continue; // nothing to compare against
 
-    var files = resp.References.Select(r => r.File).Distinct().ToList();
-    var whole = M(string.Join("\n", files.Select(ReadFile)));
-    var targeted = M(BuildGrepContext(resp.References, ReadFile));
-    refRows.Add(Row($"{name} · {resp.References.Count} refs / {files.Count} files", whole, targeted, M(Ser(resp))));
+    try
+    {
+        var files = resp.References.Select(r => r.File).Distinct().ToList();
+        var whole = M(string.Join("\n", files.Select(ReadFile)));
+        var targeted = M(BuildGrepContext(resp.References, ReadFile));
+        refRows.Add(Row($"{name} · {resp.References.Count} refs / {files.Count} files", whole, targeted, M(Ser(resp))));
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"  skipping find_references task for {name}: {ex.Message}");
+    }
 }
 suites.Add(Suite("references", "find_references", "Reference list instead of reading every referencing file",
     "For each interface member and public service method, compare `find_references` against reading the files that contain those references.",
@@ -156,10 +184,17 @@ foreach (var iface in allSymbols.OfType<INamedTypeSymbol>().Where(t => t.TypeKin
     catch { continue; }
     if (resp.Implementations.Count == 0) continue;
 
-    var files = resp.Implementations.Where(i => i.File != null).Select(i => i.File!).Distinct().ToList();
-    if (files.Count == 0) continue;
-    var whole = M(string.Join("\n", files.Select(ReadFile)));
-    implRows.Add(Row($"{name} · {resp.Implementations.Count} impls", whole, null, M(Ser(resp))));
+    try
+    {
+        var files = resp.Implementations.Where(i => i.File != null).Select(i => i.File!).Distinct().ToList();
+        if (files.Count == 0) continue;
+        var whole = M(string.Join("\n", files.Select(ReadFile)));
+        implRows.Add(Row($"{name} · {resp.Implementations.Count} impls", whole, null, M(Ser(resp))));
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"  skipping find_implementations task for {name}: {ex.Message}");
+    }
 }
 suites.Add(Suite("implementations", "find_implementations", "Implementation list instead of reading candidate files",
     "For every interface, compare `find_implementations` against reading the files that declare the implementing types.",
@@ -178,10 +213,17 @@ foreach (var sym in allSymbols.OfType<IMethodSymbol>()
     var nodes = resp.Callers ?? [];
     if (nodes.Count == 0) continue;
 
-    var files = nodes.Where(n => n.File != null).Select(n => n.File!).Distinct().ToList();
-    if (files.Count == 0) continue;
-    var whole = M(string.Join("\n", files.Select(ReadFile)));
-    callRows.Add(Row($"callers of {name} · {nodes.Count}", whole, null, M(Ser(resp))));
+    try
+    {
+        var files = nodes.Where(n => n.File != null).Select(n => n.File!).Distinct().ToList();
+        if (files.Count == 0) continue;
+        var whole = M(string.Join("\n", files.Select(ReadFile)));
+        callRows.Add(Row($"callers of {name} · {nodes.Count}", whole, null, M(Ser(resp))));
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"  skipping get_call_graph task for {name}: {ex.Message}");
+    }
 }
 suites.Add(Suite("call-graph", "get_call_graph", "Caller list instead of reading the caller files",
     "For each non-private method that has callers, compare `get_call_graph` (direction=callers, depth=1) against reading the files that contain those callers.",
@@ -203,7 +245,7 @@ foreach (var (symbol, newName) in new[]
         var resp = await edit.RenameSymbolAsync(TargetProject, symbol, newName, previewOnly: true);
         if (resp.ChangedFiles.Count == 0) continue;
         var files = resp.ChangedFiles
-            .Select(f => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(project.FilePath)!, f)))
+            .Select(f => Path.IsPathRooted(f) ? f : Path.GetFullPath(Path.Combine(solutionRoot, f)))
             .Where(File.Exists).ToList();
         if (files.Count == 0) continue;
         var whole = M(string.Join("\n", files.Select(ReadFile)));
@@ -234,7 +276,7 @@ var report = new BenchmarkReport(
         "RoselineMCP.sln",
         TargetProject,
         "cl100k_base (Microsoft.ML.Tokenizers, gpt-4) — a proxy for Claude's tokenizer",
-        "JSON, indented (exactly as the MCP tools serialize)",
+        "MCP wire text: the ToolResult envelope serialized with the SDK's McpJsonUtilities.DefaultOptions (minified camelCase, default JSON escaping) — byte-identical to the text content block a model reads",
         outlineRows.Count,
         allSymbols.Count),
     Methodology(),
@@ -403,7 +445,7 @@ static string FindRepoRoot()
 
 static List<string> Methodology() =>
 [
-    "Every measured number is a real string. The tool output is the exact JSON the MCP tool serializes (System.Text.Json, indented). The baseline is the actual bytes of the source an agent would otherwise read.",
+    "Every measured number is a real string. The tool output is the exact model-visible wire text: the ToolResult envelope serialized with the MCP SDK's own serializer (McpJsonUtilities.DefaultOptions — minified camelCase, default non-relaxed JSON escaping), byte-identical to the text content block the server emits over stdio. The baseline is the actual bytes of the source an agent would otherwise read.",
     "Tokens are counted with the cl100k_base BPE tokenizer (Microsoft.ML.Tokenizers, the gpt-4 encoding) — a documented, reproducible proxy for Claude's tokenizer, which is not published as a library. Character counts are included so nothing hinges on one tokenizer.",
     "Two baselines: B1 (whole-file) = the full text of the file(s) an agent must open to answer, matching how coding agents actually read. B2 (targeted) = only the relevant lines ±3 (a grep -C3 model), a conservative lower bound on savings.",
     "The headline pools clear navigation wins (outline, get_symbol_info metadata, find_references, find_implementations, get_call_graph). It excludes get_symbol_info includeSource=true (shown separately as the weaker case) and edit output (an output-token, not context, axis).",
