@@ -11,6 +11,7 @@ namespace RoselineMCP.Services;
 public class CodeFixProviderFactory : ICodeFixProviderFactory
 {
     private readonly ILogger<CodeFixProviderFactory> _logger;
+    private readonly IAnalyzerCatalog? _analyzerCatalog;
     private readonly Dictionary<string, Type> _providers = new();
     private bool _providersLoaded;
 
@@ -18,9 +19,15 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     /// Initializes a new instance of the CodeFixProviderFactory.
     /// </summary>
     /// <param name="logger">Logger for diagnostic output.</param>
-    public CodeFixProviderFactory(ILogger<CodeFixProviderFactory> logger)
+    /// <param name="analyzerCatalog">
+    /// Catalog of the bundled analyzer/fixer assemblies (Roslynator), which are scanned for
+    /// code fix providers in addition to the Roslyn built-ins. Optional so the factory can be
+    /// constructed without it (built-in fixers only); production DI always supplies it.
+    /// </param>
+    public CodeFixProviderFactory(ILogger<CodeFixProviderFactory> logger, IAnalyzerCatalog? analyzerCatalog = null)
     {
         _logger = logger;
+        _analyzerCatalog = analyzerCatalog;
         LoadProviders();
     }
 
@@ -74,11 +81,21 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
 
     private List<Assembly> GetAssembliesToScan()
     {
+        // Built-in Roslyn fixers first: registration is first-wins per diagnostic ID, so the
+        // built-in provider keeps precedence for IDs both it and Roslynator can fix.
         var assemblies = new List<Assembly> { typeof(CodeFixProvider).Assembly };
 
         TryLoadAssembly(assemblies, "Microsoft.CodeAnalysis.Features");
         TryLoadAssembly(assemblies, "Microsoft.CodeAnalysis.CSharp.Features");
+        // Kept for completeness, but Roslynator ships as analyzer-asset-only packages (no lib/),
+        // so this name-based load never succeeds from the build output — the Roslynator fixers
+        // actually come from the bundled analyzer catalog below.
         TryLoadAssembly(assemblies, "Roslynator.CodeFixes");
+
+        if (_analyzerCatalog != null)
+        {
+            assemblies.AddRange(_analyzerCatalog.Assemblies);
+        }
 
         return assemblies.Where(a => a != null).ToList();
     }

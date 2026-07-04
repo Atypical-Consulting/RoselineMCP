@@ -53,14 +53,42 @@
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.7.1" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="18.7.1" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.StringTools" Version="18.7.1" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0" PrivateAssets="all" />
-    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.15.0" PrivateAssets="all" />
-    <PackageReference Include="Roslynator.CodeFixes" Version="4.15.0" />
-    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.15.0" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.15.0" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.CodeFixes" Version="4.15.0" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.15.0" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.CodeAnalysis.Features" Version="5.6.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.6.0" />
     <PackageReference Include="DiffPlex" Version="1.9.0" />
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.9" />
+  </ItemGroup>
+
+  <!-- ═══ Bundled Roslynator analyzer + code fix assemblies ═══
+       The Roslynator packages above are analyzer-asset-only (no lib/ folder), so none of their
+       assemblies ever land in the build output on their own — Assembly.Load("Roslynator.*")
+       can never succeed from this app. To make Roslynator diagnostics and fixes real at
+       runtime, the roslyn4.7 analyzer assemblies (the newest variant those packages ship;
+       our Microsoft.CodeAnalysis is well above 4.7) are mirrored into an `analyzers/`
+       folder next to RoselineMCP.dll, where Services/AnalyzerCatalog discovers them via
+       Assembly.LoadFrom. Each package prefixes its internal dependency assemblies with its
+       own package name (e.g. Roslynator_CodeFixes_Roslynator.Common.dll — identity matches
+       the file name), so one flat folder has no collisions and same-directory dependency
+       probing resolves everything. As <None CopyToOutputDirectory> items they also flow to
+       referencing projects' output (the test project), to `dotnet publish` output (Docker),
+       and are packed into the dotnet tool via the explicit tools/ PackagePath. -->
+  <ItemGroup>
+    <RoslynatorAnalyzerAsset Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/roslyn4.7/cs/*.dll" Condition="'$(PkgRoslynator_Analyzers)' != ''" />
+    <RoslynatorAnalyzerAsset Include="$(PkgRoslynator_CodeAnalysis_Analyzers)/analyzers/dotnet/roslyn4.7/cs/*.dll" Condition="'$(PkgRoslynator_CodeAnalysis_Analyzers)' != ''" />
+    <RoslynatorAnalyzerAsset Include="$(PkgRoslynator_CodeFixes)/analyzers/dotnet/roslyn4.7/cs/*.dll" Condition="'$(PkgRoslynator_CodeFixes)' != ''" />
+    <RoslynatorAnalyzerAsset Include="$(PkgRoslynator_Formatting_Analyzers)/analyzers/dotnet/roslyn4.7/cs/*.dll" Condition="'$(PkgRoslynator_Formatting_Analyzers)' != ''" />
+    <!-- No explicit Pack/PackagePath needed: PackAsTool packs CopyToOutputDirectory items
+         (with their Link-relative path) under tools/$(TargetFramework)/any/ automatically,
+         exactly like the packaged appsettings.json. Verified: the nupkg contains all 31
+         DLLs at tools/net10.0/any/analyzers/. -->
+    <None Include="@(RoslynatorAnalyzerAsset)"
+          Link="analyzers/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

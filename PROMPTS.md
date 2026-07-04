@@ -3,11 +3,13 @@
 This document provides comprehensive examples and usage patterns for the RoselineMCP code analysis tools. These examples demonstrate real-world scenarios and best practices for analyzing and fixing C# code.
 
 > **A note on diagnostic IDs used below:** `CS*` (Roslyn compiler), `IDE*` (.NET analyzers), and
-> `RCS*` (Roslynator) diagnostics work out of the box, since RoselineMCP references Roslynator
-> directly. `SA*` (StyleCop) examples are included because they're a common real-world need, but
-> **RoselineMCP itself does not reference `StyleCop.Analyzers`** — those examples only produce
-> results/fixes if the *solution you point RoselineMCP at* has `StyleCop.Analyzers` in its own
-> `.csproj`. See [Supported Analyzers](README.md#supported-analyzers) in the README.
+> `RCS*` (Roslynator) diagnostics work out of the box — RoselineMCP bundles the Roslynator
+> analyzers/fixers and executes them by default (`RoselineMCP:RunAnalyzers`). `SA*` (StyleCop)
+> examples are included because they're a common real-world need, but
+> **RoselineMCP itself does not bundle `StyleCop.Analyzers`** — those examples only produce
+> results if the *solution you point RoselineMCP at* has `StyleCop.Analyzers` in its own
+> `.csproj` (reported via the project's own analyzer references; auto-fixing additionally needs a
+> loadable fixer). See [Supported Analyzers](README.md#supported-analyzers) in the README.
 
 ## Quick Start Examples
 

@@ -27,6 +27,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     private readonly IMSBuildService _msBuildService;
     private readonly IDiagnosticFilterService _filterService;
     private readonly IProjectLoader _projectLoader;
+    private readonly IDiagnosticComputationService _diagnosticComputation;
 
     /// <summary>
     /// Initializes a new instance of the SolutionAnalyzerService.
@@ -35,16 +36,21 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     /// <param name="msBuildService">Service for MSBuild operations (AnalyzeSolution path).</param>
     /// <param name="filterService">Service for filtering diagnostics.</param>
     /// <param name="projectLoader">Loader used by ListDiagnostics to resolve/load the target project.</param>
+    /// <param name="diagnosticComputation">Computes compiler + analyzer diagnostics per project.
+    /// When omitted, falls back to compiler-only diagnostics (production DI always supplies the
+    /// analyzer-aware implementation).</param>
     public SolutionAnalyzerService(
         ILogger<SolutionAnalyzerService> logger,
         IMSBuildService msBuildService,
         IDiagnosticFilterService filterService,
-        IProjectLoader projectLoader)
+        IProjectLoader projectLoader,
+        IDiagnosticComputationService? diagnosticComputation = null)
     {
         _logger = logger;
         _msBuildService = msBuildService;
         _filterService = filterService;
         _projectLoader = projectLoader;
+        _diagnosticComputation = diagnosticComputation ?? DiagnosticComputationService.CompilerOnly;
     }
 
     /// <inheritdoc/>
@@ -191,16 +197,22 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             return new ProjectAnalysisResult();
         }
 
-        var diagnostics = GetFilteredDiagnostics(compilation, context, cancellationToken);
+        var diagnostics = await GetFilteredDiagnosticsAsync(project, compilation, context, cancellationToken);
         return ProcessProjectDiagnostics(diagnostics, project.Name, context.MaxDiagnostics);
     }
 
-    private List<Diagnostic> GetFilteredDiagnostics(Compilation compilation, AnalysisContext context, CancellationToken cancellationToken)
+    private async Task<List<Diagnostic>> GetFilteredDiagnosticsAsync(
+        Project project,
+        Compilation compilation,
+        AnalysisContext context,
+        CancellationToken cancellationToken)
     {
+        // Compiler + analyzer diagnostics (see IDiagnosticComputationService).
         // Deliberately no Take() here: the summary must count every diagnostic that passes the
         // filters. Capping to MaxDiagnostics happens per project in ProcessProjectDiagnostics,
         // after sorting, so no high-severity diagnostic is dropped in favor of a lower one.
-        return compilation.GetDiagnostics(cancellationToken)
+        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        return allDiagnostics
             .Where(d => _filterService.ShouldIncludeDiagnostic(d, context.Severity))
             .ToList();
     }
@@ -335,7 +347,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 return new ListDiagnosticsResponse { Project = msProject.Name };
             }
 
-            var allDiagnostics = GetProjectDiagnostics(compilation, ids, files, cancellationToken);
+            var allDiagnostics = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
             var stats = CollectDiagnosticStatistics(allDiagnostics);
             var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
 
@@ -365,9 +377,16 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         return compilation;
     }
 
-    private List<Diagnostic> GetProjectDiagnostics(Compilation compilation, List<string>? ids, List<string>? files, CancellationToken cancellationToken)
+    private async Task<List<Diagnostic>> GetProjectDiagnosticsAsync(
+        Project project,
+        Compilation compilation,
+        List<string>? ids,
+        List<string>? files,
+        CancellationToken cancellationToken)
     {
-        return compilation.GetDiagnostics(cancellationToken)
+        // Compiler + analyzer diagnostics (see IDiagnosticComputationService).
+        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        return allDiagnostics
             .Where(d => !d.IsSuppressed)
             .Where(d => _filterService.FilterByIds(d, ids))
             .Where(d => _filterService.FilterByFiles(d, files))

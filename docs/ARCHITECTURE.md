@@ -37,6 +37,8 @@ RoselineMCP is built on a layered architecture that separates concerns and promo
 │  ├──────────────────────────────────────────────────┤  │
 │  │  • SolutionAnalyzerService                       │  │
 │  │  • CodeFixService                                │  │
+│  │  • AnalyzerCatalog                               │  │
+│  │  • DiagnosticComputationService                  │  │
 │  │  • DiagnosticFilterService                       │  │
 │  │  • CodeFixProviderFactory                        │  │
 │  │  • PatchService / DiffService                    │  │
@@ -111,9 +113,25 @@ Location: `Services/` and `Interfaces/`
 
 **SolutionAnalyzerService**
 - Analyzes C# solutions and projects
-- Collects diagnostics from Roslyn compilation
+- Collects diagnostics via `DiagnosticComputationService` (compiler + analyzers)
 - Filters and aggregates results
 - Manages MSBuildWorkspace lifecycle
+
+**AnalyzerCatalog**
+- Loads the Roslynator analyzer/fixer assemblies bundled in the `analyzers/` folder next to
+  `RoselineMCP.dll` (the Roslynator packages are analyzer-asset-only — no `lib/` — so the csproj
+  mirrors them into the build/publish/tool output)
+- Instantiates every C#-supporting `DiagnosticAnalyzer` once (lazy, cached)
+- Exposes the raw assemblies for `CodeFixProviderFactory` to scan
+
+**DiagnosticComputationService**
+- The single shared "diagnostics for this project" pass behind `AnalyzeSolution`,
+  `ListDiagnostics`, and `ApplyFixes`
+- Combines `Compilation.GetDiagnostics()` with `CompilationWithAnalyzers` over the bundled
+  catalog plus the target project's own `AnalyzerReferences` (deduped by analyzer type)
+- Per-analyzer exceptions are logged and skipped (`onAnalyzerException`); a failed analyzer pass
+  degrades to compiler-only rather than failing the tool
+- `RoselineMCP:RunAnalyzers = false` skips analyzers entirely (compiler-only)
 
 **CodeFixService**
 - Applies automated code fixes
@@ -320,8 +338,9 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
 
 Projects within a solution are analyzed **concurrently** — `AnalyzeSolution` runs the per-project
 compilation/diagnostics work through `Parallel.ForEachAsync` bounded by
-`Environment.ProcessorCount`. `Project.GetCompilationAsync`/`Compilation.GetDiagnostics` are safe
-to run in parallel across independent projects of one loaded solution. Each project writes its
+`Environment.ProcessorCount`. `Project.GetCompilationAsync`/`Compilation.GetDiagnostics` — and the
+per-project `CompilationWithAnalyzers` analyzer pass (itself run with `concurrentAnalysis: true`)
+— are safe to run in parallel across independent projects of one loaded solution. Each project writes its
 result into its own slot (no shared mutable state across workers) and results are merged
 afterwards, so the output is deterministic regardless of completion order; progress notifications
 are emitted from a completed-project counter under a lock so the reported value strictly
@@ -397,9 +416,16 @@ restating an idealized version.
 
 ### Adding New Analyzers
 
-1. Add analyzer NuGet package
-2. Automatically discovered by Roslyn
-3. Fix providers loaded dynamically
+Two paths, depending on whose analyzers they are:
+
+1. **In the analyzed solution** — add the analyzer NuGet package to the *target* project;
+   RoselineMCP picks it up from the project's `AnalyzerReferences` at analysis time (no
+   RoselineMCP change needed). Fixes require a fixer RoselineMCP can load.
+2. **Bundled with RoselineMCP** — reference the package in `RoselineMCP.csproj` with
+   `GeneratePathProperty="true"` and add its `analyzers/dotnet/.../cs/*.dll` to the
+   `RoslynatorAnalyzerAsset` item group so the DLLs land in the output `analyzers/` folder;
+   `AnalyzerCatalog` discovers analyzers and `CodeFixProviderFactory` discovers fixers from
+   there automatically.
 
 ## Configuration
 

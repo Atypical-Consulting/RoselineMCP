@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Analyzer diagnostics are real: the diagnostics tools now run Roslyn analyzers, and Roslynator
+  fixes actually work.** Previously every diagnostics path used `compilation.GetDiagnostics()`
+  (compiler-only), so RCS*/custom-analyzer diagnostics could never appear in
+  `analyze_solution`/`list_diagnostics` and `apply_fixes` could never see them — and the
+  Roslynator packages are analyzer-asset-only (no `lib/`), so their fix providers never even
+  loaded. Now the Roslynator analyzer/fixer assemblies are bundled with RoselineMCP (an
+  `analyzers/` folder next to `RoselineMCP.dll`, shipped in the dotnet tool and Docker image),
+  loaded at runtime (`AnalyzerCatalog`), and executed via `CompilationWithAnalyzers` together
+  with the target project's own analyzer references (deduped by analyzer type) in one shared
+  pass (`DiagnosticComputationService`) behind all three diagnostics tools. Roslynator's ~440
+  fixable rules are discovered as code fix providers, so `list_diagnostics` suggests RCS IDs as
+  fixable and `apply_fixes` genuinely fixes them. A broken analyzer is logged and skipped —
+  never failing the tool call. New `RoselineMCP:RunAnalyzers` setting (default `true`); set to
+  `false` for the old, faster compiler-only behavior. Note that running a target project's own
+  analyzers executes third-party code at analysis time — see the new SECURITY.md section.
+
 ### Fixed
 - `list_diagnostics`/`apply_fixes` no longer select a project by **substring** match against project file paths (asking for `Foo` could analyze `FooBar`) — project selection inside a solution now matches the exact (case-insensitive) name, via the shared `ProjectLoader`.
 - Docs drift found in the v2.0.0 audit: corrected the README's Roslyn version (5.3.0 → 5.6.0), repaired the changelog reference links (stale `[Unreleased]` compare, missing 1.3.x–2.0.0 definitions), reframed the benchmark headlines around the robust median (85%, pooled 88% kept as a labeled secondary figure) and labeled the agent benchmark's ~50% as the forced-use ceiling (~13% realistic, n=1), refreshed the NuGet package `Description` to the v2 positioning, and added the missing `max` parameter to the README `getTypeHierarchy` snippet.
