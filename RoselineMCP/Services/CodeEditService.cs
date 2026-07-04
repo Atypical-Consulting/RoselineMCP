@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Rename;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using RoselineMCP.Interfaces;
@@ -80,7 +81,8 @@ public class CodeEditService : ICodeEditService
         var newDocument = formatEditedNode
             ? await Formatter.FormatAsync(editedDocument, Formatter.Annotation, options: null, cancellationToken)
             : editedDocument;
-        var newText = (await newDocument.GetTextAsync(cancellationToken)).ToString();
+        var newSourceText = await newDocument.GetTextAsync(cancellationToken);
+        var newText = newSourceText.ToString();
 
         var relativePath = RelativePath(loaded.Project, filePath);
         var response = new EditMemberResponse
@@ -103,7 +105,8 @@ public class CodeEditService : ICodeEditService
 
         if (!previewOnly)
         {
-            await File.WriteAllTextAsync(filePath, newText, cancellationToken);
+            // Write with the file's original encoding (BOM included) — see SourceTextWriter.
+            await SourceTextWriter.WriteAsync(filePath, newSourceText, cancellationToken);
             response.Applied = true;
             response.Notes.Add($"Wrote changes to {relativePath}.");
         }
@@ -258,7 +261,7 @@ public class CodeEditService : ICodeEditService
         };
 
         var patchBuilder = new StringBuilder();
-        var filesToWrite = new List<(string Path, string Text)>();
+        var filesToWrite = new List<(string Path, SourceText Text)>();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var projectChange in newSolution.GetChanges(originalSolution).GetProjectChanges())
@@ -275,7 +278,8 @@ public class CodeEditService : ICodeEditService
                 }
 
                 var oldText = (await oldDocument.GetTextAsync(cancellationToken)).ToString();
-                var newText = (await newDocument.GetTextAsync(cancellationToken)).ToString();
+                var newSourceText = await newDocument.GetTextAsync(cancellationToken);
+                var newText = newSourceText.ToString();
                 if (oldText == newText)
                 {
                     continue;
@@ -290,7 +294,7 @@ public class CodeEditService : ICodeEditService
 
                 patchBuilder.AppendLine(diff);
                 response.ChangedFiles.Add(relativePath);
-                filesToWrite.Add((oldDocument.FilePath, newText));
+                filesToWrite.Add((oldDocument.FilePath, newSourceText));
             }
         }
 
@@ -306,7 +310,8 @@ public class CodeEditService : ICodeEditService
         {
             foreach (var (path, text) in filesToWrite)
             {
-                await File.WriteAllTextAsync(path, text, cancellationToken);
+                // Write with each file's original encoding (BOM included) — see SourceTextWriter.
+                await SourceTextWriter.WriteAsync(path, text, cancellationToken);
             }
 
             response.Applied = true;

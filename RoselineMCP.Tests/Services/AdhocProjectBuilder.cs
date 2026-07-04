@@ -14,11 +14,17 @@ namespace RoselineMCP.Tests.Services;
 /// </summary>
 internal static class AdhocProjectBuilder
 {
-    /// <summary>Creates a workspace + project containing <paramref name="files"/> (name → C# source).</summary>
+    /// <summary>
+    /// Creates a workspace + project containing <paramref name="files"/> (name → C# source).
+    /// <paramref name="encoding"/> is attached to each document's <see cref="SourceText"/>, mirroring
+    /// how MSBuildWorkspace records the on-disk encoding when it loads real files (null = in-memory
+    /// text with no encoding).
+    /// </summary>
     public static (AdhocWorkspace Workspace, Project Project) Create(
         string projectName,
         IEnumerable<(string Name, string Code)> files,
-        string? baseDirectory = null)
+        string? baseDirectory = null,
+        System.Text.Encoding? encoding = null)
     {
         baseDirectory ??= Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
 
@@ -47,7 +53,7 @@ internal static class AdhocProjectBuilder
         {
             var documentId = DocumentId.CreateNewId(projectId);
             solution = solution.AddDocument(
-                documentId, name, SourceText.From(code),
+                documentId, name, SourceText.From(code, encoding),
                 filePath: Path.Combine(baseDirectory, name));
         }
 

@@ -62,13 +62,16 @@ public class CodeFixService : ICodeFixService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Resolve the project before creating a workspace so a missing project fails fast
+            // with FileNotFoundException (classified as NotFoundError at the tool boundary).
+            var projectPath = ResolveProjectPath(project);
+
             // Create a temporary workspace
             using var workspace = _msBuildService.CreateWorkspace();
 
             workspace.WorkspaceFailed += (sender, e) => _logger.LogWarning("Workspace failed: {Message}", e.Diagnostic.Message);
 
             // Load the project
-            var projectPath = ResolveProjectPath(project);
             _logger.LogInformation("Loading project for fixes: {Path}", projectPath);
             progress?.Report(new ProgressNotificationValue { Progress = 0, Total = ids.Count, Message = "Loading project via MSBuild…" });
 
@@ -217,7 +220,8 @@ public class CodeFixService : ICodeFixService
                     if (document != null)
                     {
                         var text = await document.GetTextAsync(cancellationToken);
-                        await File.WriteAllTextAsync(filePath, text.ToString(), cancellationToken);
+                        // Write with the file's original encoding (BOM included) — see SourceTextWriter.
+                        await SourceTextWriter.WriteAsync(filePath, text, cancellationToken);
                     }
                 }
 
@@ -232,24 +236,209 @@ public class CodeFixService : ICodeFixService
         }
         catch (OperationCanceledException)
         {
-            // Let cancellation (caller-initiated or the DefaultTimeout linked token) propagate
-            // uncaught rather than being folded into a normal-looking completed response — the
-            // MCP tool boundary (ApplyFixesTool) has a dedicated catch for this and reports it
-            // as a Cancelled/Timeout error instead of a fake success.
+            // Log for diagnosability, then let cancellation (caller-initiated or the
+            // DefaultTimeout linked token) propagate — the MCP tool boundary (ApplyFixesTool)
+            // has a dedicated catch for this and reports it as a Cancelled/Timeout error.
             _logger.LogWarning("Apply fixes operation was cancelled");
             throw;
         }
-        catch (Exception ex)
+        // Any other exception (missing project, MSBuild load failure, ...) propagates to the
+        // MCP tool boundary, where ToolExecutionHelper.Error classifies it into the documented
+        // closed error-type set and returns the { ok: false, error: ... } envelope. Folding such
+        // failures into a normal-looking response here would make the tool report ok: true for
+        // an operation that actually failed. Per-diagnostic-ID fixer errors are still handled
+        // gracefully above (as Notes entries) so one broken fixer doesn't abort the whole run.
+    }
+
+    /// <summary>
+    /// Applies fixes for a single diagnostic ID. When the provider ships a
+    /// <see cref="FixAllProvider"/> that supports <see cref="FixAllScope.Project"/>, all
+    /// occurrences are fixed in one batch pass (<see cref="TryApplyFixAllAsync"/>) — a single
+    /// compilation instead of one full re-analysis per occurrence. Any occurrences the batch
+    /// pass did not cover (or every occurrence, for providers without FixAll support) are then
+    /// handled by the per-occurrence fallback (<see cref="ApplyFixesOccurrenceByOccurrenceAsync"/>).
+    /// </summary>
+    /// <param name="solution">The solution to start from.</param>
+    /// <param name="projectId">The ID of the project being fixed.</param>
+    /// <param name="diagnosticId">The diagnostic ID to fix.</param>
+    /// <param name="provider">The code fix provider to use.</param>
+    /// <param name="changedDocuments">Accumulator of file paths that were modified.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>The resulting solution, how many fixes were applied, and whether any matching diagnostics existed.</returns>
+    private async Task<(Solution Solution, int FixedCount, bool AnyDiagnosticsFound)> ApplyFixesForDiagnosticIdAsync(
+        Solution solution,
+        ProjectId projectId,
+        string diagnosticId,
+        CodeFixProvider provider,
+        HashSet<string> changedDocuments,
+        CancellationToken cancellationToken)
+    {
+        var initialDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken);
+        if (initialDiagnostics.Count == 0) return (solution, 0, false);
+
+        var totalFixed = 0;
+        var remaining = initialDiagnostics.Count;
+
+        var fixAllProvider = provider.GetFixAllProvider();
+        if (fixAllProvider != null && fixAllProvider.GetSupportedFixAllScopes().Contains(FixAllScope.Project))
         {
-            _logger.LogError(ex, "Failed to apply fixes");
-            response.Notes.Add($"Error: {ex.Message}");
-            return response;
+            var (fixAllSolution, fixedByFixAll) = await TryApplyFixAllAsync(
+                solution, projectId, diagnosticId, provider, fixAllProvider, initialDiagnostics, changedDocuments, cancellationToken);
+
+            if (fixedByFixAll > 0)
+            {
+                solution = fixAllSolution;
+                totalFixed += fixedByFixAll;
+                remaining -= fixedByFixAll;
+            }
         }
+
+        if (remaining > 0)
+        {
+            var (loopSolution, fixedByLoop) = await ApplyFixesOccurrenceByOccurrenceAsync(
+                solution, projectId, diagnosticId, provider, changedDocuments, remaining, cancellationToken);
+            solution = loopSolution;
+            totalFixed += fixedByLoop;
+        }
+
+        return (solution, totalFixed, true);
+    }
+
+    /// <summary>
+    /// The diagnostics with the given ID currently reported for the project: unsuppressed and
+    /// located in source (the only occurrences a code fix can be applied to).
+    /// </summary>
+    private static async Task<List<Diagnostic>> GetMatchingDiagnosticsAsync(
+        Solution solution,
+        ProjectId projectId,
+        string diagnosticId,
+        CancellationToken cancellationToken)
+    {
+        var project = solution.GetProject(projectId);
+        if (project == null) return [];
+
+        var compilation = await project.GetCompilationAsync(cancellationToken);
+        if (compilation == null) return [];
+
+        return compilation.GetDiagnostics(cancellationToken)
+            .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Fixes every occurrence of <paramref name="diagnosticId"/> in one batch pass through the
+    /// provider's own <see cref="FixAllProvider"/>, instead of re-compiling the project after
+    /// each individual fix. The equivalence key that selects which code action to batch is taken
+    /// from the first registered action of the first occurrence — the same action the
+    /// per-occurrence path would apply. Returns the original solution and a count of 0 whenever
+    /// the batch pass cannot be used or fixed nothing (no registered action, no fix-all action,
+    /// no <see cref="ApplyChangesOperation"/>, or no diagnostic actually disappeared), leaving
+    /// the per-occurrence fallback to handle everything from the unchanged solution. The fixed
+    /// count is computed by re-counting matching diagnostics after the pass, so occurrences the
+    /// batch could not fix are reported accurately and handed to the fallback.
+    /// </summary>
+    private async Task<(Solution Solution, int FixedCount)> TryApplyFixAllAsync(
+        Solution solution,
+        ProjectId projectId,
+        string diagnosticId,
+        CodeFixProvider provider,
+        FixAllProvider fixAllProvider,
+        List<Diagnostic> diagnostics,
+        HashSet<string> changedDocuments,
+        CancellationToken cancellationToken)
+    {
+        var project = solution.GetProject(projectId);
+        if (project == null) return (solution, 0);
+
+        var firstDiagnostic = diagnostics
+            .OrderBy(d => d.Location.SourceTree!.FilePath, StringComparer.Ordinal)
+            .ThenBy(d => d.Location.SourceSpan.Start)
+            .First();
+
+        var document = project.Documents.FirstOrDefault(doc =>
+            doc.FilePath == firstDiagnostic.Location.SourceTree!.FilePath);
+        if (document == null) return (solution, 0);
+
+        var registeredActions = new List<CodeAction>();
+        var context = new CodeFixContext(
+            document,
+            firstDiagnostic,
+            (action, _) => registeredActions.Add(action),
+            cancellationToken);
+
+        await provider.RegisterCodeFixesAsync(context);
+        if (registeredActions.Count == 0) return (solution, 0);
+
+        var fixAllContext = new FixAllContext(
+            document,
+            provider,
+            FixAllScope.Project,
+            registeredActions[0].EquivalenceKey,
+            [diagnosticId],
+            new PrecomputedDiagnosticProvider(diagnostics),
+            cancellationToken);
+
+        var fixAllAction = await fixAllProvider.GetFixAsync(fixAllContext);
+        if (fixAllAction == null) return (solution, 0);
+
+        var operations = await fixAllAction.GetOperationsAsync(cancellationToken);
+        var operation = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
+        if (operation == null) return (solution, 0);
+
+        var newSolution = operation.ChangedSolution;
+
+        // FixedCount is the number of occurrences that actually disappeared, so the response
+        // contract stays identical to the per-occurrence path.
+        var remainingDiagnostics = await GetMatchingDiagnosticsAsync(newSolution, projectId, diagnosticId, cancellationToken);
+        var fixedCount = diagnostics.Count - remainingDiagnostics.Count;
+        if (fixedCount <= 0)
+        {
+            // The batch pass fixed nothing — discard it and let the per-occurrence fallback
+            // work from the unchanged solution.
+            return (solution, 0);
+        }
+
+        foreach (var projectChanges in newSolution.GetChanges(solution).GetProjectChanges())
+        {
+            foreach (var documentId in projectChanges.GetChangedDocuments())
+            {
+                var changedDocument = newSolution.GetDocument(documentId);
+                if (changedDocument?.FilePath != null)
+                {
+                    changedDocuments.Add(changedDocument.FilePath);
+                }
+            }
+        }
+
+        _logger.LogDebug("Applied FixAll for {Id}: {Count} occurrence(s) fixed in one pass", diagnosticId, fixedCount);
+        return (newSolution, fixedCount);
+    }
+
+    /// <summary>
+    /// Serves the compiler diagnostics already computed for the project snapshot a
+    /// <see cref="FixAllContext"/> is built from, so the batch fixer does not trigger another
+    /// full re-analysis. Every served diagnostic is located in source (see
+    /// <see cref="GetMatchingDiagnosticsAsync"/>), so there are no project-level diagnostics.
+    /// </summary>
+    private sealed class PrecomputedDiagnosticProvider(List<Diagnostic> diagnostics) : FixAllContext.DiagnosticProvider
+    {
+        public override Task<IEnumerable<Diagnostic>> GetAllDiagnosticsAsync(Project project, CancellationToken cancellationToken) =>
+            Task.FromResult<IEnumerable<Diagnostic>>(diagnostics);
+
+        public override Task<IEnumerable<Diagnostic>> GetDocumentDiagnosticsAsync(Document document, CancellationToken cancellationToken) =>
+            Task.FromResult<IEnumerable<Diagnostic>>(
+                diagnostics.Where(d => d.Location.SourceTree?.FilePath == document.FilePath).ToList());
+
+        public override Task<IEnumerable<Diagnostic>> GetProjectDiagnosticsAsync(Project project, CancellationToken cancellationToken) =>
+            Task.FromResult(Enumerable.Empty<Diagnostic>());
     }
 
     /// <summary>
     /// Applies fixes for a single diagnostic ID, one occurrence at a time, re-analyzing the
     /// solution after every applied fix so that later occurrences see up-to-date source text.
+    /// This is the fallback for providers without a Project-scope <see cref="FixAllProvider"/>
+    /// (and the mop-up for occurrences a batch pass did not cover — see
+    /// <see cref="TryApplyFixAllAsync"/>).
     /// This intentionally avoids any concurrency: a prior fix can shift line/column offsets
     /// for other diagnostics in the same document, so each <see cref="CodeFixContext"/> is
     /// built from a freshly recomputed diagnostic against the latest solution snapshot, and
@@ -269,30 +458,21 @@ public class CodeFixService : ICodeFixService
     /// <param name="diagnosticId">The diagnostic ID to fix.</param>
     /// <param name="provider">The code fix provider to use.</param>
     /// <param name="changedDocuments">Accumulator of file paths that were modified.</param>
+    /// <param name="remainingCount">How many matching occurrences are still expected to exist.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>The resulting solution, how many fixes were applied, and whether any matching diagnostics existed.</returns>
-    private async Task<(Solution Solution, int FixedCount, bool AnyDiagnosticsFound)> ApplyFixesForDiagnosticIdAsync(
+    /// <returns>The resulting solution and how many fixes were applied.</returns>
+    private async Task<(Solution Solution, int FixedCount)> ApplyFixesOccurrenceByOccurrenceAsync(
         Solution solution,
         ProjectId projectId,
         string diagnosticId,
         CodeFixProvider provider,
         HashSet<string> changedDocuments,
+        int remainingCount,
         CancellationToken cancellationToken)
     {
-        var project = solution.GetProject(projectId);
-        if (project == null) return (solution, 0, false);
-
-        var compilation = await project.GetCompilationAsync(cancellationToken);
-        if (compilation == null) return (solution, 0, false);
-
-        var initialCount = compilation.GetDiagnostics(cancellationToken)
-            .Count(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null);
-
-        if (initialCount == 0) return (solution, 0, false);
-
         // Bound the number of re-analysis passes so a fixer that keeps registering a
         // no-op/ineffective action for the same occurrence can't loop forever.
-        var maxIterations = initialCount + 5;
+        var maxIterations = remainingCount + 5;
         var fixedCount = 0;
 
         // Occurrences that turned out to be unfixable (no usable code action) are remembered
@@ -304,10 +484,10 @@ public class CodeFixService : ICodeFixService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            project = solution.GetProject(projectId);
+            var project = solution.GetProject(projectId);
             if (project == null) break;
 
-            compilation = await project.GetCompilationAsync(cancellationToken);
+            var compilation = await project.GetCompilationAsync(cancellationToken);
             if (compilation == null) break;
 
             var diagnostic = compilation.GetDiagnostics(cancellationToken)
@@ -366,7 +546,7 @@ public class CodeFixService : ICodeFixService
             _logger.LogDebug("Applied fix for {Id} in {File}", diagnosticId, document.Name);
         }
 
-        return (solution, fixedCount, true);
+        return (solution, fixedCount);
     }
 
     private string ResolveProjectPath(string project)

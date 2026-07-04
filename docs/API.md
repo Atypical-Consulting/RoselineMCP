@@ -918,8 +918,11 @@ needed. Each MCP tool call is bounded by a configurable wall-clock timeout inste
 - **AnalyzeSolution**: proportional to the number of projects times diagnostics per project;
   projects within a solution are analyzed concurrently, bounded by the processor count
 - **ListDiagnostics**: proportional to diagnostics in the target project
-- **ApplyFixes**: proportional to files touched times diagnostics fixed per file; each diagnostic
-  ID is fixed occurrence-by-occurrence, re-analyzing the solution after every applied fix
+- **ApplyFixes**: proportional to files touched times diagnostics fixed per file; when the fix
+  provider supports FixAll at project scope (most built-in and Roslynator fixers do), all
+  occurrences of a diagnostic ID are fixed in a single batch pass. Providers without FixAll
+  support fall back to occurrence-by-occurrence fixing, re-analyzing the solution after every
+  applied fix
 - **CreatePatch**: proportional to the number of lines in the two inputs
 
 ### Recommendations
