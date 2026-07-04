@@ -78,6 +78,10 @@
       "description": "A type's base-class chain, interfaces, and derived types."
     },
     {
+      "name": "get_symbol_at_position",
+      "description": "The symbol at a file:line(:column) — turn a diagnostic, stack trace, or grep hit into a symbol name."
+    },
+    {
       "name": "edit_member",
       "description": "Replace, add, or delete a single type member; preview-only by default."
     },

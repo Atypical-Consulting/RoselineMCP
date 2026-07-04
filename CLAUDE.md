@@ -146,6 +146,7 @@ every project in it — a symbol declared only in a sibling project the anchor d
 - **8. FindImplementations** — `project`, `symbol`, `max`. Returns implementations/overrides/derived types.
 - **9. GetCallGraph** — `project`, `method`, `direction` (callers|callees|both), `depth` (1-3), `max`. Returns a cycle-safe call tree.
 - **10. GetTypeHierarchy** — `project`, `type`, `direction` (base|derived|both). Returns base chain, interfaces, derived types.
+- **13. GetSymbolAtPosition** — `project`, `file` (name or path suffix), `line` (1-based), `column` (optional, 1-based). Resolves a file:line(:column) — from a diagnostic, stack trace, grep, or `find_references` — to the symbol there (declared or referenced; line-only prefers declarations). Returns name/fullName/kind/signature/containingType/`isDeclaration`/definition location (+ optional docs); empty/absent fields are omitted.
 
 ### Code Editing Tools (write, `previewOnly` defaults to true)
 Surgical edits (backed by `ICodeEditService` / `CodeEditService`, reusing `IDiffService`). Like

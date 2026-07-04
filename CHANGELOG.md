@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New `get_symbol_at_position` navigation tool: resolves a `file:line(:column)` position (from a diagnostic, stack trace, grep hit, or `find_references` result) to the symbol living there — returning its name, fullName, kind, signature, definition location, and whether the position is the symbol's own declaration — so agents no longer have to read the file to guess a symbol name. Line-only queries prefer declarations on the line over referenced symbols.
+
 ### Fixed
 - Docs drift found in the v2.0.0 audit: corrected the README's Roslyn version (5.3.0 → 5.6.0), repaired the changelog reference links (stale `[Unreleased]` compare, missing 1.3.x–2.0.0 definitions), reframed the benchmark headlines around the robust median (85%, pooled 88% kept as a labeled secondary figure) and labeled the agent benchmark's ~50% as the forced-use ceiling (~13% realistic, n=1), refreshed the NuGet package `Description` to the v2 positioning, and added the missing `max` parameter to the README `getTypeHierarchy` snippet.
 - `ApplyFixes` no longer reports `ok: true` with an `Error: …` note when the operation itself

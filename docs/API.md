@@ -15,6 +15,7 @@ Complete API reference for RoselineMCP tools and services.
   - [FindImplementations](#findimplementations)
   - [GetCallGraph](#getcallgraph)
   - [GetTypeHierarchy](#gettypehierarchy)
+  - [GetSymbolAtPosition](#getsymbolatposition)
   - [EditMember](#editmember)
   - [RenameSymbol](#renamesymbol)
 - [Tool Annotations](#tool-annotations)
@@ -489,6 +490,44 @@ A type's base-class chain, implemented interfaces, and/or derived types. **Read-
 }
 ```
 
+### GetSymbolAtPosition
+
+The symbol living at a `file:line(:column)` position — the bridge from a diagnostic, stack trace,
+or grep hit to the symbol-name-based tools above. **Read-only.**
+
+#### Request
+
+```typescript
+{
+  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  file: string;     // File name or path suffix (same matching as SearchSymbols' `file`)
+  line: number;     // 1-based
+  column?: number;  // 1-based; omit to resolve the most relevant symbol on the line
+}
+```
+
+Without a `column`, declarations on the line win over referenced symbols (so a method's declaration
+line returns that method); with a `column`, whatever is bound at that exact position wins, falling
+back to the enclosing declaration (a position on the modifiers or return type still means that
+declaration). An out-of-range `line`/`column` is a `ValidationError`; an unknown file, or a position
+with no symbol (e.g. a blank or comment line), is a `NotFoundError`.
+
+#### Response
+
+```typescript
+{
+  name: string;
+  fullName: string;
+  kind: string;               // e.g. "method", "class", "local"
+  signature: string;          // Already carries the accessibility keyword
+  containingType?: string;    // Simple (unqualified) container name; omitted for top-level symbols
+  isDeclaration: boolean;     // True when the position sits on the symbol's own declaration
+  documentation?: string;     // XML <summary> text, whitespace-collapsed; omitted when absent
+  definitionFile?: string;    // Solution-root-relative, forward slashes; omitted when metadata-only
+  definitionLine?: number;    // 1-based; omitted when metadata-only
+}
+```
+
 ### EditMember
 
 Replace, add, or delete a single type member; returns a unified diff. **Defaults to preview mode**
@@ -571,6 +610,7 @@ Every tool declares the standard MCP annotation hints (`readOnlyHint`, `destruct
 | `FindImplementations` | `true` | `false` | `true` |
 | `GetCallGraph` | `true` | `false` | `true` |
 | `GetTypeHierarchy` | `true` | `false` | `true` |
+| `GetSymbolAtPosition` | `true` | `false` | `true` |
 | `EditMember` | `false` | `true`\* | `false` |
 | `RenameSymbol` | `false` | `true`\* | `false` |
 
@@ -661,7 +701,7 @@ public interface IDiagnosticFilterService
 
 ### ICodeNavigationService
 
-Read-only structural/semantic navigation (backs the six navigation tools).
+Read-only structural/semantic navigation (backs the seven navigation tools).
 
 ```csharp
 public interface ICodeNavigationService
@@ -672,6 +712,10 @@ public interface ICodeNavigationService
 
     Task<SymbolInfoResponse> GetSymbolInfoAsync(
         string? project, string symbol, bool includeSource,
+        CancellationToken cancellationToken = default);
+
+    Task<SymbolAtPositionResponse> GetSymbolAtPositionAsync(
+        string? project, string file, int line, int? column,
         CancellationToken cancellationToken = default);
 
     Task<ReferencesResponse> FindReferencesAsync(
@@ -828,6 +872,7 @@ the [MCP Tools](#mcp-tools) sections above; the C# types are:
 
 - `SymbolSearchResponse` — `project`, `query`, `file`, `totalFound`, `truncated?` (omitted when not capped), `symbols: SymbolSummary[]`
 - `SymbolInfoResponse` — `name`, `fullName`, `kind`, `signature`, and (omitted when empty/absent) `modifiers[]`, `baseTypes[]`, `interfaces[]`, `documentation`, `definitionFile`, `definitionLine`, `source` (no `accessibility` — it is inside `signature`)
+- `SymbolAtPositionResponse` — `name`, `fullName`, `kind`, `signature`, `isDeclaration`, and (omitted when empty/absent) `containingType` (simple name), `documentation`, `definitionFile`, `definitionLine`
 - `ReferencesResponse` — `symbol`, `fullName`, `totalReferences`, `truncated?` (omitted when not capped), `references: ReferenceLocation[]` (`file`, `line`, `snippet`)
 - `ImplementationsResponse` — `symbol`, `fullName`, `kind`, `totalFound`, `truncated?` (omitted when not capped), `implementations: SymbolSummary[]`
 - `CallGraphResponse` — `method`, `fullName`, `direction`, `depth`, `callers?`, `callees?` of `CallGraphNode` (`fullName` with simple parameter-type names, `file`, `line`, `truncated?`, `children?`; no per-node `signature`)
