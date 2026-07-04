@@ -2,22 +2,41 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
+# The runtime stage below is alpine (musl) and docker-publish.yml builds linux/amd64 +
+# linux/arm64, so map BuildKit's TARGETARCH to the matching musl RID. The RID is passed on
+# the command line only - RoselineMCP.csproj intentionally sets no RuntimeIdentifier(s)
+# (it would break the PackAsTool NuGet package; see the comment there).
+ARG TARGETARCH
+RUN arch="${TARGETARCH:-$(uname -m)}" \
+    && case "$arch" in \
+         amd64|x86_64)  rid=linux-musl-x64 ;; \
+         arm64|aarch64) rid=linux-musl-arm64 ;; \
+         *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && echo "$rid" > /tmp/rid
+
 # Copy solution and project files for layer caching
 COPY RoselineMCP.sln ./
 COPY RoselineMCP/RoselineMCP.csproj RoselineMCP/
 COPY RoselineMCP.Tests/RoselineMCP.Tests.csproj RoselineMCP.Tests/
 COPY RoselineMCP.Benchmarks/RoselineMCP.Benchmarks.csproj RoselineMCP.Benchmarks/
 
-# Restore dependencies
-RUN dotnet restore
+# Restore dependencies. PublishReadyToRun must also be set here so the crossgen2
+# compiler pack is acquired for the --no-restore publish below.
+RUN dotnet restore -r "$(cat /tmp/rid)" -p:PublishReadyToRun=true
 
 # Copy source
 COPY . .
 
-# Publish
+# Publish framework-dependent but RID-specific, with ReadyToRun (AOT-precompiled native
+# code alongside the IL) to cut JIT work on cold start - measured first-call latency was
+# ~1456 ms cold vs ~590 ms warm, and most of that gap is JIT/assembly load.
 RUN dotnet publish RoselineMCP/RoselineMCP.csproj \
     -c Release \
     --no-restore \
+    -r "$(cat /tmp/rid)" \
+    --self-contained false \
+    -p:PublishReadyToRun=true \
     -o /app/publish
 
 # Stage 2: Runtime

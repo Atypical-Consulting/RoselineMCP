@@ -12,8 +12,9 @@ namespace RoselineMCP.Interfaces;
 public interface IProjectLoader
 {
     /// <summary>
-    /// Resolves and loads <paramref name="project"/>, returning a disposable handle that owns the
-    /// underlying <see cref="Workspace"/>. Dispose it to release the workspace.
+    /// Resolves and loads <paramref name="project"/>, returning a disposable handle. Always dispose
+    /// the handle: it releases the underlying <see cref="Workspace"/> when it owns it (the default
+    /// loader), and is a safe no-op for the shared workspaces handed out by the caching loader.
     /// </summary>
     /// <param name="project">
     /// Project name, directory containing a single <c>.csproj</c>, a path to a <c>.csproj</c> file,
@@ -27,13 +28,17 @@ public interface IProjectLoader
 }
 
 /// <summary>
-/// Disposable result of <see cref="IProjectLoader.LoadAsync"/>. Owns the underlying
-/// <see cref="Workspace"/>; disposing the handle disposes the workspace. The workspace is typed as
-/// the <see cref="Workspace"/> base class (rather than <c>MSBuildWorkspace</c>) so tests can supply an
-/// in-memory <c>AdhocWorkspace</c> without pulling in MSBuild.
+/// Disposable result of <see cref="IProjectLoader.LoadAsync"/>. By default the handle owns the
+/// underlying <see cref="Workspace"/> and disposing the handle disposes the workspace; a caching
+/// loader hands out non-owning handles (<c>ownsWorkspace: false</c>) so disposing them leaves the
+/// shared, cached workspace alive. The workspace is typed as the <see cref="Workspace"/> base class
+/// (rather than <c>MSBuildWorkspace</c>) so tests can supply an in-memory <c>AdhocWorkspace</c>
+/// without pulling in MSBuild.
 /// </summary>
 public sealed class LoadedProject : IDisposable
 {
+    private readonly bool _ownsWorkspace;
+
     /// <summary>The workspace the project/solution was loaded into.</summary>
     public Workspace Workspace { get; }
 
@@ -44,13 +49,28 @@ public sealed class LoadedProject : IDisposable
     public Project Project { get; }
 
     /// <summary>Initializes a new <see cref="LoadedProject"/>.</summary>
-    public LoadedProject(Workspace workspace, Solution solution, Project project)
+    /// <param name="workspace">The workspace the project/solution was loaded into.</param>
+    /// <param name="solution">The loaded solution snapshot.</param>
+    /// <param name="project">The primary project within <paramref name="solution"/>.</param>
+    /// <param name="ownsWorkspace">
+    /// Whether disposing this handle disposes <paramref name="workspace"/>. Defaults to
+    /// <see langword="true"/> (the pre-caching behavior); the workspace cache passes
+    /// <see langword="false"/> so shared workspaces survive handle disposal.
+    /// </param>
+    public LoadedProject(Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true)
     {
         Workspace = workspace;
         Solution = solution;
         Project = project;
+        _ownsWorkspace = ownsWorkspace;
     }
 
-    /// <summary>Disposes the underlying workspace.</summary>
-    public void Dispose() => Workspace.Dispose();
+    /// <summary>Disposes the underlying workspace when this handle owns it; otherwise a no-op.</summary>
+    public void Dispose()
+    {
+        if (_ownsWorkspace)
+        {
+            Workspace.Dispose();
+        }
+    }
 }

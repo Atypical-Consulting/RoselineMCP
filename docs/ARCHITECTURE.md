@@ -204,11 +204,12 @@ Services act as repositories for their respective domains:
    (deleted in a `finally` block once the operation completes)
 4. Service → MSBuildService.CreateWorkspace()
 5. Service → Load solution via MSBuildWorkspace
-6. For each project, sequentially (not in parallel):
+6. For each project, concurrently (bounded by the processor count):
    a. Get compilation
    b. Get diagnostics
    c. Filter via DiagnosticFilterService
-   d. Aggregate results
+   d. Collect an isolated per-project result (full severity counts + top candidates)
+   Then merge the per-project results into the global summary and top-N selection
 7. Return AnalyzeSolutionResponse
 8. Tool → Serialize to JSON
 9. MCP Server → Return to client
@@ -237,11 +238,16 @@ Services act as repositories for their respective domains:
 
 ### MSBuildWorkspace Lifecycle
 
+For the diagnostics tools (`AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`):
+
 1. **Creation**: New workspace per operation
 2. **Configuration**: Set up MSBuild properties
 3. **Loading**: Load solution/project
 4. **Operation**: Perform analysis/fixes
 5. **Cleanup**: Dispose workspace
+
+The navigation/edit tools instead reuse a cached workspace across calls via
+`CachingProjectLoader` — see "Caching Strategies" under Performance Considerations below.
 
 ### Temporary Workspace Pattern
 
@@ -293,22 +299,39 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    `Activator.CreateInstance`.
 2. **MSBuild Location**: `MSBuildLocator` registration happens once per process
    (`MSBuildService._msBuildRegistered`, guarded by a lock).
-3. **MSBuildWorkspace**: intentionally **not** cached or reused — every `AnalyzeSolution`,
-   `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own `MSBuildWorkspace` (see
-   "Workspace Isolation" below), trading some reload cost for isolation between calls.
+3. **MSBuildWorkspace (diagnostics tools)**: intentionally **not** cached or reused — every
+   `AnalyzeSolution`, `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own
+   `MSBuildWorkspace` (see "Workspace Isolation" below), trading some reload cost for isolation
+   between calls.
+4. **MSBuildWorkspace (navigation/edit tools)**: cached across calls — `IProjectLoader` resolves
+   to `CachingProjectLoader`, a decorator over `ProjectLoader` that keeps up to 4 loaded
+   workspaces (LRU-evicted, evicted workspaces disposed), keyed by the resolved `.sln`/`.csproj`
+   path. Each entry stores a disk fingerprint — last-write-time + length of the `.sln`, every
+   `.csproj`, and every document, plus the last-write-time of their containing directories (which
+   catches added/removed files) — that is re-stat'd on every load; any mismatch disposes the
+   cached workspace and reloads fresh. Roslyn `Solution` snapshots are immutable, so a cache hit
+   can never observe another call's in-flight state, and RoselineMCP's own disk writes
+   (`ApplyFixes`/`EditMember`/`RenameSymbol`) self-invalidate the entry on the next call. Disable
+   with `RoselineMCP:WorkspaceCache = false` (every call then loads a fresh workspace, the
+   pre-cache behavior).
 
-### Sequential Processing
+### Parallel Project Analysis
 
-Projects within a solution are analyzed **sequentially**, not concurrently — `AnalyzeSolution`
-loops over `solution.Projects` with a plain `foreach`. Diagnostics for each project are then
-filtered in-process against the compilation the workspace already produced. This keeps
-`MSBuildWorkspace` state predictable per call; parallelizing the project loop is tracked as a
-possible future optimization, not current behavior.
+Projects within a solution are analyzed **concurrently** — `AnalyzeSolution` runs the per-project
+compilation/diagnostics work through `Parallel.ForEachAsync` bounded by
+`Environment.ProcessorCount`. `Project.GetCompilationAsync`/`Compilation.GetDiagnostics` are safe
+to run in parallel across independent projects of one loaded solution. Each project writes its
+result into its own slot (no shared mutable state across workers) and results are merged
+afterwards, so the output is deterministic regardless of completion order; progress notifications
+are emitted from a completed-project counter under a lock so the reported value strictly
+increases, as MCP requires (the project named in each message follows completion order).
 
 ### Memory Management
 
-- A new `MSBuildWorkspace` is created and disposed per tool call (see "Workspace Management"
-  above) rather than pooled or shared
+- The diagnostics tools create and dispose a new `MSBuildWorkspace` per tool call (see "Workspace
+  Management" above); the navigation/edit tools hold up to 4 cached workspaces in
+  `CachingProjectLoader` (see "Caching Strategies" above), disposed on invalidation, LRU eviction,
+  or host shutdown
 - `ApplyFixes` re-fetches the project's compilation after every individual fix is applied, so
   later fixes see up-to-date source text/positions
 
@@ -332,7 +355,10 @@ restating an idealized version.
 
 - Read-only by default: `AnalyzeSolution`, `ListDiagnostics`, and `CreatePatch` never write to
   disk; `ApplyFixes` defaults `previewOnly` to `true` at the MCP tool boundary.
-- A fresh `MSBuildWorkspace` per operation — no shared/cached workspace state across calls.
+- A fresh `MSBuildWorkspace` per operation for the diagnostics tools. The navigation/edit tools
+  share a fingerprint-invalidated workspace cache (`CachingProjectLoader`, see "Performance
+  Considerations") — cached `Solution` snapshots are immutable and reloaded whenever anything
+  changes on disk; `RoselineMCP:WorkspaceCache = false` disables the cache.
 - **MSBuild is not a sandbox.** Loading a `.sln`/`.csproj` is a design-time MSBuild evaluation
   that can execute build logic embedded in the project (`<Exec>` tasks, custom `UsingTask`
   assemblies, imported `.targets`/`.props`). Analyzing a fully untrusted repository or Git URL
@@ -377,14 +403,16 @@ restating an idealized version.
 
 ### Environment Variables
 
-- `ROSELINE_*`: Custom configuration
-- `ASPNETCORE_ENVIRONMENT`: Development/Production
+- `ROSELINE_*`: Custom configuration (double underscore as section separator, e.g.
+  `ROSELINE_RoselineMCP__EnableDiagnosticLogging=true`)
+- `DOTNET_ENVIRONMENT`: Development/Production
 - `DOTNET_*`: Runtime configuration
 
 ### Configuration Files
 
-- `appsettings.json`: Base configuration
-- `appsettings.{Environment}.json`: Environment overrides
+- `appsettings.json`: Base configuration, loaded from the install directory
+  (`AppContext.BaseDirectory`) — never from the process working directory
+- `appsettings.{Environment}.json`: Environment overrides (same directory)
 - Command-line arguments: Highest priority
 
 ### Logging Configuration

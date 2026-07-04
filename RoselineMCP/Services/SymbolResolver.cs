@@ -75,23 +75,25 @@ internal static class SymbolResolver
             | SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
     /// <summary>
-    /// Resolves <paramref name="query"/> to exactly one symbol in <paramref name="project"/>,
-    /// searching the whole solution's symbol declarations. Throws
+    /// Resolves <paramref name="query"/> to exactly one symbol, searching the declarations of every
+    /// C# project in <paramref name="solution"/> (so symbols living in sibling projects the
+    /// <paramref name="anchor"/> does not reference are still found). Throws
     /// <see cref="KeyNotFoundException"/> when nothing matches (→ NotFoundError) and
     /// <see cref="ArgumentException"/> when the reference is ambiguous (→ ValidationError), listing
     /// the candidate fully-qualified names so the caller can disambiguate.
     /// </summary>
     public static async Task<ISymbol> ResolveOrThrowAsync(
-        Project project,
+        Solution solution,
+        Project anchor,
         string query,
         CancellationToken cancellationToken)
     {
-        var matches = await ResolveAllAsync(project, query, cancellationToken);
+        var matches = await ResolveAllAsync(solution, anchor, query, cancellationToken);
 
         if (matches.Count == 0)
         {
             throw new KeyNotFoundException(
-                $"Symbol not found: '{query}'. Use search_symbols to discover exact names in this project.");
+                $"Symbol not found: '{query}'. Use search_symbols to discover exact names in this solution.");
         }
 
         if (matches.Count > 1)
@@ -110,28 +112,43 @@ internal static class SymbolResolver
     }
 
     /// <summary>
-    /// Returns all distinct symbols in <paramref name="project"/> whose name/fully-qualified name
-    /// matches <paramref name="query"/>. Exact fully-qualified matches win over suffix matches, which
-    /// win over simple-name matches, so the most specific interpretation is preferred.
+    /// Returns all distinct symbols declared in <paramref name="solution"/> whose
+    /// name/fully-qualified name matches <paramref name="query"/>, searching every C# project (not
+    /// just the <paramref name="anchor"/>). Exact fully-qualified matches win over suffix matches,
+    /// which win over simple-name matches, so the most specific interpretation is preferred. The
+    /// same declaration seen through several project compilations counts once, preferring the
+    /// <paramref name="anchor"/>'s symbol instance.
     /// </summary>
     public static async Task<List<ISymbol>> ResolveAllAsync(
-        Project project,
+        Solution solution,
+        Project anchor,
         string query,
         CancellationToken cancellationToken)
     {
-        var compilation = await project.GetCompilationAsync(cancellationToken);
-        if (compilation == null)
+        var projects = OrderedCSharpProjects(solution, anchor);
+
+        // Fast path: a fully-qualified type name (supports nested types via '+'). Every project's
+        // compilation is consulted so a type living in a sibling project the anchor doesn't
+        // reference is still found; the same declaration resolved through multiple compilations
+        // (e.g. a referenced project's type) is deduplicated to a single candidate, while two
+        // genuinely distinct declarations sharing one metadata name stay ambiguous.
+        var metadataName = query.Replace('+', '.');
+        var byMetadata = new List<ISymbol>();
+        var seenTypes = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var project in projects)
         {
-            return new List<ISymbol>();
+            var compilation = await project.GetCompilationAsync(cancellationToken);
+            var type = compilation?.GetTypeByMetadataName(query)
+                ?? compilation?.GetTypeByMetadataName(metadataName);
+            if (type != null && seenTypes.Add(DeclarationKeyOf(type)))
+            {
+                byMetadata.Add(type);
+            }
         }
 
-        // Fast path: a fully-qualified type name (supports nested types via '+').
-        var metadataName = query.Replace('+', '.');
-        var byMetadata = compilation.GetTypeByMetadataName(query)
-            ?? compilation.GetTypeByMetadataName(metadataName);
-        if (byMetadata != null)
+        if (byMetadata.Count > 0)
         {
-            return new List<ISymbol> { byMetadata };
+            return byMetadata;
         }
 
         // Strip any parameter list (e.g. "Calc.Add(int, int)" -> "Calc.Add") before extracting the
@@ -149,14 +166,24 @@ internal static class SymbolResolver
             return new List<ISymbol>();
         }
 
-        var declarations = await SymbolFinder.FindDeclarationsAsync(
-            project, simpleName, ignoreCase: false, SymbolFilter.All, cancellationToken);
+        // Declaration search per project, anchor first. SymbolEqualityComparer does NOT equate the
+        // same declaration seen from different project compilations, so duplicates are collapsed by
+        // declaring source location instead (keeping the anchor's instance).
+        var candidates = new List<ISymbol>();
+        var seenDeclarations = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var project in projects)
+        {
+            var declarations = await SymbolFinder.FindDeclarationsAsync(
+                project, simpleName, ignoreCase: false, SymbolFilter.All, cancellationToken);
 
-        var candidates = declarations
-            .Where(s => s.Locations.Any(l => l.IsInSource))
-            .Distinct(SymbolEqualityComparer.Default)
-            .Cast<ISymbol>()
-            .ToList();
+            foreach (var declaration in declarations)
+            {
+                if (declaration.Locations.Any(l => l.IsInSource) && seenDeclarations.Add(DeclarationKeyOf(declaration)))
+                {
+                    candidates.Add(declaration);
+                }
+            }
+        }
 
         if (candidates.Count == 0)
         {
@@ -194,6 +221,42 @@ internal static class SymbolResolver
 
     private static string StripWhitespace(string value) =>
         string.Concat(value.Where(c => !char.IsWhiteSpace(c)));
+
+    /// <summary>
+    /// Every C# project in <paramref name="solution"/>, with the <paramref name="anchor"/> first so
+    /// symbol search/dedup prefer its symbol instances, then the rest ordered by name for
+    /// deterministic results.
+    /// </summary>
+    public static List<Project> OrderedCSharpProjects(Solution solution, Project anchor)
+    {
+        var projects = new List<Project> { anchor };
+        projects.AddRange(solution.Projects
+            .Where(p => p.Language == LanguageNames.CSharp && p.Id != anchor.Id)
+            .OrderBy(p => p.Name, StringComparer.Ordinal));
+        return projects;
+    }
+
+    /// <summary>
+    /// Identity key for deduplicating the same declaration seen through different project
+    /// compilations (where <see cref="SymbolEqualityComparer"/> treats the instances as unequal):
+    /// the sorted set of in-source declaration locations (file path + span). Metadata-only symbols
+    /// fall back to assembly identity + parameter-qualified display name.
+    /// </summary>
+    public static string DeclarationKeyOf(ISymbol symbol)
+    {
+        var sourceLocations = symbol.Locations
+            .Where(l => l.IsInSource)
+            .Select(l => $"{l.SourceTree?.FilePath}:{l.SourceSpan.Start}-{l.SourceSpan.End}")
+            .OrderBy(k => k, StringComparer.Ordinal)
+            .ToList();
+
+        if (sourceLocations.Count > 0)
+        {
+            return "src|" + string.Join("|", sourceLocations);
+        }
+
+        return $"meta|{symbol.ContainingAssembly?.Identity.GetDisplayName()}|{symbol.ToDisplayString(FullNameWithParamsFormat)}";
+    }
 
     /// <summary>Projects a symbol into the compact <see cref="SymbolSummary"/> DTO.</summary>
     public static SymbolSummary ToSummary(ISymbol symbol)

@@ -9,6 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Docs drift found in the v2.0.0 audit: corrected the README's Roslyn version (5.3.0 → 5.6.0), repaired the changelog reference links (stale `[Unreleased]` compare, missing 1.3.x–2.0.0 definitions), reframed the benchmark headlines around the robust median (85%, pooled 88% kept as a labeled secondary figure) and labeled the agent benchmark's ~50% as the forced-use ceiling (~13% realistic, n=1), refreshed the NuGet package `Description` to the v2 positioning, and added the missing `max` parameter to the README `getTypeHierarchy` snippet.
+- `ApplyFixes` no longer reports `ok: true` with an `Error: …` note when the operation itself
+  fails (e.g. project not found) — such failures now return the documented classified error
+  envelope (`ok: false` with e.g. `NotFoundError`), like every other tool.
+- `ApplyFixes`, `EditMember`, and `RenameSymbol` now write changed files back with their original
+  encoding (BOM included) instead of silently re-encoding everything as BOM-less UTF-8.
+- Symbol search and resolution now span every project in the loaded solution — previously only the anchor project was searched, so symbols declared in a sibling project it doesn't reference (e.g. the Tests project) were invisible to `search_symbols` (including the file outline) and made `get_symbol_info`, `find_references`, `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `edit_member`, and `rename_symbol` fail with "Symbol not found".
+- **`analyze_solution` reports honest numbers.** `diagnosticSummary` now counts every diagnostic
+  passing the filters — previously each project's diagnostics were capped at `maxDiagnostics`
+  *before* counting, undercounting any project with more. `topDiagnostics` is now the true
+  solution-wide top-N by severity — previously it kept the first N diagnostics encountered in
+  project order, so warnings from an early project could crowd out errors from a later one.
+- Configuration (`appsettings.json` / `appsettings.{Environment}.json`) now loads from the install
+  directory (`AppContext.BaseDirectory`) instead of the process working directory — a target
+  repository's own `appsettings.json` can no longer reconfigure the server, the settings packaged
+  with the dotnet tool are actually found, and the needless reload-on-change file watchers are
+  gone. Removed the dead `RoselineMCP:MaxDiagnostics` key from `appsettings.json`.
+- MSBuild registration now picks the newest installed SDK instead of whatever
+  `MSBuildLocator` enumerates first, and `CreateWorkspace` fails fast with an actionable error
+  when no MSBuild/.NET SDK instance could be registered (instead of surfacing a confusing
+  workspace load failure later).
+- Whitespace-only changes are no longer silently dropped from diffs (the diff engine ignored
+  whitespace unconditionally): a whitespace-only `edit_member` no longer reports "No changes were
+  produced" and skips the write even with `previewOnly: false`, `apply_fixes` patches no longer
+  omit whitespace-only changes that were written to disk, and `create_patch`'s `ignoreWhitespace`
+  parameter now actually controls the behavior (default `false`); `create_patch` line counts also
+  no longer miss content lines that themselves start with `++`/`--`.
+- **Docs `/releases` page could miss the just-published release.** The page is generated from the
+  GitHub Releases *listing* API at build time and is rebuilt immediately after the publish workflow,
+  but that listing endpoint can trail `/releases/latest` by a few minutes — so a new release could be
+  absent from the page until a manual re-deploy (as happened for v2.0.0). The build now cross-checks
+  `/releases/latest`, retries the listing until it includes that tag (bounded so the build never
+  hangs), and merges the latest release in directly as a fallback.
+
+### Changed
+- `ApplyFixes` now fixes all occurrences of a diagnostic ID in a single FixAll (batch) pass when
+  the provider supports it, instead of re-compiling the project after every individual fix;
+  providers without FixAll support keep the per-occurrence path, and the response shape is
+  unchanged.
+- Docker image: now published ReadyToRun against the per-arch musl RID, precompiling IL to native
+  code so the first tool call no longer pays most of the JIT cost.
+
+### Performance
+- **The navigation/edit tools now cache the MSBuild workspace across calls** (~590 ms reload saved per call after the first), invalidated by a cheap on-disk fingerprint (mtime + size of the `.sln`, every `.csproj`, and every document) so any file change — including RoselineMCP's own edits — triggers a fresh reload; disable with `RoselineMCP:WorkspaceCache = false`.
+- **`analyze_solution` analyzes projects in parallel** (bounded by the processor count) instead of
+  one at a time; results are merged deterministically and progress values still strictly increase.
 
 ## [2.0.0] - 2026-07-04
 
