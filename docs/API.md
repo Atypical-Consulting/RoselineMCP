@@ -114,13 +114,15 @@ mcp call analyzeSolution '{
 ### ListDiagnostics
 
 Gets detailed diagnostics for a specific project with statistics. **Read-only** — never modifies
-files on disk.
+files on disk. The project is resolved and loaded the same way as the code navigation/editing
+tools below (`IProjectLoader`): auto-discovery when `project` is omitted, `.sln` paths accepted,
+exact-name project selection.
 
 #### Request
 
 ```typescript
 {
-  project: string;        // Project name or path to .csproj
+  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   ids?: string[];        // Filter by diagnostic IDs (exact match)
   files?: string[];      // Substring match against each diagnostic's file path (case-insensitive; NOT a glob pattern)
   max?: number;          // Maximum diagnostics (default: 100)
@@ -172,14 +174,16 @@ Applies automated code fixes for specified diagnostic IDs. **Defaults to preview
 `ApplyFixes` MCP tool defaults `previewOnly` to `true`, so calling it without setting the
 parameter never writes to disk — pass `previewOnly: false` explicitly to write changes
 (`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation; see
-[Tool Annotations](#tool-annotations)).
+[Tool Annotations](#tool-annotations)). The project is resolved and loaded the same way as the
+code navigation/editing tools below (`IProjectLoader`): auto-discovery when `project` is omitted,
+`.sln` paths accepted, exact-name project selection.
 
 #### Request
 
 ```typescript
 {
-  project: string;       // Project name or path to .csproj
   ids: string[];         // Diagnostic IDs to fix (required, at least one)
+  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   previewOnly?: boolean; // If true (the default), only generate a diff — no files written. Pass false to apply.
 }
 ```
@@ -196,8 +200,8 @@ parameter never writes to disk — pass `previewOnly: false` explicitly to write
   project: string;           // Project name
   fixedCount: number;        // Total number of individual fixes applied across all requested IDs
   fixersApplied: string[];   // Diagnostic IDs that were successfully fixed at least once
-  changedFiles: string[];    // Relative paths of files that were modified
-  patch: string;             // Unified diff across all changed files
+  changedFiles: string[];    // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln) of files that were modified
+  patch: string;             // Unified diff across all changed files (headers use the same relative paths)
   notes: string[];           // Per-ID status messages: skipped (no provider/no diagnostics), errors, or "applied N fixes to M files" / "Preview mode - no changes were saved to disk"
   previewOnly: boolean;      // Echoes back whether this call actually wrote to disk
 }
@@ -268,6 +272,8 @@ only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the proje
 solution, the whole solution is loaded and symbol search/resolution spans **every project in it** —
 a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
 project) is still found — so cross-project references and renames are complete.
+`ListDiagnostics` and `ApplyFixes` resolve and load their `project` through this same mechanism, so
+every tool accepts the same references and reports the same solution-root-relative paths.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
@@ -514,7 +520,7 @@ Replace, add, or delete a single type member; returns a unified diff. **Defaults
   project: string;
   operation: string;
   target: string;          // Fully-qualified name of the member/type edited
-  changedFiles: string[];  // Relative path(s) modified (or that would be)
+  changedFiles: string[];  // Solution-root-relative path(s) modified (or that would be); forward slashes, project-dir-relative when no .sln
   patch: string;           // Unified diff
   previewOnly: boolean;
   applied: boolean;        // True only when previewOnly was false and there were changes
@@ -546,7 +552,7 @@ returns a unified diff. **Defaults to preview mode** (`previewOnly: true`)
   project: string;
   symbol: string;          // Fully-qualified name that was renamed
   newName: string;
-  changedFiles: string[];
+  changedFiles: string[];  // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln)
   patch: string;           // Unified diff across all changed files
   previewOnly: boolean;
   applied: boolean;
@@ -600,7 +606,7 @@ public interface ISolutionAnalyzerService
         int maxDiagnostics = 100);
 
     Task<ListDiagnosticsResponse> ListDiagnosticsAsync(
-        string project,
+        string? project,           // null → auto-discovered via IProjectLoader
         List<string>? ids = null,
         List<string>? files = null,
         int max = 100);
@@ -613,7 +619,7 @@ public interface ISolutionAnalyzerService
 public interface ICodeFixService
 {
     Task<ApplyFixesResponse> ApplyFixesAsync(
-        string project,
+        string? project,            // null → auto-discovered via IProjectLoader
         List<string> ids,
         bool previewOnly = false); // NOTE: this C# default is `false`; the MCP `ApplyFixes`
                                     // tool always passes an explicit value and defaults to

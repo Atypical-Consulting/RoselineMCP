@@ -73,14 +73,14 @@ export const tools: Tool[] = [
   {
     name: 'list_diagnostics', title: 'List Diagnostics', group: 'Diagnostics & fixes', kind: 'diagnostics',
     summary: 'Detailed diagnostics for a project, with statistics and suggested fixable IDs.',
-    params: 'project, ids?, files?, max?',
+    params: 'project?, ids?, files?, max?',
     returns: 'project, totalDiagnostics, diagnostics[], stats, suggestedFixableIds[]',
   },
   {
     name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true,
     summary: 'Apply automated code fixes for diagnostic IDs. Preview by default.',
-    params: 'project, ids, previewOnly?',
-    returns: 'project, fixedCount, fixersApplied[], changedFiles[], patch, notes[], previewOnly',
+    params: 'ids, project?, previewOnly?',
+    returns: 'project, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[], previewOnly',
   },
   {
     name: 'create_patch', title: 'Create Patch', group: 'Diagnostics & fixes', kind: 'diagnostics',

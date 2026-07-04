@@ -304,10 +304,13 @@ analyzeSolution({
 ### 2. ListDiagnostics
 
 Gets detailed diagnostics for a specific project. Read-only — never modifies files on disk.
+`project` is **optional** and accepts the same references as the navigation tools (name,
+directory, `.csproj`, or `.sln` path); when omitted, the solution/project is auto-discovered from
+the working directory.
 
 ```typescript
 listDiagnostics({
-  project: "MyProject.csproj",
+  project: "MyProject.csproj",     // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
   ids: ["CS0168", "CS0219"],       // Optional: Filter by diagnostic IDs
   files: ["Controller.cs"],        // Optional: substring match against each diagnostic's file path (case-insensitive; NOT a glob pattern)
   max: 50                          // Optional: Maximum results
@@ -322,18 +325,21 @@ provider is actually registered for.
 
 Applies automated code fixes for specified diagnostics. **Defaults to preview mode**:
 `previewOnly` defaults to `true`, so calling this tool without setting it never writes to disk —
-you must pass `previewOnly: false` explicitly to apply changes.
+you must pass `previewOnly: false` explicitly to apply changes. `project` is **optional** and
+accepts the same references as the navigation tools (name, directory, `.csproj`, or `.sln` path);
+when omitted, the solution/project is auto-discovered from the working directory.
 
 ```typescript
 applyFixes({
-  project: "MyProject.csproj",
   ids: ["CS0168", "RCS1001"],   // Diagnostic IDs to fix
+  project: "MyProject.csproj",  // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
   previewOnly: false             // Optional (default: true). Set false to write changes to disk.
 })
 ```
 
 **Returns:** project name, `fixedCount`, `fixersApplied` (diagnostic IDs actually fixed),
-`changedFiles`, a unified diff `patch`, `notes` (skipped/failed IDs and status messages), and
+`changedFiles` (solution-root-relative, forward slashes — the same path base as the navigation
+tools), a unified diff `patch`, `notes` (skipped/failed IDs and status messages), and
 `previewOnly` echoing back whether anything was written.
 
 ### 4. CreatePatch
@@ -693,15 +699,15 @@ RoselineMCP/
 
 ## Performance
 
-- **Workspace Cache (navigation/edit tools)** -- The Roslyn-backed navigation and edit tools reuse
-  the loaded `MSBuildWorkspace` across calls, cutting hundreds of milliseconds of reload off every
-  call after the first. Cached entries are fingerprinted (last-write-time + size of the `.sln`,
-  every `.csproj`, and every source file, plus their directories) and re-checked on each call, so
-  any change on disk — including RoselineMCP's own edits — triggers a fresh reload. Disable with
+- **Workspace Cache** -- The navigation, edit, and diagnostics/fix tools (`ListDiagnostics`,
+  `ApplyFixes`, and everything backed by `IProjectLoader`) reuse the loaded `MSBuildWorkspace`
+  across calls, cutting hundreds of milliseconds of reload off every call after the first. Cached
+  entries are fingerprinted (last-write-time + size of the `.sln`, every `.csproj`, and every
+  source file, plus their directories) and re-checked on each call, so any change on disk —
+  including RoselineMCP's own edits — triggers a fresh reload. Disable with
   `RoselineMCP:WorkspaceCache = false`
-- **Workspace Isolation (diagnostics tools)** -- `AnalyzeSolution`, `ListDiagnostics`, and
-  `ApplyFixes` still create a fresh `MSBuildWorkspace` per operation (see
-  [Architecture](#architecture))
+- **Workspace Isolation (AnalyzeSolution)** -- `AnalyzeSolution` still creates a fresh
+  `MSBuildWorkspace` per operation (see [Architecture](#architecture))
 - **Sequential Project Analysis** -- Projects within a solution are analyzed one at a time, not
   concurrently, to keep MSBuild workspace state consistent
 - **Result Capping** -- `maxDiagnostics`/`max` bound how many diagnostics are returned per call,

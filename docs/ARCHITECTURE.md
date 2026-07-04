@@ -238,7 +238,7 @@ Services act as repositories for their respective domains:
 
 ### MSBuildWorkspace Lifecycle
 
-For the diagnostics tools (`AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`):
+For `AnalyzeSolution`:
 
 1. **Creation**: New workspace per operation
 2. **Configuration**: Set up MSBuild properties
@@ -246,7 +246,8 @@ For the diagnostics tools (`AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`):
 4. **Operation**: Perform analysis/fixes
 5. **Cleanup**: Dispose workspace
 
-The navigation/edit tools instead reuse a cached workspace across calls via
+Every other project-loading tool (`ListDiagnostics`, `ApplyFixes`, and the navigation/edit tools)
+loads through the shared `IProjectLoader` and reuses a cached workspace across calls via
 `CachingProjectLoader` — see "Caching Strategies" under Performance Considerations below.
 
 ### Temporary Workspace Pattern
@@ -299,11 +300,11 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    `Activator.CreateInstance`.
 2. **MSBuild Location**: `MSBuildLocator` registration happens once per process
    (`MSBuildService._msBuildRegistered`, guarded by a lock).
-3. **MSBuildWorkspace (diagnostics tools)**: intentionally **not** cached or reused — every
-   `AnalyzeSolution`, `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own
-   `MSBuildWorkspace` (see "Workspace Isolation" below), trading some reload cost for isolation
-   between calls.
-4. **MSBuildWorkspace (navigation/edit tools)**: cached across calls — `IProjectLoader` resolves
+3. **MSBuildWorkspace (AnalyzeSolution)**: intentionally **not** cached or reused — every
+   `AnalyzeSolution` call creates and disposes its own `MSBuildWorkspace` (see "Workspace
+   Isolation" below), trading some reload cost for isolation between calls.
+4. **MSBuildWorkspace (IProjectLoader-backed tools — `ListDiagnostics`, `ApplyFixes`,
+   navigation/edit)**: cached across calls — `IProjectLoader` resolves
    to `CachingProjectLoader`, a decorator over `ProjectLoader` that keeps up to 4 loaded
    workspaces (LRU-evicted, evicted workspaces disposed), keyed by the resolved `.sln`/`.csproj`
    path. Each entry stores a disk fingerprint — last-write-time + length of the `.sln`, every
@@ -355,10 +356,11 @@ restating an idealized version.
 
 - Read-only by default: `AnalyzeSolution`, `ListDiagnostics`, and `CreatePatch` never write to
   disk; `ApplyFixes` defaults `previewOnly` to `true` at the MCP tool boundary.
-- A fresh `MSBuildWorkspace` per operation for the diagnostics tools. The navigation/edit tools
-  share a fingerprint-invalidated workspace cache (`CachingProjectLoader`, see "Performance
-  Considerations") — cached `Solution` snapshots are immutable and reloaded whenever anything
-  changes on disk; `RoselineMCP:WorkspaceCache = false` disables the cache.
+- A fresh `MSBuildWorkspace` per operation for `AnalyzeSolution`. Every other project-loading
+  tool (`ListDiagnostics`, `ApplyFixes`, navigation/edit) shares a fingerprint-invalidated
+  workspace cache (`CachingProjectLoader`, see "Performance Considerations") — cached `Solution`
+  snapshots are immutable and reloaded whenever anything changes on disk;
+  `RoselineMCP:WorkspaceCache = false` disables the cache.
 - **MSBuild is not a sandbox.** Loading a `.sln`/`.csproj` is a design-time MSBuild evaluation
   that can execute build logic embedded in the project (`<Exec>` tasks, custom `UsingTask`
   assemblies, imported `.targets`/`.props`). Analyzing a fully untrusted repository or Git URL
