@@ -79,6 +79,38 @@ public class DiffServiceTests
         }
 
         [Fact]
+        public void Should_Generate_Diff_For_Whitespace_Only_Reindentation()
+        {
+            // Arrange — same tokens, different leading indentation
+            var oldText = "void M()\n{\n    DoWork();\n}";
+            var newText = "void M()\n{\n        DoWork();\n}";
+
+            // Act
+            var result = _sut.GenerateUnifiedDiff(oldText, newText, "a/file.cs", "b/file.cs");
+
+            // Assert — whitespace must never be silently ignored
+            result.ShouldNotBeNullOrWhiteSpace();
+            result.ShouldContain("-    DoWork();");
+            result.ShouldContain("+        DoWork();");
+        }
+
+        [Fact]
+        public void Should_Generate_Diff_For_Trailing_Whitespace_Only_Change()
+        {
+            // Arrange
+            var oldText = "Line 1   \nLine 2";
+            var newText = "Line 1\nLine 2";
+
+            // Act
+            var result = _sut.GenerateUnifiedDiff(oldText, newText, "a/file.cs", "b/file.cs");
+
+            // Assert
+            result.ShouldNotBeNullOrWhiteSpace();
+            result.ShouldContain("-Line 1   ");
+            result.ShouldContain("+Line 1");
+        }
+
+        [Fact]
         public void Should_Generate_Proper_Hunk_Headers()
         {
             // Arrange

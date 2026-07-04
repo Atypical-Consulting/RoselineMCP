@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Whitespace-only changes are no longer silently dropped from diffs (the diff engine ignored
+  whitespace unconditionally): a whitespace-only `edit_member` no longer reports "No changes were
+  produced" and skips the write even with `previewOnly: false`, `apply_fixes` patches no longer
+  omit whitespace-only changes that were written to disk, and `create_patch`'s `ignoreWhitespace`
+  parameter now actually controls the behavior (default `false`); `create_patch` line counts also
+  no longer miss content lines that themselves start with `++`/`--`.
 - **Docs `/releases` page could miss the just-published release.** The page is generated from the
   GitHub Releases *listing* API at build time and is rebuilt immediately after the publish workflow,
   but that listing endpoint can trail `/releases/latest` by a few minutes — so a new release could be
