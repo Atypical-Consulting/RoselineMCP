@@ -2,13 +2,19 @@
 
 [`BENCHMARKS.md`](../BENCHMARKS.md) measures raw service latency, and the
 [token-savings benchmark](../RoselineMCP.TokenBenchmark) measures a single number in isolation: the
-tokens one tool call emits versus reading the corresponding file (a pooled **88%** reduction on this
-repo's own source). That's a *unit* measurement. It answers "how compact is one tool response?" — not
-"does an AI agent, doing a real task end to end, actually consume fewer tokens because RoselineMCP is
-installed?"
+tokens one tool call emits versus reading the corresponding file (a **median 85%** reduction per
+task on this repo's own source; pooled, size-weighted: 88%). That's a *unit* measurement. It answers
+"how compact is one tool response?" — not "does an AI agent, doing a real task end to end, actually
+consume fewer tokens because RoselineMCP is installed?"
 
 This document answers the end-to-end question with a controlled A/B test, and reports the result
 honestly — including where the MCP does **not** help.
+
+> **How to read the headline numbers.** The **~50%** end-to-end reduction below comes from the
+> *forced-use* cell (`Read`/`Grep`/`Glob` removed), so it is a **ceiling**, not the expected
+> everyday saving. In the realistic mode — the MCP merely available and the model self-directing
+> (see the [follow-up](#follow-up--making-the-model-actually-use-the-tools)) — the measured saving
+> on the same large-repo task is **~13%** (437k vs. 500k tokens, **n = 1**).
 
 ## Method
 
@@ -41,8 +47,9 @@ So RoselineMCP was never a *correctness* factor here; the only variable that mov
 
 1. **The benefit scales with file size — that is the whole story.** On large source files
    (RoselineMCP's own ~700-line services) navigating structurally instead of reading whole files
-   **roughly halved** the tokens for the same correct answer, in half the turns (3 tool calls total).
-   This is where the unit benchmark's 88% converts into real end-to-end savings. On tiny files it is
+   **roughly halved** the tokens for the same correct answer, in half the turns (3 tool calls
+   total) — under forced use, i.e. the ceiling. This is where the unit benchmark's per-call savings
+   (85% median) convert into real end-to-end savings. On tiny files it is
    **break-even to slightly worse** — reading a 30-line file is already cheap, so the fixed cost of
    the MCP's tool schemas plus per-call round-trips cancels the saving.
 
@@ -57,8 +64,10 @@ So RoselineMCP was never a *correctness* factor here; the only variable that mov
 ## Takeaways
 
 RoselineMCP is a **large-codebase navigation tool**. Used against big files it delivers a real,
-measured ~50% end-to-end token reduction at equal quality; on small repos it is roughly break-even;
-for greenfield work it is irrelevant. The highest-leverage improvement is **adoption** — making the
+measured ~50% end-to-end token reduction at equal quality **when forced to navigate through the
+tools** — that is the ceiling; realistic self-directed use lands at ~13% (n = 1, see the follow-up
+below). On small repos it is roughly break-even; for greenfield work it is irrelevant. The
+highest-leverage improvement is **adoption** — making the
 tool descriptions actively steer the model to prefer structural navigation over reading large files,
 so the win materialises in normal use rather than only when the agent is forced.
 
@@ -84,11 +93,12 @@ flips it:
 3. **Low-friction arguments.** With the tools adopted but `project` *required*, the model wasted 4
    calls guessing it (it naturally tried the `.sln` path, which used to fail) and burned more tokens
    than reading. Making `project` optional (auto-discovered) and accepting a `.sln` path collapsed it
-   to 3 clean calls that now beat vanilla `Read` (437k vs 500k) — all self-directed.
+   to 3 clean calls that now beat vanilla `Read` (437k vs 500k, **~13%**, n = 1) — all self-directed.
 
-Even so, self-directed use (437k) doesn't reach the *forced-minimal* path (239k): fixed
-tool-schema/instruction overhead plus a little extra exploration remain. The tools are a
-large-codebase win; the steering is what makes the model take it.
+Even so, self-directed use (437k) doesn't reach the *forced-minimal* path (239k, the ~50% ceiling):
+fixed tool-schema/instruction overhead plus a little extra exploration remain, so ~13% is the
+realistic figure today. The tools are a large-codebase win; the steering is what makes the model
+take it.
 
 ## Reproducing
 

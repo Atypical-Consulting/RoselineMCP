@@ -36,7 +36,7 @@ const groupBlurb: Record<string, string> = {
         <p class="lede">
           A .NET server that gives Claude, Cursor, and Copilot a Roslyn view of your C# solution —
           symbols, references, call graphs, surgical edits. Agents navigate by structure instead of
-          re-reading source. Measured <strong>{pooled}% fewer tokens</strong> on real code.
+          re-reading source. Measured <strong>{median}% fewer tokens</strong> (median) on real code.
         </p>
         <div class="hero-actions">
           <a class="btn primary" href="#install">Install RoselineMCP</a>
@@ -112,15 +112,15 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
       <div class="proof-grid">
         <div class="proof-lead">
           <span class="eyebrow">Measured, not marketed</span>
-          <h2>{pooled}% fewer tokens, on its own source.</h2>
+          <h2>{median}% fewer tokens, on its own source.</h2>
           <p>Every figure is a real string — the tool's actual output vs. the source an agent would
             otherwise read, tokenized with a real BPE tokenizer, swept systematically over
             {fmt(data.metadata.symbolsSwept)} symbols. Weak cases shown, not hidden.</p>
           <a class="btn ghost" href={base + 'benchmark'}>Read the methodology →</a>
         </div>
         <div class="proof-stats">
-          <div class="pstat"><div class="pn save-big">{pooled}%</div><div class="pl">pooled reduction</div></div>
-          <div class="pstat"><div class="pn">{median}%</div><div class="pl">median per task</div></div>
+          <div class="pstat"><div class="pn save-big">{median}%</div><div class="pl">median per task</div></div>
+          <div class="pstat"><div class="pn">{pooled}%</div><div class="pl">pooled · size-weighted</div></div>
           <div class="pstat"><div class="pn">{fmt(saved)}</div><div class="pl">tokens saved on the sample</div></div>
           <div class="pstat"><div class="pn">{fmt(tasks)}</div><div class="pl">navigation tasks</div></div>
         </div>

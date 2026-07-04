@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Docs drift found in the v2.0.0 audit: corrected the README's Roslyn version (5.3.0 → 5.6.0), repaired the changelog reference links (stale `[Unreleased]` compare, missing 1.3.x–2.0.0 definitions), reframed the benchmark headlines around the robust median (85%, pooled 88% kept as a labeled secondary figure) and labeled the agent benchmark's ~50% as the forced-use ceiling (~13% realistic, n=1), refreshed the NuGet package `Description` to the v2 positioning, and added the missing `max` parameter to the README `getTypeHierarchy` snippet.
 - `ApplyFixes` no longer reports `ok: true` with an `Error: …` note when the operation itself
   fails (e.g. project not found) — such failures now return the documented classified error
   envelope (`ok: false` with e.g. `NotFoundError`), like every other tool.
@@ -100,6 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **81% to 88%** (median per task 76% → 85%) on RoselineMCP's own source. These are breaking
   changes to the read-only tools' response wire shapes; update any client that parsed the removed
   fields or relied on absolute paths.
+- Updated Roslyn (`Microsoft.CodeAnalysis.*`) from 5.3.0 to 5.6.0.
 - `deploy-docs.yml` retries the GitHub Pages deploy up to 3× — it intermittently returns
   "Deployment failed, try again later" (a Pages backend hiccup, not a build failure) that clears on
   re-run. The first two attempts tolerate failure, so a transient miss no longer fails the job.
@@ -361,7 +363,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ApplyFixes**: Apply automated code fixes
 - **CreatePatch**: Generate unified diffs
 
-[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.4.0...v2.0.0
+[1.4.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.3.3...v1.4.0
+[1.3.3]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.3.2...v1.3.3
+[1.3.2]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.0.0...v1.1.0
