@@ -52,12 +52,31 @@ catch (Exception ex)
 // Create the host builder with all configurations
 static IHostBuilder CreateHostBuilder(string[] args) =>
     Host.CreateDefaultBuilder(args)
-        .ConfigureAppConfiguration((context, config) =>
+        // Anchor the content root to the directory the server binary lives in, so the packaged
+        // appsettings.json / appsettings.{Environment}.json are loaded from the install location
+        // (AppContext.BaseDirectory) — never from whatever directory the process was started in.
+        // A target repository's own appsettings.json must not reconfigure this server, and a
+        // globally installed dotnet tool must still find its packaged settings. CWD-based
+        // behavior elsewhere (e.g. ProjectLoader's project auto-discovery) uses
+        // Directory.GetCurrentDirectory() directly and is unaffected by the content root.
+        .UseContentRoot(AppContext.BaseDirectory)
+        .ConfigureHostConfiguration(host =>
         {
-            // Add configuration sources
+            // CreateDefaultBuilder adds the appsettings files with reloadOnChange: true, which
+            // spins up FileSystemWatchers a one-shot stdio server never needs. This documented
+            // host setting makes it pass reloadOnChange: false instead.
+            host.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["hostBuilder:reloadConfigOnChange"] = "false",
+            });
+        })
+        .ConfigureAppConfiguration((_, config) =>
+        {
+            // appsettings.json and appsettings.{Environment}.json are already added by
+            // CreateDefaultBuilder, resolved against the content root set above — don't add them
+            // again here. Only append the ROSELINE_-prefixed environment variables and the
+            // command-line arguments (last, so they keep the highest precedence).
             config
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true)
                 .AddEnvironmentVariables(prefix: "ROSELINE_")
                 .AddCommandLine(args);
         })
@@ -78,7 +97,14 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
             services.AddSingleton<IDiagnosticFilterService, DiagnosticFilterService>();
             services.AddSingleton<ICodeFixProviderFactory, CodeFixProviderFactory>();
             services.AddSingleton<IDiffService, DiffService>();
-            services.AddSingleton<IProjectLoader, ProjectLoader>();
+            // Navigation/edit project loading: IProjectLoader resolves to the caching decorator
+            // wrapping the real loader, so the MSBuild workspace is reused across tool calls
+            // (fingerprint-invalidated on any file change; RoselineMCP:WorkspaceCache=false bypasses).
+            services.AddSingleton<ProjectLoader>();
+            services.AddSingleton<IProjectLoader>(sp => new CachingProjectLoader(
+                sp.GetRequiredService<ProjectLoader>(),
+                sp.GetRequiredService<IOptions<RoselineMcpOptions>>(),
+                sp.GetRequiredService<ILogger<CachingProjectLoader>>()));
 
             // Add Business Services
             services.AddSingleton<ISolutionAnalyzerService, SolutionAnalyzerService>();

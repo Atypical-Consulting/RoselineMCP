@@ -195,6 +195,43 @@ public class PatchServiceTests
         }
 
         [Fact]
+        public void Should_Count_Content_Lines_Starting_With_Plus_Plus_Or_Minus_Minus()
+        {
+            // Arrange — added content "++y" renders as "+++y" and removed content "--x" as "---x";
+            // they must not be confused with the "+++"/"---" file headers.
+            var before = "--x";
+            var after = "++y";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -1,1 +1,1 @@\n---x\n+++y";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
+
+            // Act
+            var result = _sut.CreatePatch(before, after);
+
+            // Assert
+            result.LinesAdded.ShouldBe(1);
+            result.LinesRemoved.ShouldBe(1);
+        }
+
+        [Fact]
+        public void Should_Not_Count_File_Header_Lines()
+        {
+            // Arrange — only the "+Line 2" inside the hunk counts; the headers do not.
+            var before = "Line 1";
+            var after = "Line 1\nLine 2";
+            var mockPatch = "--- a/file.txt\n+++ b/file.txt\n@@ -1 +1,2 @@\n Line 1\n+Line 2";
+            A.CallTo(() => _diffService.GenerateUnifiedDiff(before, after, A<string>._, A<string>._))
+                .Returns(mockPatch);
+
+            // Act
+            var result = _sut.CreatePatch(before, after);
+
+            // Assert
+            result.LinesAdded.ShouldBe(1);
+            result.LinesRemoved.ShouldBe(0);
+        }
+
+        [Fact]
         public void Should_Handle_Large_Text_Differences()
         {
             // Arrange
@@ -310,6 +347,81 @@ public class PatchServiceTests
 
             // Assert
             result.HasChanges.ShouldBeFalse();
+        }
+    }
+
+    /// <summary>
+    /// Uses the real <see cref="DiffService"/> (not a fake) to prove whitespace-only differences
+    /// are reported by default and only ignored when <c>ignoreWhitespace: true</c> is passed.
+    /// </summary>
+    public class WhitespaceBehaviorTests
+    {
+        private readonly PatchService _sut = new(A.Fake<ILogger<PatchService>>(), new DiffService());
+
+        [Fact]
+        public void CreatePatch_Should_Report_Whitespace_Only_Change()
+        {
+            // Arrange — reindentation only
+            var before = "void M()\n{\n    DoWork();\n}";
+            var after = "void M()\n{\n        DoWork();\n}";
+
+            // Act
+            var result = _sut.CreatePatch(before, after, "file.cs");
+
+            // Assert
+            result.HasChanges.ShouldBeTrue();
+            result.Patch.ShouldContain("-    DoWork();");
+            result.Patch.ShouldContain("+        DoWork();");
+            result.LinesAdded.ShouldBe(1);
+            result.LinesRemoved.ShouldBe(1);
+        }
+
+        [Fact]
+        public void CreatePatchWithOptions_Should_Report_Whitespace_Only_Change_By_Default()
+        {
+            // Arrange — trailing whitespace only; ignoreWhitespace defaults to false
+            var before = "Line 1   \nLine 2";
+            var after = "Line 1\nLine 2";
+
+            // Act
+            var result = _sut.CreatePatchWithOptions(before, after, "file.txt");
+
+            // Assert
+            result.HasChanges.ShouldBeTrue();
+            result.Patch.ShouldContain("-Line 1   ");
+            result.Patch.ShouldContain("+Line 1");
+        }
+
+        [Fact]
+        public void CreatePatchWithOptions_Should_Ignore_Whitespace_Only_Change_When_Opted_In()
+        {
+            // Arrange
+            var before = "Line 1   \nLine 2";
+            var after = "Line 1\nLine 2";
+
+            // Act
+            var result = _sut.CreatePatchWithOptions(before, after, "file.txt", ignoreWhitespace: true);
+
+            // Assert
+            result.HasChanges.ShouldBeFalse();
+        }
+
+        [Fact]
+        public void CreatePatch_Should_Count_Lines_Whose_Content_Starts_With_Diff_Markers()
+        {
+            // Arrange — end-to-end: content "--x" / "++y" renders as "---x" / "+++y" in the patch
+            var before = "start\n--x\nend";
+            var after = "start\n++y\nend";
+
+            // Act
+            var result = _sut.CreatePatch(before, after, "file.txt");
+
+            // Assert
+            result.HasChanges.ShouldBeTrue();
+            result.LinesAdded.ShouldBe(1);
+            result.LinesRemoved.ShouldBe(1);
+            result.Summary.ShouldContain("+1");
+            result.Summary.ShouldContain("-1");
         }
     }
 

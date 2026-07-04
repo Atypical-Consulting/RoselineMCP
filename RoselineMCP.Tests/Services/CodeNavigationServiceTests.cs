@@ -246,4 +246,124 @@ public class CodeNavigationServiceTests
         summary.FullName.ShouldNotBeNull();
         summary.File.ShouldNotBeNull();
     }
+
+    // --- Solution-wide symbol search/resolution: symbols in sibling projects the anchor does NOT
+    // reference (e.g. the Tests project when the anchor is the main project) must still be found.
+
+    private static CodeNavigationService CreateSolutionService(
+        (string ProjectName, (string Name, string Code)[] Files)[] projects,
+        (string From, string To)[]? projectReferences = null)
+    {
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(projects, projectReferences);
+        var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, anchor);
+        return new CodeNavigationService(A.Fake<ILogger<CodeNavigationService>>(), loader);
+    }
+
+    [Fact]
+    public async Task SearchSymbols_Finds_Types_In_Unreferenced_Sibling_Project()
+    {
+        var service = CreateSolutionService(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("App.Tests", [("WidgetTests.cs", "namespace TestNs { public class WidgetTests { public void Runs() { } } }")])
+        ]);
+
+        var result = await service.SearchSymbolsAsync("App", "*Tests", null, null, 50, CancellationToken.None);
+
+        result.Symbols.ShouldContain(s => s.Name == "WidgetTests");
+    }
+
+    [Fact]
+    public async Task GetSymbolInfo_Resolves_Symbol_Declared_Only_In_Unreferenced_Sibling_Project()
+    {
+        var service = CreateSolutionService(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { public void Spin() { } } }")])
+        ]);
+
+        var result = await service.GetSymbolInfoAsync("App", "Widget", includeSource: false, CancellationToken.None);
+
+        result.Kind.ShouldBe("class");
+        result.FullName.ShouldBe("LibNs.Widget");
+    }
+
+    [Fact]
+    public async Task GetSymbolInfo_FullyQualified_Name_Resolves_Across_Unreferenced_Projects()
+    {
+        var service = CreateSolutionService(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { } }")])
+        ]);
+
+        // Exercises the GetTypeByMetadataName fast path: only Lib's compilation knows this type.
+        var result = await service.GetSymbolInfoAsync("App", "LibNs.Widget", includeSource: false, CancellationToken.None);
+
+        result.FullName.ShouldBe("LibNs.Widget");
+    }
+
+    [Fact]
+    public async Task GetSymbolInfo_Same_Name_In_Two_Projects_Is_Ambiguous_Listing_Both()
+    {
+        var service = CreateSolutionService(
+        [
+            ("App", [("A.cs", "namespace AppNs { public class Duplicate { } }")]),
+            ("Lib", [("B.cs", "namespace LibNs { public class Duplicate { } }")])
+        ]);
+
+        var ex = await Should.ThrowAsync<ArgumentException>(
+            () => service.GetSymbolInfoAsync("App", "Duplicate", false, CancellationToken.None));
+
+        ex.Message.ShouldContain("AppNs.Duplicate");
+        ex.Message.ShouldContain("LibNs.Duplicate");
+    }
+
+    [Fact]
+    public async Task GetSymbolInfo_Referenced_Project_Declaration_Is_Not_A_False_Ambiguity()
+    {
+        // App references Lib, so Lib's Widget is visible from BOTH compilations. The same
+        // declaration must be deduplicated (SymbolEqualityComparer does not equate the instances),
+        // not reported as ambiguous.
+        var service = CreateSolutionService(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { } }")])
+        ],
+        projectReferences: [("App", "Lib")]);
+
+        var bySimpleName = await service.GetSymbolInfoAsync("App", "Widget", false, CancellationToken.None);
+        bySimpleName.FullName.ShouldBe("LibNs.Widget");
+
+        var byFullName = await service.GetSymbolInfoAsync("App", "LibNs.Widget", false, CancellationToken.None);
+        byFullName.FullName.ShouldBe("LibNs.Widget");
+    }
+
+    [Fact]
+    public async Task FindReferences_Resolves_Symbol_In_Unreferenced_Sibling_Project()
+    {
+        var service = CreateSolutionService(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { public void Spin() { } public void Use() { Spin(); } } }")])
+        ]);
+
+        var result = await service.FindReferencesAsync("App", "Spin", includeDefinition: false, 100, CancellationToken.None);
+
+        result.References.ShouldContain(r => r.Snippet.Contains("Spin()"));
+    }
+
+    [Fact]
+    public async Task SearchSymbols_File_Outline_Finds_File_In_Unreferenced_Sibling_Project()
+    {
+        var service = CreateSolutionService(
+        [
+            ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+            ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { public void Spin() { } } }")])
+        ]);
+
+        var result = await service.SearchSymbolsAsync("App", null, "Widget.cs", null, 50, CancellationToken.None);
+
+        result.Symbols.Select(s => s.Name).ShouldContain("Spin");
+    }
 }

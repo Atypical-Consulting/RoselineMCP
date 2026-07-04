@@ -47,7 +47,15 @@ The application uses a dependency injection-based service architecture with clea
 
 ### Key Architectural Patterns
 
-- **Workspace Isolation**: Each operation creates a new MSBuildWorkspace to prevent state pollution
+- **Workspace Isolation (diagnostics tools)**: `AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`
+  create a new MSBuildWorkspace per operation to prevent state pollution
+- **Workspace Cache (navigation/edit tools)**: everything backed by `IProjectLoader` resolves to
+  `CachingProjectLoader`, which reuses the loaded MSBuildWorkspace across tool calls. Each entry is
+  fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, plus
+  their directories' mtimes to catch added/removed files) and re-stat'd on every load — any change
+  on disk disposes the cached workspace and reloads fresh, so RoselineMCP's own
+  `ApplyFixes`/`EditMember`/`RenameSymbol` writes self-invalidate it. Bounded (4 entries, LRU);
+  disable with `RoselineMCP:WorkspaceCache = false` to load a fresh workspace per call
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
   payload nested under `data` on success, error details under `error` on failure — and sets
@@ -82,7 +90,7 @@ dotnet test RoselineMCP.Tests/RoselineMCP.Tests.csproj
 dotnet run --project RoselineMCP/RoselineMCP.csproj
 
 # Run with specific environment
-ASPNETCORE_ENVIRONMENT=Development dotnet run --project RoselineMCP/RoselineMCP.csproj
+DOTNET_ENVIRONMENT=Development dotnet run --project RoselineMCP/RoselineMCP.csproj
 
 # Watch mode for development
 dotnet watch run --project RoselineMCP/RoselineMCP.csproj
@@ -128,7 +136,9 @@ These return precise structure instead of whole files (backed by `ICodeNavigatio
 (name, directory, `.csproj` path, or `.sln` path); when omitted, RoselineMCP auto-discovers the
 solution/project from its working directory (searching the cwd, a few parent directories, and
 immediate subdirectories, and failing with an actionable message only when the match is empty or
-ambiguous). The containing solution is loaded when present so references/renames span projects.
+ambiguous). The containing solution is loaded when present, and symbol search/resolution spans
+every project in it — a symbol declared only in a sibling project the anchor doesn't reference
+(e.g. the Tests project) is still found, and references/renames span projects.
 
 - **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
 - **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source); accessibility is inside `signature`, and empty/absent fields are omitted.
@@ -235,10 +245,15 @@ dotnet test --logger html
 ## Environment Configuration
 
 The application supports environment-specific configuration through:
-- `appsettings.json`: Base configuration
-- `appsettings.{Environment}.json`: Environment-specific overrides
-- `ROSELINE_` prefixed environment variables
-- Command-line arguments
+- `appsettings.json`: Base configuration, loaded from the install directory
+  (`AppContext.BaseDirectory`, next to the binary) — never from the process working directory, so
+  a target repository's own `appsettings.json` cannot reconfigure the server
+- `appsettings.{Environment}.json`: Environment-specific overrides (same directory)
+- `ROSELINE_` prefixed environment variables — double prefix for the `RoselineMCP` section, e.g.
+  `ROSELINE_RoselineMCP__EnableDiagnosticLogging=true`
+- Command-line arguments (highest precedence)
+
+Configuration is read once at startup; no reload-on-change file watchers are registered.
 
 Logging levels adjust automatically:
 - **Development**: Debug level for RoselineMCP namespace
@@ -262,8 +277,12 @@ Logging levels adjust automatically:
   `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
   `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against
   arbitrary/hostile callers.
-- Each operation creates a fresh `MSBuildWorkspace` (see "Workspace Isolation" above) — no
-  workspace state or MSBuild-loaded solution is shared or cached across calls.
+- The diagnostics tools (`AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`) create a fresh
+  `MSBuildWorkspace` per operation (see "Workspace Isolation" above). The navigation/edit tools
+  reuse a cached, read-only workspace across calls (see "Workspace Cache" above): Roslyn `Solution`
+  snapshots are immutable, and the cache is invalidated by an on-disk fingerprint check on every
+  call, so no stale state leaks between calls. Set `RoselineMCP:WorkspaceCache = false` to disable
+  caching entirely.
 - Changes from `ApplyFixes` are always returned as a unified diff patch in the response, in
   addition to (optionally) being written to disk.
 

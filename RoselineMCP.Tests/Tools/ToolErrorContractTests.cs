@@ -1,7 +1,9 @@
 using FakeItEasy;
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
+using RoselineMCP.Services;
 using RoselineMCP.Tools;
 using Shouldly;
 
@@ -95,6 +97,29 @@ public class ToolErrorContractTests
         var result = CreatePatchTool.CreatePatch(patchService, "old", "new");
 
         AssertDocumentedType(result, expectedType);
+    }
+
+    /// <summary>
+    /// Regression test for the fake-success bug: run the REAL <see cref="CodeFixService"/> (not a
+    /// fake) against a nonexistent project path, through the actual MCP tool. The service used to
+    /// swallow the <see cref="FileNotFoundException"/> into an "Error: ..." note and return
+    /// normally, so the tool reported ok: true for a failed operation. It must now surface as the
+    /// same classified NotFoundError envelope every other tool returns.
+    /// </summary>
+    [Fact]
+    public async Task ApplyFixes_With_Real_Service_And_Missing_Project_Returns_NotFoundError()
+    {
+        var codeFixService = new CodeFixService(
+            A.Fake<ILogger<CodeFixService>>(),
+            A.Fake<ISolutionAnalyzerService>(),
+            A.Fake<ICodeFixProviderFactory>(),
+            A.Fake<IDiffService>(),
+            A.Fake<IMSBuildService>());
+
+        var result = await ApplyFixesTool.ApplyFixes(codeFixService, "/nonexistent/x.csproj", ["CS0168"]);
+
+        AssertDocumentedType(result, "NotFoundError");
+        result.Data.ShouldBeNull();
     }
 
     [Fact]
