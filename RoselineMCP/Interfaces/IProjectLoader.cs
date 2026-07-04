@@ -19,8 +19,10 @@ public interface IProjectLoader
     /// <param name="project">
     /// Project name, directory containing a single <c>.csproj</c>, a path to a <c>.csproj</c> file,
     /// or a path to a <c>.sln</c> file. When <see langword="null"/> or whitespace, the solution/project
-    /// is auto-discovered from the working directory (up to a few parent directories and immediate
-    /// subdirectories); an ambiguous or empty search throws <see cref="System.ArgumentException"/>.
+    /// is auto-discovered nearest-first: the working directory itself wins when it has exactly one
+    /// candidate, then each parent directory (up to a few levels) in order, then immediate
+    /// subdirectories; only a level with multiple candidates of its own — or no match anywhere —
+    /// throws <see cref="System.ArgumentException"/>.
     /// </param>
     /// <param name="cancellationToken">Token used to cancel the load.</param>
     /// <returns>A handle exposing the loaded <see cref="Solution"/> and the primary <see cref="Project"/>.</returns>

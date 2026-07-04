@@ -275,9 +275,12 @@ The remaining tools are **code navigation and editing** tools backed by Roslyn. 
 tokens: rather than reading whole files into an agent's context, they return only the structure
 (symbols, signatures, references, graphs) or a member-level diff. They all take an **optional**
 `project` argument (a project name, a directory, a path to a `.csproj`, or a path to a `.sln`). When
-`project` is omitted, RoselineMCP auto-discovers the solution/project from its working directory —
-searching the working directory, a few parent directories, and immediate subdirectories, and
-returning a `ValidationError` only when no candidate is found or the choice is ambiguous. Local paths
+`project` is omitted, RoselineMCP auto-discovers the solution/project from its working directory,
+nearest level first — the working directory itself wins when it has exactly one candidate, then
+each parent directory (up to 3) in order, then immediate subdirectories — returning a
+`ValidationError` only when no candidate is found anywhere or a single level itself has multiple
+candidates (a solution in the working directory is never made ambiguous by one further up the
+tree, e.g. in a git worktree nested inside its main checkout). Local paths
 only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
 solution, the whole solution is loaded and symbol search/resolution spans **every project in it** —
 a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
@@ -773,8 +776,10 @@ public interface ICodeEditService
 
 Loads a project (and its solution, when found) into a workspace for navigation/edits. Accepts
 a project name, directory, `.csproj` path, or `.sln` path; when `project` is `null`/whitespace the
-solution/project is auto-discovered from the working directory (throwing `ArgumentException` when the
-match is empty or ambiguous). In production the interface resolves to `CachingProjectLoader`, a
+solution/project is auto-discovered from the working directory, nearest level first (the working
+directory itself, then each parent up to 3 in order, then immediate subdirectories — throwing
+`ArgumentException` only when nothing is found or a single level itself has multiple candidates).
+In production the interface resolves to `CachingProjectLoader`, a
 decorator that reuses the loaded workspace across calls and reloads it whenever the solution's files
 change on disk (disable via `RoselineMCP:WorkspaceCache = false`); returned handles should always be
 disposed — disposal releases owned workspaces and is a no-op for cached, shared ones.

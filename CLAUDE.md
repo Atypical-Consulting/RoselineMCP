@@ -152,9 +152,10 @@ Generates unified diff patches between text versions.
 These return precise structure instead of whole files (backed by `ICodeNavigationService` /
 `CodeNavigationService`, which loads via `IProjectLoader`). All take an **optional** `project`
 (name, directory, `.csproj` path, or `.sln` path); when omitted, RoselineMCP auto-discovers the
-solution/project from its working directory (searching the cwd, a few parent directories, and
-immediate subdirectories, and failing with an actionable message only when the match is empty or
-ambiguous). The containing solution is loaded when present, and symbol search/resolution spans
+solution/project from its working directory, nearest level first — the cwd itself wins when it has
+exactly one candidate, then each parent directory (up to 3) in order, then immediate
+subdirectories — failing with an actionable message only when nothing is found or a single level
+itself has multiple candidates. The containing solution is loaded when present, and symbol search/resolution spans
 every project in it — a symbol declared only in a sibling project the anchor doesn't reference
 (e.g. the Tests project) is still found, and references/renames span projects.
 

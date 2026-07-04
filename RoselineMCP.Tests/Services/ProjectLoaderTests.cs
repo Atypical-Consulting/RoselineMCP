@@ -58,6 +58,15 @@ public class ProjectLoaderTests : IDisposable
         return fullPath;
     }
 
+    /// <summary>Creates an empty file relative to the test <b>root</b> (an ancestor of the base directory), for parent-level discovery cases.</summary>
+    private string TouchAtRoot(string relativePath)
+    {
+        var fullPath = Path.Combine(_root, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllText(fullPath, string.Empty);
+        return fullPath;
+    }
+
     [Fact]
     public void AutoDiscover_Finds_Single_Csproj_When_No_Project_Given()
     {
@@ -101,6 +110,57 @@ public class ProjectLoaderTests : IDisposable
         ex.Message.ShouldContain("One.sln");
         ex.Message.ShouldContain("Two.sln");
         ex.Message.ShouldContain("explicit 'project'");
+    }
+
+    /// <summary>
+    /// Regression guard for the real-world repro: a git worktree whose working directory has its
+    /// own <c>.sln</c> while an ancestor (the main checkout, here the 3rd parent) has one too.
+    /// The nearest level must win — this used to fail as "ambiguous".
+    /// </summary>
+    [Fact]
+    public void AutoDiscover_Prefers_The_Cwd_Solution_Over_A_Parent_Solution()
+    {
+        var cwdSln = Touch("Work.sln");
+        TouchAtRoot("Main.sln"); // _root is the 3rd parent of _baseDir (_root/a/b/work)
+
+        var resolved = ResolveTargetPath(null, _baseDir);
+
+        resolved.ShouldBe(Path.GetFullPath(cwdSln));
+    }
+
+    [Fact]
+    public void AutoDiscover_Falls_Back_To_The_Nearest_Parent_Solution_When_The_Cwd_Is_Empty()
+    {
+        var parentSln = TouchAtRoot(Path.Combine("a", "b", "Parent.sln")); // 1st parent of _baseDir
+
+        var resolved = ResolveTargetPath(null, _baseDir);
+
+        resolved.ShouldBe(Path.GetFullPath(parentSln));
+    }
+
+    [Fact]
+    public void AutoDiscover_Ambiguity_Error_Lists_Only_The_Nearest_Levels_Candidates()
+    {
+        Touch("One.sln");
+        Touch("Two.sln");
+        TouchAtRoot("Far.sln"); // a farther level never contributes to the ambiguity
+
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+
+        ex.Message.ShouldContain("One.sln");
+        ex.Message.ShouldContain("Two.sln");
+        ex.Message.ShouldNotContain("Far.sln");
+    }
+
+    [Fact]
+    public void AutoDiscover_Prefers_The_Cwd_Csproj_Over_A_Parent_Csproj()
+    {
+        var cwdCsproj = Touch("Lib.csproj");
+        TouchAtRoot("Outer.csproj");
+
+        var resolved = ResolveTargetPath(null, _baseDir);
+
+        resolved.ShouldBe(Path.GetFullPath(cwdCsproj));
     }
 
     [Fact]
