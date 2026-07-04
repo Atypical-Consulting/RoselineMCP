@@ -103,9 +103,10 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
             services.AddSingleton<IDiagnosticFilterService, DiagnosticFilterService>();
             services.AddSingleton<ICodeFixProviderFactory, CodeFixProviderFactory>();
             services.AddSingleton<IDiffService, DiffService>();
-            // Navigation/edit project loading: IProjectLoader resolves to the caching decorator
-            // wrapping the real loader, so the MSBuild workspace is reused across tool calls
-            // (fingerprint-invalidated on any file change; RoselineMCP:WorkspaceCache=false bypasses).
+            // Project loading for the navigation, edit, and diagnostics/fix tools: IProjectLoader
+            // resolves to the caching decorator wrapping the real loader, so the MSBuild workspace
+            // is reused across tool calls (fingerprint-invalidated on any file change;
+            // RoselineMCP:WorkspaceCache=false bypasses).
             services.AddSingleton<ProjectLoader>();
             services.AddSingleton<IProjectLoader>(sp => new CachingProjectLoader(
                 sp.GetRequiredService<ProjectLoader>(),

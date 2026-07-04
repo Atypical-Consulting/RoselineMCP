@@ -81,15 +81,23 @@ public class ToolInvocationTests : McpProtocolTestBase
     }
 
     [Fact]
-    public async Task ListDiagnostics_Missing_Required_Project_Returns_McpLevel_Error()
+    public async Task ListDiagnostics_Without_Project_Is_Accepted_And_Delegates_AutoDiscovery()
     {
+        // 'project' is optional now: omitting it must not be an MCP-level error — the null
+        // reference travels through to the service, whose IProjectLoader auto-discovers the
+        // solution/project from the working directory.
+        string? capturedProject = "sentinel";
+        A.CallTo(() => AnalyzerService.ListDiagnosticsAsync(
+                A<string?>._, A<List<string>?>._, A<List<string>?>._, A<int>._, A<CancellationToken>._))
+            .Invokes((string? project, List<string>? _, List<string>? _, int _, CancellationToken _) =>
+                capturedProject = project)
+            .Returns(Task.FromResult(new ListDiagnosticsResponse { Project = "Discovered" }));
+
         var result = await Client.CallToolAsync("list_diagnostics", new Dictionary<string, object?>());
 
-        AssertMcpLevelError(result);
-
-        A.CallTo(() => AnalyzerService.ListDiagnosticsAsync(
-                A<string>._, A<List<string>?>._, A<List<string>?>._, A<int>._, A<CancellationToken>._))
-            .MustNotHaveHappened();
+        var payload = AssertWellFormedSuccess(result);
+        payload.GetProperty("project").GetString().ShouldBe("Discovered");
+        capturedProject.ShouldBeNull();
     }
 
     [Fact]

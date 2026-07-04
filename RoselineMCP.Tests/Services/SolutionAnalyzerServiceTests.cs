@@ -17,6 +17,7 @@ public class SolutionAnalyzerServiceTests
     private readonly ILogger<SolutionAnalyzerService> _logger;
     private readonly IMSBuildService _msBuildService;
     private readonly IDiagnosticFilterService _filterService;
+    private readonly IProjectLoader _projectLoader;
     private readonly SolutionAnalyzerService _sut;
 
     public SolutionAnalyzerServiceTests()
@@ -24,7 +25,8 @@ public class SolutionAnalyzerServiceTests
         _logger = A.Fake<ILogger<SolutionAnalyzerService>>();
         _msBuildService = A.Fake<IMSBuildService>();
         _filterService = A.Fake<IDiagnosticFilterService>();
-        _sut = new SolutionAnalyzerService(_logger, _msBuildService, _filterService);
+        _projectLoader = A.Fake<IProjectLoader>();
+        _sut = new SolutionAnalyzerService(_logger, _msBuildService, _filterService, _projectLoader);
     }
 
     public class AnalyzeSolutionAsyncTests : SolutionAnalyzerServiceTests
@@ -84,12 +86,38 @@ public class SolutionAnalyzerServiceTests
         [Fact]
         public async Task Should_Throw_When_Project_Not_Found()
         {
-            // Arrange
+            // Arrange — the loader (which owns resolution) reports the project as missing.
             var nonExistentProject = "/nonexistent/project.csproj";
+            A.CallTo(() => _projectLoader.LoadAsync(nonExistentProject, A<CancellationToken>._))
+                .Throws(new FileNotFoundException($"Project not found: {nonExistentProject}"));
 
-            // Act & Assert - Can throw various exception types for missing project
-            await Should.ThrowAsync<Exception>(
+            // Act & Assert — the loader's FileNotFoundException propagates (NotFoundError at the tool boundary).
+            await Should.ThrowAsync<FileNotFoundException>(
                 async () => await _sut.ListDiagnosticsAsync(nonExistentProject));
+        }
+
+        /// <summary>
+        /// 'project' is now optional: a null reference is passed straight through to
+        /// <see cref="IProjectLoader"/>, which auto-discovers the solution/project — the same
+        /// behavior the navigation and edit tools have.
+        /// </summary>
+        [Fact]
+        public async Task Should_Delegate_Null_Project_To_Loader_AutoDiscovery()
+        {
+            // Arrange — a real in-memory project handed out by the (fake) loader for a null reference.
+            var (workspace, project) = AdhocProjectBuilder.Create(
+                "Discovered", [("Program.cs", "class Program { static void Main() { int unused = 1; } }")]);
+            using var _ = workspace;
+            A.CallTo(() => _projectLoader.LoadAsync(null, A<CancellationToken>._))
+                .ReturnsLazily(() => Task.FromResult(new LoadedProject(workspace, project.Solution, project)));
+
+            // Act
+            var result = await _sut.ListDiagnosticsAsync(null);
+
+            // Assert — diagnostics were computed for the auto-discovered project.
+            result.Project.ShouldBe("Discovered");
+            A.CallTo(() => _projectLoader.LoadAsync(null, A<CancellationToken>._))
+                .MustHaveHappenedOnceExactly();
         }
     }
 
@@ -125,7 +153,7 @@ public class SolutionAnalyzerServiceTests
             await Should.ThrowAsync<OperationCanceledException>(async () =>
                 await _sut.ListDiagnosticsAsync("irrelevant.csproj", cancellationToken: cts.Token));
 
-            A.CallTo(() => _msBuildService.CreateWorkspace()).MustNotHaveHappened();
+            A.CallTo(() => _projectLoader.LoadAsync(A<string?>._, A<CancellationToken>._)).MustNotHaveHappened();
         }
     }
 
@@ -146,7 +174,7 @@ public class SolutionAnalyzerServiceTests
             var msBuildService = A.Fake<IMSBuildService>();
             var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
             var realFilterService = new DiagnosticFilterService(codeFixProviderFactory);
-            _aggregationSut = new SolutionAnalyzerService(logger, msBuildService, realFilterService);
+            _aggregationSut = new SolutionAnalyzerService(logger, msBuildService, realFilterService, A.Fake<IProjectLoader>());
         }
 
         private static readonly MetadataReference CoreLibReference =

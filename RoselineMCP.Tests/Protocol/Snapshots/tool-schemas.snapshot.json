@@ -63,12 +63,15 @@
         "type": "boolean"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [
-      "project",
       "ids"
     ],
     "type": "object"
@@ -327,13 +330,14 @@
         "type": "integer"
       },
       "project": {
-        "description": "Project name or path to .csproj file",
-        "type": "string"
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
-    "required": [
-      "project"
-    ],
     "type": "object"
   },
   "rename_symbol": {

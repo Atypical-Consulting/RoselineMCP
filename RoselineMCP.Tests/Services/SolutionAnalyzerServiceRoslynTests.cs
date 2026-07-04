@@ -28,7 +28,7 @@ public class SolutionAnalyzerServiceRoslynTests
         var msBuildService = A.Fake<IMSBuildService>();
         var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
         _realFilterService = new DiagnosticFilterService(codeFixProviderFactory);
-        _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService);
+        _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService, A.Fake<IProjectLoader>());
     }
 
     #region Helpers

@@ -23,7 +23,7 @@ public class SolutionAnalyzerServiceAdhocTests
         var msBuildService = A.Fake<IMSBuildService>();
         var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
         _realFilterService = new DiagnosticFilterService(codeFixProviderFactory);
-        _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService);
+        _sut = new SolutionAnalyzerService(logger, msBuildService, _realFilterService, A.Fake<IProjectLoader>());
     }
 
     private T InvokePrivate<T>(string methodName, params object?[] args)
@@ -58,77 +58,10 @@ public class SolutionAnalyzerServiceAdhocTests
         return (workspace, solution);
     }
 
-    public class FindProjectInSolutionTests : SolutionAnalyzerServiceAdhocTests
-    {
-        [Fact]
-        public void Should_Find_Project_By_Exact_Name()
-        {
-            // Arrange
-            var (_, solution) = CreateSolutionWithProjects("MyService", "MyApi", "MyLib");
-
-            // Act
-            var result = InvokePrivate<Project?>("FindProjectInSolution", solution, "MyService");
-
-            // Assert
-            result.ShouldNotBeNull();
-            result!.Name.ShouldBe("MyService");
-        }
-
-        [Fact]
-        public void Should_Find_Project_Case_Insensitive()
-        {
-            // Arrange
-            var (_, solution) = CreateSolutionWithProjects("MyService");
-
-            // Act
-            var result = InvokePrivate<Project?>("FindProjectInSolution", solution, "myservice");
-
-            // Assert
-            result.ShouldNotBeNull();
-        }
-
-        [Fact]
-        public void Should_Return_Null_When_Project_Not_Found()
-        {
-            // Arrange
-            var (_, solution) = CreateSolutionWithProjects("ProjectA", "ProjectB");
-
-            // Act
-            var result = InvokePrivate<Project?>("FindProjectInSolution", solution, "NonExistentProject");
-
-            // Assert
-            result.ShouldBeNull();
-        }
-
-        [Fact]
-        public void Should_Return_Null_For_Empty_Solution()
-        {
-            // Arrange
-            var workspace = new AdhocWorkspace();
-            var solution = workspace.CurrentSolution;
-
-            // Act
-            var result = InvokePrivate<Project?>("FindProjectInSolution", solution, "AnyProject");
-
-            // Assert
-            result.ShouldBeNull();
-        }
-
-        [Fact]
-        public void Should_Find_Project_By_File_Path_Contains()
-        {
-            // Arrange - project with known file path
-            var (_, solution) = CreateSolutionWithProjects("MyApi");
-            // The project was created with filePath="/projects/MyApi/MyApi.csproj"
-            // It should be findable by "MyApi" in the path
-
-            // Act
-            var result = InvokePrivate<Project?>("FindProjectInSolution", solution, "MyApi");
-
-            // Assert
-            result.ShouldNotBeNull();
-        }
-    }
+    // NOTE: the former FindProjectInSolution(Solution, string) helper (which substring-matched
+    // project file paths) was deleted along with the rest of ListDiagnostics' private resolution
+    // copy — project selection now goes through ProjectLoader.FindProjectInSolution, covered by
+    // ProjectLoaderTests (including the exact-name / no-substring-match regression).
 
     public class BuildAnalyzeSolutionResponseTests : SolutionAnalyzerServiceAdhocTests
     {

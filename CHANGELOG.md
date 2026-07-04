@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   analyzers executes third-party code at analysis time — see the new SECURITY.md section.
 
 ### Fixed
+- `list_diagnostics`/`apply_fixes` no longer select a project by **substring** match against project file paths (asking for `Foo` could analyze `FooBar`) — project selection inside a solution now matches the exact (case-insensitive) name, via the shared `ProjectLoader`.
 - Docs drift found in the v2.0.0 audit: corrected the README's Roslyn version (5.3.0 → 5.6.0), repaired the changelog reference links (stale `[Unreleased]` compare, missing 1.3.x–2.0.0 definitions), reframed the benchmark headlines around the robust median (85%, pooled 88% kept as a labeled secondary figure) and labeled the agent benchmark's ~50% as the forced-use ceiling (~13% realistic, n=1), refreshed the NuGet package `Description` to the v2 positioning, and added the missing `max` parameter to the README `getTypeHierarchy` snippet.
 - `ApplyFixes` no longer reports `ok: true` with an `Error: …` note when the operation itself
   fails (e.g. project not found) — such failures now return the documented classified error
@@ -60,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hangs), and merges the latest release in directly as a fallback.
 
 ### Changed
+- **BREAKING**: `apply_fixes`, `edit_member`, and `rename_symbol` now emit `changedFiles` and patch-header paths relative to the **solution root** with forward slashes (falling back to the project directory when no `.sln` is loaded) — the same base the navigation tools use — instead of the project directory.
+- `list_diagnostics` and `apply_fixes` now load their `project` through the shared `IProjectLoader` (same as the navigation/edit tools): `project` is now **optional** (auto-discovered from the working directory when omitted), `.sln` paths are accepted, and the loaded workspace is cached across calls.
 - `ApplyFixes` now fixes all occurrences of a diagnostic ID in a single FixAll (batch) pass when
   the provider supports it, instead of re-compiling the project after every individual fix;
   providers without FixAll support keep the per-occurrence path, and the response shape is

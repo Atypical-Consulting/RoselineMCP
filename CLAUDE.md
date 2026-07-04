@@ -55,9 +55,12 @@ The application uses a dependency injection-based service architecture with clea
 
 ### Key Architectural Patterns
 
-- **Workspace Isolation (diagnostics tools)**: `AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`
-  create a new MSBuildWorkspace per operation to prevent state pollution
-- **Workspace Cache (navigation/edit tools)**: everything backed by `IProjectLoader` resolves to
+- **Workspace Isolation (AnalyzeSolution)**: `AnalyzeSolution` creates a new MSBuildWorkspace per
+  operation to prevent state pollution
+- **Unified project loading**: `ListDiagnostics`, `ApplyFixes`, and all navigation/edit tools load
+  their `project` through the single shared `IProjectLoader` (`ProjectLoader`) — one resolution
+  behavior (auto-discovery, `.sln` support, exact-name project selection) everywhere
+- **Workspace Cache (IProjectLoader-backed tools)**: `IProjectLoader` resolves to
   `CachingProjectLoader`, which reuses the loaded MSBuildWorkspace across tool calls. Each entry is
   fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, plus
   their directories' mtimes to catch added/removed files) and re-stat'd on every load — any change
@@ -129,14 +132,16 @@ Analyzes entire C# solutions for diagnostics with filtering options.
 - **Returns**: Solution summary, project counts, top diagnostics with location details
 
 ### 2. ListDiagnostics  
-Gets detailed diagnostics for specific projects with statistics.
-- **Parameters**: project, ids[], files[], max
+Gets detailed diagnostics for specific projects with statistics. Loads via `IProjectLoader`, so
+`project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
+- **Parameters**: project (optional), ids[], files[], max
 - **Returns**: Diagnostics list, statistics by ID/severity, suggested fixable IDs
 
 ### 3. ApplyFixes
-Applies automated code fixes for specified diagnostic IDs.
-- **Parameters**: project, ids[], previewOnly
-- **Returns**: Changed files, unified diff patch, applied fixers list
+Applies automated code fixes for specified diagnostic IDs. Loads via `IProjectLoader`, so
+`project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
+- **Parameters**: ids[], project (optional), previewOnly
+- **Returns**: Changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list
 
 ### 4. CreatePatch
 Generates unified diff patches between text versions.
@@ -300,12 +305,12 @@ Logging levels adjust automatically:
   `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
   `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against
   arbitrary/hostile callers.
-- The diagnostics tools (`AnalyzeSolution`/`ListDiagnostics`/`ApplyFixes`) create a fresh
-  `MSBuildWorkspace` per operation (see "Workspace Isolation" above). The navigation/edit tools
-  reuse a cached, read-only workspace across calls (see "Workspace Cache" above): Roslyn `Solution`
-  snapshots are immutable, and the cache is invalidated by an on-disk fingerprint check on every
-  call, so no stale state leaks between calls. Set `RoselineMCP:WorkspaceCache = false` to disable
-  caching entirely.
+- `AnalyzeSolution` creates a fresh `MSBuildWorkspace` per operation (see "Workspace Isolation"
+  above). Every other project-loading tool (`ListDiagnostics`/`ApplyFixes`/navigation/edit) loads
+  through `IProjectLoader` and reuses a cached, read-only workspace across calls (see "Workspace
+  Cache" above): Roslyn `Solution` snapshots are immutable, and the cache is invalidated by an
+  on-disk fingerprint check on every call, so no stale state leaks between calls — including after
+  `ApplyFixes`' own writes. Set `RoselineMCP:WorkspaceCache = false` to disable caching entirely.
 - Changes from `ApplyFixes` are always returned as a unified diff patch in the response, in
   addition to (optionally) being written to disk.
 

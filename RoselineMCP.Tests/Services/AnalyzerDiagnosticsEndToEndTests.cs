@@ -38,12 +38,13 @@ public class AnalyzerDiagnosticsEndToEndTests : IDisposable
         var factory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>(), catalog);
         var filterService = new DiagnosticFilterService(factory);
         var msBuildService = new MSBuildService(A.Fake<ILogger<MSBuildService>>());
+        var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
 
         _analyzerService = new SolutionAnalyzerService(
-            A.Fake<ILogger<SolutionAnalyzerService>>(), msBuildService, filterService, computation);
+            A.Fake<ILogger<SolutionAnalyzerService>>(), msBuildService, filterService, projectLoader, computation);
         _codeFixService = new CodeFixService(
             A.Fake<ILogger<CodeFixService>>(), _analyzerService, factory,
-            new DiffService(), msBuildService, computation);
+            new DiffService(), projectLoader, computation);
     }
 
     public void Dispose()
@@ -141,9 +142,10 @@ public class AnalyzerDiagnosticsEndToEndTests : IDisposable
             catalog);
         var factory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>(), catalog);
         var msBuildService = new MSBuildService(A.Fake<ILogger<MSBuildService>>());
+        var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
         var codeFixService = new CodeFixService(
             A.Fake<ILogger<CodeFixService>>(), _analyzerService, factory,
-            new DiffService(), msBuildService, compilerOnlyComputation);
+            new DiffService(), projectLoader, compilerOnlyComputation);
 
         var csprojPath = CreateProject("AnalyzersOff.csproj", ("Conditional.cs", SourceWithRcs1104));
         var sourcePath = Path.Combine(Path.GetDirectoryName(csprojPath)!, "Conditional.cs");

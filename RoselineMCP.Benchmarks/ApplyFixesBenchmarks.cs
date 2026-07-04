@@ -37,10 +37,12 @@ public class ApplyFixesBenchmarks
 
         var msBuildService = new MSBuildService(NullLogger<MSBuildService>.Instance);
         var codeFixProviderFactory = new CodeFixProviderFactory(NullLogger<CodeFixProviderFactory>.Instance);
+        var projectLoader = new ProjectLoader(NullLogger<ProjectLoader>.Instance, msBuildService);
         var analyzerService = new SolutionAnalyzerService(
             NullLogger<SolutionAnalyzerService>.Instance,
             msBuildService,
-            new DiagnosticFilterService(codeFixProviderFactory));
+            new DiagnosticFilterService(codeFixProviderFactory),
+            projectLoader);
         var diffService = new DiffService();
 
         _service = new CodeFixService(
@@ -48,7 +50,7 @@ public class ApplyFixesBenchmarks
             analyzerService,
             codeFixProviderFactory,
             diffService,
-            msBuildService);
+            projectLoader);
 
         // Same fixtures as AnalyzeSolutionBenchmarks; ApplyFixes targets a single project
         // (the first one), matching how the tool is used in practice.

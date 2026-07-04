@@ -133,6 +133,53 @@ public class ProjectLoaderTests : IDisposable
         resolved.ShouldBe(csproj);
     }
 
+    /// <summary>Invokes the private static <c>FindProjectInSolution</c> used to select the requested project inside a loaded solution.</summary>
+    private static Microsoft.CodeAnalysis.Project? FindProjectInSolution(
+        Microsoft.CodeAnalysis.Solution solution, string projectPath, string? projectName)
+    {
+        var method = typeof(ProjectLoader).GetMethod(
+            "FindProjectInSolution", BindingFlags.NonPublic | BindingFlags.Static)!;
+        return (Microsoft.CodeAnalysis.Project?)method.Invoke(null, [solution, projectPath, projectName]);
+    }
+
+    /// <summary>
+    /// Regression guard for the old ListDiagnostics/ApplyFixes resolution copy, which matched
+    /// projects by <c>FilePath.Contains(projectName)</c> — so asking for "Foo" could select
+    /// "FooBar". The shared loader selects by exact (case-insensitive) name only.
+    /// </summary>
+    [Fact]
+    public void FindProjectInSolution_Selects_By_Exact_Name_Not_Substring()
+    {
+        // FooBar is added FIRST, and its file path contains "Foo" — the old substring match
+        // would have returned it for the query "Foo".
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+        [
+            ("FooBar", [("A.cs", "public class A { }")]),
+            ("Foo", [("B.cs", "public class B { }")])
+        ]);
+        using var _1 = workspace;
+
+        var match = FindProjectInSolution(anchor.Solution, "/nonexistent/query.csproj", "Foo");
+
+        match.ShouldNotBeNull();
+        match!.Name.ShouldBe("Foo");
+    }
+
+    [Fact]
+    public void FindProjectInSolution_Returns_Null_For_A_Name_That_Only_Matches_As_Substring()
+    {
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+        [
+            ("FooBar", [("A.cs", "public class A { }")])
+        ]);
+        using var _1 = workspace;
+
+        // "Foo" is a substring of FooBar's name/path but matches no project's exact name.
+        var match = FindProjectInSolution(anchor.Solution, "/nonexistent/query.csproj", "Foo");
+
+        match.ShouldBeNull();
+    }
+
     /// <summary>
     /// End-to-end: a real <c>.sln</c> file (referencing a real SDK-style project) is loaded via a real
     /// <see cref="MSBuildService"/> and yields a usable primary project whose solution contains the
