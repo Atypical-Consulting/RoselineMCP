@@ -84,7 +84,7 @@ public class CodeEditService : ICodeEditService
         var newSourceText = await newDocument.GetTextAsync(cancellationToken);
         var newText = newSourceText.ToString();
 
-        var relativePath = RelativePath(loaded.Project, filePath);
+        var relativePath = RelativePath(loaded, filePath);
         var response = new EditMemberResponse
         {
             Project = loaded.Project.Name,
@@ -285,7 +285,7 @@ public class CodeEditService : ICodeEditService
                     continue;
                 }
 
-                var relativePath = RelativePath(loaded.Project, oldDocument.FilePath);
+                var relativePath = RelativePath(loaded, oldDocument.FilePath);
                 var diff = _diffService.GenerateUnifiedDiff(oldText, newText, $"a/{relativePath}", $"b/{relativePath}");
                 if (string.IsNullOrWhiteSpace(diff))
                 {
@@ -325,21 +325,14 @@ public class CodeEditService : ICodeEditService
         return response;
     }
 
-    private static string RelativePath(Project project, string filePath)
+    /// <summary>
+    /// Emitted paths are solution-root-relative with forward slashes (falling back to the project
+    /// directory when no <c>.sln</c> was loaded) — the same rule the navigation tools and
+    /// <c>ApplyFixes</c> use, so a given file has one canonical path across every tool's output.
+    /// </summary>
+    private static string RelativePath(LoadedProject loaded, string filePath)
     {
-        var baseDirectory = Path.GetDirectoryName(project.FilePath);
-        if (string.IsNullOrEmpty(baseDirectory))
-        {
-            return filePath;
-        }
-
-        try
-        {
-            return Path.GetRelativePath(baseDirectory, filePath);
-        }
-        catch (ArgumentException)
-        {
-            return filePath;
-        }
+        var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? loaded.Project.FilePath);
+        return SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
     }
 }

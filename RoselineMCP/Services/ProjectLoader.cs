@@ -10,9 +10,9 @@ namespace RoselineMCP.Services;
 /// <c>.sln</c> path — accepting a project name, a directory, a <c>.csproj</c> path, a <c>.sln</c>
 /// path, or nothing at all (auto-discovery from the working directory) — then opens the containing
 /// solution when one can be found (so cross-project references, callers, and renames are complete)
-/// or the single project otherwise. Mirrors the local-path resolution used by the diagnostics tools;
-/// Git-URL loading is intentionally out of scope here — navigation and edits operate on a local
-/// working copy.
+/// or the single project otherwise. This is the single local-path resolution used by the
+/// navigation, edit, and diagnostics/fix tools alike; Git-URL loading is intentionally out of
+/// scope here — only <c>AnalyzeSolution</c> accepts Git URLs, and it handles them itself.
 /// </summary>
 public class ProjectLoader : IProjectLoader
 {

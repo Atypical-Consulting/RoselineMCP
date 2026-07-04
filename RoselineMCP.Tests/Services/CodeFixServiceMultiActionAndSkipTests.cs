@@ -73,8 +73,9 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
         var analyzerService = A.Fake<ISolutionAnalyzerService>();
         var msBuildService = new MSBuildService(A.Fake<ILogger<MSBuildService>>());
         var diffService = new DiffService();
+        var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
 
-        return new CodeFixService(logger, analyzerService, factory, diffService, msBuildService);
+        return new CodeFixService(logger, analyzerService, factory, diffService, projectLoader);
     }
 
     /// <summary>

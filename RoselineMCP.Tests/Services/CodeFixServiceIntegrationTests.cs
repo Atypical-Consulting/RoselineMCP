@@ -35,8 +35,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
         var msBuildService = new MSBuildService(A.Fake<ILogger<MSBuildService>>());
         var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
         var diffService = new DiffService();
+        var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
 
-        _sut = new CodeFixService(logger, analyzerService, codeFixProviderFactory, diffService, msBuildService);
+        _sut = new CodeFixService(logger, analyzerService, codeFixProviderFactory, diffService, projectLoader);
     }
 
     public void Dispose()
@@ -323,6 +324,75 @@ public class CodeFixServiceIntegrationTests : IDisposable
             var onDisk = await File.ReadAllTextAsync(programPath);
             onDisk.ShouldNotContain("unused");
             onDisk.ShouldContain("System.Console.WriteLine(\"hi\");");
+        }
+    }
+
+    /// <summary>
+    /// With the shared <see cref="ProjectLoader"/>, ApplyFixes opens the containing solution when
+    /// one exists, and emitted paths (<c>changedFiles</c> + patch headers) are solution-root-relative
+    /// with forward slashes — the same base the navigation and edit tools use — instead of the old
+    /// project-directory-relative paths.
+    /// </summary>
+    public class SolutionRootRelativePathTests : CodeFixServiceIntegrationTests
+    {
+        /// <summary>Writes a hand-rolled .sln in <c>_testDirectory</c> referencing the given (already created) projects.</summary>
+        private string CreateSolutionFile(string solutionFileName, params string[] projectNames)
+        {
+            var guids = projectNames
+                .Select((name, i) => (Name: name, Guid: $"{{1111111{i + 1}-1111-1111-1111-111111111111}}"))
+                .ToList();
+            var entries = string.Join("\n", guids.Select(p =>
+                $"Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{p.Name}\", \"{p.Name}\\{p.Name}.csproj\", \"{p.Guid}\"\nEndProject"));
+            var configs = string.Join("\n", guids.Select(p =>
+                $"\t\t{p.Guid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{p.Guid}.Debug|Any CPU.Build.0 = Debug|Any CPU"));
+
+            var slnPath = Path.Combine(_testDirectory, solutionFileName);
+            File.WriteAllText(slnPath,
+                $"""
+                 Microsoft Visual Studio Solution File, Format Version 12.00
+                 # Visual Studio Version 17
+                 VisualStudioVersion = 17.0.31903.59
+                 MinimumVisualStudioVersion = 10.0.40219.1
+                 {entries}
+                 Global
+                 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+                 		Debug|Any CPU = Debug|Any CPU
+                 	EndGlobalSection
+                 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+                 {configs}
+                 	EndGlobalSection
+                 EndGlobal
+                 """);
+            return slnPath;
+        }
+
+        [Fact]
+        public async Task ChangedFiles_And_Patch_Headers_Are_Solution_Root_Relative()
+        {
+            // Arrange — two projects under one solution; the fix target is App.
+            var appCsproj = CreateProject("App.csproj",
+                ("Program.cs", """
+                 class Program
+                 {
+                     static void Main()
+                     {
+                         int unused = 1;
+                         System.Console.WriteLine("hi");
+                     }
+                 }
+                 """));
+            CreateProject("Lib.csproj",
+                ("Thing.cs", "public class Thing { }"));
+            CreateSolutionFile("Fix.sln", "App", "Lib");
+
+            // Act — reference the project by its .csproj path; the loader opens the containing solution.
+            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
+
+            // Assert — paths are rooted at the solution directory, with forward slashes.
+            result.FixedCount.ShouldBe(1);
+            result.ChangedFiles.ShouldBe(["App/Program.cs"]);
+            result.Patch.ShouldContain("a/App/Program.cs");
+            result.Patch.ShouldContain("b/App/Program.cs");
         }
     }
 

@@ -180,6 +180,51 @@ public class CodeEditServiceTests
         result.ChangedFiles.ShouldNotBeEmpty();
     }
 
+    /// <summary>
+    /// Emitted paths are solution-root-relative with forward slashes — the same base the
+    /// navigation tools and ApplyFixes use — so the same file has one canonical path across every
+    /// tool's output. Pinned against a multi-project solution whose FilePath is set (mirroring an
+    /// MSBuild-loaded .sln).
+    /// </summary>
+    [Fact]
+    public async Task RenameSymbol_Paths_Are_Solution_Root_Relative_In_Multi_Project_Solution()
+    {
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [
+                ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+                ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { } }")])
+            ],
+            solutionFileName: "Everything.sln");
+        var service = CreateService(workspace, anchor);
+
+        var result = await service.RenameSymbolAsync("App", "Widget", "Gadget", previewOnly: true, cancellationToken: CancellationToken.None);
+
+        // The changed file lives in the sibling Lib project; its path is relative to the
+        // solution root (not the anchor project directory) and uses forward slashes.
+        result.ChangedFiles.ShouldBe(["Lib/Widget.cs"]);
+        result.Patch.ShouldContain("a/Lib/Widget.cs");
+        result.Patch.ShouldContain("b/Lib/Widget.cs");
+    }
+
+    [Fact]
+    public async Task EditMember_Paths_Are_Solution_Root_Relative_In_Multi_Project_Solution()
+    {
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [
+                ("App", [("Calc.cs", "namespace AppNs { public class Calc { public int Add(int a, int b) { return a + b; } } }")]),
+                ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { } }")])
+            ],
+            solutionFileName: "Everything.sln");
+        var service = CreateService(workspace, anchor);
+
+        var result = await service.EditMemberAsync(
+            "App", "Add", "replace", "public int Add(int a, int b) { return a + b + 1; }",
+            previewOnly: true, CancellationToken.None);
+
+        result.ChangedFiles.ShouldBe(["App/Calc.cs"]);
+        result.Patch.ShouldContain("a/App/Calc.cs");
+    }
+
     [Fact]
     public async Task RenameSymbol_Reports_Strictly_Increasing_Progress()
     {

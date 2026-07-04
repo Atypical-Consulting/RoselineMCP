@@ -52,20 +52,24 @@ public class ToolListingTests : McpProtocolTestBase
     }
 
     [Fact]
-    public async Task ListDiagnostics_Schema_Requires_Only_Project()
+    public async Task ListDiagnostics_Schema_Has_No_Required_Params()
     {
         var tool = await GetToolAsync("list_diagnostics");
 
-        GetRequired(tool).ShouldBe(["project"]);
+        // 'project' is now optional (auto-discovered from the working directory, same as the
+        // navigation tools), and every other parameter always was — nothing is required.
+        GetRequired(tool).ShouldBeEmpty();
         GetPropertyNames(tool).ShouldBe(["project", "ids", "files", "max"], ignoreOrder: true);
     }
 
     [Fact]
-    public async Task ApplyFixes_Schema_Requires_Project_And_Ids()
+    public async Task ApplyFixes_Schema_Requires_Only_Ids()
     {
         var tool = await GetToolAsync("apply_fixes");
 
-        GetRequired(tool).ShouldBe(["project", "ids"], ignoreOrder: true);
+        // 'project' is now optional (auto-discovered from the working directory, same as the
+        // navigation tools); only 'ids' remains required.
+        GetRequired(tool).ShouldBe(["ids"]);
         GetPropertyNames(tool).ShouldBe(["project", "ids", "previewOnly"], ignoreOrder: true);
     }
 

@@ -12,7 +12,7 @@ public class CodeFixServiceTests
     private readonly ISolutionAnalyzerService _analyzerService;
     private readonly ICodeFixProviderFactory _codeFixProviderFactory;
     private readonly IDiffService _diffService;
-    private readonly IMSBuildService _msBuildService;
+    private readonly IProjectLoader _projectLoader;
     private readonly CodeFixService _sut;
 
     public CodeFixServiceTests()
@@ -21,18 +21,19 @@ public class CodeFixServiceTests
         _analyzerService = A.Fake<ISolutionAnalyzerService>();
         _codeFixProviderFactory = A.Fake<ICodeFixProviderFactory>();
         _diffService = A.Fake<IDiffService>();
-        _msBuildService = A.Fake<IMSBuildService>();
-        _sut = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _msBuildService);
+        _projectLoader = A.Fake<IProjectLoader>();
+        _sut = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _projectLoader);
     }
 
     public class ApplyFixesAsyncTests : CodeFixServiceTests
     {
         /// <summary>
-        /// A failure of the operation itself (here: the project doesn't exist) must propagate as
-        /// an exception so the MCP tool boundary (ApplyFixesTool) classifies it into the
-        /// documented error envelope (FileNotFoundException → NotFoundError). It must NOT be
-        /// folded into a normal-looking response with an "Error: ..." note — that made the tool
-        /// report ok: true for an operation that actually failed.
+        /// A failure of the operation itself (here: the project doesn't exist, reported by the
+        /// shared <see cref="IProjectLoader"/>) must propagate as an exception so the MCP tool
+        /// boundary (ApplyFixesTool) classifies it into the documented error envelope
+        /// (FileNotFoundException → NotFoundError). It must NOT be folded into a normal-looking
+        /// response with an "Error: ..." note — that made the tool report ok: true for an
+        /// operation that actually failed.
         /// </summary>
         [Fact]
         public async Task Should_Throw_FileNotFoundException_When_Project_Not_Found()
@@ -40,6 +41,8 @@ public class CodeFixServiceTests
             // Arrange
             var nonExistentProject = "/nonexistent/project.csproj";
             var ids = new List<string> { "CS0168" };
+            A.CallTo(() => _projectLoader.LoadAsync(nonExistentProject, A<CancellationToken>._))
+                .Throws(new FileNotFoundException($"Project not found: {nonExistentProject}"));
 
             // Act & Assert
             await Should.ThrowAsync<FileNotFoundException>(
@@ -67,67 +70,9 @@ public class CodeFixServiceTests
         }
     }
 
-    public class ResolveProjectPathTests
-    {
-        [Fact]
-        public void Should_Return_Path_When_Valid_Csproj_File_Exists()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var tempDir = Path.GetTempPath();
-            var projectPath = Path.Combine(tempDir, "test.csproj");
-            File.WriteAllText(projectPath, "<Project></Project>");
-
-            try
-            {
-                // Act
-                var result = service.TestResolveProjectPath(projectPath);
-
-                // Assert
-                result.ShouldBe(projectPath);
-            }
-            finally
-            {
-                File.Delete(projectPath);
-            }
-        }
-
-        [Fact]
-        public void Should_Find_Csproj_In_Directory()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-            Directory.CreateDirectory(tempDir);
-            var projectPath = Path.Combine(tempDir, "test.csproj");
-            File.WriteAllText(projectPath, "<Project></Project>");
-
-            try
-            {
-                // Act
-                var result = service.TestResolveProjectPath(tempDir);
-
-                // Assert
-                result.ShouldBe(projectPath);
-            }
-            finally
-            {
-                Directory.Delete(tempDir, true);
-            }
-        }
-
-        [Fact]
-        public void Should_Throw_When_No_Project_Found()
-        {
-            // Arrange
-            var service = new TestableCodeFixService();
-            var nonExistent = "NonExistentProject";
-
-            // Act & Assert - Any exception type is acceptable for a non-existent project
-            Should.Throw<Exception>(() => service.TestResolveProjectPath(nonExistent));
-        }
-    }
-
+    // NOTE: the former private ResolveProjectPath copy (and its TestableCodeFixService wrapper)
+    // was deleted — project resolution now goes through the shared IProjectLoader, covered by
+    // ProjectLoaderTests.
 
     public class LoadCodeFixProvidersTests : CodeFixServiceTests
     {
@@ -143,28 +88,8 @@ public class CodeFixServiceTests
         public void Should_Handle_Missing_Assemblies_Gracefully()
         {
             // The service should not throw even if some assemblies are not found
-            var service = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _msBuildService);
+            var service = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _projectLoader);
             service.ShouldNotBeNull();
-        }
-    }
-
-    // Testable wrapper to expose private methods
-    private class TestableCodeFixService : CodeFixService
-    {
-        public TestableCodeFixService() 
-            : base(A.Fake<ILogger<CodeFixService>>(), 
-                   A.Fake<ISolutionAnalyzerService>(),
-                   A.Fake<ICodeFixProviderFactory>(),
-                   A.Fake<IDiffService>(),
-                   A.Fake<IMSBuildService>())
-        {
-        }
-
-        public string TestResolveProjectPath(string project)
-        {
-            var method = typeof(CodeFixService).GetMethod("ResolveProjectPath",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return (string)method!.Invoke(this, new object[] { project })!;
         }
     }
 }

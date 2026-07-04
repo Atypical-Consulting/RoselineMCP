@@ -245,8 +245,8 @@ public class AnalysisToolsTests
             // Act
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "TestProject",
-                Array.Empty<string>());
+                Array.Empty<string>(),
+                "TestProject");
 
             // Assert
             result.Ok.ShouldBeFalse();
@@ -282,8 +282,8 @@ public class AnalysisToolsTests
             // Act - previewOnly intentionally omitted
             await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "TestProject",
-                new[] { "CS0168" });
+                new[] { "CS0168" },
+                "TestProject");
 
             // Assert
             capturedPreviewOnly.ShouldNotBeNull();
@@ -314,8 +314,8 @@ public class AnalysisToolsTests
             // Act
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                "TestProject",
                 new[] { "CS0168" },
+                "TestProject",
                 true);
 
             // Assert
@@ -350,8 +350,8 @@ public class AnalysisToolsTests
             // Act
             await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
-                project,
                 ids,
+                project,
                 previewOnly);
 
             // Assert

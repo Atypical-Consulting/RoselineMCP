@@ -26,21 +26,25 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     private readonly ILogger<SolutionAnalyzerService> _logger;
     private readonly IMSBuildService _msBuildService;
     private readonly IDiagnosticFilterService _filterService;
+    private readonly IProjectLoader _projectLoader;
 
     /// <summary>
     /// Initializes a new instance of the SolutionAnalyzerService.
     /// </summary>
     /// <param name="logger">Logger for diagnostic output.</param>
-    /// <param name="msBuildService">Service for MSBuild operations.</param>
+    /// <param name="msBuildService">Service for MSBuild operations (AnalyzeSolution path).</param>
     /// <param name="filterService">Service for filtering diagnostics.</param>
+    /// <param name="projectLoader">Loader used by ListDiagnostics to resolve/load the target project.</param>
     public SolutionAnalyzerService(
         ILogger<SolutionAnalyzerService> logger,
         IMSBuildService msBuildService,
-        IDiagnosticFilterService filterService)
+        IDiagnosticFilterService filterService,
+        IProjectLoader projectLoader)
     {
         _logger = logger;
         _msBuildService = msBuildService;
         _filterService = filterService;
+        _projectLoader = projectLoader;
     }
 
     /// <inheritdoc/>
@@ -309,7 +313,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
 
     /// <inheritdoc/>
     public async Task<ListDiagnosticsResponse> ListDiagnosticsAsync(
-        string project,
+        string? project,
         List<string>? ids = null,
         List<string>? files = null,
         int max = 100,
@@ -319,8 +323,11 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            using var workspace = _msBuildService.CreateWorkspace();
-            var msProject = await LoadProjectAsync(workspace, project, cancellationToken);
+            // Same resolution/loading as the navigation and edit tools (IProjectLoader):
+            // auto-discovery when 'project' is omitted, .sln paths accepted, exact-name project
+            // selection, and the shared workspace cache.
+            using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
+            var msProject = loaded.Project;
 
             var compilation = await GetProjectCompilationAsync(msProject, cancellationToken);
             if (compilation == null)
@@ -346,54 +353,6 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             _logger.LogError(ex, "Failed to list diagnostics for project");
             throw;
         }
-    }
-
-    private async Task<Project> LoadProjectAsync(MSBuildWorkspace workspace, string project, CancellationToken cancellationToken)
-    {
-        var projectPath = ResolveProjectPath(project);
-        _logger.LogInformation("Loading project: {Path}", projectPath);
-
-        var msProject = await TryLoadProjectDirectlyAsync(workspace, projectPath, cancellationToken);
-        if (msProject != null)
-        {
-            return msProject;
-        }
-
-        msProject = await TryLoadProjectFromSolutionAsync(workspace, projectPath, project, cancellationToken);
-        if (msProject == null)
-        {
-            throw new InvalidOperationException($"Project not found: {project}");
-        }
-
-        return msProject;
-    }
-
-    private async Task<Project?> TryLoadProjectDirectlyAsync(MSBuildWorkspace workspace, string projectPath, CancellationToken cancellationToken)
-    {
-        if (File.Exists(projectPath) && projectPath.EndsWith(".csproj"))
-        {
-            return await workspace.OpenProjectAsync(projectPath, cancellationToken: cancellationToken);
-        }
-        return null;
-    }
-
-    private async Task<Project?> TryLoadProjectFromSolutionAsync(MSBuildWorkspace workspace, string projectPath, string projectName, CancellationToken cancellationToken)
-    {
-        var solutionPath = FindSolutionFile(projectPath);
-        if (solutionPath == null)
-        {
-            return null;
-        }
-
-        var solution = await workspace.OpenSolutionAsync(solutionPath, cancellationToken: cancellationToken);
-        return FindProjectInSolution(solution, projectName);
-    }
-
-    private Project? FindProjectInSolution(Solution solution, string projectName)
-    {
-        return solution.Projects.FirstOrDefault(p =>
-            p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase) ||
-            p.FilePath?.Contains(projectName) == true);
     }
 
     private async Task<Compilation?> GetProjectCompilationAsync(Project project, CancellationToken cancellationToken)
@@ -743,71 +702,6 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             throw new FileNotFoundException($"No solution files found in directory: {directory}");
         }
         return slnFiles.First();
-    }
-
-    private string ResolveProjectPath(string project)
-    {
-        if (IsValidProjectFile(project))
-        {
-            return project;
-        }
-
-        var projectFromDirectory = TryFindProjectInDirectory(project);
-        return projectFromDirectory ?? project;
-    }
-
-    private bool IsValidProjectFile(string path)
-    {
-        return File.Exists(path) && path.EndsWith(".csproj");
-    }
-
-    private string? TryFindProjectInDirectory(string path)
-    {
-        if (!Directory.Exists(path))
-        {
-            return null;
-        }
-
-        var csprojFiles = Directory.GetFiles(path, "*.csproj", SearchOption.TopDirectoryOnly);
-        return csprojFiles.Length > 0 ? csprojFiles.First() : null;
-    }
-
-    private string? FindSolutionFile(string startPath)
-    {
-        var directory = GetStartDirectory(startPath);
-        return SearchForSolutionInParentDirectories(directory);
-    }
-
-    private string? GetStartDirectory(string path)
-    {
-        return Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-    }
-
-    private string? SearchForSolutionInParentDirectories(string? directory)
-    {
-        while (!string.IsNullOrEmpty(directory))
-        {
-            var solutionFile = TryFindSolutionInDirectory(directory);
-            if (solutionFile != null)
-            {
-                return solutionFile;
-            }
-
-            directory = GetParentDirectory(directory);
-        }
-
-        return null;
-    }
-
-    private string? TryFindSolutionInDirectory(string directory)
-    {
-        var slnFiles = Directory.GetFiles(directory, "*.sln", SearchOption.TopDirectoryOnly);
-        return slnFiles.Length > 0 ? slnFiles.First() : null;
-    }
-
-    private string? GetParentDirectory(string directory)
-    {
-        return Directory.GetParent(directory)?.FullName;
     }
 
     private void UpdateSummary(DiagnosticSummary summary, DiagnosticSeverity severity)
