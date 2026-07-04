@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`analyze_solution` reports honest numbers.** `diagnosticSummary` now counts every diagnostic
+  passing the filters — previously each project's diagnostics were capped at `maxDiagnostics`
+  *before* counting, undercounting any project with more. `topDiagnostics` is now the true
+  solution-wide top-N by severity — previously it kept the first N diagnostics encountered in
+  project order, so warnings from an early project could crowd out errors from a later one.
 - Configuration (`appsettings.json` / `appsettings.{Environment}.json`) now loads from the install
   directory (`AppContext.BaseDirectory`) instead of the process working directory — a target
   repository's own `appsettings.json` can no longer reconfigure the server, the settings packaged
@@ -29,7 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   absent from the page until a manual re-deploy (as happened for v2.0.0). The build now cross-checks
   `/releases/latest`, retries the listing until it includes that tag (bounded so the build never
   hangs), and merges the latest release in directly as a fallback.
->>>>>>> origin/dev
+
+### Performance
+- **`analyze_solution` analyzes projects in parallel** (bounded by the processor count) instead of
+  one at a time; results are merged deterministically and progress values still strictly increase.
 
 ## [2.0.0] - 2026-07-04
 

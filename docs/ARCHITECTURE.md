@@ -204,11 +204,12 @@ Services act as repositories for their respective domains:
    (deleted in a `finally` block once the operation completes)
 4. Service → MSBuildService.CreateWorkspace()
 5. Service → Load solution via MSBuildWorkspace
-6. For each project, sequentially (not in parallel):
+6. For each project, concurrently (bounded by the processor count):
    a. Get compilation
    b. Get diagnostics
    c. Filter via DiagnosticFilterService
-   d. Aggregate results
+   d. Collect an isolated per-project result (full severity counts + top candidates)
+   Then merge the per-project results into the global summary and top-N selection
 7. Return AnalyzeSolutionResponse
 8. Tool → Serialize to JSON
 9. MCP Server → Return to client
@@ -297,13 +298,16 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    `ListDiagnostics`, and `ApplyFixes` call creates and disposes its own `MSBuildWorkspace` (see
    "Workspace Isolation" below), trading some reload cost for isolation between calls.
 
-### Sequential Processing
+### Parallel Project Analysis
 
-Projects within a solution are analyzed **sequentially**, not concurrently — `AnalyzeSolution`
-loops over `solution.Projects` with a plain `foreach`. Diagnostics for each project are then
-filtered in-process against the compilation the workspace already produced. This keeps
-`MSBuildWorkspace` state predictable per call; parallelizing the project loop is tracked as a
-possible future optimization, not current behavior.
+Projects within a solution are analyzed **concurrently** — `AnalyzeSolution` runs the per-project
+compilation/diagnostics work through `Parallel.ForEachAsync` bounded by
+`Environment.ProcessorCount`. `Project.GetCompilationAsync`/`Compilation.GetDiagnostics` are safe
+to run in parallel across independent projects of one loaded solution. Each project writes its
+result into its own slot (no shared mutable state across workers) and results are merged
+afterwards, so the output is deterministic regardless of completion order; progress notifications
+are emitted from a completed-project counter under a lock so the reported value strictly
+increases, as MCP requires (the project named in each message follows completion order).
 
 ### Memory Management
 
