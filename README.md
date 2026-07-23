@@ -1,3 +1,5 @@
+![RoselineMCP banner](.github/banner.png)
+
 # RoselineMCP
 
 <!-- mcp-name: io.github.Atypical-Consulting/roseline-mcp -->
