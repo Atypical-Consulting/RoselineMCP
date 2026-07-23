@@ -837,6 +837,15 @@ spans cost essentially nothing.
 - [SECURITY.md](SECURITY.md) -- Vulnerability reporting and the MSBuild code-execution caveat
 - [CONTRIBUTING.md](CONTRIBUTING.md) -- Development setup and PR process
 
+## Atypical MCP servers
+
+Part of a suite of Model Context Protocol servers by Atypical Consulting:
+
+- [RoselineMCP](https://github.com/Atypical-Consulting/RoselineMCP) — Roslyn code intelligence for AI agents
+- [ASTral](https://github.com/Atypical-Consulting/ASTral) — structured code retrieval (tree-sitter)
+- [AdrMcp](https://github.com/Atypical-Consulting/AdrMcp) — Architecture Decision Records over MCP
+- [MarkdownInk](https://github.com/Atypical-Consulting/MarkdownInk) — Markdown rendering for the terminal
+
 ## Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
