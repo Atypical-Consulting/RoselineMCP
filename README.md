@@ -105,10 +105,10 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 | Runtime | .NET 10.0 |
 | Compiler Platform | Roslyn (Microsoft.CodeAnalysis) 5.6.0 |
 | Analyzers | Roslynator 4.15.0 |
-| MCP SDK | ModelContextProtocol 1.4.0 |
+| MCP SDK | ModelContextProtocol 1.4.1 |
 | Diff Engine | DiffPlex 1.9.0 |
-| Build System | MSBuild 18.7.1 |
-| Hosting | Microsoft.Extensions.Hosting 10.0.9 |
+| Build System | MSBuild 18.8.2 |
+| Hosting | Microsoft.Extensions.Hosting 10.0.10 |
 
 > Versions above are kept in sync with [`RoselineMCP/RoselineMCP.csproj`](RoselineMCP/RoselineMCP.csproj) — that file is the source of truth if this table ever drifts.
 
@@ -510,7 +510,7 @@ renameSymbol({ project: "MyApp.Core", symbol: "GetUser", newName: "GetUserById",
 
 ## Tool Annotations
 
-RoselineMCP's SDK (`ModelContextProtocol` 1.4.0) supports the standard MCP tool
+RoselineMCP's SDK (`ModelContextProtocol` 1.4.1) supports the standard MCP tool
 [annotation hints](https://modelcontextprotocol.io/) (`readOnlyHint`, `destructiveHint`,
 `idempotentHint`), and every tool declares them via `[McpServerTool(ReadOnly = ..., Destructive =
 ..., Idempotent = ...)]`:
@@ -669,7 +669,7 @@ Configure logging and other settings:
 
 - `RoselineMCP:DefaultTimeout`: Wall-clock timeout (ms) applied to each tool call, in addition to the caller's own cancellation. `0` disables it.
 - `RoselineMCP:EnableDiagnosticLogging`: Opt-in, local-only tracing of tool invocations — see [Debug Logging](#debug-logging). Disabled by default; enabled in `appsettings.Development.json`.
-- `RoselineMCP:WorkspaceCache`: Reuse the loaded MSBuild workspace across navigation/edit tool calls (enabled by default) — see [Performance](#performance). Set to `false` to load a fresh workspace on every call.
+- `RoselineMCP:WorkspaceCache`: Reuse the loaded MSBuild workspace across navigation/edit tool calls (enabled by default) — see [Performance](#performance). Set to `false` to load a fresh workspace on every call. **This is an isolation/debugging switch, not a memory-saving one** — measured, disabling it costs ~26% more resident memory and ~45× second-call latency; see [Memory Management](docs/ARCHITECTURE.md#memory-management).
 - `RoselineMCP:RunAnalyzers`: Run Roslyn analyzers (bundled Roslynator + the target project's own analyzer references) in the diagnostics tools (enabled by default) — see [Supported Analyzers](#supported-analyzers). Set to `false` for compiler-only diagnostics.
 
 ## Architecture
@@ -738,7 +738,11 @@ RoselineMCP/
   entries are fingerprinted (last-write-time + size of the `.sln`, every `.csproj`, and every
   source file, plus their directories) and re-checked on each call, so any change on disk —
   including RoselineMCP's own edits — triggers a fresh reload. Disable with
-  `RoselineMCP:WorkspaceCache = false`
+  `RoselineMCP:WorkspaceCache = false` — but note that this is an isolation/debugging switch, **not**
+  a way to reduce memory: a disposed workspace's memory is not returned to the OS, so disabling the
+  cache measures ~26% *worse* on resident memory as well as ~45× slower. The measured profile — and
+  why an idle-release was evaluated and rejected — is in
+  [Memory Management](docs/ARCHITECTURE.md#memory-management)
 - **Workspace Isolation (AnalyzeSolution)** -- `AnalyzeSolution` still creates a fresh
   `MSBuildWorkspace` per operation (see [Architecture](#architecture))
 - **Sequential Project Analysis** -- Projects within a solution are analyzed one at a time, not

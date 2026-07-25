@@ -66,7 +66,12 @@ The application uses a dependency injection-based service architecture with clea
   their directories' mtimes to catch added/removed files) and re-stat'd on every load — any change
   on disk disposes the cached workspace and reloads fresh, so RoselineMCP's own
   `ApplyFixes`/`EditMember`/`RenameSymbol` writes self-invalidate it. Bounded (4 entries, LRU);
-  disable with `RoselineMCP:WorkspaceCache = false` to load a fresh workspace per call
+  disable with `RoselineMCP:WorkspaceCache = false` to load a fresh workspace per call.
+  ⚠️ That switch is for isolation/debugging only — **it does not save memory**. Measured
+  2026-07-25: disposing per call costs +26% resident memory and ~45× second-call latency, because
+  a disposed workspace's memory is never returned to the OS. Releasing cached workspaces on idle
+  was measured and rejected for the same reason; do not re-propose it without reading
+  `docs/ARCHITECTURE.md` § Memory Management first
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
   payload nested under `data` on success, error details under `error` on failure — and sets
@@ -239,7 +244,7 @@ dotnet test --logger html
 ## Dependencies
 
 ### Core MCP and Hosting
-- **ModelContextProtocol** (1.4.0): MCP server implementation
+- **ModelContextProtocol** (1.4.1): MCP server implementation
 - **Microsoft.Extensions.Hosting**: Application hosting and DI
 - **Microsoft.Extensions.DependencyInjection**: Service registration
 
