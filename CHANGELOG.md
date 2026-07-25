@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Releases now publish to NuGet.org via **Trusted Publishing** instead of a long-lived
+  `NUGET_API_KEY` secret: `publish-nuget.yml` exchanges the GitHub OIDC token for a key valid
+  ~1 hour, the same way the registry publish already proved this repo's identity. The only
+  remaining secret is `NUGET_USER`, the nuget.org profile name. Maintainers must register a Trusted
+  Publishing policy on nuget.org for the `RoselineMCP` package before the next tag — see
+  `PUBLISH.md`.
+
 ## [2.1.1] - 2026-07-04
 
 ### Fixed

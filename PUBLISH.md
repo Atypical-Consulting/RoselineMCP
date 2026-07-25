@@ -19,7 +19,7 @@ parallel:
 
 | Workflow | File | What it publishes |
 |----------|------|--------------------|
-| **Publish NuGet** | [`.github/workflows/publish-nuget.yml`](.github/workflows/publish-nuget.yml) | Packs `RoselineMCP/RoselineMCP.csproj` with `-p:MinVerVersionOverride=<tag-without-v>` and pushes the `.nupkg` to [nuget.org](https://www.nuget.org/packages/RoselineMCP/) using the `NUGET_API_KEY` repository secret. |
+| **Publish NuGet** | [`.github/workflows/publish-nuget.yml`](.github/workflows/publish-nuget.yml) | Packs `RoselineMCP/RoselineMCP.csproj` with `-p:MinVerVersionOverride=<tag-without-v>` and pushes the `.nupkg` to [nuget.org](https://www.nuget.org/packages/RoselineMCP/) via Trusted Publishing — the GitHub OIDC token is exchanged for a key valid ~1 hour, so no long-lived API key exists. |
 | **Docker Publish** | [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml) | Builds a multi-arch (`linux/amd64`, `linux/arm64`) image from the repository [`Dockerfile`](Dockerfile) via Docker Buildx and pushes it to both `docker.io/phmatray/roseline-mcp` and `ghcr.io/atypical-consulting/roseline-mcp`, tagged with the semver version and `latest`. |
 
 ### Releasing a new version
@@ -45,7 +45,7 @@ through [MinVer](https://github.com/adamralph/minver) for local/CI builds betwee
 
 | Secret | Used by | Purpose |
 |--------|---------|---------|
-| `NUGET_API_KEY` | `publish-nuget.yml` | API key with push rights on the `RoselineMCP` package on nuget.org. |
+| `NUGET_USER` | `publish-nuget.yml` | The nuget.org profile name — not a credential. Push rights come from a [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing) policy registered on nuget.org for the `RoselineMCP` package, naming this repository and `publish-nuget.yml`. No long-lived API key is stored. |
 | `DOCKER_USERNAME` / `DOCKER_TOKEN` | `docker-publish.yml` | Docker Hub login (access token, not a password) for `phmatray/roseline-mcp`. |
 | `GITHUB_TOKEN` | `docker-publish.yml` | Automatically provided by Actions; used to push to `ghcr.io/atypical-consulting/roseline-mcp`. |
 
