@@ -74,6 +74,30 @@ Key features:
 - Registers all services as singletons for performance
 - Sets up environment-specific configurations
 
+#### Process lifetime and shutdown
+
+`Program.cs` ends its host builder with `.UseConsoleLifetime(...)`, but that is **not** what stops
+the server in normal operation — it only handles SIGINT/SIGTERM. An MCP client that is finished
+typically just closes the stdin pipe, and it is the **SDK's stdio transport** that ends the process
+in that case: its read loop completes on EOF, shuts the server down, and unblocks `host.RunAsync()`,
+which returns normally so the "stopped gracefully" path runs. Reading `UseConsoleLifetime` as the
+whole lifetime story is the natural misreading, and it leads to the wrong conclusion that a client
+which merely closes the pipe would strand a server.
+
+Verified empirically on 2026-07-25 against `ModelContextProtocol` 1.4.1 (the pinned version), by
+driving the release binary over real pipes. All four paths exit with code 0:
+
+| Path | Behaviour |
+|---|---|
+| EOF after a completed handshake | exits in ~0.8 s |
+| EOF before any handshake (client dies on spawn) | exits in ~0.2 s |
+| EOF while a tool call is in flight | drains the in-flight call, then exits (~2.3 s) — it does **not** linger to `DefaultTimeout` |
+| stdin held open | stays alive, as it must — a live client holding stdin is not a leak |
+
+This is what the README means by "exits when the client disconnects"; the claim is measured, not
+assumed. A server still resident while its client holds stdin open is behaving correctly, so look
+for the client that never exited rather than for a defect here.
+
 ### 2. Tool Layer
 
 Location: `Tools/`
@@ -354,6 +378,48 @@ increases, as MCP requires (the project named in each message follows completion
   or host shutdown
 - `ApplyFixes` re-fetches the project's compilation after every individual fix is applied, so
   later fixes see up-to-date source text/positions
+
+#### Measured memory profile (2026-07-25)
+
+The resident footprint of a running server was measured empirically against the release build, both
+from outside the process (`ps -o rss`, driving the real binary over stdio) and from inside it
+(`Process.WorkingSet64` alongside `GC.GetTotalMemory`). The numbers below are for
+`RoselineMCP.sln` itself — a three-project solution — on .NET 10; a larger target scales the
+per-workspace cost, not the shape of the result.
+
+| State | Resident |
+|---|---|
+| Handshake complete, **zero tool calls** | **~78 MB** |
+| After the first workspace-loading tool call | **~295 MB** |
+| After further calls, then idle for 3 minutes | ~311 MB, flat to ±0.1 MB |
+
+Two conclusions follow, and they are settled — do not re-derive them:
+
+1. **The idle baseline is not the cache.** ~78 MB is reached *before any workspace exists*: it is
+   the .NET runtime plus the Roslyn, MSBuild and Roslynator assembly set that this server must load
+   to do its job. No cache policy can move it.
+2. **Disposal does not return memory to the OS.** Disposing every cached workspace and then forcing
+   a compacting gen-2 collection with LOH compaction moves the working set from 276 MB to 276 MB.
+   At peak, only ~73 MB of a 274 MB working set is managed heap; the remaining majority is loaded
+   assemblies, JIT-compiled code and metadata mappings, which are permanent for the process
+   lifetime. Even a pass that halved the managed heap (65 → 38 MB) moved the working set by 5 MB.
+
+Therefore **the entry bound is the only lever that has ever done anything**, and it is already
+pulled: 4 entries, LRU-evicted, each evicted workspace disposed. Releasing cached workspaces after
+an idle period was evaluated against these measurements and **rejected** — it would reclaim
+essentially nothing while costing a full cold reload (~2 s versus ~0.02 s for a cache hit, a ~100×
+first-call penalty) after every idle window, plus a disposal race against in-flight loads.
+
+> [!IMPORTANT]
+> **`RoselineMCP:WorkspaceCache = false` is not a memory-saving knob.** Disposing the workspace
+> after every call is the most aggressive release policy possible, and it measures **worse**:
+> ~374 MB versus ~296 MB after two calls (+26 %), with second-call latency going from 0.02 s to
+> 0.92 s (~45×). The reload allocates on top of memory the previous disposal never returned. Treat
+> the switch as an isolation/debugging control only.
+
+An operator sizing a host should therefore budget for the *exercised* figure (~300 MB per server),
+not the cold one — the gap between the two is the single most common source of surprise when many
+MCP servers run side by side.
 
 ## Security Architecture
 

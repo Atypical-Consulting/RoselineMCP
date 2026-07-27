@@ -11,9 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Releases now publish to NuGet.org via **Trusted Publishing** instead of a long-lived
   `NUGET_API_KEY` secret: `publish-nuget.yml` exchanges the GitHub OIDC token for a key valid
   ~1 hour, the same way the registry publish already proved this repo's identity. The only
-  remaining secret is `NUGET_USER`, the nuget.org profile name. Maintainers must register a Trusted
-  Publishing policy on nuget.org for the `RoselineMCP` package before the next tag — see
-  `PUBLISH.md`.
+  remaining secret is `NUGET_USER`, the nuget.org profile name. Both prerequisites are in place as
+  of 2026-07-27: the Trusted Publishing policy is registered on nuget.org (package owner
+  `phmatray`, naming this repository and `publish-nuget.yml`) and `NUGET_USER` is set. The
+  long-lived `NUGET_API_KEY` repository secret is deliberately kept until one real release has been
+  published and verified — see `PUBLISH.md`.
+
+### Documentation
+- **`RoselineMCP:WorkspaceCache = false` is documented as what it is: an isolation/debugging
+  switch, never a way to save memory.** The docs described it only as "loads a fresh workspace on
+  every call", which reads as the memory-frugal option; measured, it is the opposite — disposing
+  the workspace after every call costs **+26 % resident memory** (~374 MB vs ~296 MB after two
+  calls) and **~45× second-call latency** (0.92 s vs 0.02 s), because a disposed workspace's memory
+  is never returned to the OS and the reload allocates on top of it. An operator who set it to
+  reduce a server's footprint was getting a regression.
+- `docs/ARCHITECTURE.md` gains the measured memory profile behind that correction (~78 MB before
+  any workspace exists — runtime plus the Roslyn/MSBuild/Roslynator assembly set, not the cache;
+  ~300 MB once real work has been served; disposal plus a forced compacting GC moves the working
+  set 276 MB → 276 MB), so the cache's 4-entry LRU bound is visible as the only lever that affects
+  it. Releasing cached workspaces on idle was evaluated against these numbers and rejected.
+- `docs/ARCHITECTURE.md` now states that the **stdio transport**, not `UseConsoleLifetime`, is what
+  stops the host when a client closes stdin, with the four measured EOF paths (after handshake,
+  before handshake, mid-tool-call, and stdin held open). `UseConsoleLifetime` handles only
+  SIGINT/SIGTERM, and reading it as the whole lifetime story suggests a stranded-server bug that
+  does not exist.
+- Dependency versions asserted in prose corrected against `RoselineMCP.csproj`, which the README
+  already names as the source of truth: `ModelContextProtocol` 1.4.0 → **1.4.1** (README tech stack
+  and tool-annotations section, `CLAUDE.md`), MSBuild 18.7.1 → **18.8.2**, and
+  `Microsoft.Extensions.Hosting` 10.0.9 → **10.0.10**.
 
 ## [2.1.1] - 2026-07-04
 
