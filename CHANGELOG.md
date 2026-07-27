@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Releases now publish to NuGet.org via **Trusted Publishing** instead of a long-lived
+  `NUGET_API_KEY` secret: `publish-nuget.yml` exchanges the GitHub OIDC token for a key valid
+  ~1 hour, the same way the registry publish already proved this repo's identity. The only
+  remaining secret is `NUGET_USER`, the nuget.org profile name. Both prerequisites are in place as
+  of 2026-07-27: the Trusted Publishing policy is registered on nuget.org (package owner
+  `phmatray`, naming this repository and `publish-nuget.yml`) and `NUGET_USER` is set. The
+  long-lived `NUGET_API_KEY` repository secret is deliberately kept until one real release has been
+  published and verified — see `PUBLISH.md`.
+
 ### Documentation
 - **`RoselineMCP:WorkspaceCache = false` is documented as what it is: an isolation/debugging
   switch, never a way to save memory.** The docs described it only as "loads a fresh workspace on

@@ -12,6 +12,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
 
+    # Job-level, so it must restate contents: write — a job-level block replaces the workflow-level
+    # one rather than adding to it, and the GitHub Release step below needs it.
+    permissions:
+      contents: write # required to create the GitHub Release
+      id-token: write # request the GitHub OIDC token for NuGet Trusted Publishing
+
     steps:
       - uses: actions/checkout@v7
 
@@ -85,10 +91,23 @@ jobs:
           fi
           echo "Manifest OK: version $want is embedded and consistent."
 
+      # Trusted Publishing: exchanges the OIDC token (needs `id-token: write` above) for a NuGet key
+      # valid ~1 hour, so no long-lived secret is stored. The registry publish below already proves
+      # this repo's identity the same way (`mcp-publisher login github-oidc`); this brings NuGet in
+      # line with it. Requires a Trusted Publishing policy on nuget.org naming this repository and
+      # `publish-nuget.yml`, plus the NUGET_USER secret (the nuget.org profile name).
+      # Deliberately unguarded: a tag push means a release is expected, so a missing policy must
+      # fail this job loudly rather than skip and leave the version unpublished but green.
+      - name: NuGet login (OIDC -> short-lived key)
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push to NuGet.org
         run: |
           dotnet nuget push ./nupkg/*.nupkg \
-            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
