@@ -53,10 +53,10 @@
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.StringTools" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0" PrivateAssets="all" GeneratePathProperty="true" />
-    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.15.0" PrivateAssets="all" GeneratePathProperty="true" />
-    <PackageReference Include="Roslynator.CodeFixes" Version="4.15.0" GeneratePathProperty="true" />
-    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.15.0" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.16.0" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.16.0" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.CodeFixes" Version="4.16.0" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.16.0" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.CodeAnalysis.Features" Version="5.6.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.6.0" />
     <PackageReference Include="DiffPlex" Version="1.9.0" />
