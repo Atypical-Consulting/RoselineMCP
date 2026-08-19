@@ -675,7 +675,7 @@ Configure logging and other settings:
 }
 ```
 
-- `RoselineMCP:DefaultTimeout`: Wall-clock timeout (ms) applied to each tool call, in addition to the caller's own cancellation. `0` disables it.
+- `RoselineMCP:DefaultTimeout`: Wall-clock **analysis** budget (ms) applied to each tool call, in addition to the caller's own cancellation. `0` disables it. On the three write tools it does not cover the whole invocation: when a write confirmation is elicited, this clock starts only *after* the human answers, so think-time is charged to `ConfirmDestructiveWritesTimeout` instead. Size it for the analysis, not for the span a caller observes.
 - `RoselineMCP:EnableDiagnosticLogging`: Opt-in, local-only tracing of tool invocations — see [Debug Logging](#debug-logging). Disabled by default; enabled in `appsettings.Development.json`.
 - `RoselineMCP:WorkspaceCache`: Reuse the loaded MSBuild workspace across navigation/edit tool calls (enabled by default) — see [Performance](#performance). Set to `false` to load a fresh workspace on every call. **This is an isolation/debugging switch, not a memory-saving one** — measured, disabling it costs ~26% more resident memory and ~45× second-call latency; see [Memory Management](docs/ARCHITECTURE.md#memory-management).
 - `RoselineMCP:RunAnalyzers`: Run Roslyn analyzers (bundled Roslynator + the target project's own analyzer references) in the diagnostics tools (enabled by default) — see [Supported Analyzers](#supported-analyzers). Set to `false` for compiler-only diagnostics.

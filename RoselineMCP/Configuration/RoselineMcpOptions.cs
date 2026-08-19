@@ -15,9 +15,16 @@ public class RoselineMcpOptions
     public const int DefaultConfirmDestructiveWritesTimeoutMs = 300_000;
 
     /// <summary>
-    /// Wall-clock timeout, in milliseconds, applied to each MCP tool invocation in addition to
-    /// the caller's own request cancellation token. A value of zero or less disables the
-    /// wall-clock timeout (only the caller's cancellation still applies).
+    /// Wall-clock <em>analysis</em> budget, in milliseconds, applied to each MCP tool invocation in
+    /// addition to the caller's own request cancellation token. A value of zero or less disables
+    /// the wall-clock timeout (only the caller's cancellation still applies).
+    /// <para>
+    /// It does not cover the whole invocation on the three write tools. When a write confirmation
+    /// is elicited, this clock is armed only <em>after</em> the human round-trip resolves, so
+    /// think-time is not charged against an analysis budget it may legitimately exceed. That wait
+    /// is bounded separately by <see cref="ConfirmDestructiveWritesTimeout"/>. Size this value for
+    /// the analysis, not for the wall-clock span a caller observes.
+    /// </para>
     /// </summary>
     public int DefaultTimeout { get; set; } = 120_000;
 

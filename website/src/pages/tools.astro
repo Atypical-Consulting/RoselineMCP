@@ -61,7 +61,7 @@ const groupBlurb: Record<string, string> = {
                   <a class="rc-name mono" href={`#${t.name}`}>{t.name}</a>
                   <span class={`pill ${t.kind === 'write' ? 'write' : 'read'}`}>{kindLabel[t.kind]}</span>
                   {t.progress && <span class="pill cap">progress</span>}
-                  {t.confirms && <span class="pill cap" title="Asks your client to confirm via MCP elicitation before writing — unless the operator set RoselineMCP:ConfirmDestructiveWrites=false.">confirms</span>}
+                  {t.confirms && <span class="pill cap" title="Asks your client to confirm via MCP elicitation before writing — unless the operator set RoselineMCP:ConfirmDestructiveWrites=false. A prompt nobody answers expires after 5 minutes into a preview, never a write.">confirms</span>}
                 </div>
                 <div class="rc-title">{t.title}</div>
                 <p class="rc-sum">{t.summary}</p>

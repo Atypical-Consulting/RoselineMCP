@@ -15,8 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a client that advertises elicitation support, accepts the confirmation request and then never
   answers — a CI job, a headless agent, a human who walked away — used to block `apply_fixes` /
   `edit_member` / `rename_symbol` **forever**, because `RoselineMCP:DefaultTimeout` is an analysis
-  budget and by construction does not apply to the human round-trip. Such a call now returns after
-  the timeout. It returns a **preview**, not a write: silence is not consent, so `previewOnly`
+  budget and by construction does not apply to the human round-trip. The **server** now stops
+  waiting after the timeout — note that a client whose elicitation handler never returns may still
+  not read the response, since the SDK's client dispatches server-initiated requests on its read
+  loop; the bound is on RoselineMCP's side of the wire. It returns a **preview**, not a write:
+  silence is not consent, so `previewOnly`
   comes back `true` and `notes[]` explains that the confirmation timed out. Writing without a human
   remains an explicit operator decision (`ConfirmDestructiveWrites=false`), so the security posture
   is no weaker than before — only the hang is gone. The clock is deliberately separate from
@@ -35,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than being indistinguishable from a confirmed one.
 
 ### Fixed
+- **A write confirmation that times out can no longer be read as consent when the SDK reports the
+  abandoned prompt as something other than a cancellation.** The confirmation gate downgraded to a
+  preview only on `OperationCanceledException`; every other exception fell through to a catch-all
+  meaning "this client cannot elicit — honor the explicit opt-in" and returned *proceed*. Cancelling
+  an in-flight JSON-RPC request is not guaranteed to surface as an OCE, so a transport or protocol
+  exception raised by our own deadline would have written to disk on a confirmation **nobody
+  answered** — the exact inversion of the gate. The timeout branch now filters on the deadline
+  rather than on the exception type, so any failure caused by it downgrades to a preview; genuine
+  caller cancellations and broken sessions still propagate unchanged.
 - **The `RoselineMCP:DefaultTimeout` clock no longer runs while a human is being asked to confirm a
   write.** It was armed before the confirmation elicitation, so its 120 s budget was spent on
   think-time — the very thing the confirmation's separate clock exists to prevent. Two consequences,

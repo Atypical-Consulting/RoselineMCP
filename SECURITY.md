@@ -119,10 +119,19 @@ which is a capability fact knowable up front; a client that was asked and said
 nothing is a different state, and reading it as approval is exactly the
 inference the gate exists to prevent — an interactive user who steps away
 would return to a solution-wide rename already on disk. The timeout therefore
-removes the hang while keeping the security posture no weaker than before:
+frees the **server** while keeping the security posture no weaker than before:
 writing without a human remains an explicit operator decision, spelled
 `ConfirmDestructiveWrites=false`. Setting the timeout to `0` or less restores
 the unbounded wait for a deployment that genuinely wants it.
+
+⚠️ **It frees the server, which is not always the same as freeing the caller.**
+The SDK's client dispatches server-initiated requests on its read loop, so a
+client whose elicitation handler never returns also stops reading responses —
+including the preview this server has already written and moved on from. In
+that configuration the server no longer holds the call, but the caller may
+still not observe the result until its own handler returns or its own timeout
+fires. The bound is on RoselineMCP's side of the wire; it cannot unblock a
+client that has blocked itself.
 
 **Recommendations for operators:**
 
@@ -145,12 +154,16 @@ the unbounded wait for a deployment that genuinely wants it.
 - On an unattended host, disable the gate rather than relying on the timeout to
   get you through it. Waiting out `ConfirmDestructiveWritesTimeout` returns a
   preview, not a write, so a CI job that needs `previewOnly: false` to take
-  effect must set `ConfirmDestructiveWrites=false` — the timeout ends the hang,
-  it does not grant consent.
+  effect must set `ConfirmDestructiveWrites=false` — the timeout ends the
+  server-side wait, it does not grant consent, and it cannot unblock a client
+  that is itself parked on an unanswered prompt.
 - Keep `RoselineMCP:ConfirmDestructiveWritesTimeout` above `0` on any install
   reachable by an automated caller. `0` restores the unbounded wait, in
   which a client that never answers pins the call — and the slot it holds —
-  indefinitely, with no error and no log to diagnose it by.
+  indefinitely, with no error to diagnose it by. The one signal is a startup
+  warning on stderr: the server logs that the confirmation is unbounded
+  whenever the gate is enabled and the timeout is `0` or less. Check stderr
+  before concluding a wedged call is unexplained.
 
 If you find a way to escalate this into a more severe issue (e.g. bypassing
 intended read-only guarantees for the *output* of analysis, or path
