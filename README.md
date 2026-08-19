@@ -640,6 +640,9 @@ ROSELINE_RoselineMCP__DefaultTimeout=300000
 # RoselineMCP:RunAnalyzers (compiler-only diagnostics when false)
 ROSELINE_RoselineMCP__RunAnalyzers=false
 
+# RoselineMCP:ConfirmDestructiveWrites (no elicitation before writes; unattended hosts)
+ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false
+
 # Logging:LogLevel:RoselineMCP
 ROSELINE_Logging__LogLevel__RoselineMCP=Debug
 ```
@@ -662,7 +665,8 @@ Configure logging and other settings:
     "DefaultTimeout": 120000,
     "EnableDiagnosticLogging": false,
     "WorkspaceCache": true,
-    "RunAnalyzers": true
+    "RunAnalyzers": true,
+    "ConfirmDestructiveWrites": true
   }
 }
 ```
@@ -671,6 +675,7 @@ Configure logging and other settings:
 - `RoselineMCP:EnableDiagnosticLogging`: Opt-in, local-only tracing of tool invocations — see [Debug Logging](#debug-logging). Disabled by default; enabled in `appsettings.Development.json`.
 - `RoselineMCP:WorkspaceCache`: Reuse the loaded MSBuild workspace across navigation/edit tool calls (enabled by default) — see [Performance](#performance). Set to `false` to load a fresh workspace on every call. **This is an isolation/debugging switch, not a memory-saving one** — measured, disabling it costs ~26% more resident memory and ~45× second-call latency; see [Memory Management](docs/ARCHITECTURE.md#memory-management).
 - `RoselineMCP:RunAnalyzers`: Run Roslyn analyzers (bundled Roslynator + the target project's own analyzer references) in the diagnostics tools (enabled by default) — see [Supported Analyzers](#supported-analyzers). Set to `false` for compiler-only diagnostics.
+- `RoselineMCP:ConfirmDestructiveWrites`: Ask the client to confirm (via MCP elicitation) before a write tool actually writes, when the caller passed `previewOnly: false` (enabled by default). Set to `false` for unattended hosts — CI, headless agents, or any client that cannot answer an elicitation — in which case the explicit `previewOnly: false` opt-in is the only guard before a write.
 
 ## Architecture
 
