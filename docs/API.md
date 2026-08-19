@@ -62,19 +62,28 @@ server sends an MCP `elicitation/create` asking the connected client to confirm 
 |---|---|
 | Client accepts | The write proceeds; `previewOnly` comes back `false`. |
 | Client **declines** | The call is downgraded to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write declined via client confirmation; returned a preview only (no files were modified)."` |
+| Client is asked and **never answers** | After `RoselineMCP:ConfirmDestructiveWritesTimeout` (default `300000`, 5 minutes) the server stops waiting and downgrades the call to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write confirmation timed out; returned a preview only (no files were modified). Set RoselineMCP:ConfirmDestructiveWrites=false on unattended hosts that should write without a human, or raise RoselineMCP:ConfirmDestructiveWritesTimeout."` |
 | Client does not support elicitation, or the round-trip fails | No confirmation is possible, so the explicit opt-in stands and the write proceeds. |
 | `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. |
+
+Silence is deliberately *not* consent: a client that **cannot** be asked justifies honoring the
+explicit opt-in, but one that was asked and said nothing does not. The timeout therefore removes the
+hang without weakening the guard — the only way to write without a human remains an explicit
+operator decision. Its clock is deliberately **not** `RoselineMCP:DefaultTimeout`: that is an
+analysis budget, and a human reading a real diff may legitimately exceed it. Set the timeout to `0`
+or less to remove the bound entirely and wait indefinitely (the pre-2.2 behavior).
 
 The last row is an operator switch, not a tool parameter — the model cannot waive the gate. It
 defaults to `true`; set it to `false` (via `appsettings.json` or
 `ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false`) for unattended hosts such as CI or headless
-agents, whose client *can* elicit but has no human to answer, so the prompt would block the call
-outright. The server logs a warning at startup when the switch is off. Disabling it leaves
+agents, whose client *can* elicit but has no human to answer, so the prompt would otherwise stall
+the call until the timeout above expires and then return a preview rather than the requested write.
+The server logs a warning at startup when the switch is off. Disabling it leaves
 `previewOnly: false` as the only guard before a write — see
 [SECURITY.md](../SECURITY.md).
 
 The response shape is identical whether the confirmation was accepted or skipped; only the decline
-path adds a note.
+and timeout paths add a note.
 
 ### AnalyzeSolution
 

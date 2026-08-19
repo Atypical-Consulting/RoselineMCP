@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`RoselineMCP:ConfirmDestructiveWritesTimeout`** (default `300000` ms, 5 minutes) — bounds how
+  long the write-confirmation elicitation waits for the client's answer. Set it via
+  `appsettings.json` or `ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout=<ms>`; `0` or less
+  removes the bound and restores the previous, indefinite wait. **This changes default behavior:**
+  a client that advertises elicitation support, accepts the confirmation request and then never
+  answers — a CI job, a headless agent, a human who walked away — used to block `apply_fixes` /
+  `edit_member` / `rename_symbol` **forever**, because `RoselineMCP:DefaultTimeout` is an analysis
+  budget and by construction does not apply to the human round-trip. Such a call now returns after
+  the timeout. It returns a **preview**, not a write: silence is not consent, so `previewOnly`
+  comes back `true` and `notes[]` explains that the confirmation timed out. Writing without a human
+  remains an explicit operator decision (`ConfirmDestructiveWrites=false`), so the security posture
+  is no weaker than before — only the hang is gone. The clock is deliberately separate from
+  `DefaultTimeout`: a human reading a real diff may legitimately exceed an analysis budget.
 - **`RoselineMCP:ConfirmDestructiveWrites`** (default `true`) — an operator switch that turns off
   the write-confirmation elicitation. The write tools (`ApplyFixes`, `EditMember`, `RenameSymbol`)
   ask the connected client to confirm before writing when the caller passed `previewOnly: false`;

@@ -643,6 +643,9 @@ ROSELINE_RoselineMCP__RunAnalyzers=false
 # RoselineMCP:ConfirmDestructiveWrites (no elicitation before writes; unattended hosts)
 ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false
 
+# RoselineMCP:ConfirmDestructiveWritesTimeout (ms to wait for that confirmation; 0 = forever)
+ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout=300000
+
 # Logging:LogLevel:RoselineMCP
 ROSELINE_Logging__LogLevel__RoselineMCP=Debug
 ```
@@ -666,7 +669,8 @@ Configure logging and other settings:
     "EnableDiagnosticLogging": false,
     "WorkspaceCache": true,
     "RunAnalyzers": true,
-    "ConfirmDestructiveWrites": true
+    "ConfirmDestructiveWrites": true,
+    "ConfirmDestructiveWritesTimeout": 300000
   }
 }
 ```
@@ -676,6 +680,7 @@ Configure logging and other settings:
 - `RoselineMCP:WorkspaceCache`: Reuse the loaded MSBuild workspace across navigation/edit tool calls (enabled by default) — see [Performance](#performance). Set to `false` to load a fresh workspace on every call. **This is an isolation/debugging switch, not a memory-saving one** — measured, disabling it costs ~26% more resident memory and ~45× second-call latency; see [Memory Management](docs/ARCHITECTURE.md#memory-management).
 - `RoselineMCP:RunAnalyzers`: Run Roslyn analyzers (bundled Roslynator + the target project's own analyzer references) in the diagnostics tools (enabled by default) — see [Supported Analyzers](#supported-analyzers). Set to `false` for compiler-only diagnostics.
 - `RoselineMCP:ConfirmDestructiveWrites`: Ask the client to confirm (via MCP elicitation) before a write tool actually writes, when the caller passed `previewOnly: false` (enabled by default). Set to `false` for unattended hosts — CI, headless agents, or any client that cannot answer an elicitation — in which case the explicit `previewOnly: false` opt-in is the only guard before a write.
+- `RoselineMCP:ConfirmDestructiveWritesTimeout`: How long (ms) to wait for that confirmation before treating the silence as "no" and returning a preview (default `300000`, 5 minutes). It is deliberately **not** `DefaultTimeout` — that is an analysis budget, and a human reading a real diff may legitimately exceed it. A client that accepts the prompt and never answers used to block the tool call forever; set this to `0` or less to restore that unbounded wait.
 
 ## Architecture
 
@@ -763,7 +768,9 @@ RoselineMCP/
   `ApplyFixes`, `EditMember`, and `RenameSymbol` — each default to `previewOnly: true`; writing
   requires the caller to pass `previewOnly: false` explicitly. Behind that opt-in sits a second,
   best-effort guard: the write tools ask the client to confirm via MCP elicitation before writing,
-  and a decline downgrades the call to a preview. That confirmation is skipped when the client
+  and a decline downgrades the call to a preview. So does an unanswered prompt — the round-trip is
+  bounded by `RoselineMCP:ConfirmDestructiveWritesTimeout` (default 5 minutes), after which the call
+  returns a preview rather than writing or hanging. That confirmation is skipped when the client
   cannot elicit, and an operator can disable it outright with
   `RoselineMCP:ConfirmDestructiveWrites=false` — after which `previewOnly: false` is the only guard
   left. See [SECURITY.md](SECURITY.md).
