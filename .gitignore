@@ -16,3 +16,6 @@ BenchmarkDotNet.Artifacts/
 # entries narrow -- a blanket `.claude/` would also hide `.claude/skills/repo-profile.md`.
 .claude/worktrees/
 .worktrees/
+
+# macOS Finder metadata
+.DS_Store
