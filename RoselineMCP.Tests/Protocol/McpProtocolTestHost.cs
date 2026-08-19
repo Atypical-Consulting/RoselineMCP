@@ -58,9 +58,17 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
     /// <see cref="RoselineMCP.Interfaces.ICodeFixService"/>, <see cref="RoselineMCP.Interfaces.IPatchService"/>, etc.)
     /// the tools depend on. Tests typically register fakes here to avoid any real MSBuild/Git/filesystem work.
     /// </param>
+    /// <param name="protocolVersion">
+    /// Pins the client to a specific MCP protocol revision instead of letting it negotiate the SDK default.
+    /// Leave <see langword="null"/> for virtually every test — the default is what real clients negotiate.
+    /// Only pass a value to cover a feature whose behavior is revision-specific (see
+    /// <c>ClientLoggingTests</c>, which pins <c>2025-11-25</c> because SEP-2577 deprecated the Logging
+    /// feature in <c>2026-07-28</c>).
+    /// </param>
     public static async Task<McpProtocolTestHost> StartAsync(
         Action<IServiceCollection> configureServices,
-        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler = null)
+        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler = null,
+        string? protocolVersion = null)
     {
         // Two independent duplex pipes give us four unidirectional streams: the client writes to
         // clientToServer and the server reads from it, while the server writes to serverToClient and
@@ -104,15 +112,20 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
         // When a test supplies an elicitation handler, advertise the client's elicitation capability
         // and wire the handler so the server's ElicitAsync round-trips to it (rather than failing the
         // capability check and falling back).
-        McpClientOptions? clientOptions = elicitationHandler is null
+        McpClientOptions? clientOptions = elicitationHandler is null && protocolVersion is null
             ? null
             : new McpClientOptions
             {
-                Capabilities = new ClientCapabilities
-                {
-                    Elicitation = new ElicitationCapability { Form = new FormElicitationCapability() },
-                },
-                Handlers = new McpClientHandlers { ElicitationHandler = elicitationHandler },
+                ProtocolVersion = protocolVersion,
+                Capabilities = elicitationHandler is null
+                    ? null
+                    : new ClientCapabilities
+                    {
+                        Elicitation = new ElicitationCapability { Form = new FormElicitationCapability() },
+                    },
+                Handlers = elicitationHandler is null
+                    ? new McpClientHandlers()
+                    : new McpClientHandlers { ElicitationHandler = elicitationHandler },
             };
 
         var client = await McpClient.CreateAsync(clientTransport, clientOptions);

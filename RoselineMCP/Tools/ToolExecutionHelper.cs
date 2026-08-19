@@ -83,6 +83,15 @@ internal sealed class ToolInvocation : IDisposable
         // A logger that forwards to the connected client as MCP `notifications/message` (only when
         // the client has opted into logging at a matching level — otherwise a no-op). This surfaces
         // the correlation ID in the client's own log stream, not just in the tool result.
+        //
+        // SEP-2577 deprecated the Logging feature in protocol revision 2026-07-28, so this pipeline is
+        // live only for clients that negotiate 2025-11-25 or earlier; on a newer session it stays a
+        // no-op (the SDK gates it on a level the client can no longer set). The correlation ID still
+        // reaches every caller through the error envelope and the server's own stderr log, which is
+        // what SEP-2577 points to as the replacement, so nothing is lost by leaving this in place for
+        // the clients that do still use it. Deprecated APIs stay in the spec for at least twelve
+        // months, so this keeps working meanwhile; revisit when the SDK offers a supported successor.
+#pragma warning disable MCP9005 // AsClientLoggerProvider is deprecated, but remains the gated client-log pipeline.
         try
         {
             _clientLogger = server?.AsClientLoggerProvider().CreateLogger($"RoselineMCP.Tools.{toolName}");
@@ -91,6 +100,7 @@ internal sealed class ToolInvocation : IDisposable
         {
             _clientLogger = null;
         }
+#pragma warning restore MCP9005
     }
 
     /// <summary>Marks the current span as having completed successfully.</summary>

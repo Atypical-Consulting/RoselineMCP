@@ -84,8 +84,9 @@ which returns normally so the "stopped gracefully" path runs. Reading `UseConsol
 whole lifetime story is the natural misreading, and it leads to the wrong conclusion that a client
 which merely closes the pipe would strand a server.
 
-Verified empirically on 2026-07-25 against `ModelContextProtocol` 1.4.1 (the pinned version), by
-driving the release binary over real pipes. All four paths exit with code 0:
+Verified empirically on 2026-07-25 against `ModelContextProtocol` 1.4.1, which was the pinned version
+at the time (the project has since moved to 2.2.0; this shutdown behavior has not been re-measured
+against it), by driving the release binary over real pipes. All four paths exit with code 0:
 
 | Path | Behaviour |
 |---|---|

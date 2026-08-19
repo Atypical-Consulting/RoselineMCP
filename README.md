@@ -105,7 +105,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 | Runtime | .NET 10.0 |
 | Compiler Platform | Roslyn (Microsoft.CodeAnalysis) 5.6.0 |
 | Analyzers | Roslynator 4.15.0 |
-| MCP SDK | ModelContextProtocol 1.4.1 |
+| MCP SDK | ModelContextProtocol 2.2.0 |
 | Diff Engine | DiffPlex 1.9.0 |
 | Build System | MSBuild 18.8.2 |
 | Hosting | Microsoft.Extensions.Hosting 10.0.10 |
@@ -510,7 +510,7 @@ renameSymbol({ project: "MyApp.Core", symbol: "GetUser", newName: "GetUserById",
 
 ## Tool Annotations
 
-RoselineMCP's SDK (`ModelContextProtocol` 1.4.1) supports the standard MCP tool
+RoselineMCP's SDK (`ModelContextProtocol` 2.2.0) supports the standard MCP tool
 [annotation hints](https://modelcontextprotocol.io/) (`readOnlyHint`, `destructiveHint`,
 `idempotentHint`), and every tool declares them via `[McpServerTool(ReadOnly = ..., Destructive =
 ..., Idempotent = ...)]`:
