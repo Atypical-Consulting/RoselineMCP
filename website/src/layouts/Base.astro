@@ -132,6 +132,14 @@ const starLabel =
       header.site nav a[aria-current="page"] { color: var(--ink); }
       header.site nav a[aria-current="page"]::after { content: ""; display: block; height: 2px; margin-top: 3px; background: var(--rose); border-radius: 2px; }
       .nav-cta { margin-left: .5rem; }
+      /* hamburger toggle — only shown on small screens */
+      .nav-toggle { display: none; align-items: center; justify-content: center; width: 40px; height: 40px;
+        margin-left: auto; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--surface);
+        color: var(--ink); cursor: pointer; box-shadow: var(--shadow); }
+      .nav-toggle svg { display: block; }
+      .nav-toggle .ico-close { display: none; }
+      .nav-toggle[aria-expanded="true"] .ico-open { display: none; }
+      .nav-toggle[aria-expanded="true"] .ico-close { display: block; }
       /* GitHub star button */
       .ghbtn { display: inline-flex; align-items: center; gap: .4rem; margin-left: .3rem; font-family: var(--sans);
         font-weight: 550; font-size: .9rem; color: var(--ink-2); padding: .34rem .6rem; border: 1px solid var(--line);
@@ -140,7 +148,20 @@ const starLabel =
       .ghbtn svg { color: #e3b341; flex: none; }
       .ghcount { font-family: var(--mono); font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--ink);
         padding-left: .42rem; border-left: 1px solid var(--line); }
-      @media (max-width: 620px) { header.site nav .hide-sm { display: none; } .ghbtn .ghlabel { display: none; } }
+      @media (max-width: 620px) {
+        .ghbtn .ghlabel { display: none; }
+        .nav-toggle { display: inline-flex; }
+        /* nav collapses into a dropdown panel toggled by the hamburger */
+        header.site nav { display: none; position: absolute; top: 100%; right: 0; left: 0;
+          flex-direction: column; align-items: stretch; gap: .1rem; margin-left: 0;
+          padding: .6rem 1.5rem 1rem; background: var(--paper);
+          border-bottom: 1px solid var(--line); box-shadow: var(--shadow); }
+        header.site.nav-open nav { display: flex; }
+        header.site nav a { padding: .6rem .7rem; font-size: 1rem; }
+        header.site nav a[aria-current="page"]::after { width: 22px; }
+        .ghbtn { align-self: flex-start; margin-left: 0; margin-top: .3rem; }
+        .nav-cta { margin-left: 0; margin-top: .5rem; justify-content: center; }
+      }
 
       /* buttons */
       .btn { display: inline-flex; align-items: center; gap: .5rem; font-family: var(--sans); font-weight: 560;
@@ -205,7 +226,11 @@ const starLabel =
     <header class="site">
       <div class="wrap bar">
         <a class="brand" href={base}><span class="mark" aria-hidden="true"></span>RoselineMCP</a>
-        <nav>
+        <button type="button" class="nav-toggle" id="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu">
+          <svg class="ico-open" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+          <svg class="ico-close" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+        <nav id="site-nav">
           {nav.map((n) => <a href={n.href} class="hide-sm" aria-current={active === n.id ? 'page' : undefined}>{n.label}</a>)}
           <a class="ghbtn" href={repo} target="_blank" rel="noopener noreferrer"
              aria-label={stars == null ? 'Star RoselineMCP on GitHub' : `Star RoselineMCP on GitHub — ${stars} stars`}>
@@ -239,6 +264,26 @@ const starLabel =
           el.textContent = n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
           el.hidden = false;
         } catch { /* keep the build-time value */ }
+      })();
+
+      // Mobile nav dropdown toggle
+      (() => {
+        const toggle = document.getElementById('nav-toggle');
+        const header = document.querySelector('header.site');
+        const nav = document.getElementById('site-nav');
+        if (!toggle || !header || !nav) return;
+        const setOpen = (open: boolean) => {
+          header.classList.toggle('nav-open', open);
+          toggle.setAttribute('aria-expanded', String(open));
+        };
+        toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
+        // Close on nav link click, Escape, or clicking outside
+        nav.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('a')) setOpen(false); });
+        document.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape') setOpen(false); });
+        document.addEventListener('click', (e) => {
+          if (!header.classList.contains('nav-open')) return;
+          if (!(e.target as HTMLElement).closest('header.site')) setOpen(false);
+        });
       })();
 
       document.addEventListener('click', (e) => {
