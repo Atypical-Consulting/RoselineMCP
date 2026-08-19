@@ -95,6 +95,13 @@ against it), by driving the release binary over real pipes. All four paths exit 
 | EOF while a tool call is in flight | drains the in-flight call, then exits (~2.3 s) — it does **not** linger to `DefaultTimeout` |
 | stdin held open | stays alive, as it must — a live client holding stdin is not a leak |
 
+⚠️ The in-flight row predates the write-confirmation gate and does **not** cover it. A write tool
+parked in `ConfirmDestructiveWriteAsync` is waiting on a second clock
+(`ConfirmDestructiveWritesTimeout`, 5 min by default — longer than `DefaultTimeout`), and whether
+EOF frees that wait depends on the SDK cancelling the tool's request token on session teardown,
+which this measurement never exercised. Treat the ~2.3 s figure as measured for an ordinary
+analysis call only, until the confirmation path is re-measured.
+
 This is what the README means by "exits when the client disconnects"; the claim is measured, not
 assumed. A server still resident while its client holds stdin open is behaving correctly, so look
 for the client that never exited rather than for a defect here.
@@ -156,7 +163,10 @@ Location: `Services/` and `Interfaces/`
   catalog plus the target project's own `AnalyzerReferences` (deduped by analyzer type)
 - Per-analyzer exceptions are logged and skipped (`onAnalyzerException`); a failed analyzer pass
   degrades to compiler-only rather than failing the tool
-- `RoselineMCP:RunAnalyzers = false` skips analyzers entirely (compiler-only)
+- `RoselineMCP:RunAnalyzers = false` skips the **analyzer pass** entirely (compiler-only
+  diagnostics). It does not stop **source generators**, which ship through the same
+  `AnalyzerReferences` but run as part of building any `Compilation` rather than as part of this
+  pass — so they execute on every semantic path, this one included. See `SECURITY.md`.
 
 **CodeFixService**
 - Applies automated code fixes
@@ -312,7 +322,10 @@ For safety, operations use temporary workspaces:
 2. **Service Layer**: throws ordinary .NET exceptions (`FileNotFoundException`,
    `InvalidOperationException`, `TimeoutException`, ...) rather than a custom exception hierarchy
 3. `ToolExecutionHelper` also owns cancellation/timeout composition: it links the caller's
-   `CancellationToken` with the configurable `RoselineMCP:DefaultTimeout` (120,000 ms by default)
+   `CancellationToken` with the configurable `RoselineMCP:DefaultTimeout` (120,000 ms by default).
+   On the three write tools that clock is armed only **after** any write-confirmation elicitation
+   resolves, so `DefaultTimeout` is an analysis budget rather than a bound on the whole invocation;
+   the human round-trip is bounded separately by `RoselineMCP:ConfirmDestructiveWritesTimeout`
 
 ### Error Response Format
 

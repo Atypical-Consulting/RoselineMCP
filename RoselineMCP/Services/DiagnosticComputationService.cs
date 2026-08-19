@@ -23,7 +23,12 @@ namespace RoselineMCP.Services;
 /// Resilience: one broken analyzer never fails a tool call — per-analyzer exceptions are logged
 /// and analysis continues (<c>onAnalyzerException</c>), and if the whole analyzer pass fails the
 /// compiler diagnostics are still returned. Setting <c>RoselineMCP:RunAnalyzers</c> to
-/// <see langword="false"/> skips analyzers entirely (compiler-only, the fastest mode).
+/// <see langword="false"/> skips the analyzer pass entirely (compiler-only, the fastest mode).
+///
+/// It does <em>not</em> stop source generators: they ship through the same
+/// <see cref="Project.AnalyzerReferences"/> but run while building the <see cref="Compilation"/>
+/// rather than as part of this pass, so they execute regardless of the switch. See
+/// <c>SECURITY.md</c> — that distinction is a code-execution boundary, not a diagnostics detail.
 /// </summary>
 public class DiagnosticComputationService : IDiagnosticComputationService
 {

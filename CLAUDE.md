@@ -325,7 +325,15 @@ Logging levels adjust automatically:
 - **Analyzer execution is code execution**: the diagnostics tools run Roslyn analyzers by default —
   the bundled Roslynator set *and* the target project's own analyzer references, which are
   third-party code executed in-process at analysis time. `RoselineMCP:RunAnalyzers = false`
-  disables all analyzer execution (compiler-only diagnostics). See `SECURITY.md`.
+  disables the **diagnostic analyzer** pass (compiler-only diagnostics). See `SECURITY.md`.
+- **Source generators run regardless of `RunAnalyzers`**: generators ship through the same
+  `AnalyzerReferences` but execute as part of building *any* compilation, not as part of the
+  diagnostics pass — so every semantic path runs them, including all navigation tools (via
+  `SymbolResolver`), `ApplyFixes` and `AnalyzeSolution`. They cannot be suppressed without breaking
+  semantic analysis: stripping `AnalyzerReferences` removes the generated types too, so every symbol
+  resolving through generated code would report as a compile error. `RunAnalyzers = false` narrows
+  the code-execution surface of an untrusted repository; isolation, not the switch, is the
+  mitigation. See `SECURITY.md`.
 - **No dedicated path-traversal sanitization**: solution/project paths are resolved with plain
   `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
   `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against

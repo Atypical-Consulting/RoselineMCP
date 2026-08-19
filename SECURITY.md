@@ -66,9 +66,32 @@ analyzer assemblies the target project itself references. A referenced
 analyzer is arbitrary .NET code executed in-process at analysis time — an
 untrusted repository can therefore run code through its analyzer references
 even before any build target fires. Setting `RoselineMCP:RunAnalyzers` to
-`false` disables all analyzer execution (bundled and project-referenced
-alike), reducing the tools to compiler-only diagnostics; MSBuild evaluation
-itself (above) still applies.
+`false` disables the **diagnostic analyzer** pass (bundled and
+project-referenced alike), reducing the diagnostics tools to compiler-only
+diagnostics; MSBuild evaluation itself (above) still applies.
+
+**`RunAnalyzers=false` does not stop source generators.** Generators are
+shipped through the same `AnalyzerReferences` as analyzers and are equally
+arbitrary in-process .NET code, but they run as part of *building a
+compilation* rather than as part of the diagnostics pass — so the switch does
+not reach them. Any tool that needs semantic information builds a compilation,
+which means generators from the target repository execute on:
+
+- **every navigation tool** (`SearchSymbols`, `GetSymbolInfo`, `FindReferences`,
+  `FindImplementations`, `GetCallGraph`, `GetTypeHierarchy`,
+  `GetSymbolAtPosition`), via `SymbolResolver`;
+- `ApplyFixes`, via `CodeFixService`;
+- `AnalyzeSolution`, via `SolutionAnalyzerService`.
+
+Suppressing them is not offered, because it would not be honest: stripping a
+project's `AnalyzerReferences` before compiling removes the generated types
+along with the generators, and every symbol that resolves through generated
+code would then be reported as a compile error. Semantic analysis of a modern
+.NET project requires running its generators.
+
+`RunAnalyzers=false` therefore **narrows** the code-execution surface of an
+untrusted repository; it does not close it. MSBuild evaluation and source
+generators both remain. Isolation — not the switch — is the mitigation.
 
 **The write-confirmation gate is operator-disablable.** The three write tools
 (`ApplyFixes`, `EditMember`, `RenameSymbol`) write nothing unless the caller
@@ -96,17 +119,30 @@ which is a capability fact knowable up front; a client that was asked and said
 nothing is a different state, and reading it as approval is exactly the
 inference the gate exists to prevent — an interactive user who steps away
 would return to a solution-wide rename already on disk. The timeout therefore
-removes the hang while keeping the security posture no weaker than before:
+frees the **server** while keeping the security posture no weaker than before:
 writing without a human remains an explicit operator decision, spelled
 `ConfirmDestructiveWrites=false`. Setting the timeout to `0` or less restores
 the unbounded wait for a deployment that genuinely wants it.
 
+⚠️ **It frees the server, which is not always the same as freeing the caller.**
+The SDK's client dispatches server-initiated requests on its read loop, so a
+client whose elicitation handler never returns also stops reading responses —
+including the preview this server has already written and moved on from. In
+that configuration the server no longer holds the call, but the caller may
+still not observe the result until its own handler returns or its own timeout
+fires. The bound is on RoselineMCP's side of the wire; it cannot unblock a
+client that has blocked itself.
+
 **Recommendations for operators:**
 
-- Only point RoselineMCP at repositories and branches you trust, or run it
-  in an isolated/ephemeral environment (container, VM, CI sandbox) when
-  analyzing third-party code.
-- Review project files before analysis when working with untrusted input.
+- **This is the primary mitigation, not a fallback:** only point RoselineMCP at
+  repositories and branches you trust, or run it in an isolated/ephemeral
+  environment (container, VM, CI sandbox) when analyzing third-party code. No
+  configuration switch substitutes for it — `RunAnalyzers=false` narrows the
+  surface but leaves MSBuild evaluation and source generators running.
+- Review project files before analysis when working with untrusted input —
+  including their `AnalyzerReferences`, which carry both analyzers and
+  generators.
 - Treat the `pathOrGit`/`branch` parameters of `AnalyzeSolution` as a code
   execution surface, not just a data source, when reasoning about threat
   models.
@@ -118,12 +154,16 @@ the unbounded wait for a deployment that genuinely wants it.
 - On an unattended host, disable the gate rather than relying on the timeout to
   get you through it. Waiting out `ConfirmDestructiveWritesTimeout` returns a
   preview, not a write, so a CI job that needs `previewOnly: false` to take
-  effect must set `ConfirmDestructiveWrites=false` — the timeout ends the hang,
-  it does not grant consent.
+  effect must set `ConfirmDestructiveWrites=false` — the timeout ends the
+  server-side wait, it does not grant consent, and it cannot unblock a client
+  that is itself parked on an unanswered prompt.
 - Keep `RoselineMCP:ConfirmDestructiveWritesTimeout` above `0` on any install
   reachable by an automated caller. `0` restores the unbounded wait, in
   which a client that never answers pins the call — and the slot it holds —
-  indefinitely, with no error and no log to diagnose it by.
+  indefinitely, with no error to diagnose it by. The one signal is a startup
+  warning on stderr: the server logs that the confirmation is unbounded
+  whenever the gate is enabled and the timeout is `0` or less. Check stderr
+  before concluding a wedged call is unexplained.
 
 If you find a way to escalate this into a more severe issue (e.g. bypassing
 intended read-only guarantees for the *output* of analysis, or path

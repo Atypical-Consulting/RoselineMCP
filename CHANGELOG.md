@@ -15,8 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a client that advertises elicitation support, accepts the confirmation request and then never
   answers — a CI job, a headless agent, a human who walked away — used to block `apply_fixes` /
   `edit_member` / `rename_symbol` **forever**, because `RoselineMCP:DefaultTimeout` is an analysis
-  budget and by construction does not apply to the human round-trip. Such a call now returns after
-  the timeout. It returns a **preview**, not a write: silence is not consent, so `previewOnly`
+  budget and by construction does not apply to the human round-trip. The **server** now stops
+  waiting after the timeout — note that a client whose elicitation handler never returns may still
+  not read the response, since the SDK's client dispatches server-initiated requests on its read
+  loop; the bound is on RoselineMCP's side of the wire. It returns a **preview**, not a write:
+  silence is not consent, so `previewOnly`
   comes back `true` and `notes[]` explains that the confirmation timed out. Writing without a human
   remains an explicit operator decision (`ConfirmDestructiveWrites=false`), so the security posture
   is no weaker than before — only the hang is gone. The clock is deliberately separate from
@@ -35,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than being indistinguishable from a confirmed one.
 
 ### Fixed
+- **A write confirmation that times out can no longer be read as consent when the SDK reports the
+  abandoned prompt as something other than a cancellation.** The confirmation gate downgraded to a
+  preview only on `OperationCanceledException`; every other exception fell through to a catch-all
+  meaning "this client cannot elicit — honor the explicit opt-in" and returned *proceed*. Cancelling
+  an in-flight JSON-RPC request is not guaranteed to surface as an OCE, so a transport or protocol
+  exception raised by our own deadline would have written to disk on a confirmation **nobody
+  answered** — the exact inversion of the gate. The timeout branch now filters on the deadline
+  rather than on the exception type, so any failure caused by it downgrades to a preview; genuine
+  caller cancellations and broken sessions still propagate unchanged.
 - **The `RoselineMCP:DefaultTimeout` clock no longer runs while a human is being asked to confirm a
   write.** It was armed before the confirmation elicitation, so its 120 s budget was spent on
   think-time — the very thing the confirmation's separate clock exists to prevent. Two consequences,
@@ -75,6 +87,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   published and verified — see `PUBLISH.md`.
 
 ### Documentation
+- **`RoselineMCP:RunAnalyzers = false` no longer claims to stop all analyzer-assembly execution —
+  source generators run regardless, and the docs now say so.** `SECURITY.md` promised the switch
+  *"disables all analyzer execution (bundled and project-referenced alike)"*, and `CLAUDE.md` and
+  `README.md` repeated it. Source generators ship through the same `AnalyzerReferences` and are
+  equally arbitrary in-process code from the analyzed repository, but they run as part of building
+  *any* compilation rather than as part of the diagnostics pass — which `RunAnalyzers` is the only
+  thing gating. Every semantic path therefore executes them: all seven navigation tools (via
+  `SymbolResolver`), `ApplyFixes` (via `CodeFixService`) and `AnalyzeSolution` (via
+  `SolutionAnalyzerService`). Verified on Roslyn 5.6.0 / .NET SDK 10.0.302 — a project whose only
+  content is a `[GeneratedRegex]` partial method compiles through `MSBuildWorkspace` with the
+  generated implementation bound and zero errors, which is only possible if the generator ran.
+  The consequence for an operator is the point: someone who set `RunAnalyzers=false` before
+  pointing RoselineMCP at an untrusted repository believed they had closed a code-execution
+  surface that was still fully open. Suppressing generators is not offered because it would not be
+  honest — stripping `AnalyzerReferences` removes the generated types too, so every symbol
+  resolving through generated code would be reported as a compile error. The switch **narrows** the
+  surface; isolation, not configuration, is the mitigation, and the operator recommendations now
+  lead with that. **No behavior changed** — only the guarantee the documentation advertised.
 - **`RoselineMCP:WorkspaceCache = false` is documented as what it is: an isolation/debugging
   switch, never a way to save memory.** The docs described it only as "loads a fresh workspace on
   every call", which reads as the memory-frugal option; measured, it is the opposite — disposing

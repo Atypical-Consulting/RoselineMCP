@@ -137,6 +137,20 @@ public class ElicitationTests
 
         var call = CallApplyFixesAsync();
 
+        // Release the client's handler as soon as the downgrade is observed — and unconditionally
+        // after a ceiling, even if it never is. The ordering matters twice over. The SDK's own
+        // McpClient dispatches server-initiated requests on its single read loop, so a handler
+        // that never returns also stops the client reading the tool response the server has
+        // already written; and if the assertion below were the thing gating the release, a
+        // regression would leave the handler parked forever, so `await using host` could not drain
+        // the read loop and the whole (DisableParallelization) protocol collection would hang —
+        // CI wedging instead of reporting the very regression this test exists to catch.
+        var release = Task.Run(async () =>
+        {
+            await Task.WhenAny(downgraded.Task, Task.Delay(TimeSpan.FromSeconds(15)));
+            neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
+        });
+
         // The bound is the whole point: wait — with an explicit ceiling, so a regression FAILS
         // this suite instead of wedging CI — for the server to give up on the unanswered prompt
         // and fall through to the fix service in preview mode. Unbounded, that never happens.
@@ -148,13 +162,9 @@ public class ElicitationTests
         // Silence is not consent: the write was downgraded to a preview, nothing reached disk.
         (await downgraded.Task).ShouldBeTrue();
 
-        // Only now release the client's handler. This in-process harness dispatches
-        // server-initiated requests on the client's single read loop, so a handler that never
-        // returns would also stop the client from ever reading the tool response — an artifact of
-        // the harness, not of the server, which has already moved on. The late answer changes
-        // nothing precisely because the elicitation it belongs to was abandoned when the deadline
-        // fired.
-        neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
+        // The late answer changes nothing precisely because the elicitation it belongs to was
+        // abandoned when the deadline fired.
+        await release;
 
         var finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(15)));
         finished.ShouldBeSameAs(call, "the tool call did not return after the confirmation timed out");
@@ -178,9 +188,17 @@ public class ElicitationTests
         // is, it expires long before the confirmation gives up, and the token handed to the
         // service is already cancelled by the time the gate downgrades the call — the caller then
         // gets a TimeoutError envelope instead of the preview-and-note that docs/API.md,
-        // SECURITY.md and the CHANGELOG all promise. This reproduces that ordering three orders
-        // of magnitude faster: analysis budget 300 ms, confirmation budget 1200 ms.
+        // SECURITY.md and the CHANGELOG all promise. This reproduces that ordering two orders of
+        // magnitude faster: analysis budget 1 s, confirmation budget 2.5 s.
+        //
+        // Only the ORDERING is load-bearing, so the analysis budget is given real margin rather
+        // than the tightest value that still orders correctly. Once the gate downgrades the call,
+        // the fake's first statement is ThrowIfCancellationRequested — with a budget of a few
+        // hundred milliseconds, one GC pause between arming the clock and reaching that check
+        // cancels the token and the test fails with the exact symptom it is guarding against,
+        // reading as a real regression.
         bool? captured = null;
+        var serviceRan = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var codeFix = A.Fake<ICodeFixService>();
         A.CallTo(() => codeFix.ApplyFixesAsync(
@@ -192,6 +210,7 @@ public class ElicitationTests
                 // failure being guarded against here.
                 ct.ThrowIfCancellationRequested();
                 captured = previewOnly;
+                serviceRan.TrySetResult(previewOnly);
                 return Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly });
             });
 
@@ -202,17 +221,21 @@ public class ElicitationTests
             (_, _) => new ValueTask<ElicitResult>(neverAnswers.Task),
             options =>
             {
-                options.DefaultTimeout = 300;
-                options.ConfirmDestructiveWritesTimeout = 1200;
+                options.DefaultTimeout = 1000;
+                options.ConfirmDestructiveWritesTimeout = 2500;
             });
 
-        // This harness dispatches server-initiated requests on the client's single read loop, so
-        // the pending handler has to be released before the client can read the tool response the
-        // server already wrote. Well after the confirmation deadline, so the server has long since
-        // given up; the late answer is ignored.
+        // The SDK's McpClient dispatches server-initiated requests on its single read loop, so the
+        // pending handler has to be released before the client can read the tool response the
+        // server already wrote. Keyed off the service actually running — which only happens once
+        // the gate has given up on the prompt — rather than a fixed sleep: a hardcoded delay is
+        // both a flat cost paid by every other test in this DisableParallelization collection and
+        // a magic number silently coupled to ConfirmDestructiveWritesTimeout above. The ceiling
+        // still releases the handler if the service never runs, so a regression fails this test
+        // instead of wedging the collection.
         var release = Task.Run(async () =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(3));
+            await Task.WhenAny(serviceRan.Task, Task.Delay(TimeSpan.FromSeconds(15)));
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
         });
 

@@ -9,7 +9,7 @@ export interface Tool {
   params: string;
   returns: string;     // shape of the `data` payload (nested inside the ToolResult envelope)
   progress?: boolean;  // emits MCP progress notifications
-  confirms?: boolean;  // asks the client to confirm via elicitation before writing (unless RoselineMCP:ConfirmDestructiveWrites is false)
+  confirms?: boolean;  // asks the client to confirm via elicitation before writing (unless RoselineMCP:ConfirmDestructiveWrites is false); an unanswered prompt expires after RoselineMCP:ConfirmDestructiveWritesTimeout (5 min) into a preview, never a write
 }
 
 export const tools: Tool[] = [
