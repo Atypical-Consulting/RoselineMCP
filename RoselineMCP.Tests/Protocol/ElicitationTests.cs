@@ -19,10 +19,12 @@ namespace RoselineMCP.Tests.Protocol;
 /// protocol suite (the gate falls back to honoring the explicit opt-in). A third case covers the
 /// operator switch <c>RoselineMCP:ConfirmDestructiveWrites=false</c>: an elicitation-capable client
 /// that would decline is deliberately never asked, so the write stands — asserted for both
-/// <c>apply_fixes</c> and <c>rename_symbol</c>, since the gate lives in the shared helper. A last
-/// case pins the <em>content</em> of the prompt rather than the answer: the message must name the
-/// project even when the caller omitted it, which is the drift three hand-maintained copies of the
-/// gate produced before it was consolidated into <c>ResolveWriteModeAsync</c>.
+/// <c>apply_fixes</c> and <c>rename_symbol</c>, since the gate lives in the shared helper.
+/// <c>edit_member</c> gets a decline case of its own so all three write tools are covered
+/// end-to-end, and a last case pins the <em>content</em> of all three prompts rather than the
+/// answer: each must name the project even when the caller omitted it, which is the drift three
+/// hand-maintained copies of the gate produced before it was consolidated into
+/// <c>ResolveWriteModeAsync</c>.
 /// </summary>
 [Collection(McpProtocolCollection.Name)]
 public class ElicitationTests
@@ -30,14 +32,15 @@ public class ElicitationTests
     private static Task<McpProtocolTestHost> StartHostAsync(
         ICodeFixService codeFixService,
         Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>> elicitationHandler,
-        Action<RoselineMcpOptions>? configureOptions = null)
+        Action<RoselineMcpOptions>? configureOptions = null,
+        ICodeEditService? editService = null)
         => McpProtocolTestHost.StartAsync(
             services =>
             {
                 services.AddSingleton(codeFixService);
                 services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
                 services.AddSingleton(A.Fake<ICodeNavigationService>());
-                services.AddSingleton(A.Fake<ICodeEditService>());
+                services.AddSingleton(editService ?? A.Fake<ICodeEditService>());
                 services.AddSingleton<IDiffService, DiffService>();
                 services.AddSingleton<IPatchService, PatchService>();
             },
@@ -311,17 +314,10 @@ public class ElicitationTests
             .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
 
-        await using var host = await McpProtocolTestHost.StartAsync(
-            services =>
-            {
-                services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
-                services.AddSingleton(A.Fake<ICodeFixService>());
-                services.AddSingleton(A.Fake<ICodeNavigationService>());
-                services.AddSingleton(edit);
-                services.AddSingleton<IDiffService, DiffService>();
-                services.AddSingleton<IPatchService, PatchService>();
-            },
-            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }));
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }),
+            editService: edit);
 
         await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
         {
@@ -349,18 +345,11 @@ public class ElicitationTests
             .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
 
-        await using var host = await McpProtocolTestHost.StartAsync(
-            services =>
-            {
-                services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
-                services.AddSingleton(A.Fake<ICodeFixService>());
-                services.AddSingleton(A.Fake<ICodeNavigationService>());
-                services.AddSingleton(edit);
-                services.AddSingleton<IDiffService, DiffService>();
-                services.AddSingleton<IPatchService, PatchService>();
-            },
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
             (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
-            options => options.ConfirmDestructiveWrites = false);
+            options => options.ConfirmDestructiveWrites = false,
+            edit);
 
         await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
         {
@@ -375,47 +364,96 @@ public class ElicitationTests
     }
 
     [Fact]
-    public async Task EditMember_Confirmation_Names_The_Resolved_Project_When_Project_Is_Omitted()
+    public async Task EditMember_With_PreviewOnly_False_Is_Downgraded_To_Preview_When_Client_Declines()
     {
-        // Regression guard for the bug three hand-maintained copies of the write gate produced.
-        // With `project` omitted — the documented default, since auto-discovery is the advertised
-        // behavior — one copy interpolated the raw null and asked the human to approve writing a
-        // member "in ''": the single fact the confirmation exists to convey was blank. Consolidating
-        // the gate into ResolveWriteModeAsync leaves one place for that to regress, so pin what the
-        // prompt actually says rather than only what the client answers.
-        string? message = null;
+        // The third write tool's own end-to-end decline path. apply_fixes and rename_symbol each
+        // have one; without this, edit_member could pass the caller's raw previewOnly straight to
+        // the service — writing on a confirmation the human declined — with the suite still green.
+        bool? captured = null;
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                captured = previewOnly)
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
                 Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
 
-        await using var host = await McpProtocolTestHost.StartAsync(
-            services =>
-            {
-                services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
-                services.AddSingleton(A.Fake<ICodeFixService>());
-                services.AddSingleton(A.Fake<ICodeNavigationService>());
-                services.AddSingleton(edit);
-                services.AddSingleton<IDiffService, DiffService>();
-                services.AddSingleton<IPatchService, PatchService>();
-            },
-            (request, _) =>
-            {
-                message = request?.Message;
-                return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" });
-            });
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }),
+            editService: edit);
 
-        await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        var result = await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
         {
-            // `project` is deliberately absent — this is the call shape that broke.
+            ["project"] = "Demo",
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
         });
 
-        message.ShouldNotBeNull();
-        message.ShouldContain("the auto-discovered project");
-        message.ShouldNotContain("in ''");
+        captured.ShouldBe(true);
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("data").GetProperty("previewOnly").GetBoolean().ShouldBeTrue();
+        payload.GetProperty("data").GetProperty("notes").EnumerateArray()
+            .Select(n => n.GetString()).ShouldContain(s => s!.Contains("declined"));
+    }
+
+    [Fact]
+    public async Task Write_Confirmation_Prompts_Name_The_Project_When_It_Is_Omitted()
+    {
+        // Regression guard for the drift three hand-maintained copies of the gate produced. With
+        // `project` omitted — the documented default, since auto-discovery is the advertised
+        // behavior — one copy interpolated the raw null and asked the human to approve writing a
+        // member "in ''": the single fact the confirmation exists to convey was blank. All three
+        // prompts now name their target through ToolExecutionHelper.DescribeWriteTarget, so all
+        // three are asserted here. Pinning only the tool that broke last time would leave the other
+        // two free to break next, which is how the messages diverged in the first place.
+        var messages = new List<string>();
+
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (request, _) =>
+            {
+                messages.Add(request?.Message ?? string.Empty);
+                return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" });
+            },
+            editService: edit);
+
+        // `project` is deliberately absent from all three calls — the shape that broke.
+        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        {
+            ["ids"] = new[] { "RCS1213" },
+            ["previewOnly"] = false,
+        });
+        await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "delete",
+            ["previewOnly"] = false,
+        });
+        await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
+        {
+            ["symbol"] = "Foo",
+            ["newName"] = "Bar",
+            ["previewOnly"] = false,
+        });
+
+        messages.Count.ShouldBe(3, "every write tool must ask before writing");
+        foreach (var message in messages)
+        {
+            message.ShouldContain("the auto-discovered project");
+            message.ShouldNotContain("''");
+        }
     }
 }

@@ -58,14 +58,12 @@ public static class RenameSymbolTool
 
         try
         {
-            // Whether to ask, what the answer means and what to log all live in the helper; the
-            // message is the only part that is this tool's own. Note this runs BEFORE the analysis
-            // budget is armed below — see the comment there.
+            // Gate policy lives in the helper; only the wording is this tool's own.
             var (effectivePreviewOnly, confirmationNote) = await ToolExecutionHelper.ResolveWriteModeAsync(
                 server,
                 options,
                 previewOnly,
-                $"Rename '{symbol}' to '{newName}' across the solution of '{project ?? "the auto-discovered project"}' and write the changes to disk?",
+                $"Rename '{symbol}' to '{newName}' across the solution of '{ToolExecutionHelper.DescribeWriteTarget(project)}' and write the changes to disk?",
                 invocation.Logger,
                 cancellationToken);
 

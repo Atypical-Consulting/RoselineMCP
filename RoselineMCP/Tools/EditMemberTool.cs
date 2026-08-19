@@ -63,14 +63,12 @@ public static class EditMemberTool
 
         try
         {
-            // Whether to ask, what the answer means and what to log all live in the helper; the
-            // message is the only part that is this tool's own. Note this runs BEFORE the analysis
-            // budget is armed below — see the comment there.
+            // Gate policy lives in the helper; only the wording is this tool's own.
             var (effectivePreviewOnly, confirmationNote) = await ToolExecutionHelper.ResolveWriteModeAsync(
                 server,
                 options,
                 previewOnly,
-                $"Write the '{operation}' of member '{symbol}' in '{project ?? "the auto-discovered project"}' to disk?",
+                $"Write the '{operation}' of member '{symbol}' in '{ToolExecutionHelper.DescribeWriteTarget(project)}' to disk?",
                 invocation.Logger,
                 cancellationToken);
 

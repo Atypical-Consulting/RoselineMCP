@@ -60,14 +60,12 @@ public static class ApplyFixesTool
 
         try
         {
-            // Whether to ask, what the answer means and what to log all live in the helper; the
-            // message is the only part that is this tool's own. Note this runs BEFORE the analysis
-            // budget is armed below — see the comment there.
+            // Gate policy lives in the helper; only the wording is this tool's own.
             var (effectivePreviewOnly, confirmationNote) = await ToolExecutionHelper.ResolveWriteModeAsync(
                 server,
                 options,
                 previewOnly,
-                $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{project ?? "the auto-discovered project"}' and write the changes to disk?",
+                $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{ToolExecutionHelper.DescribeWriteTarget(project)}' and write the changes to disk?",
                 invocation.Logger,
                 cancellationToken);
 

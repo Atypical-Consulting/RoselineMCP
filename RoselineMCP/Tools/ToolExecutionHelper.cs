@@ -212,7 +212,7 @@ internal static class ToolExecutionHelper
     /// then, so the <c>previewOnly: false</c> opt-in is the only remaining guard before a write.
     /// </para>
     /// </remarks>
-    public static async Task<WriteConfirmation> ConfirmDestructiveWriteAsync(
+    private static async Task<WriteConfirmation> ConfirmDestructiveWriteAsync(
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
         string message,
@@ -288,7 +288,7 @@ internal static class ToolExecutionHelper
     /// operation to a preview. Lives beside the gate so all three write tools word the two
     /// outcomes identically, and so a caller can tell "you said no" from "nobody answered".
     /// </summary>
-    public static string WriteConfirmationNote(WriteConfirmation confirmation) => confirmation switch
+    private static string WriteConfirmationNote(WriteConfirmation confirmation) => confirmation switch
     {
         WriteConfirmation.TimedOut =>
             "Write confirmation timed out; returned a preview only (no files were modified). Set "
@@ -302,6 +302,15 @@ internal static class ToolExecutionHelper
         _ => throw new ArgumentOutOfRangeException(
             nameof(confirmation), confirmation, "No note exists for this write-confirmation outcome."),
     };
+
+    /// <summary>
+    /// How a write tool's confirmation prompt names the project it is about to touch. Single-sourced
+    /// because this fallback is the exact thing that drifted while each tool built its own prompt:
+    /// one interpolated the raw <see langword="null"/> and asked the human to approve a write
+    /// <c>in ''</c>, blanking the one fact the prompt exists to convey. The wording around it stays
+    /// per-tool; the name of the target does not.
+    /// </summary>
+    public static string DescribeWriteTarget(string? project) => project ?? "the auto-discovered project";
 
     /// <summary>
     /// Resolves whether a write tool should actually write. Applies the confirmation gate when the
