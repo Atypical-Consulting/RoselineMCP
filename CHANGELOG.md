@@ -85,6 +85,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `phmatray`, naming this repository and `publish-nuget.yml`) and `NUGET_USER` is set. The
   long-lived `NUGET_API_KEY` repository secret is deliberately kept until one real release has been
   published and verified — see `PUBLISH.md`.
+- **The write-confirmation gate now lives in one place.** `apply_fixes`, `edit_member` and
+  `rename_symbol` each carried their own copy of the block deciding whether to ask, what a declined
+  or unanswered prompt means for the call, what to log, and which note to attach — one policy with
+  three edit sites. All three now call a single `ToolExecutionHelper.ResolveWriteModeAsync`. Purely
+  internal: no tool's parameters, response shape or notes text change. The consolidation is not
+  speculative tidying — the copies had already drifted into three different confirmation messages,
+  one of which asked the human to approve writing a member `in ''` whenever `project` was omitted
+  (the documented default). A new fact in `ElicitationTests` pins what the prompt says, so that
+  particular drift cannot return.
 
 ### Documentation
 - **`RoselineMCP:RunAnalyzers = false` no longer claims to stop all analyzer-assembly execution —
