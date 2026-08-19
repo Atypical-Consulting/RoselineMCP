@@ -148,6 +148,7 @@ internal static class ToolExecutionHelper
     /// caller's client actively declined it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This is a second guard behind the <c>previewOnly: false</c> opt-in, surfaced to the human via
     /// MCP elicitation. It is deliberately best-effort: if no server is available, or the connected
     /// client does not support elicitation (or the elicitation round-trip fails for any reason other
@@ -155,13 +156,27 @@ internal static class ToolExecutionHelper
     /// proceeds — a client without elicitation support must not be silently prevented from writing.
     /// Only an explicit decline (<see cref="ElicitResult.IsAccepted"/> is <see langword="false"/>)
     /// stops the write.
+    /// </para>
+    /// <para>
+    /// An operator can switch the gate off for a whole deployment by setting
+    /// <c>RoselineMCP:ConfirmDestructiveWrites</c> to <see langword="false"/> (see
+    /// <see cref="RoselineMcpOptions.ConfirmDestructiveWrites"/>) — intended for unattended hosts
+    /// (CI, headless agents) whose client can elicit but has no human to answer, which is the one
+    /// case the best-effort fallbacks above do not already cover. No elicitation is sent at all
+    /// then, so the <c>previewOnly: false</c> opt-in is the only remaining guard before a write.
+    /// </para>
     /// </remarks>
     public static async Task<bool> ConfirmDestructiveWriteAsync(
         McpServer? server,
+        IOptions<RoselineMcpOptions>? options,
         string message,
         CancellationToken cancellationToken)
     {
-        if (server is null)
+        // Nothing to ask, or the operator turned the confirmation off for this deployment
+        // (RoselineMCP:ConfirmDestructiveWrites) — either way the explicit previewOnly: false
+        // opt-in stands. Note this suppresses the elicitation entirely rather than auto-accepting
+        // one, so a client that would decline is never given the chance to.
+        if (server is null || options?.Value.ConfirmDestructiveWrites == false)
         {
             return true;
         }

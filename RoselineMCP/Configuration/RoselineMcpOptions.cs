@@ -46,4 +46,13 @@ public class RoselineMcpOptions
     /// time; see SECURITY.md.
     /// </summary>
     public bool RunAnalyzers { get; set; } = true;
+
+    /// <summary>
+    /// Whether the write tools (<c>ApplyFixes</c>, <c>EditMember</c>, <c>RenameSymbol</c>) ask the
+    /// connected client to confirm — via MCP elicitation — before writing when the caller passed
+    /// <c>previewOnly: false</c>. Enabled by default. Set to <see langword="false"/> for unattended
+    /// hosts (CI, headless agents) whose client cannot answer an elicitation: the explicit
+    /// <c>previewOnly: false</c> opt-in then stands as the only guard before a write. See SECURITY.md.
+    /// </summary>
+    public bool ConfirmDestructiveWrites { get; set; } = true;
 }

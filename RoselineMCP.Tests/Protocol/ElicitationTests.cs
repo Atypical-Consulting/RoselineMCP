@@ -3,6 +3,7 @@ using FakeItEasy;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
+using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Services;
@@ -22,7 +23,8 @@ public class ElicitationTests
 {
     private static Task<McpProtocolTestHost> StartHostAsync(
         ICodeFixService codeFixService,
-        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>> elicitationHandler)
+        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>> elicitationHandler,
+        Action<RoselineMcpOptions>? configureOptions = null)
         => McpProtocolTestHost.StartAsync(
             services =>
             {
@@ -33,7 +35,8 @@ public class ElicitationTests
                 services.AddSingleton<IDiffService, DiffService>();
                 services.AddSingleton<IPatchService, PatchService>();
             },
-            elicitationHandler);
+            elicitationHandler,
+            configureOptions);
 
     private static ICodeFixService FakeCodeFixCapturingPreviewOnly(Action<bool> capture)
     {
@@ -95,6 +98,35 @@ public class ElicitationTests
 
         // Accepted → the write proceeds; the service was invoked with previewOnly = false.
         captured.ShouldBe(false);
+    }
+
+    [Fact]
+    public async Task ApplyFixes_With_PreviewOnly_False_Skips_Elicitation_When_Confirmation_Is_Disabled()
+    {
+        bool? captured = null;
+        var elicited = false;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(p => captured = p);
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            options => options.ConfirmDestructiveWrites = false);
+
+        var result = await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        {
+            ["project"] = "TestProject",
+            ["ids"] = new[] { "RCS1213" },
+            ["previewOnly"] = false,
+        });
+
+        // The gate is off, so the client is never asked — its decline never happens and the write
+        // stands. Note the client here DOES advertise elicitation support: this proves the option
+        // suppresses the request itself rather than merely auto-accepting an answer.
+        elicited.ShouldBeFalse();
+        captured.ShouldBe(false);
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("data").GetProperty("previewOnly").GetBoolean().ShouldBeFalse();
     }
 
     [Fact]

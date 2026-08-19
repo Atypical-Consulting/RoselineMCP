@@ -68,6 +68,7 @@ public static class EditMemberTool
             // round-trip: think-time must not be charged against the analysis budget.
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
+                    options,
                     $"Write the '{operation}' of member '{symbol}' in '{project}' to disk?",
                     cancellationToken))
             {

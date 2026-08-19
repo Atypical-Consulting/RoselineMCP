@@ -63,6 +63,7 @@ public static class RenameSymbolTool
             // round-trip: think-time must not be charged against the analysis budget.
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
+                    options,
                     $"Rename '{symbol}' to '{newName}' across the solution and write the changes to disk?",
                     cancellationToken))
             {
