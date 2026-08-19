@@ -58,9 +58,19 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
     /// <see cref="RoselineMCP.Interfaces.ICodeFixService"/>, <see cref="RoselineMCP.Interfaces.IPatchService"/>, etc.)
     /// the tools depend on. Tests typically register fakes here to avoid any real MSBuild/Git/filesystem work.
     /// </param>
+    /// <param name="elicitationHandler">
+    /// Optional handler for server-initiated <c>elicitation/create</c> requests. When supplied, the
+    /// client advertises the elicitation capability and round-trips every elicitation to this
+    /// handler; when omitted, the client advertises no elicitation support at all.
+    /// </param>
+    /// <param name="configureOptions">
+    /// Optional callback to set the <see cref="RoselineMcpOptions"/> the tools see via
+    /// <c>IOptions&lt;RoselineMcpOptions&gt;</c>. Omit it for production defaults.
+    /// </param>
     public static async Task<McpProtocolTestHost> StartAsync(
         Action<IServiceCollection> configureServices,
-        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler = null)
+        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler = null,
+        Action<RoselineMcpOptions>? configureOptions = null)
     {
         // Two independent duplex pipes give us four unidirectional streams: the client writes to
         // clientToServer and the server reads from it, while the server writes to serverToClient and
@@ -89,7 +99,7 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
             // schema identical to production: without it, the DI container wouldn't recognize
             // IOptions<RoselineMcpOptions> as a known service type, and the SDK would try to bind it from
             // the caller-supplied arguments instead of excluding it from the schema.
-            services.Configure<RoselineMcpOptions>(_ => { });
+            services.Configure<RoselineMcpOptions>(options => configureOptions?.Invoke(options));
 
             configureServices(services);
         });

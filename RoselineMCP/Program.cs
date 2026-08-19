@@ -35,6 +35,15 @@ try
         logger.LogInformation("Diagnostic tracing enabled (RoselineMCP:EnableDiagnosticLogging=true): per-tool invocation spans will be logged to stderr.");
     }
 
+    if (!diagnosticsOptions.ConfirmDestructiveWrites)
+    {
+        // Say so once, loudly: from here on, a previewOnly:false call writes with no human in the
+        // loop, and the response is indistinguishable from one a human approved. An operator
+        // reading stderr should be able to tell which deployment they are looking at.
+        logger.LogWarning(
+            "Write confirmation disabled (RoselineMCP:ConfirmDestructiveWrites=false): the write tools will NOT ask the client to confirm before writing; an explicit previewOnly:false is the only remaining guard.");
+    }
+
     // Run the application
     await host.RunAsync();
 

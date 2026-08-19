@@ -63,7 +63,8 @@ public static class RenameSymbolTool
             // round-trip: think-time must not be charged against the analysis budget.
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
-                    $"Rename '{symbol}' to '{newName}' across the solution and write the changes to disk?",
+                    options,
+                    $"Rename '{symbol}' to '{newName}' across the solution of '{project ?? "the auto-discovered project"}' and write the changes to disk?",
                     cancellationToken))
             {
                 effectivePreviewOnly = true;

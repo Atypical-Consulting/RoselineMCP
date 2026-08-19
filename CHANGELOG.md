@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`RoselineMCP:ConfirmDestructiveWrites`** (default `true`) — an operator switch that turns off
+  the write-confirmation elicitation. The write tools (`ApplyFixes`, `EditMember`, `RenameSymbol`)
+  ask the connected client to confirm before writing when the caller passed `previewOnly: false`;
+  on an unattended host that prompt is not a second guard but a stop, because MCP elicitation is a
+  separate channel from tool permissions and no client-side setting can pre-answer it — so
+  `claude -p` runs, CI jobs and overnight agent loops blocked on a human keypress. Set it via
+  `appsettings.json` or `ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false` and no elicitation
+  is sent at all (rather than one being auto-accepted); the explicit `previewOnly: false` opt-in
+  then stands as the only guard before a write — see `SECURITY.md`. Interactive installs are
+  unaffected: leave it at its default and behavior is unchanged. The server logs a **warning at
+  startup** when the switch is off, so a gate-off deployment is identifiable from its stderr rather
+  than being indistinguishable from a confirmed one.
+
+### Fixed
+- The `EditMember` write-confirmation prompt no longer asks the human to approve a write `in ''`
+  when `project` was omitted (the documented auto-discovery default) — it now names "the
+  auto-discovered project", matching `ApplyFixes`. `RenameSymbol`'s prompt likewise names the
+  project it resolved, instead of describing a solution-wide rename without saying which solution.
+
 ### Changed
 - Releases now publish to NuGet.org via **Trusted Publishing** instead of a long-lived
   `NUGET_API_KEY` secret: `publish-nuget.yml` exchanges the GitHub OIDC token for a key valid

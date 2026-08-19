@@ -5,6 +5,7 @@ Complete API reference for RoselineMCP tools and services.
 ## Table of Contents
 
 - [MCP Tools](#mcp-tools)
+  - [Write Confirmation](#write-confirmation)
   - [AnalyzeSolution](#analyzesolution)
   - [ListDiagnostics](#listdiagnostics)
   - [ApplyFixes](#applyfixes)
@@ -47,6 +48,33 @@ All tools are exposed via the Model Context Protocol and return JSON responses.
 Each tool's **Response** schema shown below describes the shape of the `data` object (the success
 payload), not the envelope. The tools set `UseStructuredContent = true`, so the same object is also
 delivered as MCP `structuredContent` alongside an advertised `outputSchema`.
+
+### Write Confirmation
+
+Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes),
+[`EditMember`](#editmember) and [`RenameSymbol`](#renamesymbol). All three default to
+`previewOnly: true` and write nothing unless the caller passes `previewOnly: false`.
+
+Behind that opt-in sits a second, **best-effort** guard: when `previewOnly: false` is passed, the
+server sends an MCP `elicitation/create` asking the connected client to confirm before writing.
+
+| Situation | Result |
+|---|---|
+| Client accepts | The write proceeds; `previewOnly` comes back `false`. |
+| Client **declines** | The call is downgraded to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write declined via client confirmation; returned a preview only (no files were modified)."` |
+| Client does not support elicitation, or the round-trip fails | No confirmation is possible, so the explicit opt-in stands and the write proceeds. |
+| `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. |
+
+The last row is an operator switch, not a tool parameter — the model cannot waive the gate. It
+defaults to `true`; set it to `false` (via `appsettings.json` or
+`ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false`) for unattended hosts such as CI or headless
+agents, whose client *can* elicit but has no human to answer, so the prompt would block the call
+outright. The server logs a warning at startup when the switch is off. Disabling it leaves
+`previewOnly: false` as the only guard before a write — see
+[SECURITY.md](../SECURITY.md).
+
+The response shape is identical whether the confirmation was accepted or skipped; only the decline
+path adds a note.
 
 ### AnalyzeSolution
 
@@ -186,7 +214,8 @@ parameter never writes to disk — pass `previewOnly: false` explicitly to write
 (`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation; see
 [Tool Annotations](#tool-annotations)). The project is resolved and loaded the same way as the
 code navigation/editing tools below (`IProjectLoader`): auto-discovery when `project` is omitted,
-`.sln` paths accepted, exact-name project selection.
+`.sln` paths accepted, exact-name project selection. A `previewOnly: false` call is also subject to
+the [Write Confirmation](#write-confirmation) gate.
 
 #### Request
 
@@ -550,7 +579,8 @@ with no symbol (e.g. a blank or comment line), is a `NotFoundError`.
 
 Replace, add, or delete a single type member; returns a unified diff. **Defaults to preview mode**
 (`previewOnly: true`) — no files are written unless you pass `previewOnly: false`
-(`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation).
+(`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation), and such a call is
+subject to the [Write Confirmation](#write-confirmation) gate.
 
 #### Request
 
@@ -583,7 +613,8 @@ Replace, add, or delete a single type member; returns a unified diff. **Defaults
 
 Rename a symbol and update every reference across the solution using Roslyn's rename engine;
 returns a unified diff. **Defaults to preview mode** (`previewOnly: true`)
-(`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation).
+(`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation). A `previewOnly: false`
+call is subject to the [Write Confirmation](#write-confirmation) gate.
 
 #### Request
 

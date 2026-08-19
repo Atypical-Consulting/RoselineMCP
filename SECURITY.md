@@ -70,6 +70,20 @@ even before any build target fires. Setting `RoselineMCP:RunAnalyzers` to
 alike), reducing the tools to compiler-only diagnostics; MSBuild evaluation
 itself (above) still applies.
 
+**The write-confirmation gate is operator-disablable.** The three write tools
+(`ApplyFixes`, `EditMember`, `RenameSymbol`) write nothing unless the caller
+passes `previewOnly: false`; behind that opt-in they ask the connected client
+to confirm via MCP elicitation. That confirmation is already best-effort — it
+is skipped when no server is attached, when the client does not support
+elicitation, or when the round-trip fails — and setting
+`RoselineMCP:ConfirmDestructiveWrites` to `false` skips it unconditionally, so
+no elicitation is sent at all. It exists for unattended hosts (CI, headless
+agents) whose client *can* elicit but has no human to answer, where the prompt
+blocks the call outright rather than guarding it. Turning it off leaves the
+explicit `previewOnly: false` opt-in as the only thing between a tool call and
+a disk write — so leave it enabled (the default) on any interactive install,
+and treat disabling it as a decision about a specific deployment.
+
 **Recommendations for operators:**
 
 - Only point RoselineMCP at repositories and branches you trust, or run it
@@ -79,6 +93,11 @@ itself (above) still applies.
 - Treat the `pathOrGit`/`branch` parameters of `AnalyzeSolution` as a code
   execution surface, not just a data source, when reasoning about threat
   models.
+- Leave `RoselineMCP:ConfirmDestructiveWrites` at its default (`true`) on any
+  install a human actually sits in front of. Disable it only for a specific
+  unattended deployment, and treat that deployment as one where any
+  `previewOnly: false` call writes unreviewed. The server logs a warning at
+  startup when the switch is off.
 
 If you find a way to escalate this into a more severe issue (e.g. bypassing
 intended read-only guarantees for the *output* of analysis, or path

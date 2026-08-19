@@ -65,6 +65,7 @@ public static class ApplyFixesTool
             // round-trip: think-time must not be charged against the analysis budget.
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
+                    options,
                     $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{project ?? "the auto-discovered project"}' and write the changes to disk?",
                     cancellationToken))
             {

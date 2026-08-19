@@ -286,6 +286,12 @@ The application supports environment-specific configuration through:
 
 Configuration is read once at startup; no reload-on-change file watchers are registered.
 
+The `RoselineMCP` section carries five operator switches — `DefaultTimeout`,
+`EnableDiagnosticLogging`, `WorkspaceCache`, `RunAnalyzers`, and `ConfirmDestructiveWrites`. The last
+one gates the write-confirmation elicitation: leave it `true` (the default) for interactive installs;
+set `ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false` on unattended hosts (CI, headless agents)
+whose client can elicit but has no human to answer, where the prompt would otherwise block the call.
+
 Logging levels adjust automatically:
 - **Development**: Debug level for RoselineMCP namespace
 - **Production**: Information level for RoselineMCP namespace
@@ -294,7 +300,11 @@ Logging levels adjust automatically:
 
 - **Read-only by default**: `ApplyFixes`' `previewOnly` parameter defaults to `true` at the MCP
   tool boundary — no file is written to disk unless the caller explicitly passes
-  `previewOnly: false`.
+  `previewOnly: false`. Behind that opt-in sits a *second*, best-effort guard: the write tools
+  elicit a human confirmation before writing. It is best-effort by design (a client that cannot
+  elicit still writes), and an operator can disable it outright with
+  `RoselineMCP:ConfirmDestructiveWrites = false` — after which the explicit `previewOnly: false`
+  is the only thing standing between a tool call and a disk write. See `SECURITY.md`.
 - **Real Git support**: `pathOrGit` accepts `http://`/`https://` Git URLs. RoselineMCP performs a
   shallow (`--depth 1`), read-only clone into a fresh temp directory using the system `git`
   executable, and deletes that directory once the operation finishes. Any other scheme (local
