@@ -258,7 +258,15 @@ internal static class ToolExecutionHelper
         // disconnects mid-prompt also cancels the round-trip without the caller's token moving,
         // and that is a broken session, not an unanswered question — it must keep propagating,
         // including when no deadline was ever armed (timeoutMs <= 0).
-        catch (OperationCanceledException)
+        //
+        // This catches Exception and not OperationCanceledException on purpose. Cancelling an
+        // in-flight request is not guaranteed to surface as an OCE: a JSON-RPC client library may
+        // report the abandoned round-trip as a transport or protocol exception instead. Catching
+        // only OCE here would drop those into the "elicitation unsupported" fallback below, which
+        // returns Proceed — writing to disk on a confirmation nobody answered, the exact inversion
+        // of what this gate exists to prevent. The filter, not the exception type, is what makes
+        // this branch safe: it fires only when our own deadline is the reason the call failed.
+        catch (Exception)
             when (timeoutMs > 0 && elicitCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             return WriteConfirmation.TimedOut;
@@ -307,6 +315,11 @@ internal static class ToolExecutionHelper
     {
         var cts = CancellationTokenSource.CreateLinkedTokenSource(requestToken);
 
+        // Outside DI (unit tests) this falls back to "no budget", where
+        // ConfirmDestructiveWriteAsync falls back to the shipped default instead. The asymmetry is
+        // deliberate, not an oversight: each side errs toward the safe answer for its own concern.
+        // An unbounded analysis in a test costs nothing, whereas an unbounded confirmation would
+        // remove the very bound that stops silence being read as consent.
         var timeoutMs = options?.Value.DefaultTimeout ?? 0;
         if (timeoutMs > 0)
         {
