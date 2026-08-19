@@ -786,8 +786,14 @@ RoselineMCP/
 - **Analyzer Execution Is Code Execution** -- the diagnostics tools also run the target project's
   own referenced Roslyn analyzers in-process (see
   [Supported Analyzers](#supported-analyzers)); an analyzer from an untrusted repository is
-  arbitrary code. `RoselineMCP:RunAnalyzers = false` disables all analyzer execution (bundled
-  Roslynator included). See [`SECURITY.md`](SECURITY.md).
+  arbitrary code. `RoselineMCP:RunAnalyzers = false` disables the **diagnostic analyzer** pass
+  (bundled Roslynator included). See [`SECURITY.md`](SECURITY.md).
+- **Source Generators Run Regardless Of That Switch** -- generators ship through the same
+  `AnalyzerReferences`, but run as part of building *any* compilation rather than as part of the
+  diagnostics pass, so every semantic path executes them -- all navigation tools included. They
+  cannot be suppressed without breaking semantic analysis. `RunAnalyzers = false` narrows the
+  code-execution surface of an untrusted repository; it does not close it. Isolate instead --
+  see [`SECURITY.md`](SECURITY.md).
 - **No Dedicated Path-Traversal Sandbox** -- paths are resolved with plain existence checks, not
   canonicalized against an allowed root; treat `pathOrGit`/`project`/`branch` as trusted operator
   input.
