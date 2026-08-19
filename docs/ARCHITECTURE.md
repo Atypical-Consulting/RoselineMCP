@@ -156,7 +156,10 @@ Location: `Services/` and `Interfaces/`
   catalog plus the target project's own `AnalyzerReferences` (deduped by analyzer type)
 - Per-analyzer exceptions are logged and skipped (`onAnalyzerException`); a failed analyzer pass
   degrades to compiler-only rather than failing the tool
-- `RoselineMCP:RunAnalyzers = false` skips analyzers entirely (compiler-only)
+- `RoselineMCP:RunAnalyzers = false` skips the **analyzer pass** entirely (compiler-only
+  diagnostics). It does not stop **source generators**, which ship through the same
+  `AnalyzerReferences` but run as part of building any `Compilation` rather than as part of this
+  pass — so they execute on every semantic path, this one included. See `SECURITY.md`.
 
 **CodeFixService**
 - Applies automated code fixes
