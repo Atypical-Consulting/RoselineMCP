@@ -244,7 +244,7 @@ dotnet test --logger html
 ## Dependencies
 
 ### Core MCP and Hosting
-- **ModelContextProtocol** (1.4.1): MCP server implementation
+- **ModelContextProtocol** (2.2.0): MCP server implementation
 - **Microsoft.Extensions.Hosting**: Application hosting and DI
 - **Microsoft.Extensions.DependencyInjection**: Service registration
 

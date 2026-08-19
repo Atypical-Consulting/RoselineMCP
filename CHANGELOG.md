@@ -28,6 +28,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project it resolved, instead of describing a solution-wide rename without saying which solution.
 
 ### Changed
+- **Upgraded the MCP SDK from `ModelContextProtocol` 1.4.1 to 2.2.0**, which negotiates protocol
+  revision **2026-07-28** by default. No tool's wire shape, parameters, or response envelope
+  changes.
+- **Client-side log forwarding is now inert for clients on protocol 2026-07-28 or later.**
+  [SEP-2577](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/seps/2577-deprecate-roots-sampling-and-logging.md)
+  deprecated the MCP Logging feature in that revision: `logging/setLevel` is rejected, and a server
+  must not emit `notifications/message` for a request that did not carry an
+  `io.modelcontextprotocol/logLevel` `_meta` field — which the SDK's own `McpClient` provides no way
+  to set (on such a session it injects per-request `_meta` and strips that key). So the tool-failure
+  log notifications RoselineMCP sends via `AsClientLoggerProvider()` are delivered only to clients
+  that negotiate **2025-11-25 or earlier**; the code is kept for them and stays a no-op otherwise.
+  **Nothing is lost for anyone**: the correlation ID that those notifications carried is still in
+  every error envelope (`error.correlationId`) and in the server's own stderr log, which is exactly
+  what SEP-2577 names as the replacement. Deprecated features remain in the spec for at least twelve
+  months.
 - Releases now publish to NuGet.org via **Trusted Publishing** instead of a long-lived
   `NUGET_API_KEY` secret: `publish-nuget.yml` exchanges the GitHub OIDC token for a key valid
   ~1 hour, the same way the registry publish already proved this repo's identity. The only
