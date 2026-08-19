@@ -17,7 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `appsettings.json` or `ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false` and no elicitation
   is sent at all (rather than one being auto-accepted); the explicit `previewOnly: false` opt-in
   then stands as the only guard before a write — see `SECURITY.md`. Interactive installs are
-  unaffected: leave it at its default and behavior is unchanged.
+  unaffected: leave it at its default and behavior is unchanged. The server logs a **warning at
+  startup** when the switch is off, so a gate-off deployment is identifiable from its stderr rather
+  than being indistinguishable from a confirmed one.
+
+### Fixed
+- The `EditMember` write-confirmation prompt no longer asks the human to approve a write `in ''`
+  when `project` was omitted (the documented auto-discovery default) — it now names "the
+  auto-discovered project", matching `ApplyFixes`. `RenameSymbol`'s prompt likewise names the
+  project it resolved, instead of describing a solution-wide rename without saying which solution.
 
 ### Changed
 - Releases now publish to NuGet.org via **Trusted Publishing** instead of a long-lived

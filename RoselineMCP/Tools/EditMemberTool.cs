@@ -69,7 +69,7 @@ public static class EditMemberTool
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
                     options,
-                    $"Write the '{operation}' of member '{symbol}' in '{project}' to disk?",
+                    $"Write the '{operation}' of member '{symbol}' in '{project ?? "the auto-discovered project"}' to disk?",
                     cancellationToken))
             {
                 effectivePreviewOnly = true;

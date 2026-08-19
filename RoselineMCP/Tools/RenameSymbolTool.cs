@@ -64,7 +64,7 @@ public static class RenameSymbolTool
             if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
                     options,
-                    $"Rename '{symbol}' to '{newName}' across the solution and write the changes to disk?",
+                    $"Rename '{symbol}' to '{newName}' across the solution of '{project ?? "the auto-discovered project"}' and write the changes to disk?",
                     cancellationToken))
             {
                 effectivePreviewOnly = true;

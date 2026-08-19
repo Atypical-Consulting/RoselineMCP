@@ -93,6 +93,11 @@ and treat disabling it as a decision about a specific deployment.
 - Treat the `pathOrGit`/`branch` parameters of `AnalyzeSolution` as a code
   execution surface, not just a data source, when reasoning about threat
   models.
+- Leave `RoselineMCP:ConfirmDestructiveWrites` at its default (`true`) on any
+  install a human actually sits in front of. Disable it only for a specific
+  unattended deployment, and treat that deployment as one where any
+  `previewOnly: false` call writes unreviewed. The server logs a warning at
+  startup when the switch is off.
 
 If you find a way to escalate this into a more severe issue (e.g. bypassing
 intended read-only guarantees for the *output* of analysis, or path

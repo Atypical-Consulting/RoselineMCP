@@ -761,7 +761,12 @@ RoselineMCP/
   navigation tools (`SearchSymbols`, `GetSymbolInfo`, `FindReferences`, `FindImplementations`,
   `GetCallGraph`, `GetTypeHierarchy`) never write to disk. The three write-capable tools —
   `ApplyFixes`, `EditMember`, and `RenameSymbol` — each default to `previewOnly: true`; writing
-  requires the caller to pass `previewOnly: false` explicitly.
+  requires the caller to pass `previewOnly: false` explicitly. Behind that opt-in sits a second,
+  best-effort guard: the write tools ask the client to confirm via MCP elicitation before writing,
+  and a decline downgrades the call to a preview. That confirmation is skipped when the client
+  cannot elicit, and an operator can disable it outright with
+  `RoselineMCP:ConfirmDestructiveWrites=false` — after which `previewOnly: false` is the only guard
+  left. See [SECURITY.md](SECURITY.md).
 - **Real, Read-Only Git Cloning** -- `pathOrGit` accepts `http(s)://` Git URLs, which are
   shallow-cloned (`git clone --depth 1`) into a temp directory that's deleted after the operation.
   No other URL scheme is treated as a Git remote.

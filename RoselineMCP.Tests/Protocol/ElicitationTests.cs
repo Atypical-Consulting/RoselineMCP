@@ -16,7 +16,10 @@ namespace RoselineMCP.Tests.Protocol;
 /// is called with <c>previewOnly: false</c>, the server elicits a confirmation from the client
 /// before writing. A declining client downgrades the operation to a preview; an accepting client
 /// lets the write proceed. Clients without an elicitation handler are covered by the rest of the
-/// protocol suite (the gate falls back to honoring the explicit opt-in).
+/// protocol suite (the gate falls back to honoring the explicit opt-in). A third case covers the
+/// operator switch <c>RoselineMCP:ConfirmDestructiveWrites=false</c>: an elicitation-capable client
+/// that would decline is deliberately never asked, so the write stands — asserted for both
+/// <c>apply_fixes</c> and <c>rename_symbol</c>, since the gate lives in the shared helper.
 /// </summary>
 [Collection(McpProtocolCollection.Name)]
 public class ElicitationTests
@@ -164,5 +167,45 @@ public class ElicitationTests
         });
 
         captured.ShouldBe(true);
+    }
+
+    [Fact]
+    public async Task RenameSymbol_With_PreviewOnly_False_Skips_Elicitation_When_Confirmation_Is_Disabled()
+    {
+        // The disabled gate lives in the shared helper, not in apply_fixes: prove it through a
+        // second tool, mirroring the decline-path test above.
+        bool? captured = null;
+        var elicited = false;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                captured = previewOnly)
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await McpProtocolTestHost.StartAsync(
+            services =>
+            {
+                services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
+                services.AddSingleton(A.Fake<ICodeFixService>());
+                services.AddSingleton(A.Fake<ICodeNavigationService>());
+                services.AddSingleton(edit);
+                services.AddSingleton<IDiffService, DiffService>();
+                services.AddSingleton<IPatchService, PatchService>();
+            },
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            options => options.ConfirmDestructiveWrites = false);
+
+        await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
+        {
+            ["project"] = "Demo",
+            ["symbol"] = "Foo",
+            ["newName"] = "Bar",
+            ["previewOnly"] = false,
+        });
+
+        elicited.ShouldBeFalse();
+        captured.ShouldBe(false);
     }
 }
