@@ -60,17 +60,24 @@ public static class ApplyFixesTool
         try
         {
             var effectivePreviewOnly = previewOnly;
-            string? declineNote = null;
+            string? confirmationNote = null;
             // Use the caller's request token (not the wall-clock timeout) for the human confirmation
-            // round-trip: think-time must not be charged against the analysis budget.
-            if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
+            // round-trip: think-time must not be charged against the analysis budget. It is charged
+            // against a clock of its own (RoselineMCP:ConfirmDestructiveWritesTimeout), so a prompt
+            // nobody answers returns a preview instead of blocking this call forever.
+            if (!previewOnly)
+            {
+                var confirmation = await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
                     options,
                     $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{project ?? "the auto-discovered project"}' and write the changes to disk?",
-                    cancellationToken))
-            {
-                effectivePreviewOnly = true;
-                declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";
+                    cancellationToken);
+
+                if (confirmation != WriteConfirmation.Proceed)
+                {
+                    effectivePreviewOnly = true;
+                    confirmationNote = ToolExecutionHelper.WriteConfirmationNote(confirmation);
+                }
             }
 
             var result = await codeFixService.ApplyFixesAsync(
@@ -80,10 +87,10 @@ public static class ApplyFixesTool
                 progress,
                 timeoutSource.Token);
 
-            if (declineNote is not null)
+            if (confirmationNote is not null)
             {
                 result.PreviewOnly = true;
-                result.Notes.Add(declineNote);
+                result.Notes.Add(confirmationNote);
             }
 
             invocation.MarkSuccess();

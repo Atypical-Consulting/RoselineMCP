@@ -55,4 +55,15 @@ public class RoselineMcpOptions
     /// <c>previewOnly: false</c> opt-in then stands as the only guard before a write. See SECURITY.md.
     /// </summary>
     public bool ConfirmDestructiveWrites { get; set; } = true;
+
+    /// <summary>
+    /// How long, in milliseconds, to wait for the client's answer to the write-confirmation
+    /// elicitation before treating the silence as "no". Defaults to 5 minutes. A value of zero or
+    /// less removes the bound (the pre-2.2 behavior: wait indefinitely). This is deliberately NOT
+    /// <see cref="DefaultTimeout"/> — that is an analysis budget, and human think-time must not be
+    /// charged against it. On expiry the write is downgraded to a preview rather than proceeding:
+    /// "I asked and you said nothing" is not consent. Unattended hosts that want writes without a
+    /// human should set <see cref="ConfirmDestructiveWrites"/> to <see langword="false"/> instead.
+    /// </summary>
+    public int ConfirmDestructiveWritesTimeout { get; set; } = 300_000;
 }

@@ -133,6 +133,32 @@ internal sealed class ToolInvocation : IDisposable
 }
 
 /// <summary>
+/// The outcome of the write-confirmation gate (see
+/// <see cref="ToolExecutionHelper.ConfirmDestructiveWriteAsync"/>). Only <see cref="Proceed"/>
+/// permits a write; the other two both downgrade the operation to a preview but are kept apart so
+/// the caller can tell the user which happened — "you said no" and "nobody answered" are different
+/// facts, and only the second suggests the client may need
+/// <c>RoselineMCP:ConfirmDestructiveWrites=false</c>.
+/// </summary>
+internal enum WriteConfirmation
+{
+    /// <summary>
+    /// The write may go ahead: the client accepted it, could not be asked at all, or the operator
+    /// switched the gate off for this deployment.
+    /// </summary>
+    Proceed,
+
+    /// <summary>The client was asked and actively declined.</summary>
+    Declined,
+
+    /// <summary>
+    /// The client was asked and did not answer within
+    /// <see cref="RoselineMcpOptions.ConfirmDestructiveWritesTimeout"/>.
+    /// </summary>
+    TimedOut,
+}
+
+/// <summary>
 /// Shared helper used by every MCP tool method to combine the caller's request cancellation
 /// token with the configurable wall-clock timeout (RoselineMCP:DefaultTimeout), to start the
 /// per-invocation tracing/correlation context, and to build a consistent typed failure envelope
@@ -141,6 +167,13 @@ internal sealed class ToolInvocation : IDisposable
 /// </summary>
 internal static class ToolExecutionHelper
 {
+    /// <summary>
+    /// The shipped defaults, used when no <see cref="IOptions{TOptions}"/> is available at all
+    /// (outside DI, as in unit tests). Reading the default off the options type keeps it in one
+    /// place instead of duplicating the constant here, where the two could silently drift.
+    /// </summary>
+    private static readonly RoselineMcpOptions DefaultOptions = new();
+
     /// <summary>
     /// Starts the per-invocation tracing/correlation context for a tool call. Call this first,
     /// before any validation, so every code path — including early validation failures — gets a
@@ -154,8 +187,9 @@ internal static class ToolExecutionHelper
 
     /// <summary>
     /// Best-effort confirmation gate for a destructive, disk-writing operation. Returns
-    /// <see langword="true"/> if the write should proceed, <see langword="false"/> only if the
-    /// caller's client actively declined it.
+    /// <see cref="WriteConfirmation.Proceed"/> if the write should proceed, and
+    /// <see cref="WriteConfirmation.Declined"/> or <see cref="WriteConfirmation.TimedOut"/> only if
+    /// the caller's client actively declined it or never answered.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -165,7 +199,16 @@ internal static class ToolExecutionHelper
     /// than cancellation), the explicit <c>previewOnly: false</c> opt-in stands and the write
     /// proceeds — a client without elicitation support must not be silently prevented from writing.
     /// Only an explicit decline (<see cref="ElicitResult.IsAccepted"/> is <see langword="false"/>)
-    /// stops the write.
+    /// or an unanswered prompt stops the write.
+    /// </para>
+    /// <para>
+    /// The round-trip is bounded by <see cref="RoselineMcpOptions.ConfirmDestructiveWritesTimeout"/>
+    /// on a clock of its own — deliberately not <see cref="RoselineMcpOptions.DefaultTimeout"/>,
+    /// which is an analysis budget a human reading a real diff may legitimately exceed. On expiry
+    /// the result is <see cref="WriteConfirmation.TimedOut"/> and the caller downgrades to a
+    /// preview: a client that <em>cannot</em> answer justifies assuming consent, but one that was
+    /// asked and said nothing does not. A real request cancellation is distinguished from that
+    /// deadline by the caller's own token and still propagates.
     /// </para>
     /// <para>
     /// An operator can switch the gate off for a whole deployment by setting
@@ -176,7 +219,7 @@ internal static class ToolExecutionHelper
     /// then, so the <c>previewOnly: false</c> opt-in is the only remaining guard before a write.
     /// </para>
     /// </remarks>
-    public static async Task<bool> ConfirmDestructiveWriteAsync(
+    public static async Task<WriteConfirmation> ConfirmDestructiveWriteAsync(
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
         string message,
@@ -188,7 +231,21 @@ internal static class ToolExecutionHelper
         // one, so a client that would decline is never given the chance to.
         if (server is null || options?.Value.ConfirmDestructiveWrites == false)
         {
-            return true;
+            return WriteConfirmation.Proceed;
+        }
+
+        // The confirmation gets its own clock. Think-time must not be charged against the analysis
+        // budget (DefaultTimeout), but it has to be charged against something: an accepted-then-
+        // unanswered elicitation used to block the tool call forever. Zero or less keeps that
+        // unbounded behavior as an escape hatch. Outside DI (unit tests) `options` is null, where
+        // the documented default applies rather than "no bound".
+        var timeoutMs = options?.Value.ConfirmDestructiveWritesTimeout
+            ?? DefaultOptions.ConfirmDestructiveWritesTimeout;
+
+        using var elicitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (timeoutMs > 0)
+        {
+            elicitCts.CancelAfter(timeoutMs);
         }
 
         try
@@ -199,19 +256,40 @@ internal static class ToolExecutionHelper
                 Message = message,
                 RequestedSchema = new ElicitRequestParams.RequestSchema(),
             };
-            var result = await server.ElicitAsync(request, cancellationToken);
-            return result.IsAccepted;
+            var result = await server.ElicitAsync(request, elicitCts.Token);
+            return result.IsAccepted ? WriteConfirmation.Proceed : WriteConfirmation.Declined;
+        }
+        // Our deadline fired and the caller did NOT cancel: the client was asked and said nothing.
+        // Silence is not consent — downgrade to a preview instead of writing.
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return WriteConfirmation.TimedOut;
         }
         catch (OperationCanceledException)
         {
+            // A real request cancellation still propagates, unchanged.
             throw;
         }
         catch (Exception)
         {
             // Client does not support elicitation (or it failed) — honor the explicit opt-in.
-            return true;
+            return WriteConfirmation.Proceed;
         }
     }
+
+    /// <summary>
+    /// The note a write tool adds to its response when the confirmation gate downgraded the
+    /// operation to a preview. Lives beside the gate so all three write tools word the two
+    /// outcomes identically, and so a caller can tell "you said no" from "nobody answered".
+    /// </summary>
+    public static string WriteConfirmationNote(WriteConfirmation confirmation) => confirmation switch
+    {
+        WriteConfirmation.TimedOut =>
+            "Write confirmation timed out; returned a preview only (no files were modified). Set "
+            + "RoselineMCP:ConfirmDestructiveWrites=false on unattended hosts that should write "
+            + "without a human, or raise RoselineMCP:ConfirmDestructiveWritesTimeout.",
+        _ => "Write declined via client confirmation; returned a preview only (no files were modified).",
+    };
 
     /// <summary>
     /// Creates a <see cref="CancellationTokenSource"/> linked to <paramref name="requestToken"/>
