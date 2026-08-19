@@ -63,29 +63,14 @@ public static class EditMemberTool
 
         try
         {
-            var effectivePreviewOnly = previewOnly;
-            string? confirmationNote = null;
-            // Use the caller's request token (not the wall-clock timeout) for the human confirmation
-            // round-trip: think-time must not be charged against the analysis budget. It is charged
-            // against a clock of its own (RoselineMCP:ConfirmDestructiveWritesTimeout), so a prompt
-            // nobody answers returns a preview instead of blocking this call forever.
-            if (!previewOnly)
-            {
-                var confirmation = await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
-                    server,
-                    options,
-                    $"Write the '{operation}' of member '{symbol}' in '{project ?? "the auto-discovered project"}' to disk?",
-                    cancellationToken);
-
-                if (confirmation != WriteConfirmation.Proceed)
-                {
-                    effectivePreviewOnly = true;
-                    confirmationNote = ToolExecutionHelper.WriteConfirmationNote(confirmation);
-                    invocation.Logger?.LogWarning(
-                        "Write not confirmed ({Outcome}): returning a preview only, nothing was written to disk.",
-                        confirmation);
-                }
-            }
+            // Gate policy lives in the helper; only the wording is this tool's own.
+            var (effectivePreviewOnly, confirmationNote) = await ToolExecutionHelper.ResolveWriteModeAsync(
+                server,
+                options,
+                previewOnly,
+                $"Write the '{operation}' of member '{symbol}' in '{ToolExecutionHelper.DescribeWriteTarget(project)}' to disk?",
+                invocation.Logger,
+                cancellationToken);
 
             // Only NOW does the analysis budget start. Arming it before the confirmation would
             // charge the human's think-time against it — the very thing the confirmation's own

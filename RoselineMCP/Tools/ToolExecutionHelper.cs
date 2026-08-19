@@ -212,7 +212,7 @@ internal static class ToolExecutionHelper
     /// then, so the <c>previewOnly: false</c> opt-in is the only remaining guard before a write.
     /// </para>
     /// </remarks>
-    public static async Task<WriteConfirmation> ConfirmDestructiveWriteAsync(
+    private static async Task<WriteConfirmation> ConfirmDestructiveWriteAsync(
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
         string message,
@@ -288,7 +288,7 @@ internal static class ToolExecutionHelper
     /// operation to a preview. Lives beside the gate so all three write tools word the two
     /// outcomes identically, and so a caller can tell "you said no" from "nobody answered".
     /// </summary>
-    public static string WriteConfirmationNote(WriteConfirmation confirmation) => confirmation switch
+    private static string WriteConfirmationNote(WriteConfirmation confirmation) => confirmation switch
     {
         WriteConfirmation.TimedOut =>
             "Write confirmation timed out; returned a preview only (no files were modified). Set "
@@ -302,6 +302,65 @@ internal static class ToolExecutionHelper
         _ => throw new ArgumentOutOfRangeException(
             nameof(confirmation), confirmation, "No note exists for this write-confirmation outcome."),
     };
+
+    /// <summary>
+    /// How a write tool's confirmation prompt names the project it is about to touch. Single-sourced
+    /// because this fallback is the exact thing that drifted while each tool built its own prompt:
+    /// one interpolated the raw <see langword="null"/> and asked the human to approve a write
+    /// <c>in ''</c>, blanking the one fact the prompt exists to convey. The wording around it stays
+    /// per-tool; the name of the target does not.
+    /// </summary>
+    public static string DescribeWriteTarget(string? project) => project ?? "the auto-discovered project";
+
+    /// <summary>
+    /// Resolves whether a write tool should actually write. Applies the confirmation gate when the
+    /// caller opted in with <c>previewOnly: false</c>, and returns the effective previewOnly flag
+    /// plus, when the write was downgraded to a preview, the note to surface on the response.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One home for the whole write-gate policy — when to ask, what the answer means for this call,
+    /// what to log, and what to tell the caller — so the three write tools cannot drift apart. They
+    /// already did once: three hand-maintained copies of this block grew three different
+    /// confirmation messages, one of which asked the human to approve a write "in ''". Only
+    /// <paramref name="confirmationMessage"/> legitimately varies per tool.
+    /// </para>
+    /// <para>
+    /// The human round-trip is bounded by <paramref name="cancellationToken"/> (the caller's request
+    /// token) and by the confirmation's own clock
+    /// (<see cref="RoselineMcpOptions.ConfirmDestructiveWritesTimeout"/>) — never by the wall-clock
+    /// analysis budget: think-time must not be charged against it. Callers must therefore arm their
+    /// analysis budget (<see cref="CreateLinkedTimeoutSource"/>) only <em>after</em> this returns.
+    /// </para>
+    /// </remarks>
+    public static async Task<(bool PreviewOnly, string? Note)> ResolveWriteModeAsync(
+        McpServer? server,
+        IOptions<RoselineMcpOptions>? options,
+        bool previewOnly,
+        string confirmationMessage,
+        ILogger? logger,
+        CancellationToken cancellationToken)
+    {
+        // A preview never reaches disk, so there is nothing to confirm. This reproduces the
+        // `!previewOnly` guard each call site used to carry, keeping the elicitation off the
+        // read-only path entirely.
+        if (previewOnly)
+        {
+            return (true, null);
+        }
+
+        var confirmation = await ConfirmDestructiveWriteAsync(server, options, confirmationMessage, cancellationToken);
+        if (confirmation == WriteConfirmation.Proceed)
+        {
+            return (false, null);
+        }
+
+        logger?.LogWarning(
+            "Write not confirmed ({Outcome}): returning a preview only, nothing was written to disk.",
+            confirmation);
+
+        return (true, WriteConfirmationNote(confirmation));
+    }
 
     /// <summary>
     /// Creates a <see cref="CancellationTokenSource"/> linked to <paramref name="requestToken"/>

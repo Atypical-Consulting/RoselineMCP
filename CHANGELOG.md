@@ -85,6 +85,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `phmatray`, naming this repository and `publish-nuget.yml`) and `NUGET_USER` is set. The
   long-lived `NUGET_API_KEY` repository secret is deliberately kept until one real release has been
   published and verified — see `PUBLISH.md`.
+- **The write-confirmation gate now lives in one place.** `apply_fixes`, `edit_member` and
+  `rename_symbol` each carried their own copy of the block deciding whether to ask, what a declined
+  or unanswered prompt means for the call, what to log, and which note to attach — one policy with
+  three edit sites. All three now call a single `ToolExecutionHelper.ResolveWriteModeAsync`, and the
+  one part of the prompt that had drifted — how the target project is named — is single-sourced
+  through `ToolExecutionHelper.DescribeWriteTarget`. **No behavior change**: no tool's parameters,
+  response shape, prompt wording or notes text differ. This removes the *cause* of the three
+  divergent confirmation messages already fixed under **Fixed** above, rather than fixing them
+  again; `ElicitationTests` now pins all three prompts (and `edit_member`'s decline path, which had
+  no end-to-end cover) so the same divergence cannot re-form.
 
 ### Documentation
 - **`RoselineMCP:RunAnalyzers = false` no longer claims to stop all analyzer-assembly execution —
