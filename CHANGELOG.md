@@ -75,6 +75,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   published and verified — see `PUBLISH.md`.
 
 ### Documentation
+- **`RoselineMCP:RunAnalyzers = false` no longer claims to stop all analyzer-assembly execution —
+  source generators run regardless, and the docs now say so.** `SECURITY.md` promised the switch
+  *"disables all analyzer execution (bundled and project-referenced alike)"*, and `CLAUDE.md` and
+  `README.md` repeated it. Source generators ship through the same `AnalyzerReferences` and are
+  equally arbitrary in-process code from the analyzed repository, but they run as part of building
+  *any* compilation rather than as part of the diagnostics pass — which `RunAnalyzers` is the only
+  thing gating. Every semantic path therefore executes them: all seven navigation tools (via
+  `SymbolResolver`), `ApplyFixes` (via `CodeFixService`) and `AnalyzeSolution` (via
+  `SolutionAnalyzerService`). Verified on Roslyn 5.6.0 / .NET SDK 10.0.302 — a project whose only
+  content is a `[GeneratedRegex]` partial method compiles through `MSBuildWorkspace` with the
+  generated implementation bound and zero errors, which is only possible if the generator ran.
+  The consequence for an operator is the point: someone who set `RunAnalyzers=false` before
+  pointing RoselineMCP at an untrusted repository believed they had closed a code-execution
+  surface that was still fully open. Suppressing generators is not offered because it would not be
+  honest — stripping `AnalyzerReferences` removes the generated types too, so every symbol
+  resolving through generated code would be reported as a compile error. The switch **narrows** the
+  surface; isolation, not configuration, is the mitigation, and the operator recommendations now
+  lead with that. **No behavior changed** — only the guarantee the documentation advertised.
 - **`RoselineMCP:WorkspaceCache = false` is documented as what it is: an isolation/debugging
   switch, never a way to save memory.** The docs described it only as "loads a fresh workspace on
   every call", which reads as the memory-frugal option; measured, it is the opposite — disposing
