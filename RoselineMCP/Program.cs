@@ -35,6 +35,17 @@ try
         logger.LogInformation("Diagnostic tracing enabled (RoselineMCP:EnableDiagnosticLogging=true): per-tool invocation spans will be logged to stderr.");
     }
 
+    if (diagnosticsOptions.ConfirmDestructiveWrites
+        && diagnosticsOptions.ConfirmDestructiveWritesTimeout <= 0)
+    {
+        // The documented escape hatch back to an indefinite wait. Worth one line of stderr:
+        // its failure mode is a write tool that never returns, which leaves no error and no
+        // log of its own to diagnose it by — this is the only breadcrumb.
+        logger.LogWarning(
+            "Write confirmation is unbounded (RoselineMCP:ConfirmDestructiveWritesTimeout={Timeout}): a client that never answers the confirmation will block the write tool indefinitely.",
+            diagnosticsOptions.ConfirmDestructiveWritesTimeout);
+    }
+
     if (!diagnosticsOptions.ConfirmDestructiveWrites)
     {
         // Say so once, loudly: from here on, a previewOnly:false call writes with no human in the

@@ -28,7 +28,10 @@ const groupBlurb: Record<string, string> = {
           (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
           <code>previewOnly: true</code> — they return a diff and write nothing unless you pass
           <code>previewOnly: false</code>, and even then they <strong>ask your client to confirm</strong>
-          via MCP elicitation before writing (declining downgrades the call to a preview). That
+          via MCP elicitation before writing (declining downgrades the call to a preview). So does
+          leaving the prompt unanswered: the round-trip is bounded by
+          <code>RoselineMCP:ConfirmDestructiveWritesTimeout</code> (default 5 minutes), after which
+          the call returns a preview rather than writing or hanging. That
           confirmation can be switched off for unattended hosts with
           <code>RoselineMCP:ConfirmDestructiveWrites=false</code>, leaving
           <code>previewOnly: false</code> as the only guard.</p>

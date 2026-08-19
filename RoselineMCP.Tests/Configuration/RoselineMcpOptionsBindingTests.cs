@@ -87,4 +87,61 @@ public class RoselineMcpOptionsBindingTests
         Bind(b => b.AddJsonFile(appsettings)).ConfirmDestructiveWrites.ShouldBeTrue();
         File.ReadAllText(appsettings).ShouldContain("ConfirmDestructiveWrites");
     }
+
+    [Fact]
+    public void ConfirmDestructiveWritesTimeout_Defaults_To_Five_Minutes_When_Nothing_Is_Configured()
+    {
+        // The default is a behavior change in its own right: before it, an accepted-but-unanswered
+        // confirmation blocked the tool call forever. Pin it so the bound cannot be lost silently.
+        Bind(_ => { }).ConfirmDestructiveWritesTimeout.ShouldBe(300_000);
+    }
+
+    [Fact]
+    public void ConfirmDestructiveWritesTimeout_Binds_From_The_RoselineMCP_Json_Section()
+    {
+        var options = Bind(b => b.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["RoselineMCP:ConfirmDestructiveWritesTimeout"] = "1500",
+        }));
+
+        options.ConfirmDestructiveWritesTimeout.ShouldBe(1500);
+        // The neighbouring switches keep their defaults — the section is not clobbered.
+        options.ConfirmDestructiveWrites.ShouldBeTrue();
+        options.DefaultTimeout.ShouldBe(120_000);
+    }
+
+    [Fact]
+    public void ConfirmDestructiveWritesTimeout_Binds_From_The_Documented_Environment_Variable()
+    {
+        // The exact spelling README.md/CLAUDE.md tell operators to set, including the double
+        // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
+        var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_")
+            .AddInMemoryCollection(new Dictionary<string, string?>()));
+
+        // Sanity: with the variable unset the default stands, so the assertion below is meaningful.
+        options.ConfirmDestructiveWritesTimeout.ShouldBe(300_000);
+
+        Environment.SetEnvironmentVariable("ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout", "0");
+        try
+        {
+            // Zero is the documented escape hatch back to an unbounded wait, so it must survive
+            // the round-trip as zero rather than being treated as "unset".
+            Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"))
+                .ConfirmDestructiveWritesTimeout.ShouldBe(0);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout", null);
+        }
+    }
+
+    [Fact]
+    public void The_Shipped_Appsettings_Lists_ConfirmDestructiveWritesTimeout()
+    {
+        var appsettings = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        File.Exists(appsettings).ShouldBeTrue($"expected the shipped appsettings.json at {appsettings}");
+
+        Bind(b => b.AddJsonFile(appsettings)).ConfirmDestructiveWritesTimeout.ShouldBe(300_000);
+        File.ReadAllText(appsettings).ShouldContain("ConfirmDestructiveWritesTimeout");
+    }
 }

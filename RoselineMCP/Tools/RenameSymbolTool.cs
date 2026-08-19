@@ -53,31 +53,49 @@ public static class RenameSymbolTool
                 "Pass a valid C# identifier as newName, e.g. newName: \"GetUserById\".");
         }
 
-        using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
+        // Created only once the confirmation below has resolved — see the comment there.
+        CancellationTokenSource? timeoutSource = null;
 
         try
         {
             var effectivePreviewOnly = previewOnly;
-            string? declineNote = null;
+            string? confirmationNote = null;
             // Use the caller's request token (not the wall-clock timeout) for the human confirmation
-            // round-trip: think-time must not be charged against the analysis budget.
-            if (!previewOnly && !await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
+            // round-trip: think-time must not be charged against the analysis budget. It is charged
+            // against a clock of its own (RoselineMCP:ConfirmDestructiveWritesTimeout), so a prompt
+            // nobody answers returns a preview instead of blocking this call forever.
+            if (!previewOnly)
+            {
+                var confirmation = await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
                     server,
                     options,
                     $"Rename '{symbol}' to '{newName}' across the solution of '{project ?? "the auto-discovered project"}' and write the changes to disk?",
-                    cancellationToken))
-            {
-                effectivePreviewOnly = true;
-                declineNote = "Write declined via client confirmation; returned a preview only (no files were modified).";
+                    cancellationToken);
+
+                if (confirmation != WriteConfirmation.Proceed)
+                {
+                    effectivePreviewOnly = true;
+                    confirmationNote = ToolExecutionHelper.WriteConfirmationNote(confirmation);
+                    invocation.Logger?.LogWarning(
+                        "Write not confirmed ({Outcome}): returning a preview only, nothing was written to disk.",
+                        confirmation);
+                }
             }
+
+            // Only NOW does the analysis budget start. Arming it before the confirmation would
+            // charge the human's think-time against it — the very thing the confirmation's own
+            // clock exists to prevent — and with the shipped defaults (DefaultTimeout 120s,
+            // ConfirmDestructiveWritesTimeout 300s) it would already have expired, turning the
+            // documented preview into a TimeoutError the caller cannot act on.
+            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
             var result = await editService.RenameSymbolAsync(
                 project, symbol, newName, effectivePreviewOnly, progress, timeoutSource.Token);
 
-            if (declineNote is not null)
+            if (confirmationNote is not null)
             {
                 result.PreviewOnly = true;
-                result.Notes.Add(declineNote);
+                result.Notes.Add(confirmationNote);
             }
 
             invocation.MarkSuccess();
@@ -92,6 +110,10 @@ public static class RenameSymbolTool
         {
             invocation.MarkFailure(ex.Message);
             return ToolExecutionHelper.Error<RenameSymbolResponse>(ex, invocation.CorrelationId, invocation.Logger);
+        }
+        finally
+        {
+            timeoutSource?.Dispose();
         }
     }
 }

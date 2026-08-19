@@ -79,10 +79,27 @@ elicitation, or when the round-trip fails — and setting
 `RoselineMCP:ConfirmDestructiveWrites` to `false` skips it unconditionally, so
 no elicitation is sent at all. It exists for unattended hosts (CI, headless
 agents) whose client *can* elicit but has no human to answer, where the prompt
-blocks the call outright rather than guarding it. Turning it off leaves the
-explicit `previewOnly: false` opt-in as the only thing between a tool call and
-a disk write — so leave it enabled (the default) on any interactive install,
-and treat disabling it as a decision about a specific deployment.
+would otherwise stall the call rather than guarding it. Turning it off leaves
+the explicit `previewOnly: false` opt-in as the only thing between a tool call
+and a disk write — so leave it enabled (the default) on any interactive
+install, and treat disabling it as a decision about a specific deployment.
+
+**An unanswered confirmation declines, it does not proceed.** A client that
+accepts the elicitation request and then never answers used to block the tool
+call indefinitely: `RoselineMCP:DefaultTimeout` is an analysis budget and does
+not apply to the human round-trip by construction, so nothing bounded it. The
+wait is now capped by `RoselineMCP:ConfirmDestructiveWritesTimeout` (default
+`300000` ms, 5 minutes), and expiry downgrades the call to a preview with a
+note — it never writes. That direction is deliberate. The gate's other
+best-effort branches assume consent because the client *cannot* be asked,
+which is a capability fact knowable up front; a client that was asked and said
+nothing is a different state, and reading it as approval is exactly the
+inference the gate exists to prevent — an interactive user who steps away
+would return to a solution-wide rename already on disk. The timeout therefore
+removes the hang while keeping the security posture no weaker than before:
+writing without a human remains an explicit operator decision, spelled
+`ConfirmDestructiveWrites=false`. Setting the timeout to `0` or less restores
+the unbounded wait for a deployment that genuinely wants it.
 
 **Recommendations for operators:**
 
@@ -98,6 +115,15 @@ and treat disabling it as a decision about a specific deployment.
   unattended deployment, and treat that deployment as one where any
   `previewOnly: false` call writes unreviewed. The server logs a warning at
   startup when the switch is off.
+- On an unattended host, disable the gate rather than relying on the timeout to
+  get you through it. Waiting out `ConfirmDestructiveWritesTimeout` returns a
+  preview, not a write, so a CI job that needs `previewOnly: false` to take
+  effect must set `ConfirmDestructiveWrites=false` — the timeout ends the hang,
+  it does not grant consent.
+- Keep `RoselineMCP:ConfirmDestructiveWritesTimeout` above `0` on any install
+  reachable by an automated caller. `0` restores the unbounded wait, in
+  which a client that never answers pins the call — and the slot it holds —
+  indefinitely, with no error and no log to diagnose it by.
 
 If you find a way to escalate this into a more severe issue (e.g. bypassing
 intended read-only guarantees for the *output* of analysis, or path
