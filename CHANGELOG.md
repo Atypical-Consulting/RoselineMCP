@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-19
+
 ### Added
 - **`RoselineMCP:ConfirmDestructiveWritesTimeout`** (default `300000` ms, 5 minutes) — bounds how
   long the write-confirmation elicitation waits for the client's answer. Set it via
@@ -537,7 +539,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ApplyFixes**: Apply automated code fixes
 - **CreatePatch**: Generate unified diffs
 
-[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v1.4.0...v2.0.0

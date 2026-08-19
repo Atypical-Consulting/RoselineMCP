@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "roseline-mcp",
   "display_name": "RoselineMCP",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Roslyn code intelligence for C# — symbols, references, call graphs, and surgical edits over MCP.",
   "long_description": "RoselineMCP gives AI coding agents a semantic view of your C# solution via Roslyn: search symbols, inspect definitions, find references and implementations, walk call graphs and type hierarchies, and apply surgical, member-level edits — so the agent navigates by *structure* instead of re-reading source (measured ~89% fewer tokens, median, on navigation tasks).\n\nRequires the **.NET 10 SDK** on your machine: this bundle launches the server on demand with `dnx` (the SDK's NuGet tool runner), and the analysis tools load your real `.sln`/`.csproj` through MSBuild, which needs the SDK present. Nothing is pre-installed — `dnx` fetches and caches the `RoselineMCP` NuGet package on first use.",
   "author": {
