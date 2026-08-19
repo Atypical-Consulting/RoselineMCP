@@ -71,7 +71,12 @@ explicit opt-in, but one that was asked and said nothing does not. The timeout t
 hang without weakening the guard — the only way to write without a human remains an explicit
 operator decision. Its clock is deliberately **not** `RoselineMCP:DefaultTimeout`: that is an
 analysis budget, and a human reading a real diff may legitimately exceed it. Set the timeout to `0`
-or less to remove the bound entirely and wait indefinitely (the pre-2.2 behavior).
+or less to remove the bound entirely and wait indefinitely, as before this option existed.
+
+`DefaultTimeout`'s own clock starts only **after** the confirmation resolves, so the analysis budget
+measures analysis rather than analysis plus however long the human took. A confirmation that takes
+longer than `DefaultTimeout` therefore still produces the write (if accepted) or the preview (if
+declined or timed out) — never a `TimeoutError`.
 
 The last row is an operator switch, not a tool parameter — the model cannot waive the gate. It
 defaults to `true`; set it to `false` (via `appsettings.json` or

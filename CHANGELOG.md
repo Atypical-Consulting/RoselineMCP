@@ -35,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than being indistinguishable from a confirmed one.
 
 ### Fixed
+- **The `RoselineMCP:DefaultTimeout` clock no longer runs while a human is being asked to confirm a
+  write.** It was armed before the confirmation elicitation, so its 120 s budget was spent on
+  think-time — the very thing the confirmation's separate clock exists to prevent. Two consequences,
+  both gone: a human who approved a `previewOnly: false` call more than 120 s after it started got
+  `{"ok": false, "error": {"type": "TimeoutError"}}` instead of the write they had just authorized;
+  and with the new `ConfirmDestructiveWritesTimeout` default (300 s) *exceeding* `DefaultTimeout`,
+  the timeout path could never have delivered the documented preview-and-note either. The analysis
+  budget now starts once the confirmation resolves, so `DefaultTimeout` measures analysis — as
+  documented — rather than analysis plus however long the human took.
 - The `EditMember` write-confirmation prompt no longer asks the human to approve a write `in ''`
   when `project` was omitted (the documented auto-discovery default) — it now names "the
   auto-discovered project", matching `ApplyFixes`. `RenameSymbol`'s prompt likewise names the

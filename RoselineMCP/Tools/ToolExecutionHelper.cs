@@ -168,13 +168,6 @@ internal enum WriteConfirmation
 internal static class ToolExecutionHelper
 {
     /// <summary>
-    /// The shipped defaults, used when no <see cref="IOptions{TOptions}"/> is available at all
-    /// (outside DI, as in unit tests). Reading the default off the options type keeps it in one
-    /// place instead of duplicating the constant here, where the two could silently drift.
-    /// </summary>
-    private static readonly RoselineMcpOptions DefaultOptions = new();
-
-    /// <summary>
     /// Starts the per-invocation tracing/correlation context for a tool call. Call this first,
     /// before any validation, so every code path — including early validation failures — gets a
     /// correlation ID and is covered by the Activity span. When <paramref name="server"/> is
@@ -240,7 +233,7 @@ internal static class ToolExecutionHelper
         // unbounded behavior as an escape hatch. Outside DI (unit tests) `options` is null, where
         // the documented default applies rather than "no bound".
         var timeoutMs = options?.Value.ConfirmDestructiveWritesTimeout
-            ?? DefaultOptions.ConfirmDestructiveWritesTimeout;
+            ?? RoselineMcpOptions.DefaultConfirmDestructiveWritesTimeoutMs;
 
         using var elicitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (timeoutMs > 0)
@@ -259,15 +252,20 @@ internal static class ToolExecutionHelper
             var result = await server.ElicitAsync(request, elicitCts.Token);
             return result.IsAccepted ? WriteConfirmation.Proceed : WriteConfirmation.Declined;
         }
-        // Our deadline fired and the caller did NOT cancel: the client was asked and said nothing.
-        // Silence is not consent — downgrade to a preview instead of writing.
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        // OUR deadline fired, and the caller did not cancel: the client was asked and said
+        // nothing. Silence is not consent — downgrade to a preview instead of writing. The test
+        // is deliberately positive (this CTS, armed) rather than "not the caller": a client that
+        // disconnects mid-prompt also cancels the round-trip without the caller's token moving,
+        // and that is a broken session, not an unanswered question — it must keep propagating,
+        // including when no deadline was ever armed (timeoutMs <= 0).
+        catch (OperationCanceledException)
+            when (timeoutMs > 0 && elicitCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             return WriteConfirmation.TimedOut;
         }
         catch (OperationCanceledException)
         {
-            // A real request cancellation still propagates, unchanged.
+            // A real request cancellation — or a cancelled session — still propagates, unchanged.
             throw;
         }
         catch (Exception)
@@ -288,7 +286,13 @@ internal static class ToolExecutionHelper
             "Write confirmation timed out; returned a preview only (no files were modified). Set "
             + "RoselineMCP:ConfirmDestructiveWrites=false on unattended hosts that should write "
             + "without a human, or raise RoselineMCP:ConfirmDestructiveWritesTimeout.",
-        _ => "Write declined via client confirmation; returned a preview only (no files were modified).",
+        WriteConfirmation.Declined =>
+            "Write declined via client confirmation; returned a preview only (no files were modified).",
+        // Every arm is spelled out on purpose: a catch-all would quietly attach "declined" to a
+        // Proceed — describing a write that DID happen as one that did not — and would swallow
+        // any outcome added later instead of failing loudly here.
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(confirmation), confirmation, "No note exists for this write-confirmation outcome."),
     };
 
     /// <summary>
@@ -320,11 +324,13 @@ internal static class ToolExecutionHelper
     /// </summary>
     public static ToolResult<T> Cancellation<T>(
         CancellationToken requestToken,
-        CancellationTokenSource timeoutSource,
+        CancellationTokenSource? timeoutSource,
         IOptions<RoselineMcpOptions>? options,
         string correlationId)
     {
-        if (!requestToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
+        // A null source means the wall-clock budget had not started yet — the call was still in
+        // the write confirmation — so a cancellation there can only be the caller's own.
+        if (!requestToken.IsCancellationRequested && timeoutSource?.IsCancellationRequested == true)
         {
             var timeoutMs = options?.Value.DefaultTimeout ?? 0;
             return ToolResult<T>.Failure(new ToolError

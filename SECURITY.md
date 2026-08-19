@@ -121,7 +121,7 @@ the unbounded wait for a deployment that genuinely wants it.
   effect must set `ConfirmDestructiveWrites=false` — the timeout ends the hang,
   it does not grant consent.
 - Keep `RoselineMCP:ConfirmDestructiveWritesTimeout` above `0` on any install
-  reachable by an automated caller. `0` restores the pre-2.2 unbounded wait, in
+  reachable by an automated caller. `0` restores the unbounded wait, in
   which a client that never answers pins the call — and the slot it holds —
   indefinitely, with no error and no log to diagnose it by.
 

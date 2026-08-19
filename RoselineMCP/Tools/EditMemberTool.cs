@@ -58,7 +58,8 @@ public static class EditMemberTool
                 "Valid operations are: replace, add, delete.");
         }
 
-        using var timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
+        // Created only once the confirmation below has resolved — see the comment there.
+        CancellationTokenSource? timeoutSource = null;
 
         try
         {
@@ -80,8 +81,18 @@ public static class EditMemberTool
                 {
                     effectivePreviewOnly = true;
                     confirmationNote = ToolExecutionHelper.WriteConfirmationNote(confirmation);
+                    invocation.Logger?.LogWarning(
+                        "Write not confirmed ({Outcome}): returning a preview only, nothing was written to disk.",
+                        confirmation);
                 }
             }
+
+            // Only NOW does the analysis budget start. Arming it before the confirmation would
+            // charge the human's think-time against it — the very thing the confirmation's own
+            // clock exists to prevent — and with the shipped defaults (DefaultTimeout 120s,
+            // ConfirmDestructiveWritesTimeout 300s) it would already have expired, turning the
+            // documented preview into a TimeoutError the caller cannot act on.
+            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
             var result = await editService.EditMemberAsync(
                 project, symbol, operation, newSource, effectivePreviewOnly, timeoutSource.Token);
@@ -104,6 +115,10 @@ public static class EditMemberTool
         {
             invocation.MarkFailure(ex.Message);
             return ToolExecutionHelper.Error<EditMemberResponse>(ex, invocation.CorrelationId, invocation.Logger);
+        }
+        finally
+        {
+            timeoutSource?.Dispose();
         }
     }
 }
