@@ -10,3 +10,9 @@ BenchmarkDotNet.Artifacts/
 
 # MCPB bundle build artifact (built in CI, attached to releases)
 *.mcpb
+
+# Agent session worktrees. A worktree is a full checkout, so an unignored one is staged by any
+# `git add -A` as a single 160000 gitlink pointing at a commit no clone can fetch. Keep these two
+# entries narrow -- a blanket `.claude/` would also hide `.claude/skills/repo-profile.md`.
+.claude/worktrees/
+.worktrees/
