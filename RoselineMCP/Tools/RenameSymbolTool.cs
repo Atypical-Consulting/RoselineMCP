@@ -58,29 +58,16 @@ public static class RenameSymbolTool
 
         try
         {
-            var effectivePreviewOnly = previewOnly;
-            string? confirmationNote = null;
-            // Use the caller's request token (not the wall-clock timeout) for the human confirmation
-            // round-trip: think-time must not be charged against the analysis budget. It is charged
-            // against a clock of its own (RoselineMCP:ConfirmDestructiveWritesTimeout), so a prompt
-            // nobody answers returns a preview instead of blocking this call forever.
-            if (!previewOnly)
-            {
-                var confirmation = await ToolExecutionHelper.ConfirmDestructiveWriteAsync(
-                    server,
-                    options,
-                    $"Rename '{symbol}' to '{newName}' across the solution of '{project ?? "the auto-discovered project"}' and write the changes to disk?",
-                    cancellationToken);
-
-                if (confirmation != WriteConfirmation.Proceed)
-                {
-                    effectivePreviewOnly = true;
-                    confirmationNote = ToolExecutionHelper.WriteConfirmationNote(confirmation);
-                    invocation.Logger?.LogWarning(
-                        "Write not confirmed ({Outcome}): returning a preview only, nothing was written to disk.",
-                        confirmation);
-                }
-            }
+            // Whether to ask, what the answer means and what to log all live in the helper; the
+            // message is the only part that is this tool's own. Note this runs BEFORE the analysis
+            // budget is armed below — see the comment there.
+            var (effectivePreviewOnly, confirmationNote) = await ToolExecutionHelper.ResolveWriteModeAsync(
+                server,
+                options,
+                previewOnly,
+                $"Rename '{symbol}' to '{newName}' across the solution of '{project ?? "the auto-discovered project"}' and write the changes to disk?",
+                invocation.Logger,
+                cancellationToken);
 
             // Only NOW does the analysis budget start. Arming it before the confirmation would
             // charge the human's think-time against it — the very thing the confirmation's own

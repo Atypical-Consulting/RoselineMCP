@@ -19,7 +19,10 @@ namespace RoselineMCP.Tests.Protocol;
 /// protocol suite (the gate falls back to honoring the explicit opt-in). A third case covers the
 /// operator switch <c>RoselineMCP:ConfirmDestructiveWrites=false</c>: an elicitation-capable client
 /// that would decline is deliberately never asked, so the write stands — asserted for both
-/// <c>apply_fixes</c> and <c>rename_symbol</c>, since the gate lives in the shared helper.
+/// <c>apply_fixes</c> and <c>rename_symbol</c>, since the gate lives in the shared helper. A last
+/// case pins the <em>content</em> of the prompt rather than the answer: the message must name the
+/// project even when the caller omitted it, which is the drift three hand-maintained copies of the
+/// gate produced before it was consolidated into <c>ResolveWriteModeAsync</c>.
 /// </summary>
 [Collection(McpProtocolCollection.Name)]
 public class ElicitationTests
@@ -369,5 +372,50 @@ public class ElicitationTests
 
         elicited.ShouldBeFalse();
         captured.ShouldBe(false);
+    }
+
+    [Fact]
+    public async Task EditMember_Confirmation_Names_The_Resolved_Project_When_Project_Is_Omitted()
+    {
+        // Regression guard for the bug three hand-maintained copies of the write gate produced.
+        // With `project` omitted — the documented default, since auto-discovery is the advertised
+        // behavior — one copy interpolated the raw null and asked the human to approve writing a
+        // member "in ''": the single fact the confirmation exists to convey was blank. Consolidating
+        // the gate into ResolveWriteModeAsync leaves one place for that to regress, so pin what the
+        // prompt actually says rather than only what the client answers.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await McpProtocolTestHost.StartAsync(
+            services =>
+            {
+                services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
+                services.AddSingleton(A.Fake<ICodeFixService>());
+                services.AddSingleton(A.Fake<ICodeNavigationService>());
+                services.AddSingleton(edit);
+                services.AddSingleton<IDiffService, DiffService>();
+                services.AddSingleton<IPatchService, PatchService>();
+            },
+            (request, _) =>
+            {
+                message = request?.Message;
+                return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" });
+            });
+
+        await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            // `project` is deliberately absent — this is the call shape that broke.
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "delete",
+            ["previewOnly"] = false,
+        });
+
+        message.ShouldNotBeNull();
+        message.ShouldContain("the auto-discovered project");
+        message.ShouldNotContain("in ''");
     }
 }
