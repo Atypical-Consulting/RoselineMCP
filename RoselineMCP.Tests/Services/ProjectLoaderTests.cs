@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Versioning;
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
@@ -393,6 +394,7 @@ public class ProjectLoaderTests : IDisposable
     /// by <see cref="Dispose"/> and would strand a temp tree on the machine, so it must not depend
     /// on each test remembering a <c>finally</c>.
     /// </summary>
+    [UnsupportedOSPlatform("windows")]
     private sealed class LockedDirectory(string fullPath) : IDisposable
     {
         public string FullPath { get; } = fullPath;
@@ -401,6 +403,7 @@ public class ProjectLoaderTests : IDisposable
             File.SetUnixFileMode(FullPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 
+    [UnsupportedOSPlatform("windows")]
     private LockedDirectory Lock(string relativePath)
     {
         var fullPath = Path.Combine(_baseDir, relativePath);
@@ -415,6 +418,7 @@ public class ProjectLoaderTests : IDisposable
     /// here has nothing to do with the request; aborting the whole lookup over it was the defect.
     /// </summary>
     [Fact]
+    [UnsupportedOSPlatform("windows")]
     public void RecursiveSweep_SkipsAnUnreadableDirectory_AndStillFindsTheProject()
     {
         RequireEnforcedUnixPermissions();
@@ -434,6 +438,7 @@ public class ProjectLoaderTests : IDisposable
     /// AnalysisError rather than a scrubbed InternalError.
     /// </summary>
     [Fact]
+    [UnsupportedOSPlatform("windows")]
     public void AnExplicitlyNamedUnreadableDirectory_StillRaisesThePermissionFailure()
     {
         RequireEnforcedUnixPermissions();
