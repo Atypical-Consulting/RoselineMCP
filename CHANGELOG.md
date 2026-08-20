@@ -24,7 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `Testing with VSTest target is no longer supported by Microsoft.Testing.Platform`. A
   `global.json` `test.runner` section opts `dotnet test` into MTP mode, the test project became an
   executable (`<OutputType>Exe</OutputType>`, previously supplied by `Microsoft.NET.Test.Sdk`), and
-  `xunit.runner.visualstudio` plus `Microsoft.NET.Test.Sdk` are gone. 490/490 tests pass, unchanged.
+  `xunit.runner.visualstudio` plus `Microsoft.NET.Test.Sdk` are gone. Every test passes, on all
+  three CI legs, with the suite's size unchanged.
   Contributor-visible: `--logger` is now rejected with exit code 5, and a bare project path must be
   written `dotnet test --project <path>`; `--filter "FullyQualifiedName~X"` still works.
 - **Coverage is produced by `Microsoft.Testing.Extensions.CodeCoverage`, replacing
