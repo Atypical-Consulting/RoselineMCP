@@ -71,6 +71,52 @@ public class GuardServiceTests : IDisposable
         return (loader, workspace, sourcePath);
     }
 
+    /// <summary>
+    /// A two-project solution whose files really exist, plus a loader that hands the same solution
+    /// out for a file in either project — which is what a real <c>.sln</c> load does.
+    /// </summary>
+    private (IProjectLoader Loader, AdhocWorkspace Workspace, (string Core, string Side) Paths) CreateTwoProjectSolution()
+    {
+        var baseDirectory = Path.Combine(_root, "multi");
+
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [
+                ("Core", [("Thing.cs", GreenSource)]),
+                ("Side", [("Side.cs", "public class Side { public int Other() => 1; }")]),
+            ],
+            baseDirectory: baseDirectory,
+            solutionFileName: "Multi.sln");
+
+        var paths = (Core: string.Empty, Side: string.Empty);
+
+        foreach (var project in anchor.Solution.Projects)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(project.FilePath!)!);
+            File.WriteAllText(project.FilePath!, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+
+            foreach (var document in project.Documents)
+            {
+                File.WriteAllText(document.FilePath!, document.GetTextAsync().Result.ToString());
+
+                if (project.Name == "Core")
+                {
+                    paths.Core = document.FilePath!;
+                }
+                else
+                {
+                    paths.Side = document.FilePath!;
+                }
+            }
+        }
+
+        var loader = A.Fake<IProjectLoader>();
+        A.CallTo(() => loader.LoadForFileAsync(A<string>._, A<CancellationToken>._))
+            .ReturnsLazily(() => Task.FromResult<LoadedProject?>(
+                new LoadedProject(workspace, anchor.Solution, anchor, ownsWorkspace: false)));
+
+        return (loader, workspace, paths);
+    }
+
     private static GuardService CreateService(IProjectLoader loader, IVerificationService? verification = null) =>
         new(
             loader,
@@ -155,6 +201,75 @@ public class GuardServiceTests : IDisposable
         report.Silent.ShouldBeTrue();
     }
 
+    /// <summary>
+    /// A write that lands <em>while</em> a verification is running must still be verified on the next
+    /// pass. Re-stat'ing the files after the compile would pair that file's new mtime with its old
+    /// text in the snapshot, and the edit would then be skipped forever — silently, and permanently.
+    /// </summary>
+    [Fact]
+    public async Task A_Write_During_Verification_Is_Not_Recorded_As_Already_Seen()
+    {
+        var (loader, workspace, sourcePath) = CreateSolution(GreenSource);
+        using var _ = workspace;
+
+        // Delegates to the real compiler: this test asserts on what gets REPORTED, not on call counts.
+        var counting = new CountingVerificationService(
+            new VerificationService(A.Fake<ILogger<VerificationService>>(), DiagnosticComputationService.CompilerOnly));
+        using var service = CreateService(loader, counting);
+
+        await service.VerifyFileAsync(sourcePath);          // baseline
+
+        // First edit; hold the verification open and write again while it is in flight.
+        File.WriteAllText(sourcePath, "public class Thing { public int Value() => 2; }");
+        counting.Hold();
+        var inFlight = service.VerifyFileAsync(sourcePath);
+        await Task.WhenAny(counting.Entered, Task.Delay(TimeSpan.FromSeconds(30)));
+        counting.Entered.IsCompleted.ShouldBeTrue();
+
+        File.WriteAllText(sourcePath, BrokenSource);        // lands mid-verification
+        counting.Release();
+        await inFlight;
+
+        // The next pass must still see the broken text, not conclude it was already accounted for.
+        var report = await service.VerifyFileAsync(sourcePath);
+
+        report.Silent.ShouldBeFalse("the write that landed during verification was never re-read");
+        report.Verdict.ShouldNotBeNull().Introduced.ShouldNotBeNull().ShouldNotBeEmpty();
+    }
+
+    /// <summary>
+    /// Two projects in one solution are ONE baseline. Keying on the anchor <c>.csproj</c> instead
+    /// would give each project its own snapshot of the whole solution — N× the memory, and each
+    /// entry's resync would pick up the other's edits and report the same error again under whichever
+    /// file happened to be written last.
+    /// </summary>
+    [Fact]
+    public async Task An_Error_In_One_Project_Is_Reported_Once_Not_Again_Under_A_Sibling()
+    {
+        var (loader, workspace, paths) = CreateTwoProjectSolution();
+        using var _ = workspace;
+        using var service = CreateService(loader);
+
+        // Both projects are seen while the tree is still green. This ordering is load-bearing: it is
+        // what gives a per-.csproj keying TWO entries whose snapshots both predate the break, which
+        // is the only arrangement in which the duplicate report appears.
+        await service.VerifyFileAsync(paths.Side);
+        await service.VerifyFileAsync(paths.Core);
+
+        File.WriteAllText(paths.Core, BrokenSource);
+        var first = await service.VerifyFileAsync(paths.Core);
+        first.Silent.ShouldBeFalse("breaking Core must be reported once");
+
+        // Now touch the OTHER project without breaking anything. Core's error is already accounted
+        // for, so this write has nothing of its own to report — unless Side is carrying a separate,
+        // stale snapshot of the same solution, which would rediscover Core's break and attribute it
+        // to this edit.
+        File.WriteAllText(paths.Side, "public class Side { public int Other() => 7; }");
+        var second = await service.VerifyFileAsync(paths.Side);
+
+        second.Silent.ShouldBeTrue("Core's error was already reported and is not this edit's doing");
+    }
+
     [Fact]
     public async Task A_File_Outside_Any_Project_Is_Silent()
     {
@@ -210,8 +325,15 @@ public class GuardServiceTests : IDisposable
     private sealed class CountingVerificationService : IVerificationService
     {
         private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly IVerificationService? _inner;
         private TaskCompletionSource? _gate;
         private int _calls;
+
+        /// <param name="inner">
+        /// When supplied, the real verdict is produced by delegating — needed by any test that asserts
+        /// on what was <em>reported</em> rather than on how many times verification ran.
+        /// </param>
+        public CountingVerificationService(IVerificationService? inner = null) => _inner = inner;
 
         public int Calls => Volatile.Read(ref _calls);
 
@@ -235,7 +357,9 @@ public class GuardServiceTests : IDisposable
                 await _gate.Task;
             }
 
-            return new VerificationVerdict { Compiles = true, ScopeComplete = true };
+            return _inner is null
+                ? new VerificationVerdict { Compiles = true, ScopeComplete = true }
+                : await _inner.VerifyAsync(baseline, candidate, max, cancellationToken);
         }
     }
 }

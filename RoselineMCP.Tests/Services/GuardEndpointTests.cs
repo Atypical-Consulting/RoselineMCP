@@ -223,6 +223,38 @@ public class GuardEndpointTests : IDisposable
         await endpoint.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    /// <summary>
+    /// A second server must not steal an endpoint a first one is still serving. The address is
+    /// per-user while a client spawns one server per project, so this is the ordinary case, not an
+    /// exotic one — and stealing it would kill the first server's guard silently for the rest of its
+    /// life, with clients getting a connection error that the contract turns into silence.
+    /// </summary>
+    [Fact]
+    public async Task A_Second_Endpoint_Stands_Down_Rather_Than_Stealing_A_Live_Socket()
+    {
+        var first = CreateEndpoint(ServiceReturning(
+            GuardReport.Speaking(new VerificationVerdict { ScopeComplete = true }, "from the first", "/repo/App.sln")));
+        using var _ = first;
+        await first.StartAsync(TestContext.Current.CancellationToken);
+        first.BoundPath.ShouldBe(SocketPath);
+
+        var second = CreateEndpoint(ServiceReturning(GuardReport.Quiet()));
+        using var __ = second;
+        await second.StartAsync(TestContext.Current.CancellationToken);
+
+        second.BoundPath.ShouldBeNull();
+
+        // The first server is still the one answering.
+        Parse(await RoundTripAsync("""{"filePath":"/repo/App/Widget.cs"}""")).Report.ShouldBe("from the first");
+
+        // ...and the stood-down server's shutdown must not remove the socket it never bound.
+        await second.StopAsync(TestContext.Current.CancellationToken);
+        File.Exists(SocketPath).ShouldBeTrue();
+        Parse(await RoundTripAsync("""{"filePath":"/repo/App/Widget.cs"}""")).Report.ShouldBe("from the first");
+
+        await first.StopAsync(TestContext.Current.CancellationToken);
+    }
+
     [Fact]
     public void ResolveAddress_Prefers_The_Configured_Path_And_Is_Per_User_Otherwise()
     {
@@ -231,9 +263,11 @@ public class GuardEndpointTests : IDisposable
 
         var derived = GuardEndpoint.ResolveAddress(new RoselineMcpOptions());
 
-        // Per-user: two accounts on one machine must not share a guard endpoint.
-        derived.ShouldContain("rg-");
+        // Per-user, and inside a directory of its own: the socket's 0600 mode protects it once
+        // bound, but only an owner-only PARENT closes the pre-creation squat window.
         derived.ShouldEndWith(".sock");
+        Path.GetDirectoryName(derived).ShouldNotBe(Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar));
+        Path.GetFileName(Path.GetDirectoryName(derived)!).ShouldStartWith("roseline-");
 
         // A Unix domain socket address is capped near 104 bytes on macOS; a derived path that
         // overran it would fail to bind on exactly the machines this is developed on.

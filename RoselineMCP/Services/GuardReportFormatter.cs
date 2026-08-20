@@ -50,9 +50,15 @@ public static class GuardReportFormatter
             return null;
         }
 
+        // "at least", not a bare count, whenever the verdict was truncated: VerificationService caps
+        // Introduced at `max` and folds the remainder into Omitted, so 60 introduced errors would
+        // otherwise render as a flat "introduced 20 compiler errors" — a number that reads as
+        // exhaustive and is not. The exact total is not recoverable here either, because Omitted also
+        // counts truncated `resolved` entries, so the honest word is the hedge.
+        var qualifier = verdict.Omitted > 0 ? "at least " : string.Empty;
         var header = string.Create(
             CultureInfo.InvariantCulture,
-            $"RoselineMCP compile guard — this edit introduced {introduced.Count} compiler {(introduced.Count == 1 ? "error" : "errors")}:");
+            $"RoselineMCP compile guard — this edit introduced {qualifier}{introduced.Count} compiler {(introduced.Count == 1 ? "error" : "errors")}:");
 
         var trailer = BuildTrailer(verdict);
         var trailerText = string.Join('\n', trailer);

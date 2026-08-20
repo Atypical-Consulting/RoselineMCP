@@ -83,7 +83,44 @@ public sealed class GuardEndpoint : IHostedService, IDisposable
         }
 
         var user = Sanitize(Environment.UserName);
-        return Path.Combine(Path.GetTempPath(), $"rg-{user}.sock");
+        return Path.Combine(Path.GetTempPath(), $"roseline-{user}", "g.sock");
+    }
+
+    /// <summary>
+    /// Creates the endpoint's parent directory owner-only, so the socket path cannot be squatted
+    /// before the server binds it.
+    /// </summary>
+    /// <remarks>
+    /// The <c>0600</c> mode on the socket itself protects it once bound — it does not stop another
+    /// local account from creating the file first. On Linux with the default <c>/tmp</c> that is a
+    /// real path: the sticky bit then blocks the victim's <c>File.Delete</c>, bind fails, and the
+    /// victim's <em>client</em> connects to the squatter's socket instead. That matters more than a
+    /// denial of service, because <c>GuardClient</c> writes the reply verbatim to stderr and the
+    /// harness surfaces stderr to the agent — so the squatter would be injecting text into an
+    /// agent's context. An owner-only parent directory closes the pre-creation window.
+    /// </remarks>
+    private static void PrepareEndpointDirectory(string address)
+    {
+        var directory = Path.GetDirectoryName(address);
+        if (string.IsNullOrEmpty(directory))
+        {
+            return;
+        }
+
+        var created = !Directory.Exists(directory);
+        Directory.CreateDirectory(directory);
+
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        if (created)
+        {
+            File.SetUnixFileMode(
+                directory,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
     }
 
     private static string Sanitize(string value)
@@ -110,16 +147,32 @@ public sealed class GuardEndpoint : IHostedService, IDisposable
 
         var address = ResolveAddress(_options);
 
+        Socket? listener = null;
+
         try
         {
-            // A socket file left behind by a crashed process would make bind() fail with
-            // AddressAlreadyInUse forever, so a stale one is cleared first.
-            if (!OperatingSystem.IsWindows() && File.Exists(address))
+            PrepareEndpointDirectory(address);
+
+            if (File.Exists(address))
             {
+                if (IsLive(address))
+                {
+                    // Another RoselineMCP already owns this endpoint — the address is per-user, and a
+                    // client spawns one server per project. Deleting it would silently kill that
+                    // server's guard for the rest of its life. Stand down instead.
+                    _logger.LogInformation(
+                        "Compile guard endpoint {Address} is already served by another RoselineMCP process; this server will not open one.",
+                        address);
+                    return Task.CompletedTask;
+                }
+
+                // A leftover from a crashed process. Deleting it is required on EVERY platform:
+                // Windows does not unlink an AF_UNIX socket file on close, so without this the next
+                // bind fails with AddressAlreadyInUse forever.
                 File.Delete(address);
             }
 
-            var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
             listener.Bind(new UnixDomainSocketEndPoint(address));
             listener.Listen(backlog: 8);
 
@@ -127,7 +180,8 @@ public sealed class GuardEndpoint : IHostedService, IDisposable
             {
                 // Owner-only. Without this the socket inherits the process umask, and anything local
                 // could ask this server to load and compile a path of its choosing — which is
-                // design-time MSBuild evaluation, i.e. code execution. See SECURITY.md.
+                // design-time MSBuild evaluation, i.e. code execution. See SECURITY.md. Windows has
+                // no equivalent mode bit; the socket file inherits the directory ACL there.
                 File.SetUnixFileMode(address, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
 
@@ -141,10 +195,31 @@ public sealed class GuardEndpoint : IHostedService, IDisposable
         {
             // Failing to open the guard must never take the MCP server down with it: the server's
             // job is the stdio protocol, and the guard is an accessory to it.
+            if (!ReferenceEquals(listener, _listener))
+            {
+                listener?.Dispose();
+            }
+
             _logger.LogError(ex, "Compile guard endpoint could not start at {Address}; the guard is unavailable.", address);
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>Whether something is actually listening on <paramref name="address"/> right now.</summary>
+    private static bool IsLive(string address)
+    {
+        try
+        {
+            using var probe = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            probe.Connect(new UnixDomainSocketEndPoint(address));
+            return true;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // Nothing accepting: a stale file, an ordinary file, or a path we cannot reach.
+            return false;
+        }
     }
 
     private async Task AcceptLoopAsync(CancellationToken cancellationToken)
@@ -270,7 +345,12 @@ public sealed class GuardEndpoint : IHostedService, IDisposable
 
     private void RemoveSocketFile()
     {
-        if (_boundPath is null || OperatingSystem.IsWindows())
+        // Only a path THIS instance bound is removed — _boundPath stays null when StartAsync stood
+        // down because another server already owned the address, so shutting down here can never
+        // delete a socket that is still serving somebody. Not Unix-only: Windows does not unlink an
+        // AF_UNIX socket file on close, so skipping this there leaves a file that blocks every
+        // subsequent bind.
+        if (_boundPath is null)
         {
             return;
         }
@@ -279,12 +359,9 @@ public sealed class GuardEndpoint : IHostedService, IDisposable
         {
             File.Delete(_boundPath);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Best effort — a leftover file is cleared on the next start.
-        }
-        catch (UnauthorizedAccessException)
-        {
         }
     }
 

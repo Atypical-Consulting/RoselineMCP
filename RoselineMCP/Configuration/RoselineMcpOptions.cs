@@ -104,10 +104,11 @@ public class RoselineMcpOptions
     public bool Guard { get; set; }
 
     /// <summary>
-    /// Explicit path for the guard endpoint — a named pipe on Windows, a Unix domain socket
-    /// elsewhere. <see langword="null"/> (the default) derives a per-user path, which is what keeps
-    /// two users on one machine from sharing an endpoint. Ignored when <see cref="Guard"/> is
-    /// <see langword="false"/>.
+    /// Explicit path for the guard endpoint's Unix domain socket — the same transport on every
+    /// platform, since <c>AF_UNIX</c> is supported on Windows too. <see langword="null"/> (the
+    /// default) derives a path inside an owner-only per-user directory, which is what keeps two
+    /// users on one machine from sharing — or squatting — an endpoint. Ignored when
+    /// <see cref="Guard"/> is <see langword="false"/>.
     /// </summary>
     public string? GuardEndpoint { get; set; }
 

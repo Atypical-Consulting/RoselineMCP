@@ -30,16 +30,32 @@ namespace RoselineMCP.Services;
 /// just written.
 /// </para>
 /// <para>
+/// <b>Stamps are captured when a file is read, never afterwards.</b> Verification takes seconds; a
+/// write landing inside that window must not be recorded as already-seen. Re-stat'ing after the
+/// compile would pair a file's <em>new</em> mtime with its <em>old</em> text in the snapshot, and
+/// that edit would then be skipped forever.
+/// </para>
+/// <para>
 /// <b>Structural changes reset the baseline.</b> Adding or removing a file changes the project graph,
 /// which <see cref="Solution.WithDocumentText(DocumentId, SourceText, PreservationMode)"/> cannot
 /// express. Rather than diff against a snapshot that no longer describes the tree, the entry is
-/// dropped and re-established, and that pass stays silent.
+/// dropped and re-established, and that pass stays silent. A file that merely could not be read
+/// right now — locked, mid-write, permission-denied — is <em>not</em> structural and keeps its
+/// baseline: throwing a good baseline away over a transient lock would cost a full reload and say
+/// nothing.
 /// </para>
 /// </remarks>
 public sealed class GuardService : IGuardService, IDisposable
 {
     /// <summary>Maximum diagnostics carried in one verdict; the rest are counted in <c>omitted</c>.</summary>
     private const int MaxDiagnostics = 20;
+
+    /// <summary>
+    /// Maximum solutions kept under guard before the least-recently-used one is dropped. Mirrors
+    /// <see cref="CachingProjectLoader.MaxEntries"/> on purpose: each entry pins a whole
+    /// <see cref="Solution"/> graph, and an unbounded map would quietly defeat that ceiling.
+    /// </summary>
+    internal const int MaxEntries = 4;
 
     private static readonly StringComparer PathComparer =
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -49,9 +65,22 @@ public sealed class GuardService : IGuardService, IDisposable
     private readonly ILogger<GuardService> _logger;
 
     private readonly Lock _sync = new();
+
+    /// <summary>Keyed on the resolved <c>.sln</c>/<c>.csproj</c>, never on the anchor project.</summary>
+    /// <remarks>
+    /// One solution is one entry. Keying on the nearest <c>.csproj</c> instead would give a
+    /// multi-project solution one full-solution snapshot per project touched — N× the memory, and
+    /// worse, each entry's resync would pick up the others' edits and report the same error again
+    /// under whichever file was written last.
+    /// </remarks>
     private readonly Dictionary<string, Entry> _entries;
+
+    /// <summary>Anchor <c>.csproj</c> → resolved solution path, so a lookup needs no load.</summary>
+    private readonly Dictionary<string, string> _resolvedByProject;
+
     private readonly Dictionary<string, Task<GuardReport>> _inFlight;
 
+    private long _accessCounter;
     private bool _disposed;
 
     /// <summary>Initializes a new <see cref="GuardService"/>.</summary>
@@ -64,6 +93,7 @@ public sealed class GuardService : IGuardService, IDisposable
         _verificationService = verificationService;
         _logger = logger;
         _entries = new Dictionary<string, Entry>(PathComparer);
+        _resolvedByProject = new Dictionary<string, string>(PathComparer);
         _inFlight = new Dictionary<string, Task<GuardReport>>(PathComparer);
     }
 
@@ -79,9 +109,9 @@ public sealed class GuardService : IGuardService, IDisposable
             return GuardReport.Quiet();
         }
 
-        // Key the in-flight map on the resolved .csproj rather than the loaded solution: it is
-        // available without loading anything, which is the point — a second write arriving mid-verify
-        // must join the first rather than start a second compile of the same solution.
+        // Dedup on the anchor .csproj rather than the solution: it is available without loading
+        // anything, which is the point — a second write arriving mid-verify must join the first
+        // rather than start a second compile of the same solution.
         Task<GuardReport> work;
         var owner = false;
 
@@ -119,7 +149,7 @@ public sealed class GuardService : IGuardService, IDisposable
         Entry? entry;
         lock (_sync)
         {
-            _entries.TryGetValue(projectPath, out entry);
+            entry = LookupNoLock(projectPath);
         }
 
         if (entry is null)
@@ -127,33 +157,46 @@ public sealed class GuardService : IGuardService, IDisposable
             return await EstablishBaselineAsync(absoluteFilePath, projectPath, cancellationToken);
         }
 
-        var candidate = TryAdvance(entry, out var changedAnything);
-        if (candidate is null)
-        {
-            // Structure moved under us (a file appeared or vanished). Re-establish rather than diff
-            // against a snapshot that no longer describes the tree.
-            lock (_sync)
-            {
-                _entries.Remove(projectPath);
-            }
+        var advance = TryAdvance(entry);
 
-            _logger.LogDebug("Guard baseline reset for {Target}: the document set changed on disk", projectPath);
-            return await EstablishBaselineAsync(absoluteFilePath, projectPath, cancellationToken);
+        switch (advance.Outcome)
+        {
+            case AdvanceOutcome.Structural:
+                // A tracked document vanished: the project graph moved, which a text-only advance
+                // cannot express. Re-establish rather than diff against a snapshot that no longer
+                // describes the tree.
+                lock (_sync)
+                {
+                    Forget(entry.ResolvedPath);
+                }
+
+                _logger.LogDebug("Guard baseline reset for {Target}: the document set changed on disk", entry.ResolvedPath);
+                return await EstablishBaselineAsync(absoluteFilePath, projectPath, cancellationToken);
+
+            case AdvanceOutcome.Unreadable:
+                // Locked, mid-write, or permission-denied. Keep the baseline — it is still the best
+                // description of the tree we have — and simply say nothing this pass.
+                _logger.LogDebug("Guard pass skipped for {Target}: a tracked document could not be read", entry.ResolvedPath);
+                return GuardReport.Quiet(entry.ResolvedPath);
+
+            case AdvanceOutcome.Unchanged:
+                return GuardReport.Quiet(entry.ResolvedPath);
         }
 
-        if (!changedAnything)
-        {
-            // Nothing on disk differs from what the guard already verified.
-            return GuardReport.Quiet(entry.ResolvedPath);
-        }
-
+        var candidate = advance.Candidate!;
         var verdict = await _verificationService.VerifyAsync(entry.Snapshot, candidate, MaxDiagnostics, cancellationToken);
 
         lock (_sync)
         {
-            entry.Snapshot = candidate;
-            entry.Stamps = StampAll(candidate);
-            _entries[projectPath] = entry;
+            if (!_disposed && _entries.TryGetValue(entry.ResolvedPath, out var current) && ReferenceEquals(current, entry))
+            {
+                entry.Snapshot = candidate;
+
+                // Captured while the files were read, NOT re-stat'ed here: a write that landed during
+                // the verification above must keep an old stamp so the next pass still reads it.
+                entry.Stamps = advance.Stamps!;
+                entry.LastAccess = ++_accessCounter;
+            }
         }
 
         var text = GuardReportFormatter.Format(verdict);
@@ -170,33 +213,78 @@ public sealed class GuardService : IGuardService, IDisposable
             return GuardReport.Quiet();
         }
 
+        var resolvedPath = loaded.ResolvedPath;
         var entry = new Entry
         {
             Snapshot = loaded.Solution,
             Stamps = StampAll(loaded.Solution),
-            ResolvedPath = loaded.ResolvedPath,
+            ResolvedPath = resolvedPath,
         };
 
         lock (_sync)
         {
-            _entries[projectPath] = entry;
+            if (_disposed)
+            {
+                return GuardReport.Quiet(resolvedPath);
+            }
+
+            entry.LastAccess = ++_accessCounter;
+            _entries[resolvedPath] = entry;
+            _resolvedByProject[projectPath] = resolvedPath;
+            EvictIfNeededNoLock();
         }
 
-        _logger.LogDebug("Guard baseline established for {Target}", entry.ResolvedPath);
+        _logger.LogDebug("Guard baseline established for {Target}", resolvedPath);
 
         // First sighting: there is no before-state, so there is no delta to report. Saying "this
         // solution has 40 errors" here would be blaming the agent for the branch it landed on.
-        return GuardReport.Quiet(entry.ResolvedPath);
+        return GuardReport.Quiet(resolvedPath);
+    }
+
+    private Entry? LookupNoLock(string projectPath)
+    {
+        if (!_resolvedByProject.TryGetValue(projectPath, out var resolvedPath)
+            || !_entries.TryGetValue(resolvedPath, out var entry))
+        {
+            return null;
+        }
+
+        entry.LastAccess = ++_accessCounter;
+        return entry;
+    }
+
+    private void Forget(string resolvedPath)
+    {
+        _entries.Remove(resolvedPath);
+
+        foreach (var projectPath in _resolvedByProject
+                     .Where(pair => PathComparer.Equals(pair.Value, resolvedPath))
+                     .Select(pair => pair.Key)
+                     .ToList())
+        {
+            _resolvedByProject.Remove(projectPath);
+        }
+    }
+
+    private void EvictIfNeededNoLock()
+    {
+        while (_entries.Count > MaxEntries)
+        {
+            var oldest = _entries.OrderBy(pair => pair.Value.LastAccess).First().Key;
+            _logger.LogDebug("Guard baseline evicted for {Target} (over {Max} solutions)", oldest, MaxEntries);
+            Forget(oldest);
+        }
     }
 
     /// <summary>
-    /// Rebuilds the snapshot from disk, returning the new solution — or <see langword="null"/> when
-    /// the document set itself changed and a text-only advance cannot express it.
+    /// Rebuilds the snapshot from disk, reporting what kind of change was found and carrying the
+    /// stamps observed <em>at read time</em>.
     /// </summary>
-    private static Solution? TryAdvance(Entry entry, out bool changedAnything)
+    private static AdvanceResult TryAdvance(Entry entry)
     {
-        changedAnything = false;
         var solution = entry.Snapshot;
+        var stamps = new Dictionary<string, (long Ticks, long Length)>(PathComparer);
+        var changed = false;
 
         foreach (var project in entry.Snapshot.Projects)
         {
@@ -208,14 +296,24 @@ public sealed class GuardService : IGuardService, IDisposable
                     continue;
                 }
 
-                var stamp = Stamp(path);
-                if (stamp is null)
+                switch (Stamp(path, out var stamp))
                 {
-                    // A tracked document vanished: structural, not textual.
-                    return null;
+                    case StampOutcome.Missing:
+                        return AdvanceResult.Structural;
+
+                    case StampOutcome.Unreadable:
+                        return AdvanceResult.Unreadable;
                 }
 
-                if (entry.Stamps.TryGetValue(path, out var previous) && previous == stamp.Value)
+                if (stamps.ContainsKey(path))
+                {
+                    // A linked file shared by two projects: already read this pass.
+                    continue;
+                }
+
+                stamps[path] = stamp;
+
+                if (entry.Stamps.TryGetValue(path, out var previous) && previous == stamp)
                 {
                     continue;
                 }
@@ -225,22 +323,19 @@ public sealed class GuardService : IGuardService, IDisposable
                 {
                     text = File.ReadAllText(path);
                 }
-                catch (IOException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    // Mid-write, or locked. Treat as "nothing to say" rather than guessing.
-                    return null;
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    return null;
+                    return AdvanceResult.Unreadable;
                 }
 
                 solution = solution.WithDocumentText(document.Id, SourceText.From(text));
-                changedAnything = true;
+                changed = true;
             }
         }
 
-        return solution;
+        return changed
+            ? new AdvanceResult(AdvanceOutcome.Advanced, solution, stamps)
+            : AdvanceResult.Unchanged;
     }
 
     private static Dictionary<string, (long Ticks, long Length)> StampAll(Solution solution)
@@ -257,10 +352,9 @@ public sealed class GuardService : IGuardService, IDisposable
                     continue;
                 }
 
-                var stamp = Stamp(path);
-                if (stamp is not null)
+                if (Stamp(path, out var stamp) == StampOutcome.Ok)
                 {
-                    stamps[path] = stamp.Value;
+                    stamps[path] = stamp;
                 }
             }
         }
@@ -268,20 +362,26 @@ public sealed class GuardService : IGuardService, IDisposable
         return stamps;
     }
 
-    private static (long Ticks, long Length)? Stamp(string path)
+    private static StampOutcome Stamp(string path, out (long Ticks, long Length) stamp)
     {
+        stamp = default;
+
         try
         {
             var info = new FileInfo(path);
-            return info.Exists ? (info.LastWriteTimeUtc.Ticks, info.Length) : null;
+            if (!info.Exists)
+            {
+                return StampOutcome.Missing;
+            }
+
+            stamp = (info.LastWriteTimeUtc.Ticks, info.Length);
+            return StampOutcome.Ok;
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
+            // "I could not look" is not "it is gone" — conflating the two throws away a good
+            // baseline over a transient lock.
+            return StampOutcome.Unreadable;
         }
     }
 
@@ -293,13 +393,38 @@ public sealed class GuardService : IGuardService, IDisposable
             return;
         }
 
-        _disposed = true;
-
         lock (_sync)
         {
+            _disposed = true;
             _entries.Clear();
+            _resolvedByProject.Clear();
             _inFlight.Clear();
         }
+    }
+
+    private enum StampOutcome
+    {
+        Ok,
+        Missing,
+        Unreadable,
+    }
+
+    private enum AdvanceOutcome
+    {
+        Advanced,
+        Unchanged,
+        Structural,
+        Unreadable,
+    }
+
+    private sealed record AdvanceResult(
+        AdvanceOutcome Outcome,
+        Solution? Candidate,
+        Dictionary<string, (long Ticks, long Length)>? Stamps)
+    {
+        public static readonly AdvanceResult Unchanged = new(AdvanceOutcome.Unchanged, null, null);
+        public static readonly AdvanceResult Structural = new(AdvanceOutcome.Structural, null, null);
+        public static readonly AdvanceResult Unreadable = new(AdvanceOutcome.Unreadable, null, null);
     }
 
     private sealed class Entry
@@ -309,5 +434,7 @@ public sealed class GuardService : IGuardService, IDisposable
         public required Dictionary<string, (long Ticks, long Length)> Stamps { get; set; }
 
         public required string ResolvedPath { get; init; }
+
+        public long LastAccess { get; set; }
     }
 }
