@@ -98,14 +98,29 @@ dotnet test
    git commit -m "feat: add new diagnostic analyzer support"
    ```
    
-   Follow commit message conventions:
-   - `feat:` New feature
-   - `fix:` Bug fix
-   - `docs:` Documentation changes
-   - `test:` Test additions/changes
-   - `refactor:` Code refactoring
-   - `perf:` Performance improvements
-   - `chore:` Maintenance tasks
+   Follow commit message conventions. **These are not cosmetic:** the repository squash-merges, so
+   your PR title becomes the commit on `dev`, and release-please parses it to decide the next
+   version *and* which changelog section the change appears under. A title without a type produces
+   no changelog entry at all.
+
+   ⚠️ **If your PR has exactly one commit, that commit's message is used instead of the PR title**
+   (the repo's squash setting is `COMMIT_OR_PR_TITLE`). So write the *commit* conventionally too —
+   a lone `wip` commit under a `feat: …` PR title lands on `dev` as `wip`, and nothing fails.
+
+   | Type | Version bump | Changelog section |
+   |------|--------------|-------------------|
+   | `feat:` | minor | Added |
+   | `fix:` | patch | Fixed |
+   | `perf:` | patch | Performance |
+   | `refactor:` | patch | Changed |
+   | `build:` / `ci:` | patch | Changed |
+   | `docs:` | patch | Documentation |
+   | `revert:` | patch | Reverted |
+   | `chore:` / `test:` / `style:` | none | *hidden* |
+
+   A `!` after the type (`feat!:`) or a `BREAKING CHANGE:` footer bumps the **major** version.
+   `chore`, `test` and `style` are deliberately hidden — that is where Renovate's `chore(deps)`
+   traffic goes — so do not use them for a change a user should read about.
 
 5. **Push and create PR**:
    ```bash
@@ -251,13 +266,20 @@ public static class MyNewTool
 
 ## Release Process
 
-1. Version numbers follow Semantic Versioning (MAJOR.MINOR.PATCH)
-2. Releases are created from the main branch
-3. Each release includes:
-   - Updated version numbers
-   - Changelog with all changes
-   - Updated documentation
-   - Git tag
+Releases are automated by [release-please](https://github.com/googleapis/release-please) — see
+[PUBLISH.md](PUBLISH.md) for the full flow. As a contributor there is nothing to do beyond writing
+a good PR title:
+
+1. Version numbers follow Semantic Versioning (MAJOR.MINOR.PATCH), **derived from your commit
+   types** — `fix:` bumps the patch, `feat:` the minor, and `!` or a `BREAKING CHANGE:` footer the
+   major. Nobody picks the number by hand.
+2. Releases are cut from `dev` (this repository's default branch) by merging the release PR
+   release-please maintains.
+3. Each release is assembled for you: the version bump, the generated changelog entries, the
+   `vX.Y.Z` tag, the GitHub Release, and the published package, container image and MCP Registry
+   entry.
+4. **Do not add a `CHANGELOG.md` entry in your PR** — your PR title becomes the changelog line, so
+   write it to read well as one.
 
 ## Getting Help
 

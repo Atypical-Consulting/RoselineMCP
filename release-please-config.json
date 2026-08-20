@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "$comment": "No extra-files entry writes a <Version> property: the package version comes from MinVer (RoselineMCP.csproj sets MinVerTagPrefix=v), which reads the tag release-please creates, so the tag is the single source of truth — the same divergence FormCraft documents, and the reason a written <Version> would be inert. The three JSON fields below are NOT the package version; they are manifests that must merely agree with it, and release-please.yml re-stamps them from the release version before packing anyway. Listing .mcp/server.json twice with two jsonpaths is deliberate and works: strategies/base.ts passes extra-file updates through mergeUpdates(), which groups updates by path and chains them in a CompositeUpdater, so both fields are rewritten in one pass. include-component-in-tag MUST stay false: a component tag (roselinemcp-v2.3.0) would match no MinVerTagPrefix, MinVer would find no tag, and the tool would pack and publish as 0.0.0-alpha.0.N to nuget.org — which delists but never deletes. bump-minor-pre-major is omitted deliberately: the project is past 1.0, so it is inert. The sections use Keep a Changelog vocabulary (Added/Changed/Fixed) because CHANGELOG.md declares that format and its history uses those headings — not release-please's Features/Bug Fixes defaults. build and ci are deliberately NOT hidden: Renovate commits here are chore(deps) (66 of them) and never build, so in this repo build and ci are hand-written toolchain changes that the changelog has always carried under Changed — 'build(test): run tests on Microsoft.Testing.Platform' is one of them. Hiding them would silently drop real contributor-visible entries.",
+      "release-type": "simple",
+      "package-name": "roselinemcp",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".mcp/server.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": ".mcp/server.json",
+          "jsonpath": "$.packages[0].version"
+        },
+        {
+          "type": "json",
+          "path": "mcpb/manifest.json",
+          "jsonpath": "$.version"
+        }
+      ],
+      "changelog-sections": [
+        { "type": "feat", "section": "Added" },
+        { "type": "fix", "section": "Fixed" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "refactor", "section": "Changed" },
+        { "type": "revert", "section": "Reverted" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "build", "section": "Changed" },
+        { "type": "ci", "section": "Changed" },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true },
+        { "type": "style", "section": "Miscellaneous", "hidden": true },
+        { "type": "test", "section": "Miscellaneous", "hidden": true }
+      ]
+    }
+  }
+}
