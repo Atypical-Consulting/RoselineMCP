@@ -193,7 +193,6 @@ public class CodeFixService : ICodeFixService
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var relativePath = SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
-                    response.ChangedFiles.Add(relativePath);
 
                     var newDocument = currentSolution.Projects
                         .SelectMany(p => p.Documents)
@@ -210,9 +209,15 @@ public class CodeFixService : ICodeFixService
                             $"a/{relativePath}",
                             $"b/{relativePath}");
 
+                        // Roslyn's changed-document set is a "this document object was touched"
+                        // signal, not a content-equality check — a fixer whose edit nets out to the
+                        // original text (or is undone by the formatting pass above) still shows up
+                        // in changedDocuments. Only count it as changed once there is a real, non-blank
+                        // diff, so HasChanges agrees with what ApplyFixes actually has to write.
                         if (!string.IsNullOrWhiteSpace(diff))
                         {
                             patchBuilder.AppendLine(diff);
+                            response.ChangedFiles.Add(relativePath);
                         }
                     }
                 }

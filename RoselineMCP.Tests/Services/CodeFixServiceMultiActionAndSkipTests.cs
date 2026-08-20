@@ -181,6 +181,82 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Registers a fix whose <see cref="CodeAction"/> replaces the document with text that is
+    /// byte-identical to what is already there — simulating a fixer whose net effect is a no-op
+    /// (or one whose edit is undone by the formatting pass that follows). Roslyn's changed-document
+    /// tracking is version-based, not content-based, so <c>operation.ChangedSolution</c> still marks
+    /// the document as touched even though nothing textually changed.
+    /// </summary>
+    private sealed class NoOpCodeFixProvider : CodeFixProvider
+    {
+        // The fake "fix" never actually removes the unused-variable diagnostic, so without this
+        // guard the occurrence-by-occurrence loop would keep re-matching the same location and
+        // re-apply the no-op edit up to its iteration bound. Registering nothing the second time
+        // marks the location unfixable and lets the loop terminate after exactly one application —
+        // which is what the scenario under test (one fixer run, one touched-but-unchanged document)
+        // needs.
+        private bool _applied;
+
+        public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create("CS0219");
+
+        public override FixAllProvider? GetFixAllProvider() => null;
+
+        public override Task RegisterCodeFixesAsync(CodeFixContext context)
+        {
+            if (_applied)
+            {
+                return Task.CompletedTask;
+            }
+            _applied = true;
+
+            var diagnostic = context.Diagnostics[0];
+            context.RegisterCodeFix(
+                CodeAction.Create(
+                    "No-op fix",
+                    async ct => context.Document.WithText(await context.Document.GetTextAsync(ct))),
+                diagnostic);
+
+            return Task.CompletedTask;
+        }
+    }
+
+    public class NoOpCodeActionDoesNotCountAsChangedTests : CodeFixServiceMultiActionAndSkipTests
+    {
+        [Fact]
+        public async Task A_No_Op_Fix_Does_Not_Populate_ChangedFiles_Or_The_Patch()
+        {
+            // Regression for #162: response.ChangedFiles used to be populated from Roslyn's
+            // changed-document set BEFORE the diff was computed, so a fixer that touches a document
+            // without changing its text still made HasChanges (ChangedFiles.Count > 0) true — and
+            // the write-confirmation gate would ask a human to approve a write that produces
+            // nothing. ChangedFiles must only ever reflect a real, non-blank diff.
+            const string source = """
+                class Program
+                {
+                    static void Main()
+                    {
+                        int unused = 1;
+                        System.Console.WriteLine("hi");
+                    }
+                }
+                """;
+            var csprojPath = CreateProject("NoOpFix.csproj", ("Program.cs", source));
+
+            var factory = A.Fake<ICodeFixProviderFactory>();
+            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219")).Returns(new NoOpCodeFixProvider());
+
+            var sut = CreateSut(factory);
+
+            var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
+
+            result.FixedCount.ShouldBe(1, "the fixer DID run and register a change to the solution");
+            result.ChangedFiles.ShouldBeEmpty("nothing textually changed, so nothing should count as changed");
+            result.Patch.ShouldBeNullOrWhiteSpace();
+            result.HasChanges.ShouldBeFalse();
+        }
+    }
+
     public class UnfixableOccurrenceDoesNotAbortOthersTests : CodeFixServiceMultiActionAndSkipTests
     {
         [Fact]

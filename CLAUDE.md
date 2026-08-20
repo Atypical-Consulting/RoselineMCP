@@ -85,8 +85,8 @@ The application uses a dependency injection-based service architecture with clea
   errors returned). The gate is `introduced`, never `compiles` — an already-broken repository stays
   editable. Escape hatch: `allowIntroducedErrors: true`. Verification runs **before** the
   write-confirmation elicitation, so a human is never asked to approve a write that is about to be
-  refused; the ordering lives once in `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three
-  tools call
+  refused **or that carries no changes at all** — both checks live once in
+  `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three tools call
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
   payload nested under `data` on success, error details under `error` on failure — and sets
