@@ -390,13 +390,18 @@ public class ProjectLoader : IProjectLoader
         throw new FileNotFoundException($"Project not found: {project}");
     }
 
+    /// <summary>
+    /// Walks from <paramref name="startPath"/> up through its ancestors looking for a <c>.sln</c>.
+    /// An unreadable rung is skipped, not fatal: <see cref="Directory.GetParent(string)"/> needs no
+    /// read permission on the child it is leaving, so the climb continues past it.
+    /// </summary>
     private static string? FindSolutionFile(string startPath)
     {
         var directory = Directory.Exists(startPath) ? startPath : Path.GetDirectoryName(startPath);
 
         while (!string.IsNullOrEmpty(directory))
         {
-            var slnFiles = Directory.GetFiles(directory, "*.sln", SearchOption.TopDirectoryOnly);
+            var slnFiles = Directory.GetFiles(directory, "*.sln", IncidentalScan);
             if (slnFiles.Length > 0)
             {
                 return slnFiles[0];

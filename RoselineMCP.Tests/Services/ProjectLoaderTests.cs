@@ -506,6 +506,44 @@ public class ProjectLoaderTests : IDisposable
         Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
     }
 
+    /// <summary>Invokes the private static <c>FindSolutionFile</c> that walks up from a resolved path to its containing solution.</summary>
+    private static string? FindSolutionFile(string startPath)
+    {
+        var method = typeof(ProjectLoader).GetMethod(
+            "FindSolutionFile", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        try
+        {
+            return (string?)method.Invoke(null, [startPath]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        {
+            throw ex.InnerException;
+        }
+    }
+
+    /// <summary>
+    /// The ancestor walk climbs past a rung it cannot read instead of aborting there. The
+    /// unreadable directory sits between the starting <c>.csproj</c> and the <c>.sln</c> two levels
+    /// up; the walk must skip it (empty result at that rung, not a thrown exception) and keep
+    /// climbing via <see cref="Directory.GetParent(string)"/>, which needs no read permission on
+    /// the child it is leaving.
+    /// </summary>
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void FindSolutionFile_SkipsAnUnreadableIntermediateDirectory_AndFindsTheGrandparentSolution()
+    {
+        RequireEnforcedUnixPermissions();
+
+        var sln = Touch(Path.Combine("GrandParent", "GrandParent.sln"));
+        var csproj = Touch(Path.Combine("GrandParent", "Intermediate", "Nested.csproj"));
+        var intermediateDir = Path.GetDirectoryName(csproj)!;
+        File.SetUnixFileMode(intermediateDir, UnixFileMode.None);
+        using var _ = new LockedDirectory(intermediateDir);
+
+        FindSolutionFile(csproj).ShouldBe(sln);
+    }
+
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
     [Fact]
     public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
