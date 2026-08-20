@@ -344,7 +344,11 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             var compilation = await GetProjectCompilationAsync(msProject, cancellationToken);
             if (compilation == null)
             {
-                return new ListDiagnosticsResponse { Project = msProject.Name };
+                return new ListDiagnosticsResponse
+                {
+                    Project = msProject.Name,
+                    ResolvedPath = loaded.ResolvedPath
+                };
             }
 
             var allDiagnostics = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
@@ -354,6 +358,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             return new ListDiagnosticsResponse
             {
                 Project = msProject.Name,
+                ResolvedPath = loaded.ResolvedPath,
                 TotalDiagnostics = allDiagnostics.Count,
                 Stats = stats.Stats,
                 SuggestedFixableIds = stats.FixableIds,

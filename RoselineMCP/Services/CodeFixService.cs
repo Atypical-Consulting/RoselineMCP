@@ -80,6 +80,7 @@ public class CodeFixService : ICodeFixService
             using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
             var msProject = loaded.Project;
             response.Project = msProject.Name;
+            response.ResolvedPath = loaded.ResolvedPath;
 
             // Emitted paths are solution-root-relative (falling back to the project directory when
             // no .sln was loaded), matching the navigation and edit tools.
