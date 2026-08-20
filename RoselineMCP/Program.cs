@@ -6,8 +6,20 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RoselineMCP.Configuration;
 using RoselineMCP.Diagnostics;
+using RoselineMCP.Guard;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Services;
+
+// The `guard` verb is a SHORT-LIVED CLIENT, not the server: the agent harness runs it once per file
+// write, it asks the already-running server for a verdict over the local guard endpoint, and it
+// exits. It is intercepted here, before any host is built, because building the MCP host would
+// claim stdio — the very channel this process must leave alone (stdout is the hook's JSON result).
+if (args.Length > 0 && string.Equals(args[0], "guard", StringComparison.OrdinalIgnoreCase))
+{
+    return await GuardClient.RunAsync(
+        Console.In, Console.Out, Console.Error, ReadGuardOptions());
+}
+
 try
 {
     // Build and run the host
@@ -67,6 +79,39 @@ catch (Exception ex)
     await Console.Error.WriteLineAsync($"Fatal error: {ex.Message}");
     await Console.Error.WriteLineAsync($"Stack trace: {ex.StackTrace}");
     return 1;
+}
+
+// Guard configuration for the `guard` verb, read from the same places the host reads it from —
+// appsettings.json next to the binary (never the process working directory, which for the hook is
+// the agent's repository) plus the ROSELINE_ environment variables. Bound by hand rather than with
+// Get<T>() to keep this path free of the configuration-binder dependency.
+static RoselineMcpOptions ReadGuardOptions()
+{
+    var configuration = new ConfigurationBuilder()
+        .SetBasePath(AppContext.BaseDirectory)
+        .AddJsonFile("appsettings.json", optional: true)
+        .AddEnvironmentVariables(prefix: "ROSELINE_")
+        .Build();
+
+    var options = new RoselineMcpOptions();
+
+    if (bool.TryParse(configuration["RoselineMCP:Guard"], out var guard))
+    {
+        options.Guard = guard;
+    }
+
+    var endpoint = configuration["RoselineMCP:GuardEndpoint"];
+    if (!string.IsNullOrWhiteSpace(endpoint))
+    {
+        options.GuardEndpoint = endpoint;
+    }
+
+    if (int.TryParse(configuration["RoselineMCP:GuardTimeout"], out var timeout))
+    {
+        options.GuardTimeout = timeout;
+    }
+
+    return options;
 }
 
 // Create the host builder with all configurations
