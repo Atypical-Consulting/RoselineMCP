@@ -400,6 +400,37 @@ public class ElicitationTests
     }
 
     [Fact]
+    public async Task Preview_Call_Never_Builds_The_Confirmation_Message()
+    {
+        // The read-only path must never build the prompt, because building it names the concrete
+        // write target — which means resolving it. A previewOnly call has no use for that answer,
+        // and 'TestProject' does not resolve to anything on disk: if the message were built
+        // eagerly, resolution would throw and this call would come back as a failure envelope
+        // instead of a preview. So the two assertions below pin one guarantee from both sides —
+        // nobody was asked, and nothing was resolved in order to ask them.
+        var built = 0;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (_, _) => { built++; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); });
+
+        // previewOnly defaults to true — nothing is written, so nothing should be asked or resolved.
+        var result = await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        {
+            ["project"] = "TestProject",
+            ["ids"] = new[] { "RCS1213" },
+        });
+
+        built.ShouldBe(0);
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("ok").GetBoolean()
+            .ShouldBeTrue("a preview call must not resolve — let alone fail on — the write target");
+        payload.GetProperty("data").GetProperty("previewOnly").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Write_Confirmation_Prompts_Name_The_Project_When_It_Is_Omitted()
     {
         // Regression guard for the drift three hand-maintained copies of the gate produced. With

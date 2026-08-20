@@ -65,7 +65,7 @@ public static class ApplyFixesTool
                 server,
                 options,
                 previewOnly,
-                $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{ToolExecutionHelper.DescribeWriteTarget(project)}' and write the changes to disk?",
+                () => $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{ToolExecutionHelper.DescribeWriteTarget(project)}' and write the changes to disk?",
                 invocation.Logger,
                 cancellationToken);
 

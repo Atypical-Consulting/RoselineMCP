@@ -63,7 +63,7 @@ public static class RenameSymbolTool
                 server,
                 options,
                 previewOnly,
-                $"Rename '{symbol}' to '{newName}' across the solution of '{ToolExecutionHelper.DescribeWriteTarget(project)}' and write the changes to disk?",
+                () => $"Rename '{symbol}' to '{newName}' across the solution of '{ToolExecutionHelper.DescribeWriteTarget(project)}' and write the changes to disk?",
                 invocation.Logger,
                 cancellationToken);
 

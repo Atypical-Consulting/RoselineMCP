@@ -68,7 +68,7 @@ public static class EditMemberTool
                 server,
                 options,
                 previewOnly,
-                $"Write the '{operation}' of member '{symbol}' in '{ToolExecutionHelper.DescribeWriteTarget(project)}' to disk?",
+                () => $"Write the '{operation}' of member '{symbol}' in '{ToolExecutionHelper.DescribeWriteTarget(project)}' to disk?",
                 invocation.Logger,
                 cancellationToken);
 

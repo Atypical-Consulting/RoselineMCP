@@ -211,11 +211,17 @@ internal static class ToolExecutionHelper
     /// case the best-effort fallbacks above do not already cover. No elicitation is sent at all
     /// then, so the <c>previewOnly: false</c> opt-in is the only remaining guard before a write.
     /// </para>
+    /// <para>
+    /// <paramref name="message"/> arrives as a factory rather than a string so the prompt is built
+    /// only on the path that actually sends it. Building it is no longer free — it names the
+    /// concrete target, which means resolving it — so a deployment with the gate switched off must
+    /// neither pay for, nor fail on, a question it will never ask.
+    /// </para>
     /// </remarks>
     private static async Task<WriteConfirmation> ConfirmDestructiveWriteAsync(
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
-        string message,
+        Func<string> message,
         CancellationToken cancellationToken)
     {
         // Nothing to ask, or the operator turned the confirmation off for this deployment
@@ -235,6 +241,14 @@ internal static class ToolExecutionHelper
         var timeoutMs = options?.Value.ConfirmDestructiveWritesTimeout
             ?? RoselineMcpOptions.DefaultConfirmDestructiveWritesTimeoutMs;
 
+        // Build the prompt BEFORE the try. It names the concrete target, so building it resolves
+        // that target and can throw when nothing resolves — and every catch below ends in
+        // WriteConfirmation.Proceed. Inside the try, an unresolvable target would therefore be read
+        // as "this client cannot be asked", and the write would go ahead on a question nobody was
+        // ever shown: the exact inversion this gate exists to prevent. Out here it propagates to
+        // the tool's own handler and becomes the error envelope, with no elicitation sent.
+        var prompt = message();
+
         using var elicitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (timeoutMs > 0)
         {
@@ -246,7 +260,7 @@ internal static class ToolExecutionHelper
             // A field-less form: the user simply accepts or declines the confirmation prompt.
             var request = new ElicitRequestParams
             {
-                Message = message,
+                Message = prompt,
                 RequestedSchema = new ElicitRequestParams.RequestSchema(),
             };
             var result = await server.ElicitAsync(request, elicitCts.Token);
@@ -326,6 +340,13 @@ internal static class ToolExecutionHelper
     /// <paramref name="confirmationMessage"/> legitimately varies per tool.
     /// </para>
     /// <para>
+    /// <paramref name="confirmationMessage"/> is a factory, not a string, so the prompt is built
+    /// only when it is actually sent. Naming the concrete write target means resolving it, and a
+    /// <c>previewOnly: true</c> call has no use for that answer: eager building would make every
+    /// read-only call do directory discovery, and would fail outright from a working directory
+    /// where discovery is ambiguous — a call that succeeds today.
+    /// </para>
+    /// <para>
     /// The human round-trip is bounded by <paramref name="cancellationToken"/> (the caller's request
     /// token) and by the confirmation's own clock
     /// (<see cref="RoselineMcpOptions.ConfirmDestructiveWritesTimeout"/>) — never by the wall-clock
@@ -337,7 +358,7 @@ internal static class ToolExecutionHelper
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
         bool previewOnly,
-        string confirmationMessage,
+        Func<string> confirmationMessage,
         ILogger? logger,
         CancellationToken cancellationToken)
     {
