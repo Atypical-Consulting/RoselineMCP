@@ -48,8 +48,11 @@ where a `release:` trigger would not.
    > title setting is `COMMIT_OR_PR_TITLE`, which uses the PR title only when the PR has more than
    > one commit. A one-commit PR titled `feat: add X` whose commit says `wip` lands on `dev` as
    > `wip` — no version bump, no changelog entry, and nothing fails. Give the *commit* a
-   > conventional message too, or add a second commit. Merge and rebase merging are also still
-   > enabled on this repository, so the squash premise is a convention, not a mechanism.
+   > conventional message too, or add a second commit. Squash is the only merge method enabled on
+   > this repository (merge commits and rebase merging are both off — see
+   > `.github/repo-setup.yml`), so the squash premise is a mechanism. What it does *not* mechanise
+   > is the subject: a squash still takes the commit message on a one-commit PR, which is exactly
+   > the trap above.
 2. release-please opens (or updates) a release PR titled `chore(dev): release X.Y.Z` — the scope is
    the target branch, which is `dev` here, not `main`. Review it —
    the version it chose and the generated `CHANGELOG.md` entries. **Generated entries are one-line

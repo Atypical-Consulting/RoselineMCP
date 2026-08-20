@@ -45,8 +45,12 @@
 - CodeQL (`codeql.yml`) — advisory security scan.
 
 ## Integration style
-- **Merge mode:** squash (recent history is linear with `… (#N)` subjects). Branch protection on `dev`
-  is **off**, so nothing enforces it mechanically — follow the convention anyway.
+- **Merge mode:** squash — and **mechanically enforced** since `setup-repo` ran: merge commits and
+  rebase merging are both disabled on the repository, so squash is the only method GitHub offers.
+  Branch protection on `dev` is still **off**; what the setting guarantees is the *squash*, never
+  that the resulting subject is conventional (see the single-commit trap below).
+- **Branch cleanup:** `delete_branch_on_merge` is **on**, so merging deletes the remote branch.
+  `merge-pr` still tears down the local branch and worktree.
 - **PR title convention:** Conventional Commits prefix `<type>[(scope)]:` per `CONTRIBUTING.md`
   (`feat` · `fix` · `docs` · `test` · `refactor` · `perf` · `chore`; `build`/`ci`/`style` also appear
   in history). **No semantic-PR-title CI check exists** — the convention is human-enforced, but the
@@ -57,12 +61,28 @@
 
 ## Labels (apply verbatim; read live before use, this is a snapshot)
 - **Type:** `bug`, `enhancement`, `documentation`, `question`
-- **Priority tiers:** **none defined** — this repo has no `priority: *` labels.
-- **Effort sizes:** **none defined** — this repo has no `effort: *` labels.
-- **Scope/area:** **none** — use the issue-template **Area** dropdown instead
-  (`feature_request.yml` / `bug_report.yml` carry it as a form field, not a label).
-- **Other live labels:** `dependencies` (renovate), `duplicate`, `good first issue`, `help wanted`,
-  `invalid`, `wontfix`
+- **Priority tiers:** `priority: high` · `priority: medium` (the default tier) · `priority: low`
+- **Effort sizes:** `effort: small` · `effort: medium` · `effort: large` — **in that order**, which is
+  the order `auto-dev` sorts on ("small first, then medium"). The tier comes from the label's
+  *position* in `.github/repo-setup.yml`, not from parsing its text.
+- **Scope/area:** `area: tools` · `area: services` · `area: config` · `area: tests` · `area: ci` ·
+  `area: docs` · `area: website` — a partition of the **code**, so two parallel `auto-dev` workers
+  never edit the same files. Mapping: `Tools/` · `{Services,Interfaces,Models}/` ·
+  `Configuration/`+appsettings · `RoselineMCP.Tests`+benchmarks · `.github/workflows`+`.mcp`+`mcpb`+
+  `Dockerfile` · `README`/`CLAUDE.md`/`docs/` · `website/`.
+  ⚠️ **Not** the same axis as the **Area** dropdown in `feature_request.yml` (`bug_report.yml` has
+  no Area field), and don't reconcile them: that dropdown is contributor-facing — it mirrors the
+  three tool groups in `website/src/data/tools.ts` plus analyzers/packaging/docs — and cannot
+  partition the code, since "New MCP tool" and any existing-tool group both land in `Tools/` plus
+  `Services/`.
+- **Auto-applied by the issue forms:** `triage` (both forms declare it alongside `bug` /
+  `enhancement`). Treat it as "not yet triaged" — clear it once you've assigned priority/effort/area.
+- **Other live labels:** `dependencies` (renovate), `autorelease: pending` (release-please —
+  **never** apply or delete by hand; it is how release-please recognises a merged release PR),
+  `duplicate`, `good first issue`, `help wanted`, `invalid`, `wontfix`
+- **Source of the three axes:** `.github/repo-setup.yml`, this repo's own `setup-repo` manifest.
+  Change the taxonomy **there** and re-run `setup-repo apply` — never with a bare `gh label create`,
+  which is the non-deterministic setup that manifest exists to replace.
 
 ## Issue templates
 - **Location:** `.github/ISSUE_TEMPLATE/`

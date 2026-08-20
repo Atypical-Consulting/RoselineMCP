@@ -33,8 +33,11 @@ body:
       label: Steps to reproduce
       description: |
         Step-by-step instructions to reproduce the behavior. Include the
-        MCP tool called and its parameters if applicable (e.g.
-        `AnalyzeSolution`, `ListDiagnostics`, `ApplyFixes`, `CreatePatch`).
+        MCP tool called and its parameters if applicable — the wire name as
+        your client shows it, e.g. `analyze_solution`, `list_diagnostics`,
+        `apply_fixes`, `check_compilation`, `search_symbols`, `edit_member`.
+        The full list of 14 is at
+        https://atypical-consulting.github.io/RoselineMCP/tools.
       placeholder: |
         1. Call tool '...' with parameters '...'
         2. Observe '...'
