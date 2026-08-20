@@ -103,15 +103,24 @@ dotnet build
 # Run all tests
 dotnet test
 
-# Run tests with coverage (coverlet.msbuild; writes RoselineMCP.Tests/TestResults/coverage.cobertura.xml)
-dotnet test -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=./TestResults/coverage.cobertura.xml
+# Run tests with coverage (writes RoselineMCP.Tests/TestResults/coverage.cobertura.xml)
+dotnet test --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml \
+  --results-directory RoselineMCP.Tests/TestResults
 
 # Run a specific test
 dotnet test --filter "FullyQualifiedName~SolutionAnalyzerServiceTests"
 
-# Run tests in a specific project
-dotnet test RoselineMCP.Tests/RoselineMCP.Tests.csproj
+# Run tests in a specific project (note the --project flag: a bare path is not accepted)
+dotnet test --project RoselineMCP.Tests/RoselineMCP.Tests.csproj
 ```
+
+> `dotnet test` runs in **Microsoft.Testing.Platform (MTP) mode**, opted into by the `test`
+> section of `global.json`. xunit.v3 4.x is MTP-only — it has no VSTest bridge — so VSTest
+> options no longer apply: `--logger` is rejected outright (exit code 5), and the coverlet
+> `-p:CollectCoverage=true` properties are accepted by MSBuild but silently do nothing, because
+> MTP never invokes the `VSTest` target coverlet hooks into. Filters are the exception:
+> `--filter "FullyQualifiedName~X"` still works through xunit's VSTest-syntax shim, alongside the
+> native `--filter-class` / `--filter-method` / `--filter-trait` / `--filter-query`.
 
 ### Running the MCP Server
 ```bash
@@ -267,13 +276,14 @@ public static async Task<ToolResult<Result>> NewTool(
 ### Running Tests
 ```bash
 # Run with detailed output
-dotnet test --logger "console;verbosity=detailed"
+dotnet test --output Detailed
 
 # Run with test filter
 dotnet test --filter DisplayName~CodeFix
 
-# Generate test report
-dotnet test --logger html
+# Generate test reports (TRX for CI; xunit also ships html/junit/ctrf/xml reporters)
+dotnet test --report-trx --report-trx-filename test-results.trx
+dotnet test --report-xunit-html --report-xunit-html-filename test-results.html
 ```
 
 ## Dependencies
@@ -304,9 +314,14 @@ from there via `Assembly.LoadFrom`; nothing references them as ordinary lib depe
 - **DiffPlex**: Unified diff generation
 
 ### Testing
-- **xunit**: Test framework
-- **xunit.runner.visualstudio**: Test runner
-- **Microsoft.NET.Test.Sdk**: Test SDK
+- **xunit.v3** (4.x): Test framework *and* runner — it hosts itself on Microsoft.Testing.Platform,
+  which is why the test project sets `<OutputType>Exe</OutputType>` and why there is no
+  `xunit.runner.visualstudio` and no `Microsoft.NET.Test.Sdk`
+- **Microsoft.Testing.Extensions.CodeCoverage**: the single coverage producer (cobertura output)
+- **Microsoft.Testing.Extensions.TrxReport**: TRX report for CI
+
+> These two extension packages are versioned against `Microsoft.Testing.Platform` (2.3.3, pulled
+> in by xunit.v3 4.x). Bump them together with xunit.v3, never one alone.
 
 ## Environment Configuration
 

@@ -611,7 +611,9 @@ RoselineMCP.Tests/
 - **Interface-based mocking**: [FakeItEasy](https://fakeiteasy.github.io/) fakes every service
   interface consumed by the tool layer
 - **Assertions**: [Shouldly](https://github.com/shouldly/shouldly)
-- **Test framework**: xUnit v3 (`xunit.v3` + `xunit.runner.visualstudio`)
+- **Test framework**: xUnit v3 (`xunit.v3` 4.x), hosted on Microsoft.Testing.Platform — the test
+  project is an executable (`<OutputType>Exe</OutputType>`) that runs itself, with no VSTest
+  bridge and no `Microsoft.NET.Test.Sdk`. `dotnet test` is put into MTP mode by `global.json`
 - **Cross-cutting contract tests**: `ToolErrorContractTests` verifies every tool classifies a
   representative set of exceptions into the documented `ToolErrorTypes` values rather than
   leaking raw CLR exception type names

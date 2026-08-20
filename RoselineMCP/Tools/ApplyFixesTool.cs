@@ -64,13 +64,36 @@ public static class ApplyFixesTool
 
         try
         {
+            // Gate policy lives in the helper; only the wording is this tool's own.
+            //
+            // A resolved target that is a .sln needs the scope qualifier, because this tool is
+            // project-scoped while the target is not: CodeFixService narrows the solution to a
+            // single anchor project (ProjectLoader.SelectPrimaryProject) and fixes only that
+            // project's documents. Naming the solution would have the human authorize a write
+            // broader than the one about to happen — on a three-project solution, two of them are
+            // left untouched and the prompt gave no hint of it.
+            //
+            // The anchor is deliberately NOT resolved here to name it outright: that costs an
+            // MSBuildWorkspace load before the human has even been asked (see ResolveWriteTarget's
+            // remarks), and it would reopen the window PR #142 closed — the target would be
+            // resolved once for the prompt and again after a round-trip the gate allows five
+            // minutes for, with nothing guaranteeing the two agree. Saying which *scope* will be
+            // written is honest about that limit; naming the project would not be.
             var result = await ToolExecutionHelper.RunVerifiedWriteAsync(
                 server,
                 options,
                 previewOnly,
                 allowIntroducedErrors,
                 project,
-                target => $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{target}' and write the changes to disk?",
+                target =>
+                {
+                    // Only the qualifier varies. Spelling the sentence out twice is how the three
+                    // tools' prompts diverged before ResolveWriteModeAsync centralized them.
+                    var scope = target.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+                        ? "the primary project of "
+                        : string.Empty;
+                    return $"Apply code fixes for {ids.Length} diagnostic ID(s) to {scope}'{target}' and write the changes to disk?";
+                },
                 (target, phasePreviewOnly, reportProgress, token) => codeFixService.ApplyFixesAsync(
                     target, ids.ToList(), phasePreviewOnly, allowIntroducedErrors, max,
                     reportProgress ? progress : null, token),

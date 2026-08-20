@@ -6,6 +6,10 @@
     <RootNamespace>RoselineMCP.Tests</RootNamespace>
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <!-- An MTP test project is its own host process, so it must be an executable. This used to
+         come for free from Microsoft.NET.Test.Sdk; xunit.v3 4.x has no VSTest bridge and errors
+         out without it. -->
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,28 +21,28 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- coverlet.msbuild is the single coverage producer: the CI gate reads its output at
-         TestResults/coverage.cobertura.xml. Do not re-add coverlet.collector alongside it -
-         two producers meant two reports in different places and a nondeterministic gate. -->
-    <PackageReference Include="coverlet.msbuild" Version="10.0.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <!-- Coverage and TRX come from Microsoft.Testing.Platform extensions, not from VSTest
+         collectors: `dotnet test` runs in MTP mode (see global.json), which never invokes the
+         VSTest MSBuild target - so coverlet.msbuild's targets never fired and it produced no
+         report at all, without a warning. Their versions track Microsoft.Testing.Platform
+         (2.3.3, brought in by xunit.v3 4.x): bump them together, never one alone.
+         Still exactly one coverage producer, for the reason coverlet was one: the CI gate
+         reads a single cobertura file, and two producers meant two reports in different
+         places and a nondeterministic gate. -->
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.10.0" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.3.3" />
     <PackageReference Include="FakeItEasy" Version="9.0.1" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <!-- MSBuild packages required by Microsoft.Build.Locator (via project reference) -->
-    <PackageReference Include="Microsoft.Build" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.Build.Framework" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.NET.StringTools" Version="18.8.2" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build" Version="18.9.6" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="18.9.6" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.9.6" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="18.9.6" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.StringTools" Version="18.9.6" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Shouldly" Version="4.3.0" />
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
-    <PackageReference Include="xunit.v3" Version="3.2.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.11" />
+    <!-- xunit.v3 4.x is MTP-only: it drops the VSTest bridge, so there is no
+         xunit.runner.visualstudio and no Microsoft.NET.Test.Sdk here any more. -->
+    <PackageReference Include="xunit.v3" Version="4.0.0" />
   </ItemGroup>
 
   <ItemGroup>

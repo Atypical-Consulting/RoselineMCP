@@ -81,11 +81,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   move predates this change — the sweep now covers 69 files / 430 symbols (was 63 / 362) and every
   response carries the `resolvedPath` field added in #139. Updated in `README.md` and the site
   metadata. (#133)
+- **Tests now run on Microsoft.Testing.Platform instead of VSTest.** `xunit.v3` 4.0.0 drops the
+  VSTest bridge, and on the .NET 10 SDK the old path is not deprecated but *removed*: it fails
+  with `Testing with VSTest target is no longer supported by Microsoft.Testing.Platform`. A
+  `global.json` `test.runner` section opts `dotnet test` into MTP mode, the test project became an
+  executable (`<OutputType>Exe</OutputType>`, previously supplied by `Microsoft.NET.Test.Sdk`), and
+  `xunit.runner.visualstudio` plus `Microsoft.NET.Test.Sdk` are gone. Every test passes, on all
+  three CI legs, with the suite's size unchanged.
+  Contributor-visible: `--logger` is now rejected with exit code 5, and a bare project path must be
+  written `dotnet test --project <path>`; `--filter "FullyQualifiedName~X"` still works.
+- **Coverage is produced by `Microsoft.Testing.Extensions.CodeCoverage`, replacing
+  `coverlet.msbuild`.** coverlet hooks the `VSTest` MSBuild target, which MTP mode never invokes,
+  so under the new runner it produced no report at all and said nothing about it — only the CI
+  threshold check caught the absence. The report still lands at
+  `RoselineMCP.Tests/TestResults/coverage.cobertura.xml` and the 80% line gate is unchanged
+  (measured 87.9%, against coverlet's 88.3% for the same scope). The three coverlet filters were
+  dropped rather than translated: only the project's own modules are instrumented, and `Program.cs`
+  was already excluded by its `[ExcludeFromCodeCoverage]` attribute rather than by the filter.
+  TRX now comes from `Microsoft.Testing.Extensions.TrxReport`. Both extensions are versioned
+  against `Microsoft.Testing.Platform` and must be bumped together with `xunit.v3`.
 - Documented the working-directory anchor and its remedy — pass an absolute `.sln`/`.csproj` path
   when your working directory differs from the server's — in `docs/API.md`, `README.md` and
   `CLAUDE.md`. (#139)
 
 ### Fixed
+- **The `edit_member` write confirmation no longer implies a solution-wide write — it says that
+  exactly one file is rewritten, which is all it ever writes.** The prompt named the resolved target,
+  which is the discovered `.sln` whenever there is one, for a write that resolves one declaration and
+  calls the writer once: the widest of the three prompts' scope gaps, wider than the `apply_fixes`
+  one fixed just below. The new sentence claims only what the code guarantees, and two omissions are
+  deliberate — it does not say the file is *in* the named target, because a `.csproj` does not bound
+  the write (the loader opens the containing solution and resolution spans every project in it, so
+  the file can be in a sibling project the caller never named), and it does not call it *the* file
+  declaring the symbol, because a partial type has several declarations and Roslyn picks one. On
+  `add` it names the container **type** rather than a member that does not exist yet. Which file the
+  write lands on is still not named: that would mean loading an MSBuild workspace before the human is
+  asked, and re-resolving after a round-trip the gate allows five minutes for. `rename_symbol` is
+  unchanged — it really is solution-wide, so naming the solution is exact. Wording only: no
+  parameters, response shape or annotations move. (#154)
+- **A permission-denied file or directory is now reported as `AnalysisError` with its message
+  intact, instead of a message-scrubbed `InternalError`.** `UnauthorizedAccessException` derives
+  from `SystemException`, not `IOException`, so it fell through `ToolExecutionHelper.Classify` to
+  the catch-all arm — the one arm that deliberately replaces the message with a correlation id.
+  That scrubbing is right for genuinely unexpected failures and wrong here: *"Access to the path
+  '...' is denied."* is precisely what a caller can act on. It hurt most on the write path, where
+  `apply_fixes` / `edit_member` / `rename_symbol` answered a read-only file with an opaque internal
+  error *after* a human had already approved the write. The closed set of `type` values is
+  unchanged. Separately, the recursive project-name lookup now skips directories it cannot read
+  (`EnumerationOptions.IgnoreInaccessible`, which the legacy `SearchOption` overloads disable)
+  instead of failing the whole call over a directory unrelated to the request; naming an unreadable
+  directory explicitly still surfaces the permission failure, since that is the answer the caller
+  asked for. (#150)
+- **The `apply_fixes` write confirmation no longer implies a solution-wide write.** When the
+  resolved target is a `.sln`, the prompt now names *the primary project of* that solution — which
+  is the only project `ApplyFixes` fixes — instead of naming the solution itself. On a solution with
+  three C# projects the previous sentence asked a human to approve a write to all of it while two
+  were left untouched, and nothing in the prompt revealed which one would be picked. A `.csproj`
+  target is already exactly the scope that gets written, so its wording is unchanged. Nothing is
+  resolved or loaded that was not resolved before: only the sentence changed, so no tool's
+  parameters, response shape or annotations move. `RenameSymbol` keeps naming the resolved target
+  without a qualifier; `EditMember` gained one of its own in the entry above. (#149)
 - **The write-confirmation prompt now names the project it will actually write to.** The gate exists
   to tell a human what is about to be modified so they can refuse, and in the two most common shapes
   it could not. With `project` omitted — the *documented default*, since auto-discovery is the

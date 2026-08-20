@@ -46,6 +46,16 @@ public class ElicitationTests : IDisposable
     /// <summary>The fixture <c>.csproj</c> itself — the path a prompt naming this target must contain.</summary>
     private readonly string _fixtureProject;
 
+    /// <summary>
+    /// A <c>.sln</c> beside the fixture project, for the cases that need the resolved write target
+    /// to be a <em>solution</em>. It only ever has to exist: <c>ResolveTargetPath</c> returns an
+    /// existing <c>.sln</c> argument verbatim, and the prompt is built from that path alone — no
+    /// MSBuild load happens before the human is asked, which is the property those cases pin.
+    /// Passing the directory instead would resolve to the <c>.csproj</c> (<c>ResolveProjectPath</c>
+    /// globs <c>*.csproj</c>), so the solution branch has to be targeted explicitly.
+    /// </summary>
+    private readonly string _fixtureSolution;
+
     public ElicitationTests()
     {
         _fixtureRoot = Path.Combine(Path.GetTempPath(), $"RoselineElicitation_{Guid.NewGuid():N}");
@@ -54,6 +64,8 @@ public class ElicitationTests : IDisposable
         File.WriteAllText(
             _fixtureProject,
             "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        _fixtureSolution = Path.Combine(_fixtureRoot, "Fixture.sln");
+        File.WriteAllText(_fixtureSolution, "Microsoft Visual Studio Solution File, Format Version 12.00\n");
     }
 
     public void Dispose()
@@ -64,14 +76,15 @@ public class ElicitationTests : IDisposable
 
     /// <summary>
     /// The write target named by a confirmation prompt — the last quoted segment, which is where
-    /// all three messages put it ("… of member 'Foo.Bar' in '&lt;target&gt;' to disk?"). Reading it
-    /// out of the message, rather than re-deriving the expected path, is what keeps these
+    /// all three messages put it ("… anywhere in the code loaded from '&lt;target&gt;'."). Reading
+    /// it out of the message, rather than re-deriving the expected path, is what keeps these
     /// assertions from re-implementing the resolution they are supposed to be checking.
     /// </summary>
     /// <remarks>
     /// Two constraints pull against each other here, which is why this is hand-rolled rather than a
     /// quoted-run regex. The messages quote other things first ("… the 'delete' of member 'Foo.Bar'
-    /// in '&lt;target&gt;' to disk?"), so the parser cannot simply take the widest quoted span; and a
+    /// to disk? … loaded from '&lt;target&gt;'."), so the parser cannot simply
+    /// take the widest quoted span; and a
     /// resolved path may itself contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
     /// <c>~/Bob's Projects</c> — so it cannot take the narrowest one either. The opening quote is
     /// therefore identified as the last one that follows a space (an apostrophe inside a path
@@ -713,6 +726,196 @@ public class ElicitationTests : IDisposable
 
         message.ShouldNotBeNull();
         message.ShouldContain(_fixtureProject);
+    }
+
+    [Fact]
+    public async Task ApplyFixes_Confirmation_Names_The_Primary_Project_When_The_Target_Is_A_Solution()
+    {
+        // ApplyFixes is a PROJECT-scoped tool whose resolved write target may be a SOLUTION:
+        // CodeFixService narrows it to one project (ProjectLoader.SelectPrimaryProject) and fixes
+        // only that project's documents. A prompt naming the .sln therefore describes a broader
+        // scope than the write actually has — the human reading "…to '/repo/Acme.sln'" cannot tell
+        // that two of their three projects will be untouched. The sentence has to say so.
+        string? message = null;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+        await host.Client.CallToolAsync(
+            "apply_fixes",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldContain("primary project of");
+        message.ShouldContain(_fixtureSolution);
+
+        // The scope qualifier must not cost the absolute-path guarantee the other prompt shapes
+        // have: ResolveTargetPath returns an existing .sln argument verbatim, so normalization is
+        // the only thing making a relative one readable, and this is the branch that pins it.
+        ShouldNameARealProject(message);
+    }
+
+    [Fact]
+    public async Task ApplyFixes_Confirmation_Names_The_Project_Exactly_When_The_Target_Is_A_Csproj()
+    {
+        // The other side of the branch, and the reason it is asserted byte-for-byte rather than by
+        // substring: when the resolved target is already the project that gets written, today's
+        // wording is exact and the scope qualifier would be a fresh inaccuracy. A test that only
+        // checked for the .csproj path would still pass if the qualifier fired on both branches.
+        string? message = null;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+        // The directory alias resolves to the fixture .csproj — see ResolveProjectPath.
+        await host.Client.CallToolAsync(
+            "apply_fixes",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureRoot,
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe($"Apply code fixes for 1 diagnostic ID(s) to '{_fixtureProject}' and write the changes to disk?");
+        message.ShouldNotContain("primary project of");
+    }
+
+    [Fact]
+    public async Task EditMember_Confirmation_Names_The_Single_File_Scope_When_The_Target_Is_A_Solution()
+    {
+        // EditMember is the widest of the three gaps: CodeEditService resolves ONE document and
+        // calls SourceTextWriter.WriteAsync once, so a prompt naming a solution of N projects
+        // describes a write that touches a single file in one of them. ApplyFixes at least writes a
+        // whole project (#149); this one overstates by the entire solution.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "edit_member",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = "Foo.Bar",
+                ["operation"] = "delete",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe(
+            "Write the 'delete' of member 'Foo.Bar' to disk? Exactly one file is rewritten — the "
+            + $"declaration it resolves to, anywhere in the code loaded from '{_fixtureSolution}'.");
+    }
+
+    [Theory]
+    [InlineData("replace")]
+    [InlineData("add")]
+    [InlineData("delete")]
+    public async Task EditMember_Confirmation_Names_The_Single_File_Scope_For_Every_Operation_And_A_Csproj_Target(string operation)
+    {
+        // Two properties in one, both of which a substring assertion would miss.
+        //
+        // 1. The scope clause does NOT branch on the target's extension, unlike ApplyFixes' (#149).
+        //    ApplyFixes' scope depends on it — a .csproj target *is* its whole write scope — so its
+        //    wording branches. EditMember writes one file whatever the target is, so a .csproj
+        //    target gets the same clause a .sln does, and it still says "loaded from" rather than
+        //    "in": a .csproj does not bound the write either, since ProjectLoader opens the
+        //    containing solution and resolution spans every project in it.
+        // 2. It DOES branch on the operation, and only on the noun. 'add' resolves `symbol` as the
+        //    container type (CodeEditService.AddMember rejects anything else), so the prompt names a
+        //    type rather than calling it a member that does not exist yet.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        // The directory alias resolves to the fixture .csproj — see ResolveProjectPath.
+        await host.Client.CallToolAsync(
+            "edit_member",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureRoot,
+                ["symbol"] = "Foo.Bar",
+                ["operation"] = operation,
+                ["newSource"] = "public int Bar { get; set; }",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        var subject = operation == "add" ? "a member to type 'Foo.Bar'" : "member 'Foo.Bar'";
+        message.ShouldBe(
+            $"Write the '{operation}' of {subject} to disk? Exactly one file is rewritten — the "
+            + $"declaration it resolves to, anywhere in the code loaded from '{_fixtureProject}'.");
+
+        // "in '<target>'" would be the false claim this wording exists to avoid — see
+        // CodeEditService_Writes_One_File_Which_May_Be_Outside_The_Named_Project.
+        message.ShouldNotContain($"in '{_fixtureProject}'");
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Confirmation_Names_The_Solution_Without_A_Scope_Qualifier()
+    {
+        // The counterweight to the two above, and the reason they are not a blanket rule.
+        // RenameSymbolAsync really is solution-wide — Renamer.RenameSymbolAsync, then every changed
+        // project, then every changed file — so naming the solution is exact and a "single file"
+        // qualifier here would be a fresh inaccuracy of the same family this issue is closing.
+        // Asserted byte-for-byte: a substring check would not notice the qualifier leaking in.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "rename_symbol",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = "Foo",
+                ["newName"] = "Bar",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe($"Rename 'Foo' to 'Bar' across the solution of '{_fixtureSolution}' and write the changes to disk?");
+        message.ShouldNotContain("Exactly one file");
     }
 
     [Fact]

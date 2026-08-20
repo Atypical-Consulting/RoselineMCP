@@ -142,10 +142,10 @@ server sends an MCP `elicitation/create` asking the connected client to confirm 
 errors is refused before any prompt is sent, so a human is never asked to approve a write that was
 never going to happen.
 
-The prompt **names the concrete `.sln` or `.csproj` that will be written** — an absolute path, never
+The prompt **names the concrete `.sln` or `.csproj` the write resolved to** — an absolute path, never
 a placeholder — whether the caller passed `project`, left it out, or passed an empty string:
 
-> Write the 'replace' of member 'Foo.Bar' in '/Users/me/src/Acme/Acme.sln' to disk?
+> Rename 'Foo' to 'Bar' across the solution of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
 
 The path is resolved by the same function, against the same base directory, that the loader uses —
 and the **resolved path is what the write is then performed against**, rather than the argument the
@@ -155,6 +155,50 @@ cannot leave them approving one solution and the server writing to another. Beca
 optional and auto-discovery walks the working directory, its parents and its immediate
 subdirectories, this is the one thing that lets a caller notice a server launched from an unexpected
 directory is about to write to a solution they did not intend.
+
+Naming the target is not quite the same as naming the **scope**. [`ApplyFixes`](#applyfixes) is
+project-scoped: when the resolved target is a solution it fixes a **single** project inside it — the
+anchor `ProjectLoader` selects (the C# project whose file name matches the `.sln`, otherwise the
+first C# project Roslyn enumerated) — and only that project's documents are rewritten. Its prompt
+says so rather than implying a solution-wide write:
+
+> Apply code fixes for 2 diagnostic ID(s) to the primary project of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
+
+When the resolved target is already a `.csproj`, that project *is* the whole scope and the sentence
+names it directly, with no qualifier. The prompt deliberately does not name *which* project the
+anchor will be: that answer requires loading an MSBuild workspace, which would happen before the
+human has agreed to anything and would have to be re-derived after the round-trip — reopening the
+window that resolving-once closes. Note that "one project's documents" is a statement about
+documents, not about who *sees* the change: a file linked into several projects
+(`<Compile Include="..\Shared\Config.cs" Link="Config.cs"/>`) is one file on disk, so fixing it in
+the anchor project changes what every project linking it compiles.
+
+The other two write tools are not described by the sentence above, and they differ from each other.
+[`EditMember`](#editmember) has the narrowest scope of the three: it resolves one declaration and
+rewrites **exactly one file**. Its prompt says that outright rather than letting the target stand in
+for the scope, and unlike `ApplyFixes`' qualifier it does not branch on the target's extension,
+because the write is one file whether the target is a `.sln` or a `.csproj`:
+
+> Write the 'delete' of member 'Foo.Bar' to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '/Users/me/src/Acme/Acme.sln'.
+
+Two words there are load-bearing. **"Exactly one file"** is the part the code guarantees:
+`CodeEditService` resolves a single declaration and writes once. **"loaded from"**, rather than *in*,
+is the other: a `.csproj` target does not bound the write, because `ProjectLoader` opens the
+containing solution when it finds one and symbol resolution spans every project in it — so the file
+rewritten can belong to a sibling project the caller never named. For the same reason the prompt does
+not claim *the* file declaring the symbol: a partial type has several declarations, and Roslyn picks
+one. Which file it lands on stays unnamed, for the reason `ApplyFixes` does not name its anchor
+project: resolving it means loading an MSBuild workspace before the human has agreed to anything.
+
+On `add` the sentence names a **type** instead of a member — `symbol` is the container type there,
+and the member being added is declared nowhere yet:
+
+> Write the 'add' of a member to type 'Acme.OrderService' to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '/Users/me/src/Acme/Acme.sln'.
+
+[`RenameSymbol`](#renamesymbol) carries no scope qualifier at all — it is a genuinely solution-wide
+Roslyn operation that can rewrite files across every project in the loaded solution, so naming the
+solution is already exact. (`ApplyFixes` also drops its qualifier when the target is a `.csproj`, for
+the same reason: there the target *is* the scope.)
 
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory
@@ -168,7 +212,7 @@ send a prompt pays that cost, since none of them resolve at all.
 | Client is asked and **never answers** | After `RoselineMCP:ConfirmDestructiveWritesTimeout` (default `300000`, 5 minutes) the server stops waiting and downgrades the call to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write confirmation timed out; returned a preview only (no files were modified). Set RoselineMCP:ConfirmDestructiveWrites=false on unattended hosts that should write without a human, or raise RoselineMCP:ConfirmDestructiveWritesTimeout."` |
 | Client does not support elicitation, or the round-trip fails | No confirmation is possible, so the explicit opt-in stands and the write proceeds. A client that never negotiated elicitation is detected from its capabilities, so no prompt is built and no target is resolved. |
 | `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. The prompt is not even built, so no target is resolved. |
-| The write target **cannot be resolved** — auto-discovery finds nothing or several candidates, or an explicit `project` matches nothing | **No elicitation is sent**; the call returns its ordinary failure envelope (`ok: false`, a `ValidationError` or `NotFoundError` — see [Error Handling](#error-handling)). A write that cannot be targeted fails before a human is asked, rather than spending their answer on a call that was going to fail anyway. |
+| The write target **cannot be resolved** — auto-discovery finds nothing or several candidates, an explicit `project` matches nothing, or a named directory cannot be read | **No elicitation is sent**; the call returns its ordinary failure envelope (`ok: false`, a `ValidationError`, `NotFoundError` or `AnalysisError` — see [Error Handling](#error-handling)). A write that cannot be targeted fails before a human is asked, rather than spending their answer on a call that was going to fail anyway. |
 
 Silence is deliberately *not* consent: a client that **cannot** be asked justifies honoring the
 explicit opt-in, but one that was asked and said nothing does not. The timeout therefore removes the
@@ -338,6 +382,16 @@ parameter never writes to disk — pass `previewOnly: false` explicitly to write
 code navigation/editing tools below (`IProjectLoader`): auto-discovery when `project` is omitted,
 `.sln` paths accepted, exact-name project selection. A `previewOnly: false` call is also subject to
 the [Write Confirmation](#write-confirmation) gate.
+
+**A `.sln` target fixes one project, not the solution.** Unlike the navigation tools, whose search
+spans every project in the loaded solution, `ApplyFixes` acts on a single project: the anchor
+`ProjectLoader` selects (the C# project whose file name matches the `.sln`, otherwise the first C#
+project Roslyn enumerated). Diagnostics in the solution's other projects are neither fixed nor
+reported as skipped, so `changedFiles` being short is not evidence they were clean. The `project`
+field of the response names the one that was fixed, and `resolvedPath` names the target it was
+chosen from. Pass an explicit `.csproj` to fix a specific project. (The confirmation prompt says the
+same thing, but it is only shown on a `previewOnly: false` call to an eliciting client — see
+[Write Confirmation](#write-confirmation).)
 
 #### Request
 
@@ -1226,7 +1280,7 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
 |--------|---------|------------------|
 | `ValidationError` | Caller-supplied input was missing, malformed, or otherwise invalid | Unrecognized `severity` string; `ApplyFixes` called with an empty `ids` array |
 | `NotFoundError` | The requested solution, project, or file could not be located | `FileNotFoundException`, `DirectoryNotFoundException` |
-| `AnalysisError` | Failure while analyzing, building, or fetching the target | MSBuild workspace load failure, Git clone failure/timeout |
+| `AnalysisError` | Failure while analyzing, building, or fetching the target | MSBuild workspace load failure, Git clone failure/timeout, permission denied — a read-only source file the write tools cannot open, or a directory the server cannot read |
 | `CancelledError` | The caller's own cancellation token was triggered before completion | Client disconnects/cancels mid-call |
 | `TimeoutError` | The call exceeded the configured wall-clock timeout | `RoselineMCP:DefaultTimeout` elapsed (120,000 ms by default; 0 disables it) |
 | `InternalError` | Unexpected, unclassified failure | Any exception not mapped to the categories above |

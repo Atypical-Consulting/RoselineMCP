@@ -83,8 +83,14 @@ dotnet test
    dotnet test --filter "FullyQualifiedName~YourTestName"
    
    # Check code coverage (report lands at RoselineMCP.Tests/TestResults/coverage.cobertura.xml)
-   dotnet test -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=./TestResults/coverage.cobertura.xml
+   dotnet test --coverage --coverage-output-format cobertura \
+     --coverage-output coverage.cobertura.xml \
+     --results-directory RoselineMCP.Tests/TestResults
    ```
+
+   `dotnet test` runs in Microsoft.Testing.Platform mode (opted into by `global.json`), because
+   xunit.v3 4.x has no VSTest bridge. VSTest options such as `--logger` are rejected with exit
+   code 5; `--filter "FullyQualifiedName~..."` still works.
 
 4. **Commit your changes**:
    ```bash

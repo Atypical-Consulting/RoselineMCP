@@ -84,8 +84,11 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
         }
         catch
         {
-            // Resolution failed (not found / ambiguous). Delegate uncached so the inner loader
-            // surfaces its own, canonical error for the tool layer to classify.
+            // Resolution failed (not found / ambiguous / permission denied — a named directory the
+            // server cannot read throws from here too). Delegate uncached so the inner loader
+            // surfaces its own, canonical error for the tool layer to classify. The permission case
+            // pays for resolution twice, which is accepted: it is a failure path, and re-resolving
+            // is what keeps this class from owning a second copy of the error contract.
             return await _inner.LoadAsync(project, cancellationToken);
         }
 
