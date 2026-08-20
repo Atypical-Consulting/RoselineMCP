@@ -64,11 +64,12 @@ public static class EditMemberTool
         try
         {
             // Gate policy lives in the helper; only the wording is this tool's own.
-            var (effectivePreviewOnly, confirmationNote) = await ToolExecutionHelper.ResolveWriteModeAsync(
+            var (effectivePreviewOnly, confirmationNote, writeTarget) = await ToolExecutionHelper.ResolveWriteModeAsync(
                 server,
                 options,
                 previewOnly,
-                $"Write the '{operation}' of member '{symbol}' in '{ToolExecutionHelper.DescribeWriteTarget(project)}' to disk?",
+                project,
+                target => $"Write the '{operation}' of member '{symbol}' in '{target}' to disk?",
                 invocation.Logger,
                 cancellationToken);
 
@@ -79,8 +80,10 @@ public static class EditMemberTool
             // documented preview into a TimeoutError the caller cannot act on.
             timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
+            // The path the human approved, when they were asked; otherwise the caller's own
+            // argument, because nothing was resolved and so nothing was shown.
             var result = await editService.EditMemberAsync(
-                project, symbol, operation, newSource, effectivePreviewOnly, timeoutSource.Token);
+                writeTarget ?? project, symbol, operation, newSource, effectivePreviewOnly, timeoutSource.Token);
 
             if (confirmationNote is not null)
             {
