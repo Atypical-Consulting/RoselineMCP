@@ -5,86 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-- Every project-loading tool now reports **`resolvedPath`**, the absolute `.sln`/`.csproj` it
-  actually loaded, so callers can tell a git worktree from its main checkout. Auto-discovery is
-  anchored to the *server's* working directory (fixed when the MCP client spawned it), not the
-  agent's — a worktree nested under `.claude/worktrees/` is below the discovery walk's reach, so an
-  omitted `project` resolves the main checkout, and until now nothing in the response said so.
-  Added to `search_symbols`, `get_symbol_info`, `find_references`, `find_implementations`,
-  `get_call_graph`, `get_type_hierarchy`, `get_symbol_at_position`, `edit_member`, `rename_symbol`,
-  `list_diagnostics` and `apply_fixes`. Purely additive to the wire shape; discovery order is
-  unchanged. (#139)
-
-### Changed
-- **Tests now run on Microsoft.Testing.Platform instead of VSTest.** `xunit.v3` 4.0.0 drops the
-  VSTest bridge, and on the .NET 10 SDK the old path is not deprecated but *removed*: it fails
-  with `Testing with VSTest target is no longer supported by Microsoft.Testing.Platform`. A
-  `global.json` `test.runner` section opts `dotnet test` into MTP mode, the test project became an
-  executable (`<OutputType>Exe</OutputType>`, previously supplied by `Microsoft.NET.Test.Sdk`), and
-  `xunit.runner.visualstudio` plus `Microsoft.NET.Test.Sdk` are gone. Every test passes, on all
-  three CI legs, with the suite's size unchanged.
-  Contributor-visible: `--logger` is now rejected with exit code 5, and a bare project path must be
-  written `dotnet test --project <path>`; `--filter "FullyQualifiedName~X"` still works.
-- **Coverage is produced by `Microsoft.Testing.Extensions.CodeCoverage`, replacing
-  `coverlet.msbuild`.** coverlet hooks the `VSTest` MSBuild target, which MTP mode never invokes,
-  so under the new runner it produced no report at all and said nothing about it — only the CI
-  threshold check caught the absence. The report still lands at
-  `RoselineMCP.Tests/TestResults/coverage.cobertura.xml` and the 80% line gate is unchanged
-  (measured 87.9%, against coverlet's 88.3% for the same scope). The three coverlet filters were
-  dropped rather than translated: only the project's own modules are instrumented, and `Program.cs`
-  was already excluded by its `[ExcludeFromCodeCoverage]` attribute rather than by the filter.
-  TRX now comes from `Microsoft.Testing.Extensions.TrxReport`. Both extensions are versioned
-  against `Microsoft.Testing.Platform` and must be bumped together with `xunit.v3`.
-- Documented the working-directory anchor and its remedy — pass an absolute `.sln`/`.csproj` path
-  when your working directory differs from the server's — in `docs/API.md`, `README.md` and
-  `CLAUDE.md`. (#139)
-
-### Fixed
-- **A permission-denied file or directory is now reported as `AnalysisError` with its message
-  intact, instead of a message-scrubbed `InternalError`.** `UnauthorizedAccessException` derives
-  from `SystemException`, not `IOException`, so it fell through `ToolExecutionHelper.Classify` to
-  the catch-all arm — the one arm that deliberately replaces the message with a correlation id.
-  That scrubbing is right for genuinely unexpected failures and wrong here: *"Access to the path
-  '...' is denied."* is precisely what a caller can act on. It hurt most on the write path, where
-  `apply_fixes` / `edit_member` / `rename_symbol` answered a read-only file with an opaque internal
-  error *after* a human had already approved the write. The closed set of `type` values is
-  unchanged. Separately, the recursive project-name lookup now skips directories it cannot read
-  (`EnumerationOptions.IgnoreInaccessible`, which the legacy `SearchOption` overloads disable)
-  instead of failing the whole call over a directory unrelated to the request; naming an unreadable
-  directory explicitly still surfaces the permission failure, since that is the answer the caller
-  asked for. (#150)
-- **The `apply_fixes` write confirmation no longer implies a solution-wide write.** When the
-  resolved target is a `.sln`, the prompt now names *the primary project of* that solution — which
-  is the only project `ApplyFixes` fixes — instead of naming the solution itself. On a solution with
-  three C# projects the previous sentence asked a human to approve a write to all of it while two
-  were left untouched, and nothing in the prompt revealed which one would be picked. A `.csproj`
-  target is already exactly the scope that gets written, so its wording is unchanged. Nothing is
-  resolved or loaded that was not resolved before: only the sentence changed, so no tool's
-  parameters, response shape or annotations move. `EditMember` and `RenameSymbol` keep naming the
-  resolved target without a qualifier. (#149)
-- **The write-confirmation prompt now names the project it will actually write to.** The gate exists
-  to tell a human what is about to be modified so they can refuse, and in the two most common shapes
-  it could not. With `project` omitted — the *documented default*, since auto-discovery is the
-  advertised behavior — the prompt asked for approval to write to the literal placeholder
-  `the auto-discovered project`; with `project: ""` it rendered `in ''`, the blank-target symptom
-  fixed for `null` in 2.1.0 but still reachable through a second input, while the loader treated the
-  same empty string as auto-discovery and resolved somewhere real. All three write tools
-  (`ApplyFixes`, `EditMember`, `RenameSymbol`) now name the concrete `.sln`/`.csproj` path —
-  resolved by the same function, against the same base directory, that the loader uses to perform
-  the write — and that resolved path is what the write is then performed against, instead of the
-  caller's original argument. Resolving once rather than again after the confirmation is what makes
-  the two genuinely inseparable: a second resolution, minutes later, could pick a different target
-  on a file system that moved in between. **The text a human reads therefore changes**; no tool's
-  parameters, response shape or annotations do. A relative `.csproj` argument is normalized, so the
-  prompt always shows an absolute path.
-- **An unresolvable write target now fails before a human is asked.** When auto-discovery finds no
-  candidate or several, or an explicit `project` matches nothing, the call returns its ordinary
-  failure envelope without sending an elicitation. Previously it asked for confirmation and then
-  failed anyway, spending the answer on a call that could not succeed. `previewOnly: true` calls are
-  unaffected throughout: the prompt is not built, so nothing is resolved on the read-only path.
+Releases from 2.3.0 onward are generated by
+[release-please](https://github.com/googleapis/release-please) from Conventional Commits, so there
+is no `[Unreleased]` section to edit by hand — pending changes appear in the open release PR, where
+an entry can still be expanded before it is merged. See [PUBLISH.md](PUBLISH.md).
 
 ## [2.2.0] - 2026-08-19
 
@@ -618,7 +542,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ApplyFixes**: Apply automated code fixes
 - **CreatePatch**: Generate unified diffs
 
-[Unreleased]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.2.0...HEAD
 [2.2.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/Atypical-Consulting/RoselineMCP/compare/v2.0.0...v2.1.0
