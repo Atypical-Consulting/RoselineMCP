@@ -1,4 +1,5 @@
 using System.Collections;
+using Microsoft.Extensions.Configuration;
 
 namespace RoselineMCP.Tests.Configuration;
 
@@ -78,45 +79,84 @@ internal sealed class ScopedEnvironmentVariable : IDisposable
 /// variables other tests own (<c>ROSELINE_UPDATE_SCHEMA_SNAPSHOT</c> is a live example).
 /// </para>
 /// <para>
-/// It inherits both of <see cref="ScopedEnvironmentVariable"/>'s limits verbatim — an empty-string
-/// prior value cannot be restored, and the save/restore assumes strictly nested, single-threaded use
-/// — and adds no others.
+/// Each variable is cleared <b>through <see cref="ScopedEnvironmentVariable"/> itself</b> rather than
+/// by a second copy of its capture/restore. That is what makes the empty-string limit documented
+/// there apply here by construction instead of by prose, and it is what lets a failure part-way
+/// through the sweep unwind the variables already taken (below) instead of deleting them for the rest
+/// of the process.
+/// </para>
+/// <para>
+/// ⚠️ It does <b>not</b> inherit the single-collection rule unchanged — it <b>widens</b> it. The
+/// per-key scope asks only that classes mutating <i>the same key</i> share a collection; this one
+/// captures every variable under the prefix and section at once, so what it needs is that no parallel
+/// collection mutates or reads <i>any</i> of them for the duration. Today
+/// <c>RoselineMcpOptionsBindingTests</c> is the only class scoping <c>ROSELINE_</c> →
+/// <c>RoselineMCP:</c>, and <c>ScopedEnvironmentNamespaceTests</c> deliberately probes a different
+/// section to keep that true. A new class that clears an overlapping section would reintroduce the
+/// race — and nothing but this paragraph currently prevents it.
 /// </para>
 /// </remarks>
 internal sealed class ScopedEnvironmentNamespace : IDisposable
 {
+    // The provider's environment-side delimiter. Unlike ConfigurationPath.KeyDelimiter this one has
+    // no public constant to point at — it lives inside EnvironmentVariablesConfigurationProvider —
+    // so it is the one piece of the normalization that must be spelled out here.
     private const string EnvironmentKeyDelimiter = "__";
-    private const string ConfigurationKeyDelimiter = ":";
 
-    private readonly List<(string Key, string? Previous)> _captured = [];
+    private readonly List<ScopedEnvironmentVariable> _cleared = [];
 
     private ScopedEnvironmentNamespace(string prefix, string section)
     {
-        var sectionPath = section + ConfigurationKeyDelimiter;
+        // A wrong argument here is otherwise a SILENT no-op: the scope still constructs, still
+        // returns something disposable, and the ambient variable it was meant to neutralize sails
+        // straight through into the assertion. Refusing the spellings that cannot match anything is
+        // cheap, and it turns that into a stack trace at the call site.
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+        ArgumentException.ThrowIfNullOrWhiteSpace(section);
 
-        // GetEnvironmentVariables() hands back a snapshot, so clearing inside the loop is safe.
-        foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
+        if (section.Contains(ConfigurationPath.KeyDelimiter, StringComparison.Ordinal))
         {
-            var name = (string)entry.Key;
-            if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException(
+                $"Pass the section name alone; the '{ConfigurationPath.KeyDelimiter}' separator is " +
+                $"added here, so '{section}' would never match a key.",
+                nameof(section));
+        }
+
+        var sectionPath = section + ConfigurationPath.KeyDelimiter;
+
+        try
+        {
+            // GetEnvironmentVariables() hands back a snapshot, so clearing inside the loop is safe.
+            foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
             {
-                continue;
+                var name = (string)entry.Key;
+                if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // The same normalization EnvironmentVariablesConfigurationProvider applies. Mirrored
+                // rather than taken as a dependency on its internals — but mirrored against the
+                // framework's own delimiter constant, so only the half that has no constant is
+                // spelled by hand.
+                var normalized = name[prefix.Length..].Replace(
+                    EnvironmentKeyDelimiter, ConfigurationPath.KeyDelimiter, StringComparison.Ordinal);
+
+                if (!normalized.StartsWith(sectionPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                _cleared.Add(ScopedEnvironmentVariable.Set(name, null));
             }
-
-            // The same normalization EnvironmentVariablesConfigurationProvider applies. Mirrored
-            // rather than taken as a dependency: it is two lines, and reaching into the provider's
-            // internals would couple the test helper to a shape it does not own.
-            var normalized = name[prefix.Length..].Replace(
-                EnvironmentKeyDelimiter, ConfigurationKeyDelimiter, StringComparison.Ordinal);
-
-            if (!normalized.StartsWith(sectionPath, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            // May be null in principle; captured as-is so Dispose restores the state actually found.
-            _captured.Add((name, (string?)entry.Value));
-            Environment.SetEnvironmentVariable(name, null);
+        }
+        catch
+        {
+            // The caller never gets the instance, so its `using` will never run: without this the
+            // variables cleared before the throw would stay deleted for the rest of the process,
+            // and every later test reading them would quietly see defaults.
+            Dispose();
+            throw;
         }
     }
 
@@ -125,15 +165,20 @@ internal sealed class ScopedEnvironmentNamespace : IDisposable
     /// key falls under <paramref name="section"/>, for the scope.
     /// </summary>
     /// <param name="prefix">The <c>AddEnvironmentVariables</c> prefix, e.g. <c>ROSELINE_</c>.</param>
-    /// <param name="section">The configuration section, e.g. <c>RoselineMCP</c>.</param>
+    /// <param name="section">The configuration section, e.g. <c>RoselineMCP</c> — the name on its own,
+    /// without a trailing separator.</param>
     public static ScopedEnvironmentNamespace Clear(string prefix, string section) =>
         new(prefix, section);
 
     public void Dispose()
     {
-        foreach (var (key, previous) in _captured)
+        // Reverse order, so the scopes unwind the way nested `using`s would, and cleared afterwards
+        // so a second Dispose cannot replay stale values over whatever the environment holds by then.
+        for (var i = _cleared.Count - 1; i >= 0; i--)
         {
-            Environment.SetEnvironmentVariable(key, previous);
+            _cleared[i].Dispose();
         }
+
+        _cleared.Clear();
     }
 }

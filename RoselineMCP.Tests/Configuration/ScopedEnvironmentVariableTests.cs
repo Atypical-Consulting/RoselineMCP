@@ -7,12 +7,15 @@ namespace RoselineMCP.Tests.Configuration;
 /// returned to the value the scope found, not unconditionally cleared.
 /// </summary>
 /// <remarks>
-/// The keys below are deliberately <b>not</b> <c>ROSELINE_</c>-prefixed.
-/// <see cref="RoselineMcpOptionsBindingTests"/> is a separate xUnit collection — so it runs in
-/// parallel with this one by default — and its <c>AddEnvironmentVariables(prefix: "ROSELINE_")</c>
-/// ingests <i>every</i> variable carrying that prefix, not just the two it asserts on. Staying
-/// outside the prefix is what makes the two classes actually independent, rather than independent
-/// by the accident of which section a key lands in.
+/// The keys below carry no <c>ROSELINE_</c> prefix at all, which is the strongest form of the rule
+/// this file follows: <b>a class that mutates process-wide environment state must pick names no
+/// other parallel collection touches.</b> <see cref="RoselineMcpOptionsBindingTests"/> is a separate
+/// xUnit collection — so it runs in parallel with this one by default — and it both ingests every
+/// <c>ROSELINE_</c>-prefixed variable through <c>AddEnvironmentVariables(prefix: "ROSELINE_")</c> and
+/// now clears every one of them that falls under <c>RoselineMCP:</c>. Staying outside the prefix
+/// entirely puts these keys beyond the reach of both. <see cref="ScopedEnvironmentNamespaceTests"/>
+/// below cannot do that — the prefix is the thing it tests — so it satisfies the same rule the other
+/// available way, by staying out of the section that class clears.
 /// </remarks>
 public class ScopedEnvironmentVariableTests
 {
@@ -119,6 +122,7 @@ public class ScopedEnvironmentNamespaceTests
 {
     private const string Prefix = "ROSELINE_";
     private const string Section = "ScopedNsProbe";
+    private const string UnrelatedSection = "ScopedNsNothingHere";
 
     private const string AllCapsKey = "ROSELINE_SCOPEDNSPROBE__ALLCAPSPROBE";
     private const string BothMixedKey = "ROSELINE_ScopedNsProbe__BothProbe";
@@ -187,15 +191,33 @@ public class ScopedEnvironmentNamespaceTests
     }
 
     [Fact]
-    public void With_Nothing_In_The_Section_Nothing_Is_Captured_And_Dispose_Is_A_No_Op()
+    public void Clearing_A_Different_Section_Captures_Nothing_And_Leaves_This_One_Alone()
     {
-        // The ordinary case on a clean machine, and the one a namespace-wide scope must not make
-        // worse than the per-key scope it sits beside.
-        using (ScopedEnvironmentNamespace.Clear(Prefix, "ScopedNsNothingHere"))
+        // The dual of the test above, and the half that is easy to get vacuously wrong: hold a
+        // variable that IS in `Section`, then scope a *different* section. Nothing may be captured,
+        // so the variable must read unchanged inside the scope as well as after it — and dispose,
+        // having captured nothing, must not write anything back either.
+        using var ambient = ScopedEnvironmentVariable.Set(AllCapsKey, "exported");
+
+        using (ScopedEnvironmentNamespace.Clear(Prefix, UnrelatedSection))
         {
-            Environment.GetEnvironmentVariable(AllCapsKey).ShouldBeNull();
+            Environment.GetEnvironmentVariable(AllCapsKey).ShouldBe("exported");
         }
 
-        Environment.GetEnvironmentVariable(AllCapsKey).ShouldBeNull();
+        Environment.GetEnvironmentVariable(AllCapsKey).ShouldBe("exported");
+    }
+
+    [Theory]
+    [InlineData("", "RoselineMCP")]
+    [InlineData("   ", "RoselineMCP")]
+    [InlineData("ROSELINE_", "")]
+    [InlineData("ROSELINE_", "RoselineMCP:")]
+    public void An_Argument_That_Could_Never_Match_Is_Refused_Rather_Than_Silently_Clearing_Nothing(
+        string prefix, string section)
+    {
+        // Each of these builds a filter no key can satisfy, so without the guard the caller gets a
+        // live scope that cleared nothing — and their ambient export survives into the assertion the
+        // scope was meant to protect. A silent no-op is the one failure mode this type must not have.
+        Should.Throw<ArgumentException>(() => ScopedEnvironmentNamespace.Clear(prefix, section));
     }
 }

@@ -27,10 +27,27 @@ public class RoselineMcpOptionsBindingTests
         configure(builder);
 
         var services = new ServiceCollection();
-        // Exactly the call Program.cs makes.
+        // Exactly the call Program.cs makes. The section name stays a literal here on purpose —
+        // it is half of the contract under test, not a value to be kept in sync with a constant.
         services.Configure<RoselineMcpOptions>(builder.Build().GetSection("RoselineMCP"));
         return services.BuildServiceProvider().GetRequiredService<IOptions<RoselineMcpOptions>>().Value;
     }
+
+    /// <summary>
+    /// Neutralizes the whole <c>ROSELINE_</c> → <c>RoselineMCP:</c> namespace for the caller's scope,
+    /// handing every variable it captures back on dispose.
+    /// </summary>
+    /// <remarks>
+    /// Do not narrow this back to a single key. These tests read the real provider, whose prefix and
+    /// section matching are case-<b>in</b>sensitive, while a POSIX environment block is
+    /// case-<b>sensitive</b> — so an ambient <c>ROSELINE_ROSELINEMCP__CONFIRMDESTRUCTIVEWRITES</c> is
+    /// a different variable that a per-key clear leaves standing and the binder still reads, which
+    /// is exactly the red bar issue #141 reports.
+    /// <see cref="An_Ambient_All_Caps_Export_Cannot_Change_What_These_Tests_See"/> is the test that
+    /// goes red if this is narrowed.
+    /// </remarks>
+    private static ScopedEnvironmentNamespace ClearAmbientRoselineSection() =>
+        ScopedEnvironmentNamespace.Clear("ROSELINE_", "RoselineMCP");
 
     [Fact]
     public void ConfirmDestructiveWrites_Defaults_To_True_When_Nothing_Is_Configured()
@@ -59,13 +76,7 @@ public class RoselineMcpOptionsBindingTests
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
         const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWrites";
 
-        // Neutralizes the WHOLE ROSELINE_ → RoselineMCP: namespace for the scope, not just this one
-        // key, and hands every variable it captures back afterwards. Do not narrow it back: this
-        // test reads the real provider, whose prefix and section matching are case-INsensitive,
-        // while a POSIX environment block is case-sensitive — so an ambient
-        // ROSELINE_ROSELINEMCP__CONFIRMDESTRUCTIVEWRITES is a different variable that a per-key
-        // clear leaves standing and the binder below still reads (#141).
-        using var _ = ScopedEnvironmentNamespace.Clear("ROSELINE_", "RoselineMCP");
+        using var _ = ClearAmbientRoselineSection();
 
         var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
 
@@ -121,13 +132,7 @@ public class RoselineMcpOptionsBindingTests
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
         const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout";
 
-        // Neutralizes the WHOLE ROSELINE_ → RoselineMCP: namespace for the scope, not just this one
-        // key, and hands every variable it captures back afterwards. Do not narrow it back: this
-        // test reads the real provider, whose prefix and section matching are case-INsensitive,
-        // while a POSIX environment block is case-sensitive — so an ambient
-        // ROSELINE_ROSELINEMCP__CONFIRMDESTRUCTIVEWRITESTIMEOUT is a different variable that a
-        // per-key clear leaves standing and the binder below still reads (#141).
-        using var _ = ScopedEnvironmentNamespace.Clear("ROSELINE_", "RoselineMCP");
+        using var _ = ClearAmbientRoselineSection();
 
         var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
 
@@ -141,6 +146,35 @@ public class RoselineMcpOptionsBindingTests
             Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"))
                 .ConfirmDestructiveWritesTimeout.ShouldBe(0);
         }
+    }
+
+    [Fact]
+    public void An_Ambient_All_Caps_Export_Cannot_Change_What_These_Tests_See()
+    {
+        // The regression test for #141 itself, and the only one in the suite that goes red if the
+        // two tests above narrow their scope back to a single documented key. Without it the fix is
+        // unpinned: a clean CI runner exports no ROSELINE_ variables, so reverting
+        // ClearAmbientRoselineSection to ScopedEnvironmentVariable.Set(key, null) leaves every other
+        // test — including all four ScopedEnvironmentNamespace ones — green while the bug is fully
+        // back. Issue #141's own reproduction step was manual and left no automated trace.
+        //
+        // On a case-sensitive environment block (Linux, macOS — both CI legs) these names are
+        // different variables from the documented mixed-case ones, which is precisely why a per-key
+        // clear misses them. On Windows they are the same variable, so this test is a tautology
+        // there; that is the platform being structurally immune, not the test being weak.
+        using var ambientWrites = ScopedEnvironmentVariable.Set(
+            "ROSELINE_ROSELINEMCP__CONFIRMDESTRUCTIVEWRITES", "false");
+        using var ambientTimeout = ScopedEnvironmentVariable.Set(
+            "ROSELINE_ROSELINEMCP__CONFIRMDESTRUCTIVEWRITESTIMEOUT", "0");
+
+        using var _ = ClearAmbientRoselineSection();
+
+        var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
+
+        // The same two pre-assertions the tests above depend on, under the ambient export that used
+        // to defeat them.
+        options.ConfirmDestructiveWrites.ShouldBeTrue();
+        options.ConfirmDestructiveWritesTimeout.ShouldBe(300_000);
     }
 
     [Fact]
