@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The write-confirmation prompt now names the project it will actually write to.** The gate exists
+  to tell a human what is about to be modified so they can refuse, and in the two most common shapes
+  it could not. With `project` omitted — the *documented default*, since auto-discovery is the
+  advertised behavior — the prompt asked for approval to write to the literal placeholder
+  `the auto-discovered project`; with `project: ""` it rendered `in ''`, the blank-target symptom
+  fixed for `null` in 2.1.0 but still reachable through a second input, while the loader treated the
+  same empty string as auto-discovery and resolved somewhere real. All three write tools
+  (`ApplyFixes`, `EditMember`, `RenameSymbol`) now name the concrete `.sln`/`.csproj` path —
+  resolved by the same function, against the same base directory, that the loader uses to perform
+  the write — so the prompt and the write cannot disagree about their target. **The text a human
+  reads therefore changes**; no tool's parameters, response shape or annotations do.
+- **An unresolvable write target now fails before a human is asked.** When auto-discovery finds no
+  candidate or several, or an explicit `project` matches nothing, the call returns its ordinary
+  failure envelope without sending an elicitation. Previously it asked for confirmation and then
+  failed anyway, spending the answer on a call that could not succeed. `previewOnly: true` calls are
+  unaffected throughout: the prompt is not built, so nothing is resolved on the read-only path.
+
 ## [2.2.0] - 2026-08-19
 
 ### Added

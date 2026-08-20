@@ -107,6 +107,20 @@ the explicit `previewOnly: false` opt-in as the only thing between a tool call
 and a disk write — so leave it enabled (the default) on any interactive
 install, and treat disabling it as a decision about a specific deployment.
 
+**The confirmation names the target it is about to write.** The prompt carries
+the concrete `.sln`/`.csproj` path — resolved by the same function, against the
+same base directory, that the loader uses to perform the write moments later —
+rather than a placeholder, and it does so whether the caller passed `project`,
+omitted it, or passed an empty string. This matters because `project` is
+optional and auto-discovery walks the working directory, up to three parent
+directories and then the immediate subdirectories: a server launched from an
+unexpected directory can present a write to a solution the human never had in
+mind, and the path in the prompt is the only thing that lets them notice. A
+target that cannot be resolved at all is a failure, not a question — the call
+returns its error envelope without eliciting, since asking someone to approve a
+write that cannot be targeted spends their attention on a call that was going
+to fail regardless.
+
 **An unanswered confirmation declines, it does not proceed.** A client that
 accepts the elicitation request and then never answers used to block the tool
 call indefinitely: `RoselineMCP:DefaultTimeout` is an analysis budget and does

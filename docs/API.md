@@ -58,13 +58,26 @@ Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes),
 Behind that opt-in sits a second, **best-effort** guard: when `previewOnly: false` is passed, the
 server sends an MCP `elicitation/create` asking the connected client to confirm before writing.
 
+The prompt **names the concrete `.sln` or `.csproj` that will be written** — an absolute path, never
+a placeholder — whether the caller passed `project`, left it out, or passed an empty string:
+
+> Write the 'replace' of member 'Foo.Bar' in '/Users/me/src/Acme/Acme.sln' to disk?
+
+The path is resolved by the same function, against the same base directory, that the loader uses to
+perform the write moments later, so the question a human answers cannot name a different target from
+the one that is modified. It is pure path resolution — no MSBuild workspace is loaded — so naming the
+target costs nothing. Because `project` is optional and auto-discovery walks the working directory,
+its parents and its immediate subdirectories, this is the one thing that lets a caller notice a
+server launched from an unexpected directory is about to write to a solution they did not intend.
+
 | Situation | Result |
 |---|---|
 | Client accepts | The write proceeds; `previewOnly` comes back `false`. |
 | Client **declines** | The call is downgraded to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write declined via client confirmation; returned a preview only (no files were modified)."` |
 | Client is asked and **never answers** | After `RoselineMCP:ConfirmDestructiveWritesTimeout` (default `300000`, 5 minutes) the server stops waiting and downgrades the call to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write confirmation timed out; returned a preview only (no files were modified). Set RoselineMCP:ConfirmDestructiveWrites=false on unattended hosts that should write without a human, or raise RoselineMCP:ConfirmDestructiveWritesTimeout."` |
 | Client does not support elicitation, or the round-trip fails | No confirmation is possible, so the explicit opt-in stands and the write proceeds. |
-| `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. |
+| `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. The prompt is not even built, so no target is resolved. |
+| The write target **cannot be resolved** — auto-discovery finds nothing or several candidates, or an explicit `project` matches nothing | **No elicitation is sent**; the call returns its ordinary failure envelope (`ok: false`, a `ValidationError` or `NotFoundError` — see [Error Handling](#error-handling)). A write that cannot be targeted fails before a human is asked, rather than spending their answer on a call that was going to fail anyway. |
 
 Silence is deliberately *not* consent: a client that **cannot** be asked justifies honoring the
 explicit opt-in, but one that was asked and said nothing does not. The timeout therefore removes the
@@ -89,6 +102,9 @@ The server logs a warning at startup when the switch is off. Disabling it leaves
 
 The response shape is identical whether the confirmation was accepted or skipped; only the decline
 and timeout paths add a note.
+
+A `previewOnly: true` call is unaffected throughout: it reaches no disk, so no confirmation is sent,
+no prompt is built and no target is resolved.
 
 ### AnalyzeSolution
 
