@@ -194,40 +194,88 @@ public sealed record WritePrompt
     /// the party being guarded is not a guard.
     /// </para>
     /// <para>
-    /// Three rules, in order, each chosen to be <em>invisible</em> on every value a caller
-    /// legitimately sends — a C# symbol reference carries no whitespace and no apostrophe, so an
-    /// ordinary name comes back byte-for-byte:
+    /// It is a <b>whitelist</b>, and that shape is the point. The first attempt at this was a
+    /// denylist — remove <c>char.IsWhiteSpace</c>, swap ASCII <c>'</c> — and a denylist cannot work
+    /// here, because the reader being protected is a <em>human</em> and the alphabet of characters
+    /// that look like a space or a quote to a human is open-ended. U+2800 BRAILLE PATTERN BLANK and
+    /// U+3164 HANGUL FILLER both render as blanks and are not <c>IsWhiteSpace</c> (U+3164 is
+    /// categorised as a <em>letter</em>); U+200B is neither whitespace nor visible; and a U+2019
+    /// supplied directly by the caller passed straight through, indistinguishable from the frame's
+    /// own quotes at a glance. Each one rebuilt the forged sentence in characters the denylist did
+    /// not name.
     /// </para>
-    /// <list type="number">
-    /// <item>
-    /// <b>Whitespace is removed, not collapsed.</b> Collapsing to single spaces still lets a payload
-    /// read as prose ("… to disk? Exactly one file …"); removing it leaves one unbroken token no
-    /// reader mistakes for the frame. It is lossless precisely because no identifier contains
-    /// whitespace — which is what makes this safe to apply where a general-purpose escaper is not.
-    /// </item>
-    /// <item>
-    /// <b>The apostrophe becomes U+2019.</b> The frame quotes with ASCII <c>'</c>, so that is the one
-    /// character able to open or close a quoted run. Substituting rather than stripping keeps the
-    /// value readable, and the substitute cannot be mistaken for a delimiter.
-    /// </item>
-    /// <item>
-    /// <b>The length is capped, eliding the middle.</b> Both ends survive, so a long name stays
-    /// recognisable: the head names the namespace, the tail the member.
-    /// </item>
-    /// </list>
     /// <para>
-    /// The resolved <em>target</em> is deliberately NOT put through this. It is not caller-authored
-    /// text but a path that has to exist on disk, and it is the one thing in the sentence a human can
-    /// check against reality — eliding or re-punctuating it would break that
-    /// (<c>ElicitationTests.ShouldNameARealProject</c> asserts <c>File.Exists</c> on it). A checkout
-    /// path may legitimately contain an apostrophe — <c>C:\Users\O'Brien\src</c>, <c>~/Bob's
-    /// Projects</c> — which is why every sentence above puts the target in its <em>last</em> quoted
-    /// run: whatever a path contains, no frame text follows it to be forged past.
+    /// A whitelist inverts the burden: these values are C# symbol references, so everything a
+    /// legitimate one can contain is enumerable (<see cref="IsSymbolReferenceChar"/>) and everything
+    /// else — every space-alike, every quote-alike, every <c>?</c> and dash a sentence needs — is
+    /// dropped without having to be anticipated. What survives is one unbroken identifier-shaped
+    /// token that no reader mistakes for the frame. An ordinary name is untouched, so the sanitiser
+    /// is invisible in the normal case. Then the length is capped, eliding the middle so both ends
+    /// survive and a long name stays recognisable: the head names the namespace, the tail the member.
+    /// </para>
+    /// <para>
+    /// The resolved <em>target</em> is deliberately NOT put through this, and the reason is that it
+    /// is not caller-authored text: it is a path resolved from the file system, and it is the one
+    /// thing in the sentence a human can check against reality. Eliding or re-punctuating it would
+    /// break exactly that (<c>ElicitationTests.ShouldNameARealProject</c> asserts
+    /// <c>File.Exists</c> on it), so it is rendered verbatim.
+    /// </para>
+    /// <para>
+    /// ⚠️ That leaves one residual, and it is worth stating precisely rather than papering over: a
+    /// checkout path may legitimately contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
+    /// <c>~/Bob's Projects</c> — and in the two sentences where frame text follows the target
+    /// (<see cref="WriteScope.PrimaryProjectOf"/> and <see cref="WriteScope.WholeSolution"/> both end
+    /// "… and write the changes to disk?") such a path unbalances the quoting and could forge that
+    /// trailing clause. Only <see cref="WriteScope.SingleFile"/> ends on the target. This is
+    /// **not** the caller's trust boundary — it takes control of the directory the server is pointed
+    /// at, i.e. the operator's own filesystem, which is why #161 scoped it out and why the wording is
+    /// not being reopened here (#149/#152/#154 settled it). An earlier draft of these remarks claimed
+    /// the target is always last so nothing can follow it; that was false for two prompts of three,
+    /// and a security note that is false is worse than no note.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Whether a character can appear in a C# symbol reference as these tools accept one: a letter
+    /// or digit in any script, plus the punctuation that qualifies, parameterises or decorates a
+    /// name — <c>Acme.Orders.Repository&lt;T,U&gt;</c>, <c>@class</c>, <c>List`1</c>,
+    /// <c>global::Acme</c>, <c>Outer+Inner</c>.
+    /// </summary>
+    /// <remarks>
+    /// Surrogate halves are category <c>Cs</c> and so fall outside this, which drops astral-plane
+    /// identifiers from the *display* — an acceptable loss, and one that removes the possibility of
+    /// <see cref="Sanitize"/>'s mid-string elision splitting a surrogate pair.
+    /// </remarks>
+    private static bool IsSymbolReferenceChar(char c) =>
+        (char.IsLetterOrDigit(c) || c is '.' or '_' or '<' or '>' or ',' or '@' or '`' or ':' or '+')
+        && !IsBlankRenderingLetter(c);
+
+    /// <summary>
+    /// The four Hangul fillers — U+115F, U+1160, U+3164, U+FFA0 — which Unicode categorises as
+    /// <em>letters</em> (Lo) while they render as blanks.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A denylist inside the whitelist, and deliberately so: the whitelist's premise is "a character
+    /// a symbol reference can contain, which renders as itself", and .NET's character categories are
+    /// the only available stand-in for the second half. These four are where that stand-in is wrong
+    /// — <c>char.IsLetterOrDigit('\u3164')</c> returns <see langword="true"/> — so a payload could
+    /// use them as word separators and rebuild a readable sentence out of characters the whitelist
+    /// had just admitted. The first version of this whitelist did exactly that, and the test that
+    /// pins it (<c>Render_Drops_Look_Alike_Characters_A_Symbol_Reference_Cannot_Contain</c>) is what
+    /// caught it.
+    /// </para>
+    /// <para>
+    /// The list is closed rather than open-ended: among Unicode's default-ignorable code points,
+    /// these are the only ones that are also letters or digits. Everything else that renders blank —
+    /// U+200B, U+2060, U+FEFF, U+2800 — is already outside the whitelist by category.
+    /// </para>
+    /// </remarks>
+    private static bool IsBlankRenderingLetter(char c) =>
+        c is '\u115F' or '\u1160' or '\u3164' or '\uFFA0';
+
     internal static string Sanitize(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (value is null)
         {
             return UnnamedValue;
         }
@@ -235,15 +283,18 @@ public sealed record WritePrompt
         var builder = new StringBuilder(value.Length);
         foreach (var c in value)
         {
-            if (char.IsWhiteSpace(c))
+            if (IsSymbolReferenceChar(c))
             {
-                continue;
+                builder.Append(c);
             }
-
-            builder.Append(c == '\'' ? '\u2019' : c);
         }
 
         var sanitized = builder.ToString();
+        if (sanitized.Length == 0)
+        {
+            return UnnamedValue;
+        }
+
         if (sanitized.Length <= MaxValueLength)
         {
             return sanitized;

@@ -206,15 +206,20 @@ hands over the values, and `WritePrompt.Render` composes the sentence. A tool no
 own prompt, so the three phrasings cannot drift apart again and a fourth write tool inherits wording
 its siblings already agreed to.
 
-That is also what makes the escaping structural. `symbol` and `newName` are free-form caller input;
+That is also what makes the sanitising structural. `symbol` and `newName` are free-form caller input;
 when each tool interpolated them itself, the injection had already happened by the time anything
 shared saw the string, and a crafted `symbol` could close the quoted run and append a second,
 plausible sentence naming a project the write would never touch. Rendering from values instead means
-every caller-supplied one passes through the same sanitiser: whitespace removed, `'` replaced with
-`’` so it cannot delimit, and an over-long value elided in the middle (`Acme.…Service`). An
-ordinary C# symbol has neither whitespace nor an apostrophe and renders unchanged. The **target** is
-deliberately left verbatim — it has to stay checkable against the file system — and is protected by
-position instead: it is always the sentence's last quoted run.
+every caller-supplied one passes through the same filter.
+
+That filter is a **whitelist**: a symbol reference may contain letters, digits and
+`` . _ < > , @ ` : + ``, and everything else is dropped, then the result is capped with a mid-string
+elision (`Acme.…Service`). Whitelisting rather than escaping is deliberate — the reader is a human,
+and the set of characters that *look* like a space or a quote is open-ended (U+2800 and U+3164 render
+blank without being whitespace; a caller-supplied U+2019 reads as the frame's own quote). An ordinary
+C# symbol contains none of them and renders unchanged. The **target** is deliberately left verbatim,
+because it has to stay checkable against the file system; see
+[SECURITY.md](../SECURITY.md) for the one residual that follows from that.
 
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory

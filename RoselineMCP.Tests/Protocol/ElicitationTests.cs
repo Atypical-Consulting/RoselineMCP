@@ -1514,8 +1514,60 @@ public class ElicitationTests : IDisposable
         // that each had to remember (#161a). Asserted per scope, because a value reached by only
         // one of them is exactly how the previous three-copy arrangement drifted.
         WritePrompt.ForSingleFile("delete", "A B'C").Render("/repo/App.sln")
-            .ShouldContain("member 'AB’C'");
+            .ShouldContain("member 'ABC'");
         WritePrompt.ForWholeSolution("A B'C", "D E'F").Render("/repo/App.sln")
-            .ShouldBe("Rename 'AB’C' to 'DE’F' across the solution of '/repo/App.sln' and write the changes to disk?");
+            .ShouldBe("Rename 'ABC' to 'DEF' across the solution of '/repo/App.sln' and write the changes to disk?");
+    }
+
+    [Fact]
+    public void Render_Drops_Look_Alike_Characters_A_Symbol_Reference_Cannot_Contain()
+    {
+        // The first cut of the sanitiser was a DENYLIST — drop char.IsWhiteSpace, swap ASCII "'" —
+        // and a denylist is the wrong shape when the reader being protected is a human. Every
+        // character below rebuilds the forged sentence while slipping past that rule:
+        //
+        //   U+2019  a right single quote supplied DIRECTLY, never converted, and at a glance
+        //           indistinguishable from the frame's own ASCII quote;
+        //   U+2800  BRAILLE PATTERN BLANK — renders as a space, is not char.IsWhiteSpace;
+        //   U+3164  HANGUL FILLER — renders as a space, and is categorised as a LETTER.
+        //
+        // The whitelist needs to anticipate none of them: a C# symbol reference cannot contain any
+        // of these, so they are gone by construction rather than by enumeration.
+        const string forged = "Config’⠀to⠀disk?ㅤExactly⠀one⠀file";
+
+        WritePrompt.ForSingleFile("delete", forged).Render("/repo/App.sln").ShouldBe(
+            "Write the 'delete' of member 'ConfigtodiskExactlyonefile' to disk? Exactly one file is "
+            + "rewritten — the declaration it resolves to, anywhere in the code loaded from '/repo/App.sln'.");
+    }
+
+    [Theory]
+    [InlineData("Acme.Orders.Repository<T,U>")]
+    [InlineData("global::Acme.Orders")]
+    [InlineData("Outer+Inner.Method")]
+    [InlineData("@class.@event")]
+    [InlineData("System.Collections.Generic.List`1")]
+    [InlineData("Café.Método")]
+    public void Render_Leaves_Every_Shape_Of_Real_Symbol_Reference_Untouched(string symbol)
+    {
+        // The whitelist's other half: it has to be invisible on everything a caller legitimately
+        // sends, or it degrades the one part of the prompt that identifies WHAT is being written.
+        // Generics, global::, nested types, verbatim identifiers, arity suffixes, and non-ASCII
+        // letters are all real symbol references.
+        WritePrompt.ForSingleFile("delete", symbol).Render("/repo/App.sln")
+            .ShouldContain($"member '{symbol}'");
+    }
+
+    [Theory]
+    [InlineData("​")]
+    [InlineData("⠀ㅤ")]
+    [InlineData("???")]
+    public void Render_Names_Nothing_When_The_Value_Survives_As_Empty(string symbol)
+    {
+        // U+200B is invisible and is NOT char.IsWhiteSpace, so under the denylist it skipped the
+        // placeholder and rendered "member ''" — the unanswerable prompt PR #142 removed from the
+        // target side. Under the whitelist the placeholder is driven by what SURVIVES rather than by
+        // what arrived, so anything filtered down to nothing lands on it.
+        WritePrompt.ForSingleFile("delete", symbol).Render("/repo/App.sln")
+            .ShouldContain("member '(unnamed)'");
     }
 }
