@@ -67,54 +67,18 @@ public static class EditMemberTool
 
         try
         {
-            // Gate policy lives in the helper; only the wording is this tool's own.
-            //
-            // The resolved target is whatever ResolveTargetPath found — the discovered .sln when
-            // there is one — but this tool never writes it. CodeEditService.EditMemberAsync
-            // resolves one declaration and calls SourceTextWriter.WriteAsync exactly once, so
-            // naming the target alone claims a solution-wide write for a single-file one. Saying
-            // "exactly one file is rewritten" is the scope actually being authorised, and it is the
-            // only part of the sentence the code guarantees outright — hence the wording below,
-            // which deliberately claims neither of the two things that are NOT guaranteed:
-            //
-            //  * NOT "in '<target>'". A .csproj target does not bound the write: ProjectLoader
-            //    finds the containing .sln (ProjectLoader.FindSolutionFile) and SymbolResolver
-            //    searches every project in it, so the declaration — and therefore the file written
-            //    — can sit in a sibling project the caller never named. "loaded from" is the true
-            //    relation: the target is what gets opened, not what gets written.
-            //  * NOT "THE single file declaring it". `DeclaringSyntaxReferences.FirstOrDefault()`
-            //    picks one declaration; a partial type (or a partial method) has several, so no
-            //    file uniquely declares the symbol. What holds is that one declaration is resolved
-            //    and one file is written — which is what "the declaration it resolves to" says.
-            //
-            // Unlike ApplyFixes' equivalent (#149) the scope clause does not branch on the target's
-            // extension: ApplyFixes' scope depends on it (a .csproj target *is* its whole write
-            // scope), whereas this write is one file whether the target is a .sln or a .csproj.
-            //
-            // It does branch on the OPERATION, and only on the noun: 'add' resolves `symbol` as the
-            // container type (AddMember rejects anything else), so calling it a "member" would name
-            // the human a thing that does not exist yet and hide what actually gets rewritten.
-            //
-            // The file itself is deliberately NOT named: that costs an MSBuildWorkspace load and a
-            // symbol resolution before the human has even been asked (see ResolveWriteTarget's
-            // remarks), and it would reopen the window PR #142 closed — resolved once for the
-            // prompt, again after a round-trip the gate allows five minutes for, with nothing
-            // guaranteeing the two agree. Saying which *scope* will be written is honest about that
-            // limit; naming a file that may have moved by the time it is written would not be.
-            // `symbol` is free-form caller input, so it goes through the shared sanitiser before it
-            // is interpolated: raw, a crafted symbol closes the quoted run and appends a second,
-            // benign-looking sentence naming a project this write will never touch (#161).
-            // `operation` needs none — it was validated against a closed set above.
-            var subject = operation.Equals("add", StringComparison.OrdinalIgnoreCase)
-                ? $"a member to type '{WritePrompt.Sanitize(symbol)}'"
-                : $"member '{WritePrompt.Sanitize(symbol)}'";
+            // Gate policy AND wording both live in the helper now: this tool names its scope and
+            // hands over the values, and WritePrompt.Render composes the sentence (#161). The
+            // reasoning for the SingleFile clause — why it says "exactly one file is rewritten",
+            // why it says "loaded from" rather than "in", and why 'add' names the container type
+            // instead of a member — moved there with it, along with the sanitising of `symbol`.
             var result = await ToolExecutionHelper.RunVerifiedWriteAsync(
                 server,
                 options,
                 previewOnly,
                 allowIntroducedErrors,
                 project,
-                target => $"Write the '{operation}' of {subject} to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '{target}'.",
+                WritePrompt.ForSingleFile(operation, symbol),
                 (target, phasePreviewOnly, _, token) => editService.EditMemberAsync(
                     target, symbol, operation, newSource, phasePreviewOnly, allowIntroducedErrors, max, token),
                 budget,
