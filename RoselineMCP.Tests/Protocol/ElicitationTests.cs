@@ -576,6 +576,7 @@ public class ElicitationTests : IDisposable
             },
             cancellationToken: TestContext.Current.CancellationToken);
 
+        message.ShouldNotBeNull();
         message.ShouldBe($"Apply code fixes for 1 diagnostic ID(s) to '{_fixtureProject}' and write the changes to disk?");
         message.ShouldNotContain("primary project of");
     }
