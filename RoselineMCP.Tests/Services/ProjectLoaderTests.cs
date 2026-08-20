@@ -338,6 +338,34 @@ public class ProjectLoaderTests : IDisposable
         loaded.ResolvedPath.ShouldBe(slnPath);
     }
 
+    /// <summary>
+    /// Pins the resolution contract behind the worktree bug: a worktree nested inside its own main
+    /// checkout is structurally unreachable from that checkout (level 0 wins, and only immediate
+    /// subdirectories are ever scanned), so an omitted <c>project</c> answers from the main
+    /// checkout. That is by design — the defect was that nothing told the caller. The escape hatch,
+    /// an explicit absolute path, must keep overriding the working-directory anchor.
+    /// </summary>
+    [Fact]
+    public void AutoDiscovery_ResolvesTheNearestCheckout_AndAnExplicitWorktreePathBeatsTheCwd()
+    {
+        // A worktree nested inside its own main checkout, the layout Claude Code creates.
+        var mainSln = Touch("Main.sln");
+
+        var worktreeDir = Path.Combine(_baseDir, ".claude", "worktrees", "wt");
+        Directory.CreateDirectory(worktreeDir);
+        var worktreeSln = Touch(Path.Combine(".claude", "worktrees", "wt", "Main.sln"));
+
+        // From the main checkout, level 0 wins immediately — the worktree is three levels down and
+        // only immediate subdirectories are ever scanned, so it is unreachable. This is by design.
+        ResolveTargetPath(null, _baseDir).ShouldBe(mainSln);
+
+        // From inside the worktree, the worktree wins.
+        ResolveTargetPath(null, worktreeDir).ShouldBe(worktreeSln);
+
+        // The escape hatch: an explicit absolute path overrides the cwd anchor entirely.
+        ResolveTargetPath(worktreeSln, _baseDir).ShouldBe(worktreeSln);
+    }
+
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
     [Fact]
     public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
