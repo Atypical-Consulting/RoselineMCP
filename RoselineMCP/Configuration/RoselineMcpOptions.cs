@@ -82,4 +82,44 @@ public class RoselineMcpOptions
     /// human should set <see cref="ConfirmDestructiveWrites"/> to <see langword="false"/> instead.
     /// </summary>
     public int ConfirmDestructiveWritesTimeout { get; set; } = DefaultConfirmDestructiveWritesTimeoutMs;
+
+    /// <summary>
+    /// The shipped default for <see cref="GuardTimeout"/>, in milliseconds. Exposed for the same
+    /// reason as <see cref="DefaultConfirmDestructiveWritesTimeoutMs"/>: callers outside DI should
+    /// fall back to the documented default rather than duplicating the constant.
+    /// </summary>
+    public const int DefaultGuardTimeoutMs = 10_000;
+
+    /// <summary>
+    /// Whether the server opens the local compile-guard endpoint, which lets the
+    /// <c>roseline-mcp guard</c> hook client ask "did the write that just happened break the build?"
+    /// and reuse this process's already-warm <c>MSBuildWorkspace</c>.
+    /// <para>
+    /// <see langword="false"/> by default. This is an opt-in for two independent reasons: it adds a
+    /// local IPC surface (see SECURITY.md), and it makes the server answer questions nobody asked it
+    /// through the MCP channel. An operator turns it on deliberately, the same way
+    /// <c>previewOnly: false</c> is passed deliberately.
+    /// </para>
+    /// </summary>
+    public bool Guard { get; set; }
+
+    /// <summary>
+    /// Explicit path for the guard endpoint — a named pipe on Windows, a Unix domain socket
+    /// elsewhere. <see langword="null"/> (the default) derives a per-user path, which is what keeps
+    /// two users on one machine from sharing an endpoint. Ignored when <see cref="Guard"/> is
+    /// <see langword="false"/>.
+    /// </summary>
+    public string? GuardEndpoint { get; set; }
+
+    /// <summary>
+    /// How long, in milliseconds, the guard hook client waits for the server's verdict before giving
+    /// up <b>silently</b>. Defaults to 10 seconds.
+    /// <para>
+    /// Deliberately NOT <see cref="DefaultTimeout"/>: that is an analysis budget sized for a tool
+    /// call a caller is waiting on, while this bounds a hook the agent harness will itself kill —
+    /// the same separation-of-clocks argument as <see cref="ConfirmDestructiveWritesTimeout"/>.
+    /// Expiry is never an error: a guard that cannot inform must not be able to interrupt.
+    /// </para>
+    /// </summary>
+    public int GuardTimeout { get; set; } = DefaultGuardTimeoutMs;
 }
