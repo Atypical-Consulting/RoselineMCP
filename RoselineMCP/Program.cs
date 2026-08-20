@@ -16,6 +16,11 @@ using RoselineMCP.Services;
 // claim stdio — the very channel this process must leave alone (stdout is the hook's JSON result).
 if (args.Length > 0 && string.Equals(args[0], "guard", StringComparison.OrdinalIgnoreCase))
 {
+    if (args.Contains("--print-hook", StringComparer.OrdinalIgnoreCase))
+    {
+        return GuardClient.PrintHook(Console.Out);
+    }
+
     return await GuardClient.RunAsync(
         Console.In, Console.Out, Console.Error, ReadGuardOptions());
 }

@@ -69,6 +69,96 @@ public static class GuardClient
     }
 
     /// <summary>
+    /// Prints the <c>settings.json</c> block that wires this executable in as a
+    /// <c>PostToolUse</c> hook, and returns <c>0</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It prints; it never edits the operator's <c>settings.json</c>. Installing a hook changes what
+    /// runs after every tool call in that repository, and a tool that quietly rewrote its host's
+    /// configuration to install itself would be taking a decision that is not its to take.
+    /// </para>
+    /// <para>
+    /// The command is an <b>absolute</b> path. A hook runs with the harness's <c>PATH</c>, which need
+    /// not contain the dotnet tools directory, and a hook whose command cannot be found simply never
+    /// fires — silently, which is the one failure mode this feature can least afford.
+    /// </para>
+    /// </remarks>
+    public static int PrintHook(TextWriter stdout)
+    {
+        ArgumentNullException.ThrowIfNull(stdout);
+
+        var block = new
+        {
+            hooks = new
+            {
+                PostToolUse = new[]
+                {
+                    new
+                    {
+                        matcher = "Edit|Write|MultiEdit",
+                        hooks = new[]
+                        {
+                            new
+                            {
+                                type = "command",
+                                command = BuildHookCommand(
+                                    Environment.ProcessPath,
+                                    System.Reflection.Assembly.GetEntryAssembly()?.Location),
+                                timeout = 30,
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        // Relaxed escaping so the quoted paths print as \" rather than ". Both are valid JSON,
+        // but this block is meant to be read and pasted by a person, and the escaped form is not.
+        stdout.WriteLine(JsonSerializer.Serialize(block, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        }));
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Builds the shell command that runs this build's <c>guard</c> verb.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two launch shapes, and getting them confused prints a command that does nothing. A
+    /// <c>dotnet tool</c> install runs through an <b>apphost</b> — <c>Environment.ProcessPath</c> is
+    /// then <c>roseline-mcp</c> itself and <c>"&lt;path&gt; guard"</c> is correct. A framework-dependent
+    /// run goes through the <b>muxer</b>, where <c>ProcessPath</c> is the <c>dotnet</c> executable;
+    /// printing <c>"&lt;dotnet&gt; guard"</c> there yields <c>dotnet guard</c>, which is not this program
+    /// at all. Measured, and it is why this is a separate testable function rather than one
+    /// expression inline: the first version shipped the muxer bug and the test that "covered" it
+    /// compared the output against the very same <c>ProcessPath</c>, so it agreed with itself.
+    /// </para>
+    /// <para>Paths are quoted: install directories contain spaces far more often than not.</para>
+    /// </remarks>
+    public static string BuildHookCommand(string? processPath, string? entryAssemblyPath)
+    {
+        if (string.IsNullOrWhiteSpace(processPath))
+        {
+            return "roseline-mcp guard";
+        }
+
+        var isMuxer = Path.GetFileNameWithoutExtension(processPath)
+            .Equals("dotnet", StringComparison.OrdinalIgnoreCase);
+
+        if (isMuxer && !string.IsNullOrWhiteSpace(entryAssemblyPath))
+        {
+            return $"\"{processPath}\" \"{entryAssemblyPath}\" guard";
+        }
+
+        return $"\"{processPath}\" guard";
+    }
+
+    /// <summary>
     /// Extracts the file this run should ask about, or <see langword="null"/> when there is nothing
     /// to ask — which covers every malformed, irrelevant or unusable envelope.
     /// </summary>
