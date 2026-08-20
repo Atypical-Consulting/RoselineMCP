@@ -296,14 +296,25 @@ public class ProjectLoader : IProjectLoader
     /// <summary>
     /// Resolves <paramref name="project"/> (a <c>.csproj</c> path, a directory, or a bare project
     /// name) to a concrete <c>.csproj</c> path, throwing <see cref="FileNotFoundException"/> if none
-    /// can be found so the tool layer reports a <c>NotFoundError</c>. A bare name is looked up by
-    /// sweeping <paramref name="baseDirectory"/> recursively — the same anchor
-    /// <see cref="AutoDiscover"/> walks, so both halves of resolution answer from one directory
-    /// rather than this one silently reaching for the process working directory instead.
+    /// can be found so the tool layer reports a <c>NotFoundError</c>. A bare <em>name</em> is looked
+    /// up by sweeping <paramref name="baseDirectory"/> recursively — the same anchor
+    /// <see cref="AutoDiscover"/> walks — rather than reaching for the process working directory
+    /// independently of the caller that already resolved one.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Only the bare-name sweep is anchored that way. The two branches above it hand
+    /// <paramref name="project"/> to <see cref="File.Exists(string)"/> and
+    /// <see cref="Directory.Exists(string)"/>, which the CLR resolves against the <em>process</em>
+    /// working directory — so a <em>relative</em> path argument still answers from there, not from
+    /// <paramref name="baseDirectory"/>. In production the two are the same value (every caller of
+    /// <see cref="ResolveTargetPath"/> passes <see cref="Directory.GetCurrentDirectory"/>); they
+    /// diverge only under test.
+    /// </para>
+    /// <para>
     /// The two enumerations below deliberately use <em>different</em> overloads, and the asymmetry
     /// is the point: the caller named the directory in the first, and did not in the second.
+    /// </para>
     /// </remarks>
     private static string ResolveProjectPath(string project, string baseDirectory)
     {
@@ -320,6 +331,13 @@ public class ProjectLoader : IProjectLoader
             // FileNotFoundException below — "Project not found" — sending them to look for a missing
             // file instead of fixing a permission. ToolExecutionHelper.Classify maps the throw onto
             // AnalysisError, so the real message reaches the caller intact.
+            //
+            // Caveat, and it is a real limit rather than an oversight: this holds where an
+            // unreadable directory still reports as existing, which is the Unix behavior. Windows
+            // ACL-denies instead, and Directory.Exists is documented to answer false when the caller
+            // lacks permission — so there the branch is skipped and such a path degrades to
+            // NotFoundError after all. Closing that would need an attempted enumeration rather than
+            // an Exists probe; it is not attempted here.
             var csprojFiles = Directory.GetFiles(project, "*.csproj", SearchOption.TopDirectoryOnly);
             if (csprojFiles.Length > 0)
             {
@@ -327,21 +345,36 @@ public class ProjectLoader : IProjectLoader
             }
         }
 
-        // EnumerationOptions, not SearchOption.AllDirectories: EnumerationOptions.IgnoreInaccessible
-        // defaults to true, whereas the SearchOption overloads pass EnumerationOptions.Compatible,
-        // which sets it false to preserve .NET Framework behavior. This sweep is incidental — an
-        // unreadable directory anywhere under the base directory has nothing to do with resolving a
-        // project NAME — so aborting the whole lookup over one was wrong regardless of how the
-        // resulting exception was labelled. Note the overloads also differ in MatchType (Win32 vs
-        // Simple); the two agree for the literal pattern "*.csproj", but do not reuse this options
-        // object for a pattern where that distinction matters.
-        var candidates = Directory.GetFiles(
-            baseDirectory,
-            "*.csproj",
-            new EnumerationOptions { RecurseSubdirectories = true });
+        // EnumerationOptions, not SearchOption.AllDirectories: IgnoreInaccessible defaults to true
+        // here, whereas the SearchOption overloads pass EnumerationOptions.Compatible, which sets it
+        // false to preserve .NET Framework behavior. This sweep is incidental — an unreadable
+        // directory anywhere under the base directory has nothing to do with resolving a project
+        // NAME — so aborting the whole lookup over one was wrong regardless of how the resulting
+        // exception was labelled.
+        //
+        // The other two properties are pinned back to what Compatible used, and BOTH matter:
+        //   * AttributesToSkip = 0. The parameterless ctor defaults it to Hidden | System, and .NET
+        //     infers Hidden from a leading dot on Unix — so leaving it default silently hides every
+        //     project under a dot-directory, ".claude/worktrees/<name>/" among them, which is the
+        //     layout Claude Code creates. Measured: a tree of 3 projects resolved 3 with the old
+        //     overload and 1 with the bare options object. It would also have split by platform,
+        //     since Windows does not infer Hidden from a leading dot.
+        //   * MatchType = Win32. Compatible's value; the parameterless ctor uses Simple. The two
+        //     agree for the literal pattern "*.csproj", so this pins intent rather than fixing a
+        //     live bug — but it keeps the options object honest if the pattern ever changes.
+        // IgnoreInaccessible is therefore the ONLY behavior this deliberately changes.
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            AttributesToSkip = 0,
+            MatchType = MatchType.Win32
+        };
 
-        var match = candidates.FirstOrDefault(f =>
-            Path.GetFileNameWithoutExtension(f).Equals(project, StringComparison.OrdinalIgnoreCase));
+        // EnumerateFiles, not GetFiles: this streams and stops at the first name match instead of
+        // materializing every .csproj in the tree first. The scan runs on the write-confirmation
+        // path before a human is prompted, so the early exit is worth the one-word difference.
+        var match = Directory.EnumerateFiles(baseDirectory, "*.csproj", options)
+            .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(project, StringComparison.OrdinalIgnoreCase));
         if (match != null)
         {
             return match;

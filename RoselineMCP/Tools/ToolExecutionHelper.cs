@@ -360,9 +360,12 @@ internal static class ToolExecutionHelper
     /// <para>
     /// No MSBuild workspace is loaded, so this is far cheaper than the load that follows — but it is
     /// not free. A bare project name that matches neither a file nor a directory falls through to a
-    /// recursive <c>*.csproj</c> scan of the working directory, which on a large tree is slow and
-    /// can throw on an unreadable subdirectory. That is the main reason every path which will not
-    /// send a prompt returns before calling this.
+    /// recursive <c>*.csproj</c> scan of the working directory, which on a large tree is slow. That
+    /// is the main reason every path which will not send a prompt returns before calling this. The
+    /// scan no longer throws on an unreadable <em>sub</em>directory — it skips it
+    /// (<c>IgnoreInaccessible</c>) — so cost, not fragility, is what remains of the justification.
+    /// A <em>named</em> directory that cannot be read still throws, by design, and now surfaces as
+    /// <c>AnalysisError</c> rather than a message-scrubbed <c>InternalError</c>.
     /// </para>
     /// <para>
     /// Two symptoms shared one cause here. A caller who omitted <c>project</c> — the documented
