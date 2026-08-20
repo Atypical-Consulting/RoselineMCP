@@ -72,6 +72,22 @@ optional and auto-discovery walks the working directory, its parents and its imm
 subdirectories, this is the one thing that lets a caller notice a server launched from an unexpected
 directory is about to write to a solution they did not intend.
 
+Naming the target is not quite the same as naming the **scope**, and the three tools differ there.
+[`EditMember`](#editmember) and [`RenameSymbol`](#renamesymbol) are solution-wide Roslyn operations,
+so a prompt naming a `.sln` describes exactly what they write. [`ApplyFixes`](#applyfixes) is
+project-scoped: when the resolved target is a solution it fixes a **single** project inside it — the
+anchor `ProjectLoader` selects (the C# project whose file name matches the `.sln`, otherwise the
+first C# project Roslyn enumerated) — and the other projects are left untouched. Its prompt says so
+rather than implying a solution-wide write:
+
+> Apply code fixes for 2 diagnostic ID(s) to the primary project of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
+
+When the resolved target is already a `.csproj`, that project *is* the whole scope and the sentence
+names it directly, with no qualifier. The prompt deliberately does not name *which* project the
+anchor will be: that answer requires loading an MSBuild workspace, which would happen before the
+human has agreed to anything and would have to be re-derived after the round-trip — reopening the
+window that resolving-once closes.
+
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory
 falls back to a recursive `*.csproj` scan of the working directory. Nothing on a path that will not
