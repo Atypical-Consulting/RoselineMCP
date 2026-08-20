@@ -570,11 +570,26 @@ internal static class ToolExecutionHelper
     /// failures fail safe (no raw detail leaked) rather than silently exposing implementation
     /// details through an unclassified/raw type name.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="UnauthorizedAccessException"/> sits in the analysis arm alongside
+    /// <see cref="IOException"/>, and it has to be named explicitly: it derives from
+    /// <c>SystemException</c>, <em>not</em> from <see cref="IOException"/>, so without this it
+    /// falls to the catch-all — the one arm that scrubs the message. A permission failure is an
+    /// analysis-tier failure because it happens while reading, enumerating, or writing the target
+    /// (<c>ProjectLoader</c>'s discovery scans, <c>SourceTextWriter.WriteAsync</c>), which is what
+    /// <c>docs/API.md</c> defines <c>AnalysisError</c> to mean. It is not
+    /// <see cref="ToolErrorTypes.Validation"/> — the caller's arguments were fine — and not
+    /// <see cref="ToolErrorTypes.NotFound"/> — the path exists, it just cannot be read or written.
+    /// Classifying it here is what lets "Access to the path '...' is denied." reach the caller
+    /// intact, so a permission problem can be fixed instead of reported as an opaque correlation id.
+    /// </para>
+    /// </remarks>
     private static string Classify(Exception ex) => ex switch
     {
         ArgumentException or FormatException => ToolErrorTypes.Validation,
         FileNotFoundException or DirectoryNotFoundException or KeyNotFoundException => ToolErrorTypes.NotFound,
-        InvalidOperationException or TimeoutException or IOException => ToolErrorTypes.Analysis,
+        InvalidOperationException or TimeoutException or IOException or UnauthorizedAccessException => ToolErrorTypes.Analysis,
         _ => ToolErrorTypes.Internal
     };
 }

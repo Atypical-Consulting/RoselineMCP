@@ -40,6 +40,7 @@ public class ToolErrorContractTests
         yield return [new ArgumentException("Bad argument"), "ValidationError"];
         yield return [new InvalidOperationException("Workspace failed to load"), "AnalysisError"];
         yield return [new TimeoutException("Git clone timed out"), "AnalysisError"];
+        yield return [new UnauthorizedAccessException("Access to the path '/repo/Some/File.cs' is denied."), "AnalysisError"];
         yield return [new NullReferenceException("Object reference not set"), "InternalError"];
     }
 
@@ -137,6 +138,30 @@ public class ToolErrorContractTests
         result.Error.Message.ShouldNotContain(sensitiveDetail);
         result.Error.Message.ShouldNotContain("NullReferenceException");
         result.Error.Type.ShouldBe("InternalError");
+    }
+
+    /// <summary>
+    /// A permission-denied failure must reach the caller classified <em>and legible</em>.
+    /// <see cref="UnauthorizedAccessException"/> derives from <c>SystemException</c>, not
+    /// <see cref="IOException"/>, so it used to fall through to the catch-all InternalError arm —
+    /// the one arm that deliberately scrubs the message. That scrubbing is right for genuinely
+    /// unexpected failures and wrong here: "Access to the path '...' is denied." is precisely the
+    /// text a caller can act on, so the message assertion below is the point of this test.
+    /// </summary>
+    [Fact]
+    public async Task Permission_Denied_Is_AnalysisError_With_Its_Message_Preserved()
+    {
+        const string deniedPath = "/repo/Some/File.cs";
+        var analyzerService = A.Fake<ISolutionAnalyzerService>();
+        A.CallTo(() => analyzerService.AnalyzeSolutionAsync(
+                A<string>._, A<string?>._, A<string?>._, A<string?>._, A<string?>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Throws(new UnauthorizedAccessException($"Access to the path '{deniedPath}' is denied."));
+
+        var result = await AnalyzeSolutionTool.AnalyzeSolution(analyzerService, "test.sln");
+
+        AssertDocumentedType(result, "AnalysisError");
+        result.Error.ShouldNotBeNull();
+        result.Error.Message.ShouldContain(deniedPath);
     }
 
     [Fact]
