@@ -7,19 +7,27 @@ namespace RoselineMCP.Tests.Configuration;
 /// returned to the value the scope found, not unconditionally cleared.
 /// </summary>
 /// <remarks>
-/// The keys below are test-only and deliberately not <c>ROSELINE_RoselineMCP__*</c>, so no run of
-/// this file can disturb a setting an operator (or another test) actually reads.
+/// The keys below are deliberately <b>not</b> <c>ROSELINE_</c>-prefixed.
+/// <see cref="RoselineMcpOptionsBindingTests"/> is a separate xUnit collection — so it runs in
+/// parallel with this one by default — and its <c>AddEnvironmentVariables(prefix: "ROSELINE_")</c>
+/// ingests <i>every</i> variable carrying that prefix, not just the two it asserts on. Staying
+/// outside the prefix is what makes the two classes actually independent, rather than independent
+/// by the accident of which section a key lands in.
 /// </remarks>
 public class ScopedEnvironmentVariableTests
 {
-    private const string UnsetKey = "ROSELINE_TEST_SCOPED_UNSET";
-    private const string PresetKey = "ROSELINE_TEST_SCOPED_PRESET";
-    private const string ClearedKey = "ROSELINE_TEST_SCOPED_CLEARED";
+    private const string UnsetKey = "ScopedEnvTests_Unset";
+    private const string PresetKey = "ScopedEnvTests_Preset";
+    private const string ClearedKey = "ScopedEnvTests_Cleared";
+    private const string NestedKey = "ScopedEnvTests_Nested";
 
     [Fact]
     public void A_Variable_That_Was_Unset_Is_Unset_Again_After_Dispose()
     {
-        Environment.SetEnvironmentVariable(UnsetKey, null);
+        // Establishing the precondition through the type under test rather than a bare
+        // SetEnvironmentVariable: hand-rolling it here would reintroduce the restore-to-null defect
+        // this class exists to disprove, one file over.
+        using var ambient = ScopedEnvironmentVariable.Set(UnsetKey, null);
 
         using (ScopedEnvironmentVariable.Set(UnsetKey, "inside"))
         {
@@ -34,39 +42,52 @@ public class ScopedEnvironmentVariableTests
     {
         // The case today's `SetEnvironmentVariable(key, null)` restore gets wrong: it would leave
         // the variable unset instead of returning the operator's value.
-        Environment.SetEnvironmentVariable(PresetKey, "original");
-        try
-        {
-            using (ScopedEnvironmentVariable.Set(PresetKey, "other"))
-            {
-                Environment.GetEnvironmentVariable(PresetKey).ShouldBe("other");
-            }
+        using var ambient = ScopedEnvironmentVariable.Set(PresetKey, "original");
 
-            Environment.GetEnvironmentVariable(PresetKey).ShouldBe("original");
-        }
-        finally
+        using (ScopedEnvironmentVariable.Set(PresetKey, "other"))
         {
-            Environment.SetEnvironmentVariable(PresetKey, null);
+            Environment.GetEnvironmentVariable(PresetKey).ShouldBe("other");
         }
+
+        Environment.GetEnvironmentVariable(PresetKey).ShouldBe("original");
     }
 
     [Fact]
     public void Passing_Null_Clears_The_Variable_For_The_Scope_Then_Restores_It()
     {
         // How the binding tests enforce their "with the variable unset" precondition.
-        Environment.SetEnvironmentVariable(ClearedKey, "exported");
-        try
+        using var ambient = ScopedEnvironmentVariable.Set(ClearedKey, "exported");
+
+        using (ScopedEnvironmentVariable.Set(ClearedKey, null))
         {
-            using (ScopedEnvironmentVariable.Set(ClearedKey, null))
+            Environment.GetEnvironmentVariable(ClearedKey).ShouldBeNull();
+        }
+
+        Environment.GetEnvironmentVariable(ClearedKey).ShouldBe("exported");
+    }
+
+    [Fact]
+    public void Nested_Scopes_On_One_Key_Unwind_To_The_Ambient_Value()
+    {
+        // The exact shape both binding tests rely on: an outer scope clears the variable to enforce
+        // the "unset" precondition, an inner scope sets the value under test. Each scope must
+        // capture the value *it* found — an implementation that memoized the ambient value per key,
+        // or skipped the write when the value looked unchanged, would keep the three tests above
+        // green while silently destroying an operator's export here.
+        using var ambient = ScopedEnvironmentVariable.Set(NestedKey, "ambient");
+
+        using (ScopedEnvironmentVariable.Set(NestedKey, null))
+        {
+            Environment.GetEnvironmentVariable(NestedKey).ShouldBeNull();
+
+            using (ScopedEnvironmentVariable.Set(NestedKey, "inner"))
             {
-                Environment.GetEnvironmentVariable(ClearedKey).ShouldBeNull();
+                Environment.GetEnvironmentVariable(NestedKey).ShouldBe("inner");
             }
 
-            Environment.GetEnvironmentVariable(ClearedKey).ShouldBe("exported");
+            Environment.GetEnvironmentVariable(NestedKey).ShouldBeNull();
         }
-        finally
-        {
-            Environment.SetEnvironmentVariable(ClearedKey, null);
-        }
+
+        Environment.GetEnvironmentVariable(NestedKey).ShouldBe("ambient");
     }
 }

@@ -59,10 +59,8 @@ public class RoselineMcpOptionsBindingTests
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
         const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWrites";
 
-        // This scope ENFORCES the precondition the assertion below rests on, rather than assuming
-        // it: the provider reads the real process environment, so a developer who has exported the
-        // variable — exactly as README.md § Environment Variables instructs — would otherwise fail
-        // here on a correct build. Their value is restored on dispose, not cleared.
+        // Enforces the "unset" precondition below instead of assuming it, and hands any exported
+        // value back afterwards — see ScopedEnvironmentVariable for why that matters.
         using var _ = ScopedEnvironmentVariable.Set(key, null);
 
         var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
@@ -119,10 +117,8 @@ public class RoselineMcpOptionsBindingTests
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
         const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout";
 
-        // This scope ENFORCES the precondition the assertion below rests on, rather than assuming
-        // it: the provider reads the real process environment, so a developer who has exported the
-        // variable — exactly as README.md § Environment Variables instructs — would otherwise fail
-        // here on a correct build. Their value is restored on dispose, not cleared.
+        // Enforces the "unset" precondition below instead of assuming it, and hands any exported
+        // value back afterwards — see ScopedEnvironmentVariable for why that matters.
         using var _ = ScopedEnvironmentVariable.Set(key, null);
 
         var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
