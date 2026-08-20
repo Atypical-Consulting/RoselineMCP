@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Versioning;
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
@@ -364,6 +365,109 @@ public class ProjectLoaderTests : IDisposable
 
         // The escape hatch: an explicit absolute path overrides the cwd anchor entirely.
         ResolveTargetPath(worktreeSln, _baseDir).ShouldBe(worktreeSln);
+    }
+
+    /// <summary>
+    /// Skips unless this process can actually be denied by a Unix mode bit. Two ways it cannot:
+    /// <see cref="File.SetUnixFileMode(string, UnixFileMode)"/> throws outright on Windows (CI runs
+    /// a Windows leg), and root bypasses the mode bits entirely, so under a root container the
+    /// fixture would build without denying anything and the test would fail for a reason unrelated
+    /// to the code under test. <see cref="Assert.Skip"/> rather than a bare <c>return</c>, so the
+    /// gap shows up in the run summary instead of being reported as a passing assertion-free test.
+    /// </summary>
+    private static void RequireEnforcedUnixPermissions()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("File.SetUnixFileMode is unsupported on Windows.");
+        }
+
+        if (Environment.IsPrivilegedProcess)
+        {
+            Assert.Skip("Running privileged: mode bits do not deny this process, so the fixture cannot deny access.");
+        }
+    }
+
+    /// <summary>
+    /// Creates an unreadable directory and restores its mode on dispose. The restore is structural
+    /// rather than remembered: a directory left at <see cref="UnixFileMode.None"/> cannot be removed
+    /// by <see cref="Dispose"/> and would strand a temp tree on the machine, so it must not depend
+    /// on each test remembering a <c>finally</c>.
+    /// </summary>
+    [UnsupportedOSPlatform("windows")]
+    private sealed class LockedDirectory(string fullPath) : IDisposable
+    {
+        public string FullPath { get; } = fullPath;
+
+        public void Dispose() =>
+            File.SetUnixFileMode(FullPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+    }
+
+    [UnsupportedOSPlatform("windows")]
+    private LockedDirectory Lock(string relativePath)
+    {
+        var fullPath = Path.Combine(_baseDir, relativePath);
+        Directory.CreateDirectory(fullPath);
+        File.SetUnixFileMode(fullPath, UnixFileMode.None);
+        return new LockedDirectory(fullPath);
+    }
+
+    /// <summary>
+    /// A bare project name falls through to the recursive sweep, and that sweep must not be
+    /// derailed by a directory it happens to have no permission to read. The unreadable sibling
+    /// here has nothing to do with the request; aborting the whole lookup over it was the defect.
+    /// </summary>
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void RecursiveSweep_SkipsAnUnreadableDirectory_AndStillFindsTheProject()
+    {
+        RequireEnforcedUnixPermissions();
+
+        var csproj = Touch(Path.Combine("Readable", "Acme.csproj"));
+        using var _ = Lock("Locked");
+
+        ResolveTargetPath("Acme", _baseDir).ShouldBe(csproj);
+    }
+
+    /// <summary>
+    /// The deliberate other half of the asymmetry: when the caller <em>names</em> the directory,
+    /// "I could not read it" is the answer they need. Ignoring the permission failure here would
+    /// degrade it into <see cref="FileNotFoundException"/> — "Project not found" — sending them off
+    /// to look for a missing file instead of fixing a mode bit. So this branch keeps throwing, and
+    /// <c>ToolExecutionHelper.Classify</c> is what turns the throw into a message-bearing
+    /// AnalysisError rather than a scrubbed InternalError.
+    /// </summary>
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void AnExplicitlyNamedUnreadableDirectory_StillRaisesThePermissionFailure()
+    {
+        RequireEnforcedUnixPermissions();
+
+        using var locked = Lock("Locked");
+
+        // Directory.Exists reports true for a mode-000 directory on Unix, so the caller-named branch
+        // is entered and then throws — which is exactly the behavior being pinned. See the caveat on
+        // ProjectLoader.ResolveProjectPath: Windows ACL-denies and answers false instead, which is
+        // one of the reasons this test is Unix-only.
+        Should.Throw<UnauthorizedAccessException>(() => ResolveTargetPath(locked.FullPath, _baseDir));
+    }
+
+    /// <summary>
+    /// Regression guard for the enumeration-options swap: the parameterless
+    /// <see cref="EnumerationOptions"/> ctor defaults <c>AttributesToSkip</c> to
+    /// <c>Hidden | System</c>, and .NET infers Hidden from a leading dot on Unix — so adopting it
+    /// without pinning that property back to <c>0</c> silently hides every project under a
+    /// dot-directory. <c>.claude/worktrees/&lt;name&gt;/</c> is exactly such a layout, and exactly
+    /// the one Claude Code creates, so this is not a hypothetical corner. Deliberately NOT
+    /// Unix-only: the bug it guards was platform-split, visible only on Unix, which is precisely
+    /// what makes a cross-platform assertion worth having.
+    /// </summary>
+    [Fact]
+    public void RecursiveSweep_FindsAProjectNestedUnderADotDirectory()
+    {
+        var csproj = Touch(Path.Combine(".claude", "worktrees", "wt", "Acme.csproj"));
+
+        ResolveTargetPath("Acme", _baseDir).ShouldBe(csproj);
     }
 
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>

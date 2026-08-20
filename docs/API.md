@@ -128,7 +128,7 @@ send a prompt pays that cost, since none of them resolve at all.
 | Client is asked and **never answers** | After `RoselineMCP:ConfirmDestructiveWritesTimeout` (default `300000`, 5 minutes) the server stops waiting and downgrades the call to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write confirmation timed out; returned a preview only (no files were modified). Set RoselineMCP:ConfirmDestructiveWrites=false on unattended hosts that should write without a human, or raise RoselineMCP:ConfirmDestructiveWritesTimeout."` |
 | Client does not support elicitation, or the round-trip fails | No confirmation is possible, so the explicit opt-in stands and the write proceeds. A client that never negotiated elicitation is detected from its capabilities, so no prompt is built and no target is resolved. |
 | `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. The prompt is not even built, so no target is resolved. |
-| The write target **cannot be resolved** — auto-discovery finds nothing or several candidates, or an explicit `project` matches nothing | **No elicitation is sent**; the call returns its ordinary failure envelope (`ok: false`, a `ValidationError` or `NotFoundError` — see [Error Handling](#error-handling)). A write that cannot be targeted fails before a human is asked, rather than spending their answer on a call that was going to fail anyway. |
+| The write target **cannot be resolved** — auto-discovery finds nothing or several candidates, an explicit `project` matches nothing, or a named directory cannot be read | **No elicitation is sent**; the call returns its ordinary failure envelope (`ok: false`, a `ValidationError`, `NotFoundError` or `AnalysisError` — see [Error Handling](#error-handling)). A write that cannot be targeted fails before a human is asked, rather than spending their answer on a call that was going to fail anyway. |
 
 Silence is deliberately *not* consent: a client that **cannot** be asked justifies honoring the
 explicit opt-in, but one that was asked and said nothing does not. The timeout therefore removes the
@@ -1077,7 +1077,7 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
 |--------|---------|------------------|
 | `ValidationError` | Caller-supplied input was missing, malformed, or otherwise invalid | Unrecognized `severity` string; `ApplyFixes` called with an empty `ids` array |
 | `NotFoundError` | The requested solution, project, or file could not be located | `FileNotFoundException`, `DirectoryNotFoundException` |
-| `AnalysisError` | Failure while analyzing, building, or fetching the target | MSBuild workspace load failure, Git clone failure/timeout |
+| `AnalysisError` | Failure while analyzing, building, or fetching the target | MSBuild workspace load failure, Git clone failure/timeout, permission denied — a read-only source file the write tools cannot open, or a directory the server cannot read |
 | `CancelledError` | The caller's own cancellation token was triggered before completion | Client disconnects/cancels mid-call |
 | `TimeoutError` | The call exceeded the configured wall-clock timeout | `RoselineMCP:DefaultTimeout` elapsed (120,000 ms by default; 0 disables it) |
 | `InternalError` | Unexpected, unclassified failure | Any exception not mapped to the categories above |

@@ -44,30 +44,35 @@ jobs:
         run: dotnet build --no-restore -c Release
 
       # Coverage is only gated and uploaded on ubuntu (below), so only instrument the
-      # ubuntu leg - coverlet instrumentation on windows/macos was pure slowdown.
+      # ubuntu leg - coverage instrumentation on windows/macos was pure slowdown.
       - name: Test
         if: matrix.os != 'ubuntu-latest'
         run: dotnet test --no-build -c Release
 
+      # `dotnet test` runs in Microsoft.Testing.Platform mode (see global.json), so these are
+      # MTP options, not VSTest ones: `--logger trx` and the coverlet `-p:` properties are not
+      # merely renamed here, they no longer do anything at all. Coverage scope needs no
+      # include/exclude filters: only the project's own modules are instrumented (the test
+      # assembly is not), and Program.cs is already carved out by its [ExcludeFromCodeCoverage].
       - name: Test with Coverage
         if: matrix.os == 'ubuntu-latest'
         run: |
           dotnet test --no-build -c Release \
-            -p:CollectCoverage=true \
-            -p:CoverletOutputFormat=cobertura \
-            -p:CoverletOutput=./TestResults/coverage.cobertura.xml \
-            "-p:Include=[RoselineMCP]*" \
-            "-p:Exclude=[RoselineMCP.Tests]*" \
-            -p:ExcludeByFile="**/Program.cs" \
-            --logger "trx;LogFileName=test-results.trx"
+            --coverage \
+            --coverage-output-format cobertura \
+            --coverage-output coverage.cobertura.xml \
+            --report-trx \
+            --report-trx-filename test-results.trx \
+            --results-directory RoselineMCP.Tests/TestResults
 
       - name: Check coverage threshold
         if: matrix.os == 'ubuntu-latest'
         run: |
-          # coverlet.msbuild writes the report to exactly this path (CoverletOutput above
-          # is resolved relative to the test project). Read it directly rather than
-          # searching - a filesystem-order-dependent `find | head -1` could pick up a
-          # GUID-named report from another collector that measures a different scope.
+          # The code coverage extension writes the report to exactly this path
+          # (--coverage-output is resolved inside --results-directory above). Read it
+          # directly rather than searching - a filesystem-order-dependent `find | head -1`
+          # could pick up a GUID-named report from another collector that measures a
+          # different scope.
           COVERAGE_FILE="RoselineMCP.Tests/TestResults/coverage.cobertura.xml"
           if [ ! -f "$COVERAGE_FILE" ]; then
             echo "❌ No coverage report found at $COVERAGE_FILE"
