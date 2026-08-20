@@ -555,6 +555,7 @@ public class CodeEditServiceTests
         result.Verification.ShouldNotBeNull();
         result.Verification.Introduced.ShouldNotBeNull();
         result.Verification.Introduced.ShouldContain(d => d.Project == "Web");
+        result.Verification.Scope.ShouldNotBeNull();
         result.Verification.Scope.ShouldContain("Web");
         // The diff still comes back: a refusal must be more informative than a decline, not less.
         result.Patch.ShouldNotBeNullOrEmpty();

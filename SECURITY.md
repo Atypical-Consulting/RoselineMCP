@@ -186,6 +186,33 @@ intended read-only guarantees for the *output* of analysis, or path
 traversal outside the designated workspace), please report it as described
 above.
 
+## Compile Verification and the Write Gate
+
+Since 3.0.0 the three write tools (`apply_fixes`, `edit_member`, `rename_symbol`) compile the
+candidate change **in memory** before anything reaches disk, and refuse it when it introduces
+compiler errors. Two things follow that matter for a threat model.
+
+**What it guarantees, stated narrowly.** *The verified change set compiles, and no refused edit is
+ever written.* It is **not** "the working tree always compiles after any outcome". Both multi-file
+writers apply changes file by file, so a cancellation or I/O failure partway through a twelve-file
+rename leaves some files written and some not — a state neither the baseline nor the candidate
+describes. That boundary is covered by a test
+(`CodeEditServiceTests.RenameSymbol_Multi_File_Write_Is_Not_Atomic`) rather than assumed away, and
+it is not a defence you should build on.
+
+**It is a correctness gate, not a security boundary.** `allowIntroducedErrors: true` waives it from
+the tool call, so it constrains mistakes, not an adversarial caller. The guards that constrain a
+caller are the explicit `previewOnly: false` opt-in and the write-confirmation elicitation, both
+unchanged. `scopeComplete: false` in the verdict means the gate could not prove it saw every
+dependent (a bare `.csproj` with no containing solution) — the write still proceeds, and the caller
+is told the check was partial rather than handed a false green.
+
+**`check_compilation` carries the same execution surface as every other semantic path.** It builds a
+`Compilation`, so **source generators** referenced by the target project run, exactly as they do for
+the navigation tools, `apply_fixes` and `analyze_solution` (see *Analyzer execution is code
+execution* above). It does **not** run diagnostic analyzers — it is compiler-only — so it is a
+strictly *narrower* surface than `list_diagnostics`, not a new one.
+
 ## Known Risk: Git Clone SSRF Mitigation Is Not TOCTOU-Proof
 
 When `AnalyzeSolution` is given an `http(s)://` `pathOrGit` URL, RoselineMCP

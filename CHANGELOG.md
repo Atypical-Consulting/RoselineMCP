@@ -7,7 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **The write tools now refuse changes that introduce compiler errors.** `apply_fixes`,
+  `edit_member` and `rename_symbol` compile the candidate change **in memory** before anything
+  reaches disk. When the change *introduces* compiler errors — including in a downstream project the
+  caller never named — the write is refused: the call still succeeds (`ok: true`), `applied` comes
+  back **`false`**, nothing is written, and the response carries the diff *and* the introduced
+  errors. Pass the new `allowIntroducedErrors: true` to write anyway.
+
+  This is a behavioural break of the write-tool contract, which is why it ships as **3.0.0**: a
+  caller that passed `previewOnly: false` and assumed the write happened must now read `applied`.
+  `apply_fixes` had **no `applied` field at all** before this release — without it a refusal was
+  indistinguishable from a success, since the response still carries `previewOnly: false`, a patch
+  and a `fixedCount`. It has one now.
+
+  **The gate is what a change *introduces*, never whether the tree compiles.** A repository that was
+  already broken reports `compiles: false` with an empty `introduced`, and the write proceeds —
+  refusing there would make RoselineMCP unusable on exactly the branches an agent is sent to fix.
+  The new `preexisting` count exists so an agent does not mistake someone else's errors for its own.
+
+  The guarantee is deliberately narrow and is stated in `docs/API.md` and `SECURITY.md`: *the
+  verified change set compiles, and no refused edit is ever written* — **not** that the working tree
+  always compiles after any outcome. Both multi-file writers apply changes file by file, so an
+  interrupted rename still leaves a partially-written tree. (#133)
+
 ### Added
+
+- **`check_compilation`** — a new read-only tool answering *"does this compile right now, and what
+  broke"* against on-disk state, meant to replace a `dotnet build` round trip in an agent's edit
+  loop. Compiler diagnostics only (analyzers cost several times a bare compile, which is what makes
+  this fast enough to run after every edit), and it reports on whatever is on disk regardless of who
+  edited it — so it serves agents that never call RoselineMCP's write tools. Parameters:
+  `project?`, `max?` (default 20). Measured on a warm workspace right after a real on-disk edit:
+  **428 ms** (1 project) / **623 ms** (4 projects), against a 30–90 s build. See `BENCHMARKS.md`.
+  (#133)
+- **`verification`** on every write tool's response — the compiler's verdict: `compiles`,
+  `introduced`, `resolved`, `preexisting`, `omitted`, `scope`, `scopeComplete`, `notes`. Every
+  collection is omitted from the wire when empty and every counter when zero, so the common
+  "nothing to report" case costs almost nothing. `scopeComplete` is the deliberate exception and is
+  always emitted: `false` means a bare `.csproj` was loaded with no containing solution, so the gate
+  could not prove it saw every dependent — a partial gate, said out loud rather than served as a
+  false green. (#133)
+- **`allowIntroducedErrors`** (default `false`) and **`max`** (default 20) on `apply_fixes`,
+  `edit_member` and `rename_symbol`. `max` bounds each diagnostic list and reports the drop count in
+  `omitted`: a rename that breaks a public member of a base project produces thousands of binding
+  errors, and unbounded the refusal would cost more tokens than the `dotnet build` output it
+  replaces. (#133)
 - Every project-loading tool now reports **`resolvedPath`**, the absolute `.sln`/`.csproj` it
   actually loaded, so callers can tell a git worktree from its main checkout. Auto-discovery is
   anchored to the *server's* working directory (fixed when the MCP client spawned it), not the
@@ -19,6 +65,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged. (#139)
 
 ### Changed
+- **Verification runs before the write-confirmation prompt.** Asking a human to approve a write the
+  compile gate is about to refuse spends the one thing the elicitation costs — their attention — and
+  trains them to click through it; a refusal is also strictly more informative than a decline, since
+  it carries the errors as well as the diff. The ordering now lives once, in
+  `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three write tools call — the same
+  consolidation the confirmation block itself needed after three hand-maintained copies drifted
+  apart. The human round-trip is still charged to `ConfirmDestructiveWritesTimeout` and never to
+  `DefaultTimeout`: each phase gets its own analysis budget and the prompt between them is timed by
+  neither. (#133)
+- `list_diagnostics`' description is now written as a decision rule against `check_compilation`
+  ("what should I clean up?" versus "is it still building?"), so a model can tell the two apart.
+  No parameter or response change. (#133)
+- The token-savings sweep was regenerated: **median 89% → 85%**, pooled unchanged at **93%**. The
+  move predates this change — the sweep now covers 69 files / 430 symbols (was 63 / 362) and every
+  response carries the `resolvedPath` field added in #139. Updated in `README.md` and the site
+  metadata. (#133)
 - Documented the working-directory anchor and its remedy — pass an absolute `.sln`/`.csproj` path
   when your working directory differs from the server's — in `docs/API.md`, `README.md` and
   `CLAUDE.md`. (#139)

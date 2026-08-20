@@ -9,6 +9,7 @@ export interface Tool {
   params: string;
   returns: string;     // shape of the `data` payload (nested inside the ToolResult envelope)
   progress?: boolean;  // emits MCP progress notifications
+  verifies?: boolean;  // compiles the candidate change in memory and refuses writes that introduce compiler errors
   confirms?: boolean;  // asks the client to confirm via elicitation before writing (unless RoselineMCP:ConfirmDestructiveWrites is false); an unanswered prompt expires after RoselineMCP:ConfirmDestructiveWritesTimeout (5 min) into a preview, never a write
 }
 
@@ -58,16 +59,16 @@ export const tools: Tool[] = [
   },
   // ── Code editing (write, preview by default, confirms before writing) ──
   {
-    name: 'edit_member', title: 'Edit Member', group: 'Code editing', kind: 'write', confirms: true,
-    summary: 'Replace, add, or delete a single type member; returns a unified diff. Preview by default.',
-    params: 'project?, symbol, operation, newSource?, previewOnly?',
-    returns: 'project, resolvedPath, operation, target, changedFiles[], patch, previewOnly, applied, notes[]',
+    name: 'edit_member', title: 'Edit Member', group: 'Code editing', kind: 'write', confirms: true, verifies: true,
+    summary: 'Replace, add, or delete a single type member; returns a unified diff. Preview by default, and refused if it would not compile.',
+    params: 'project?, symbol, operation, newSource?, previewOnly?, allowIntroducedErrors?, max?',
+    returns: 'project, resolvedPath, operation, target, changedFiles[], patch, previewOnly, applied, verification?, notes[]',
   },
   {
-    name: 'rename_symbol', title: 'Rename Symbol', group: 'Code editing', kind: 'write', confirms: true, progress: true,
-    summary: 'Rename a symbol and update every reference across the solution (Roslyn rename). Preview by default.',
-    params: 'project?, symbol, newName, previewOnly?',
-    returns: 'project, resolvedPath, symbol, newName, changedFiles[], patch, previewOnly, applied, notes[]',
+    name: 'rename_symbol', title: 'Rename Symbol', group: 'Code editing', kind: 'write', confirms: true, progress: true, verifies: true,
+    summary: 'Rename a symbol and update every reference across the solution (Roslyn rename). Preview by default, and refused if it would break a downstream project.',
+    params: 'project?, symbol, newName, previewOnly?, allowIntroducedErrors?, max?',
+    returns: 'project, resolvedPath, symbol, newName, changedFiles[], patch, previewOnly, applied, verification?, notes[]',
   },
   // ── Diagnostics & fixes ──
   {
@@ -83,10 +84,16 @@ export const tools: Tool[] = [
     returns: 'project, resolvedPath, totalDiagnostics, diagnostics[], stats, suggestedFixableIds[]',
   },
   {
-    name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true,
-    summary: 'Apply automated code fixes for diagnostic IDs. Preview by default.',
-    params: 'ids, project?, previewOnly?',
-    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[], previewOnly',
+    name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true, verifies: true,
+    summary: 'Apply automated code fixes for diagnostic IDs. Preview by default, and refused if the fixes would not compile.',
+    params: 'ids, project?, previewOnly?, allowIntroducedErrors?, max?',
+    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[], previewOnly, applied, verification?',
+  },
+  {
+    name: 'check_compilation', title: 'Check Compilation', group: 'Diagnostics & fixes', kind: 'diagnostics',
+    summary: 'Does this compile right now, and what broke? Compiler errors only, in under a second on a warm workspace — the replacement for `dotnet build` in an edit loop.',
+    params: 'project?, max?',
+    returns: 'resolvedPath, compiles, errors[], omitted?, scope[], scopeComplete, notes[]',
   },
   {
     name: 'create_patch', title: 'Create Patch', group: 'Diagnostics & fixes', kind: 'diagnostics',

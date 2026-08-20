@@ -44,6 +44,12 @@ The application uses a dependency injection-based service architecture with clea
      (`CompilationWithAnalyzers`) used by all three diagnostics tools — bundled catalog plus the
      target project's own analyzer references, deduped by analyzer type; disabled via
      `RoselineMCP:RunAnalyzers = false` (compiler-only)
+   - `VerificationService`: Compiles a candidate solution in memory and reports what the change did
+     to the compiler's verdict — the gate behind the three write tools and the payload of
+     `check_compilation`. Compiler-only by design (`DiagnosticComputationService.CompilerOnly`);
+     caches per-project results keyed by **file path + both** the dependent semantic version and the
+     dependent version (the semantic version alone is blind to method-body edits), storing detached
+     `DiagnosticDetail` values only
    - `DiagnosticFilterService`: Filtering and categorization of diagnostics
    - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers (scans the
      Roslyn built-ins plus the `AnalyzerCatalog` assemblies)
@@ -72,6 +78,13 @@ The application uses a dependency injection-based service architecture with clea
   a disposed workspace's memory is never returned to the OS. Releasing cached workspaces on idle
   was measured and rejected for the same reason; do not re-propose it without reading
   `docs/ARCHITECTURE.md` § Memory Management first
+- **Compile-verified writes**: the three write tools compile the candidate change in memory and
+  **refuse** it when it introduces compiler errors (`applied: false`, nothing written, diff and
+  errors returned). The gate is `introduced`, never `compiles` — an already-broken repository stays
+  editable. Escape hatch: `allowIntroducedErrors: true`. Verification runs **before** the
+  write-confirmation elicitation, so a human is never asked to approve a write that is about to be
+  refused; the ordering lives once in `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three
+  tools call
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
   payload nested under `data` on success, error details under `error` on failure — and sets
@@ -145,8 +158,16 @@ Gets detailed diagnostics for specific projects with statistics. Loads via `IPro
 ### 3. ApplyFixes
 Applies automated code fixes for specified diagnostic IDs. Loads via `IProjectLoader`, so
 `project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
-- **Parameters**: ids[], project (optional), previewOnly
-- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list
+- **Parameters**: ids[], project (optional), previewOnly, allowIntroducedErrors, max
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `applied`, `verification`
+
+### 14. CheckCompilation
+Answers "does this compile right now, and what broke" against on-disk state — the replacement for a
+`dotnet build` round trip in the edit loop. **Compiler diagnostics only** (unlike tools 1–3), so it
+is fast enough for the inner loop; read-only.
+- **Parameters**: project (optional), max (default 20)
+- **Returns**: the verification verdict — `resolvedPath`, `compiles`, `errors[]`, `omitted`,
+  `scope[]`, `scopeComplete`, `notes[]`
 
 ### 4. CreatePatch
 Generates unified diff patches between text versions.
@@ -168,7 +189,7 @@ every project in it — a symbol declared only in a sibling project the anchor d
 whenever work happens in a git worktree (`.claude/worktrees/<name>`), which sits below the level
 walk's reach, so an omitted `project` silently resolves the **main checkout**. Two checkouts of the
 same repo are otherwise reported identically (same project name, same relative paths), so every
-response from a tool with an optional `project` — tools 2, 3 and 5–13 — carries **`resolvedPath`**,
+response from a tool with an optional `project` — tools 2, 3, 5–13 and 14 — carries **`resolvedPath`**,
 the absolute `.sln`/`.csproj` that actually answered. Pass an absolute path as `project` to target a
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
@@ -186,8 +207,13 @@ Surgical edits (backed by `ICodeEditService` / `CodeEditService`, reusing `IDiff
 `ApplyFixes`, nothing is written unless `previewOnly: false` is passed explicitly. `project` is
 optional here too (same auto-discovery and `.sln` support as the navigation tools).
 
-- **11. EditMember** — `project`, `symbol`, `operation` (replace|add|delete), `newSource`, `previewOnly`. Returns changed files + unified diff.
-- **12. RenameSymbol** — `project`, `symbol`, `newName`, `previewOnly`. Roslyn solution-wide rename; returns changed files + unified diff.
+Every write is **compile-verified** before it touches disk: the candidate change is compiled in
+memory and refused when it introduces compiler errors (`applied: false`, nothing written, the diff
+and the introduced errors returned). Pass `allowIntroducedErrors: true` to override, and `max`
+(default 20) to bound the reported diagnostics.
+
+- **11. EditMember** — `project`, `symbol`, `operation` (replace|add|delete), `newSource`, `previewOnly`, `allowIntroducedErrors`, `max`. Returns changed files + unified diff + `verification`.
+- **12. RenameSymbol** — `project`, `symbol`, `newName`, `previewOnly`, `allowIntroducedErrors`, `max`. Roslyn solution-wide rename; returns changed files + unified diff + `verification`.
 
 > `MoveMember` (moving a member between types) is intentionally **not** implemented — it is a
 > refactor rather than a token-saver and is the highest-risk to get subtly wrong. Consider it a
@@ -322,6 +348,13 @@ Logging levels adjust automatically:
   gate outright with `RoselineMCP:ConfirmDestructiveWrites = false` — after which the explicit
   `previewOnly: false` is the only thing standing between a tool call and a disk write. See
   `SECURITY.md`.
+- **Compile-verified writes**: before any write tool touches disk, the candidate change is compiled
+  in memory and refused if it introduces compiler errors. The guarantee is precise and deliberately
+  narrow: **the verified change set compiles, and no refused edit is ever written** — *not* that the
+  working tree always compiles after any outcome. Both multi-file writers apply changes file by
+  file, so an interrupted rename leaves some files written and some not (covered by
+  `CodeEditServiceTests.RenameSymbol_Multi_File_Write_Is_Not_Atomic`). `allowIntroducedErrors: true`
+  waives the gate; `scopeComplete: false` says the gate could not see every dependent.
 - **Real Git support**: `pathOrGit` accepts `http://`/`https://` Git URLs. RoselineMCP performs a
   shallow (`--depth 1`), read-only clone into a fresh temp directory using the system `git`
   executable, and deletes that directory once the operation finishes. Any other scheme (local
@@ -343,6 +376,9 @@ Logging levels adjust automatically:
   resolving through generated code would report as a compile error. `RunAnalyzers = false` narrows
   the code-execution surface of an untrusted repository; isolation, not the switch, is the
   mitigation. See `SECURITY.md`.
+- **`check_compilation` builds a compilation**, so it carries the same code-execution surface as
+  every other semantic path: source generators shipped through the target project's
+  `AnalyzerReferences` run as part of building it. It does *not* run diagnostic analyzers.
 - **No dedicated path-traversal sanitization**: solution/project paths are resolved with plain
   `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
   `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against

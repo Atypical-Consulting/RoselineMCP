@@ -28,10 +28,41 @@ List all diagnostics for the MyApp.Core project
 Fix all unused variable warnings (CS0168) in MyApp.Core project
 ```
 
+### Check That It Still Compiles
+```
+Does MyApp.Core still compile?
+```
+```
+I just edited OrderService.cs — check the compilation before we continue
+```
+
 ### Generate a Patch
 ```
 Create a patch showing the differences between the original and refactored code
 ```
+
+---
+
+## The verified edit loop
+
+Since 3.0.0 the write tools refuse a change that introduces compiler errors, so the loop an agent
+runs is shorter than it used to be — there is no build step to ask for:
+
+```
+Rename IDiffService to IUnifiedDiffService across the solution and apply it
+```
+
+If the rename would break a project you never mentioned, the call comes back with `applied: false`,
+the diff, and the errors it would have caused — nothing is written. To go ahead anyway:
+
+```
+Rename it anyway, even if it breaks the build — I'll fix the callers next
+```
+(which sets `allowIntroducedErrors: true`).
+
+To ask about compilation without editing anything, use `check_compilation`; reach for
+`list_diagnostics` instead when the question is "what should I clean up?" rather than
+"is it still building?".
 
 ---
 
