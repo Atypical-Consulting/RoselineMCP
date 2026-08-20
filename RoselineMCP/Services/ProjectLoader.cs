@@ -141,9 +141,22 @@ public class ProjectLoader : IProjectLoader
     /// </list>
     /// Throws <see cref="ArgumentException"/> when auto-discovery finds no or multiple candidates, and
     /// <see cref="FileNotFoundException"/> when an explicit reference cannot be resolved.
-    /// Internal (rather than private) so <see cref="CachingProjectLoader"/> can compute the same
-    /// resolved path as a cache key — keeping <c>null</c>/name/directory aliases of the same target
-    /// on a single cache entry.
+    /// <para>
+    /// Internal (rather than private) because two callers outside <see cref="ProjectLoader"/> need
+    /// the same answer this gives <see cref="LoadAsync"/>:
+    /// <see cref="CachingProjectLoader"/> uses it as a cache key, keeping <c>null</c>/name/directory
+    /// aliases of one target on a single entry; and the write tools' confirmation gate
+    /// (<c>ToolExecutionHelper</c>) uses it to name — and then to write to — the concrete file a
+    /// destructive call will modify.
+    /// </para>
+    /// <para>
+    /// ⚠️ That second caller makes the <em>throwing</em> behavior load-bearing, not merely tidy. A
+    /// human is asked to approve a write by the path this returns, so it must never soften an
+    /// unresolvable or ambiguous reference into a best guess or a placeholder to be more convenient
+    /// for a cache: doing so would put a target in front of a human that the write does not use, or
+    /// re-introduce the blank prompt that made the confirmation unanswerable. Both exceptions are
+    /// relied upon to abort such a call <em>before</em> anyone is asked.
+    /// </para>
     /// </summary>
     internal static string ResolveTargetPath(string? project, string baseDirectory)
     {
