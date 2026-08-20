@@ -6,6 +6,7 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Diagnostics;
+using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Services;
 
@@ -451,6 +452,92 @@ internal static class ToolExecutionHelper
     }
 
     /// <summary>
+    /// The verified-write flow every write tool follows: <b>verify, then ask, then write</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The order is the whole point. Asking a human to approve a write the compile gate is about to
+    /// refuse spends the one thing the elicitation costs — their attention — and trains them to
+    /// click through it. A refusal is also strictly more informative than a decline: it carries the
+    /// diff <em>and</em> the errors.
+    /// </para>
+    /// <para>
+    /// Phase 1 always runs as a preview, whatever the caller asked for, so nothing can reach disk
+    /// before the verdict is in. Phase 2 runs only on an approved, verified write — and re-verifies,
+    /// because the tree may have moved while the human was deciding.
+    /// </para>
+    /// <para>
+    /// Each phase gets its own analysis budget and the confirmation between them is charged to
+    /// neither: think-time belongs to <see cref="RoselineMcpOptions.ConfirmDestructiveWritesTimeout"/>,
+    /// never to <see cref="RoselineMcpOptions.DefaultTimeout"/>. With the shipped defaults (120s
+    /// analysis, 300s confirmation) a single budget spanning the prompt would already have expired,
+    /// turning the documented preview into a TimeoutError the caller cannot act on.
+    /// </para>
+    /// </remarks>
+    /// <param name="server">The MCP server used to elicit the confirmation; null disables the prompt.</param>
+    /// <param name="options">Options carrying the confirmation switches and the analysis budget.</param>
+    /// <param name="previewOnly">The caller's own request. When true, phase 2 never runs.</param>
+    /// <param name="allowIntroducedErrors">When true, the compile gate reports but does not refuse.</param>
+    /// <param name="project">The caller's project argument, passed through to phase 1.</param>
+    /// <param name="describeWrite">Builds the confirmation sentence around the already-resolved target.</param>
+    /// <param name="execute">Runs the underlying service call for one phase: (project, previewOnly, token).</param>
+    /// <param name="budget">The caller's per-phase analysis budget, so its catch block can still tell a timeout from a cancellation.</param>
+    /// <param name="logger">Logger for the gate's own diagnostics.</param>
+    /// <param name="cancellationToken">The request token — the only clock over the human round-trip.</param>
+    public static async Task<T> RunVerifiedWriteAsync<T>(
+        McpServer? server,
+        IOptions<RoselineMcpOptions>? options,
+        bool previewOnly,
+        bool allowIntroducedErrors,
+        string? project,
+        Func<string, string> describeWrite,
+        Func<string?, bool, CancellationToken, Task<T>> execute,
+        AnalysisBudget budget,
+        ILogger? logger,
+        CancellationToken cancellationToken)
+        where T : IWriteToolResponse
+    {
+        // PHASE 1 — build the candidate, diff it, and put it to the compiler. Never writes.
+        var result = await execute(project, true, budget.Start());
+
+        if (previewOnly || WasRefused(result, allowIntroducedErrors))
+        {
+            return result;
+        }
+
+        // No budget is armed across the human round-trip.
+        budget.Stop();
+
+        // Gate policy lives in ResolveWriteModeAsync; only the wording is each tool's own.
+        var (effectivePreviewOnly, confirmationNote, writeTarget) = await ResolveWriteModeAsync(
+            server, options, previewOnly, project, describeWrite, logger, cancellationToken);
+
+        if (effectivePreviewOnly)
+        {
+            // Declined or timed out. Phase 1's response already holds the diff and the verdict, so
+            // there is nothing left to compute.
+            result.PreviewOnly = true;
+            if (confirmationNote is not null)
+            {
+                result.Notes.Add(confirmationNote);
+            }
+
+            return result;
+        }
+
+        // PHASE 2 — the approved write, on a fresh budget, against the path the human was actually
+        // shown (or the caller's own argument when nobody was asked, since nothing was resolved).
+        return await execute(writeTarget ?? project, false, budget.Start());
+    }
+
+    /// <summary>
+    /// Whether the compile gate refused this change. Read off the verdict rather than a separate
+    /// flag, so no tool can disagree with the service about what "refused" means.
+    /// </summary>
+    public static bool WasRefused(IWriteToolResponse result, bool allowIntroducedErrors) =>
+        !allowIntroducedErrors && result.Verification?.Introduced is { Count: > 0 };
+
+    /// <summary>
     /// Creates a <see cref="CancellationTokenSource"/> linked to <paramref name="requestToken"/>
     /// that is also cancelled once the configured DefaultTimeout elapses. A DefaultTimeout of
     /// zero or less (or missing configuration) disables the wall-clock timeout, leaving only the
@@ -577,4 +664,48 @@ internal static class ToolExecutionHelper
         InvalidOperationException or TimeoutException or IOException => ToolErrorTypes.Analysis,
         _ => ToolErrorTypes.Internal
     };
+}
+
+/// <summary>
+/// The analysis wall-clock budget for one tool call, re-armed per phase.
+/// </summary>
+/// <remarks>
+/// A verified write runs in two phases with a human confirmation between them. Think-time must not
+/// be charged against analysis time — that is what the confirmation's own clock is for — so each
+/// phase gets a fresh budget and the gap between them is timed by neither. <see cref="Current"/> is
+/// exposed so a tool's catch block can still distinguish a wall-clock timeout from the caller
+/// cancelling.
+/// </remarks>
+public sealed class AnalysisBudget : IDisposable
+{
+    private readonly CancellationToken _requestToken;
+    private readonly IOptions<RoselineMcpOptions>? _options;
+
+    /// <summary>Creates a budget bound to the request token and the configured DefaultTimeout.</summary>
+    public AnalysisBudget(CancellationToken requestToken, IOptions<RoselineMcpOptions>? options)
+    {
+        _requestToken = requestToken;
+        _options = options;
+    }
+
+    /// <summary>The budget in force, or <see langword="null"/> before the first phase and between phases.</summary>
+    public CancellationTokenSource? Current { get; private set; }
+
+    /// <summary>Retires any running budget and starts a fresh one for the next phase.</summary>
+    public CancellationToken Start()
+    {
+        Stop();
+        Current = ToolExecutionHelper.CreateLinkedTimeoutSource(_requestToken, _options);
+        return Current.Token;
+    }
+
+    /// <summary>Retires the current budget: nothing is being timed until the next <see cref="Start"/>.</summary>
+    public void Stop()
+    {
+        Current?.Dispose();
+        Current = null;
+    }
+
+    /// <inheritdoc/>
+    public void Dispose() => Stop();
 }

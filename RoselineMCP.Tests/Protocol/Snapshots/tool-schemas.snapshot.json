@@ -385,6 +385,16 @@
   },
   "rename_symbol": {
     "properties": {
+      "allowIntroducedErrors": {
+        "default": false,
+        "description": "If false (the default), a rename that introduces compiler errors \u2014 including in a downstream project the caller never named \u2014 is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.",
+        "type": "boolean"
+      },
+      "max": {
+        "default": 20,
+        "description": "Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.",
+        "type": "integer"
+      },
       "newName": {
         "description": "New name for the symbol (must be a valid C# identifier)",
         "type": "string"

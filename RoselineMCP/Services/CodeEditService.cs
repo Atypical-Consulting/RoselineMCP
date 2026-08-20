@@ -366,6 +366,22 @@ public class CodeEditService : ICodeEditService
 
         response.Patch = patchBuilder.ToString();
 
+        // Ahead of the write loop, never inside it: the loop is not atomic (see the guarantee
+        // boundary in docs/API.md), so a rename that breaks a downstream project must be stopped
+        // before the first file is touched rather than unwound after the fifth.
+        var (verdict, refused) = await VerifyAsync(
+            originalSolution, newSolution, allowIntroducedErrors, max, cancellationToken);
+        response.Verification = verdict;
+
+        if (refused)
+        {
+            _logger.LogInformation(
+                "Refused rename of '{Symbol}' to '{NewName}': it introduces {Count} compiler error(s)",
+                symbol, newName, verdict.Introduced?.Count ?? 0);
+            response.Notes.Add(RefusalNote(verdict));
+            return response;
+        }
+
         if (!previewOnly)
         {
             foreach (var (path, text) in filesToWrite)

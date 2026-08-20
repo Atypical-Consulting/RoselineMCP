@@ -519,4 +519,126 @@ public class CodeEditServiceTests
         result.Verification.Introduced.ShouldBeNull();
     }
 
+    private const string BreakingChainCore = "namespace CoreNs { public interface IThing { int Value(); } }";
+
+    private const string BreakingChainWeb =
+        "namespace WebNs { using CoreNs; public class Impl : IThing { public int Value() => 1; public int Amount() => 2; } }";
+
+    /// <summary>Core declares IThing.Value; Web implements it and already has an Amount.</summary>
+    private static (AdhocWorkspace Workspace, Project Anchor) CreateBreakingChain(string? baseDirectory = null) =>
+        AdhocProjectBuilder.CreateSolution(
+            [
+                ("Core", [("IThing.cs", BreakingChainCore)]),
+                ("Web", [("Impl.cs", BreakingChainWeb)])
+            ],
+            projectReferences: [("Web", "Core")],
+            baseDirectory: baseDirectory,
+            solutionFileName: "Chain.sln");
+
+    [Fact]
+    public async Task RenameSymbol_Refuses_A_Rename_That_Breaks_A_Downstream_Project()
+    {
+        // Web implements Core's IThing and already has an `Amount`. Renaming IThing.Value to Amount
+        // renames the implementation too, colliding with the existing member — CS0111 in Web, a
+        // project the caller never named. Roslyn's renamer cannot qualify its way out of a
+        // member-name collision the way it can out of a type-name one (measured), so this is a break
+        // that really reaches disk. It is the failure a file-scoped or project-scoped gate cannot
+        // see, and the one agents actually make.
+        var (workspace, anchor) = CreateBreakingChain();
+        using var _ = workspace;
+        var service = CreateService(workspace, anchor);
+
+        var result = await service.RenameSymbolAsync(
+            "Core", "CoreNs.IThing.Value", "Amount", previewOnly: false, cancellationToken: CancellationToken.None);
+
+        result.Applied.ShouldBeFalse();
+        result.Verification.ShouldNotBeNull();
+        result.Verification.Introduced.ShouldNotBeNull();
+        result.Verification.Introduced.ShouldContain(d => d.Project == "Web");
+        result.Verification.Scope.ShouldContain("Web");
+        // The diff still comes back: a refusal must be more informative than a decline, not less.
+        result.Patch.ShouldNotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Allows_A_Downstream_Break_When_AllowIntroducedErrors_Is_Set()
+    {
+        // The escape hatch, proven against the disk: the same rename the previous test refuses must
+        // actually land when the caller takes responsibility for it.
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-verify-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(Path.Combine(baseDirectory, "Core"));
+        Directory.CreateDirectory(Path.Combine(baseDirectory, "Web"));
+        var corePath = Path.Combine(baseDirectory, "Core", "IThing.cs");
+        var webPath = Path.Combine(baseDirectory, "Web", "Impl.cs");
+        await File.WriteAllTextAsync(corePath, BreakingChainCore);
+        await File.WriteAllTextAsync(webPath, BreakingChainWeb);
+
+        try
+        {
+            var (workspace, anchor) = CreateBreakingChain(baseDirectory);
+            using var _ = workspace;
+            var service = CreateService(workspace, anchor);
+
+            var result = await service.RenameSymbolAsync(
+                "Core", "CoreNs.IThing.Value", "Amount", previewOnly: false, allowIntroducedErrors: true,
+                cancellationToken: CancellationToken.None);
+
+            result.Applied.ShouldBeTrue();
+            result.Verification!.Introduced.ShouldNotBeNull();
+            result.Notes.ShouldNotContain(n => n.StartsWith("Refused:", StringComparison.Ordinal));
+            (await File.ReadAllTextAsync(corePath)).ShouldContain("int Amount();");
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Pins the <b>documented boundary</b>, not a guarantee the implementation makes. Both multi-file
+    /// writers apply changes file by file, so a failure partway through leaves some files written and
+    /// some not. The honest promise is "the verified change set compiles, and no refused edit is ever
+    /// written" — never "the working tree always compiles after any outcome". If this test ever starts
+    /// failing because the write became atomic, that is a promise upgrade: change `docs/API.md` first.
+    /// </summary>
+    [Fact]
+    public async Task RenameSymbol_Multi_File_Write_Is_Not_Atomic()
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-verify-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(baseDirectory);
+
+        const string widget = "public class Widget { public int Value() { return 1; } }";
+        const string consumer = "public class Consumer { public int Use() { return new Widget().Value(); } }";
+        var widgetPath = Path.Combine(baseDirectory, "Widget.cs");
+        var consumerPath = Path.Combine(baseDirectory, "Consumer.cs");
+        await File.WriteAllTextAsync(widgetPath, widget);
+        await File.WriteAllTextAsync(consumerPath, consumer);
+
+        try
+        {
+            var (workspace, project) = AdhocProjectBuilder.Create(
+                "Demo", [("Widget.cs", widget), ("Consumer.cs", consumer)], baseDirectory);
+            using var _ = workspace;
+            var service = CreateService(workspace, project);
+
+            // Make the second file unwritable, so the write loop fails partway through.
+            File.SetAttributes(consumerPath, FileAttributes.ReadOnly);
+
+            await Should.ThrowAsync<UnauthorizedAccessException>(() => service.RenameSymbolAsync(
+                "Demo", "Widget.Value", "Amount", previewOnly: false, cancellationToken: CancellationToken.None));
+
+            // One file changed, the other did not. That is the boundary, stated rather than assumed away.
+            (await File.ReadAllTextAsync(widgetPath)).ShouldContain("Amount");
+            (await File.ReadAllTextAsync(consumerPath)).ShouldBe(consumer);
+        }
+        finally
+        {
+            if (File.Exists(consumerPath))
+            {
+                File.SetAttributes(consumerPath, FileAttributes.Normal);
+            }
+
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
 }

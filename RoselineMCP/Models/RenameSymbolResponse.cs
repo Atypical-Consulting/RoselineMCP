@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RoselineMCP.Interfaces;
 
 namespace RoselineMCP.Models;
 
@@ -8,7 +9,7 @@ namespace RoselineMCP.Models;
 /// to the change rather than to the files touched. Defaults to preview mode; nothing is written to
 /// disk unless the caller explicitly opts in.
 /// </summary>
-public class RenameSymbolResponse
+public class RenameSymbolResponse : IWriteToolResponse
 {
     /// <summary>Name of the project the rename was anchored in.</summary>
     [JsonPropertyName("project")]

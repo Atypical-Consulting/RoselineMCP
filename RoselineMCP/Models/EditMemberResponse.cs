@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RoselineMCP.Interfaces;
 
 namespace RoselineMCP.Models;
 
@@ -8,7 +9,7 @@ namespace RoselineMCP.Models;
 /// an agent must emit to change code stay small. Defaults to preview mode; nothing is written to disk
 /// unless the caller explicitly opts in.
 /// </summary>
-public class EditMemberResponse
+public class EditMemberResponse : IWriteToolResponse
 {
     /// <summary>Name of the project the edit targeted.</summary>
     [JsonPropertyName("project")]
