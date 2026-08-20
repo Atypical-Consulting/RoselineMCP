@@ -429,7 +429,7 @@ Declaration metadata, signature, and (optionally) the source of a single symbol.
 
 The `accessibility` field is not returned separately — it is already part of `signature`. Every
 optional field above is omitted from the JSON when empty/absent, so a minimal symbol collapses to
-just `name`, `fullName`, `kind`, and `signature`.
+just `resolvedPath`, `name`, `fullName`, `kind`, and `signature`.
 
 ### FindReferences
 

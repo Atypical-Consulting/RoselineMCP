@@ -377,9 +377,11 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > **Working in a git worktree?** Auto-discovery is anchored to **the server's** working directory —
 > the one the MCP client launched RoselineMCP in — not yours. They differ whenever work happens in a
 > git worktree (e.g. `.claude/worktrees/<name>`), which sits below the discovery walk's reach, so an
-> omitted `project` resolves the **main checkout** instead. Every project-loading response carries
-> `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered — check it, and pass an
-> absolute path as `project` to target a specific checkout.
+> omitted `project` resolves the **main checkout** instead. Every tool that takes an optional
+> `project` — the seven navigation tools, both edit tools, `listDiagnostics` and `applyFixes` —
+> reports `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered. Check it, and pass
+> an absolute path as `project` to target a specific checkout. (`analyzeSolution` is the exception:
+> its `pathOrGit` is required, so it auto-discovers nothing.)
 
 > **Tool names on the wire are `snake_case`.** The section headings below use friendly
 > PascalCase/`camelCase` for readability, but the actual MCP tool names returned by `tools/list`

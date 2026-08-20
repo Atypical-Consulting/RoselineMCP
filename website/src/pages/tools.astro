@@ -28,10 +28,12 @@ const groupBlurb: Record<string, string> = {
           not yours. They differ whenever you work in a git worktree (e.g.
           <code>.claude/worktrees/&lt;name&gt;</code>), which sits below the discovery walk's reach, so
           an omitted <code>project</code> resolves the <strong>main checkout</strong> instead. Two
-          checkouts of one repo are otherwise indistinguishable in a response, so every
-          project-loading tool returns <code>resolvedPath</code> — the absolute
+          checkouts of one repo are otherwise indistinguishable in a response, so every tool with an
+          optional <code>project</code> returns <code>resolvedPath</code> — the absolute
           <code>.sln</code>/<code>.csproj</code> that actually answered. Pass an absolute path as
-          <code>project</code> to target a specific checkout.</p>
+          <code>project</code> to target a specific checkout.
+          (<code>analyze_solution</code> is the exception — its <code>pathOrGit</code> is required,
+          so it auto-discovers nothing.)</p>
       </div>
 
       <div class="note" style="margin:1.6rem 0">

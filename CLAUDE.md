@@ -168,8 +168,10 @@ every project in it — a symbol declared only in a sibling project the anchor d
 whenever work happens in a git worktree (`.claude/worktrees/<name>`), which sits below the level
 walk's reach, so an omitted `project` silently resolves the **main checkout**. Two checkouts of the
 same repo are otherwise reported identically (same project name, same relative paths), so every
-project-loading response carries **`resolvedPath`** — the absolute `.sln`/`.csproj` that actually
-answered. Pass an absolute path as `project` to target a specific checkout.
+response from a tool with an optional `project` — tools 2, 3 and 5–13 — carries **`resolvedPath`**,
+the absolute `.sln`/`.csproj` that actually answered. Pass an absolute path as `project` to target a
+specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
+auto-discovers.)
 
 - **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
 - **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source); accessibility is inside `signature`, and empty/absent fields are omitted.
