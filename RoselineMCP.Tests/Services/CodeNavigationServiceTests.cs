@@ -503,4 +503,97 @@ public class CodeNavigationServiceTests
         result.FullName.ShouldBe("LibNs.Widget.Spin");
         result.IsDeclaration.ShouldBeTrue();
     }
+
+    /// <summary>
+    /// Builds a service over a project at a known base directory, so the resolved-path assertions
+    /// below have something concrete to compare against (the default helper uses a random temp dir).
+    /// </summary>
+    private static (CodeNavigationService Service, string Csproj) CreateServiceAt(string baseDirectory)
+    {
+        var (workspace, project) = AdhocProjectBuilder.Create(
+            "Acme",
+            [("A.cs", "public interface IWidget { void Spin(); } public class Widget : IWidget { public void Spin() { Turn(); } public void Turn() { } }")],
+            baseDirectory);
+        var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, project);
+        return (new CodeNavigationService(A.Fake<ILogger<CodeNavigationService>>(), loader),
+                Path.Combine(baseDirectory, "Acme.csproj"));
+    }
+
+    private static string FreshBaseDir() =>
+        Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
+
+    /// <summary>
+    /// Regression guard for the silent wrong-checkout bug: two checkouts of the same repository
+    /// report the same project name and the same relative paths, so the absolute resolved path is
+    /// the only field that tells them apart. It must be present on every navigation payload.
+    /// </summary>
+    [Fact]
+    public async Task SearchSymbols_ReportsTheResolvedProjectPath()
+    {
+        var (service, csproj) = CreateServiceAt(FreshBaseDir());
+
+        var response = await service.SearchSymbolsAsync(null, "Widget", null, null, 50, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(csproj);
+    }
+
+    [Fact]
+    public async Task GetSymbolInfo_ReportsTheResolvedProjectPath()
+    {
+        var (service, csproj) = CreateServiceAt(FreshBaseDir());
+
+        var response = await service.GetSymbolInfoAsync(null, "Widget", includeSource: false, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(csproj);
+    }
+
+    [Fact]
+    public async Task GetSymbolAtPosition_ReportsTheResolvedProjectPath()
+    {
+        var (service, csproj) = CreateServiceAt(FreshBaseDir());
+
+        var response = await service.GetSymbolAtPositionAsync(null, "A.cs", 1, null, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(csproj);
+    }
+
+    [Fact]
+    public async Task FindReferences_ReportsTheResolvedProjectPath()
+    {
+        var (service, csproj) = CreateServiceAt(FreshBaseDir());
+
+        var response = await service.FindReferencesAsync(null, "Widget.Turn", includeDefinition: true, 50, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(csproj);
+    }
+
+    [Fact]
+    public async Task FindImplementations_ReportsTheResolvedProjectPath()
+    {
+        var (service, csproj) = CreateServiceAt(FreshBaseDir());
+
+        var response = await service.FindImplementationsAsync(null, "IWidget", 50, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(csproj);
+    }
+
+    [Fact]
+    public async Task GetCallGraph_ReportsTheResolvedProjectPath()
+    {
+        var (service, csproj) = CreateServiceAt(FreshBaseDir());
+
+        var response = await service.GetCallGraphAsync(null, "Widget.Spin", "both", 1, 50, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(csproj);
+    }
+
+    [Fact]
+    public async Task GetTypeHierarchy_ReportsTheResolvedProjectPath()
+    {
+        var (service, csproj) = CreateServiceAt(FreshBaseDir());
+
+        var response = await service.GetTypeHierarchyAsync(null, "Widget", "both", 50, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(csproj);
+    }
 }

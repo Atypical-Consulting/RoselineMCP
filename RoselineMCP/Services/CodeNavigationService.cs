@@ -108,6 +108,7 @@ public class CodeNavigationService : ICodeNavigationService
         return new SymbolSearchResponse
         {
             Project = loaded.Project.Name,
+            ResolvedPath = loaded.ResolvedPath,
             Query = query,
             File = file,
             TotalFound = ordered.Count,
@@ -215,6 +216,7 @@ public class CodeNavigationService : ICodeNavigationService
 
         var response = new SymbolInfoResponse
         {
+            ResolvedPath = loaded.ResolvedPath,
             Name = resolved.Name,
             FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
             Kind = SymbolResolver.KindOf(resolved),
@@ -317,6 +319,7 @@ public class CodeNavigationService : ICodeNavigationService
 
         return new SymbolAtPositionResponse
         {
+            ResolvedPath = loaded.ResolvedPath,
             Name = symbol.Name,
             FullName = symbol.ToDisplayString(SymbolResolver.FullNameFormat),
             Kind = SymbolResolver.KindOf(symbol),
@@ -471,6 +474,7 @@ public class CodeNavigationService : ICodeNavigationService
 
         return new ReferencesResponse
         {
+            ResolvedPath = loaded.ResolvedPath,
             Symbol = resolved.Name,
             FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
             TotalReferences = ordered.Count,
@@ -548,6 +552,7 @@ public class CodeNavigationService : ICodeNavigationService
 
         return new ImplementationsResponse
         {
+            ResolvedPath = loaded.ResolvedPath,
             Symbol = resolved.Name,
             FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
             Kind = SymbolResolver.KindOf(resolved),
@@ -580,6 +585,7 @@ public class CodeNavigationService : ICodeNavigationService
 
         var response = new CallGraphResponse
         {
+            ResolvedPath = loaded.ResolvedPath,
             Method = methodSymbol.Name,
             // Parameter-qualified (with simple parameter-type names) to match the node keys used for
             // cycle detection below.
@@ -752,6 +758,7 @@ public class CodeNavigationService : ICodeNavigationService
 
         var response = new TypeHierarchyResponse
         {
+            ResolvedPath = loaded.ResolvedPath,
             Type = namedType.Name,
             FullName = namedType.ToDisplayString(SymbolResolver.FullNameFormat),
             Direction = normalizedDirection

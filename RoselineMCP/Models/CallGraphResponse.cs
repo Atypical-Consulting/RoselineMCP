@@ -12,6 +12,14 @@ public class CallGraphResponse
     [JsonPropertyName("method")]
     public string Method { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Absolute path of the <c>.sln</c> (or <c>.csproj</c>) that was actually resolved and loaded.
+    /// Auto-discovery starts from the server's working directory, so this is how a caller confirms
+    /// which checkout answered — e.g. a git worktree versus its main checkout.
+    /// </summary>
+    [JsonPropertyName("resolvedPath")]
+    public string ResolvedPath { get; set; } = string.Empty;
+
     /// <summary>Fully-qualified name of the root method.</summary>
     [JsonPropertyName("fullName")]
     public string FullName { get; set; } = string.Empty;
