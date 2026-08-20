@@ -170,7 +170,7 @@ public class ProjectLoader : IProjectLoader
             return Path.GetFullPath(project);
         }
 
-        return ResolveProjectPath(project);
+        return ResolveProjectPath(project, baseDirectory);
     }
 
     /// <summary>
@@ -296,9 +296,16 @@ public class ProjectLoader : IProjectLoader
     /// <summary>
     /// Resolves <paramref name="project"/> (a <c>.csproj</c> path, a directory, or a bare project
     /// name) to a concrete <c>.csproj</c> path, throwing <see cref="FileNotFoundException"/> if none
-    /// can be found so the tool layer reports a <c>NotFoundError</c>.
+    /// can be found so the tool layer reports a <c>NotFoundError</c>. A bare name is looked up by
+    /// sweeping <paramref name="baseDirectory"/> recursively — the same anchor
+    /// <see cref="AutoDiscover"/> walks, so both halves of resolution answer from one directory
+    /// rather than this one silently reaching for the process working directory instead.
     /// </summary>
-    private static string ResolveProjectPath(string project)
+    /// <remarks>
+    /// The two enumerations below deliberately use <em>different</em> overloads, and the asymmetry
+    /// is the point: the caller named the directory in the first, and did not in the second.
+    /// </remarks>
+    private static string ResolveProjectPath(string project, string baseDirectory)
     {
         if (File.Exists(project) && project.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
         {
@@ -307,6 +314,12 @@ public class ProjectLoader : IProjectLoader
 
         if (Directory.Exists(project))
         {
+            // Deliberately the SearchOption overload, which does NOT ignore inaccessible paths: the
+            // caller named this directory, so "I could not read it" is the answer they need.
+            // Swallowing the UnauthorizedAccessException here would degrade it into the
+            // FileNotFoundException below — "Project not found" — sending them to look for a missing
+            // file instead of fixing a permission. ToolExecutionHelper.Classify maps the throw onto
+            // AnalysisError, so the real message reaches the caller intact.
             var csprojFiles = Directory.GetFiles(project, "*.csproj", SearchOption.TopDirectoryOnly);
             if (csprojFiles.Length > 0)
             {
@@ -314,8 +327,20 @@ public class ProjectLoader : IProjectLoader
             }
         }
 
-        var currentDirFiles = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.csproj", SearchOption.AllDirectories);
-        var match = currentDirFiles.FirstOrDefault(f =>
+        // EnumerationOptions, not SearchOption.AllDirectories: EnumerationOptions.IgnoreInaccessible
+        // defaults to true, whereas the SearchOption overloads pass EnumerationOptions.Compatible,
+        // which sets it false to preserve .NET Framework behavior. This sweep is incidental — an
+        // unreadable directory anywhere under the base directory has nothing to do with resolving a
+        // project NAME — so aborting the whole lookup over one was wrong regardless of how the
+        // resulting exception was labelled. Note the overloads also differ in MatchType (Win32 vs
+        // Simple); the two agree for the literal pattern "*.csproj", but do not reuse this options
+        // object for a pattern where that distinction matters.
+        var candidates = Directory.GetFiles(
+            baseDirectory,
+            "*.csproj",
+            new EnumerationOptions { RecurseSubdirectories = true });
+
+        var match = candidates.FirstOrDefault(f =>
             Path.GetFileNameWithoutExtension(f).Equals(project, StringComparison.OrdinalIgnoreCase));
         if (match != null)
         {

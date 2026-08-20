@@ -366,6 +366,73 @@ public class ProjectLoaderTests : IDisposable
         ResolveTargetPath(worktreeSln, _baseDir).ShouldBe(worktreeSln);
     }
 
+    /// <summary>
+    /// A bare project name falls through to the recursive sweep, and that sweep must not be
+    /// derailed by a directory it happens to have no permission to read. The unreadable sibling
+    /// here has nothing to do with the request; aborting the whole lookup over it was the defect.
+    /// </summary>
+    /// <remarks>
+    /// Unix-only: <see cref="File.SetUnixFileMode(string, UnixFileMode)"/> throws on Windows and CI
+    /// runs a Windows leg, so this must no-op there rather than fail. The mode is restored in a
+    /// <c>finally</c> — a directory left at <see cref="UnixFileMode.None"/> cannot be deleted by
+    /// <see cref="Dispose"/> and would strand a temp tree on the machine.
+    /// </remarks>
+    [Fact]
+    public void RecursiveSweep_SkipsAnUnreadableDirectory_AndStillFindsTheProject()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var csproj = Touch(Path.Combine("Readable", "Acme.csproj"));
+        var locked = Path.Combine(_baseDir, "Locked");
+        Directory.CreateDirectory(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+
+        try
+        {
+            ResolveTargetPath("Acme", _baseDir).ShouldBe(csproj);
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    /// <summary>
+    /// The deliberate other half of the asymmetry: when the caller <em>names</em> the directory,
+    /// "I could not read it" is the answer they need. Ignoring the permission failure here would
+    /// degrade it into <see cref="FileNotFoundException"/> — "Project not found" — sending them off
+    /// to look for a missing file instead of fixing a mode bit. So this branch keeps throwing, and
+    /// <c>ToolExecutionHelper.Classify</c> is what turns the throw into a message-bearing
+    /// AnalysisError rather than a scrubbed InternalError.
+    /// </summary>
+    /// <remarks>Unix-only, same reason and same <c>finally</c> restore as the test above.</remarks>
+    [Fact]
+    public void AnExplicitlyNamedUnreadableDirectory_StillRaisesThePermissionFailure()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var locked = Path.Combine(_baseDir, "Locked");
+        Directory.CreateDirectory(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+
+        try
+        {
+            // Directory.Exists returns true for a mode-000 directory, so the caller-named branch is
+            // entered and then throws — which is exactly the behavior being pinned.
+            Should.Throw<UnauthorizedAccessException>(() => ResolveTargetPath(locked, _baseDir));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
     [Fact]
     public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
