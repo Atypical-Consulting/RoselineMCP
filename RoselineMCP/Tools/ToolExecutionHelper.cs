@@ -542,6 +542,12 @@ internal static class ToolExecutionHelper
             return result;
         }
 
+        // A human is asked only once there is a valid, non-empty write to approve.
+        if (!result.HasChanges)
+        {
+            return result;
+        }
+
         // No budget is armed across the human round-trip.
         budget.Stop();
 
