@@ -319,9 +319,10 @@ listDiagnostics({
 })
 ```
 
-**Returns:** project name, `totalDiagnostics` count, the filtered `diagnostics` list, `stats`
-(counts grouped by ID and by severity), and `suggestedFixableIds` — diagnostic IDs a code fix
-provider is actually registered for.
+**Returns:** project name, `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded),
+`totalDiagnostics` count, the filtered `diagnostics` list, `stats` (counts grouped by ID and by
+severity), and `suggestedFixableIds` — diagnostic IDs a code fix provider is actually registered
+for.
 
 ### 3. ApplyFixes
 
@@ -339,10 +340,11 @@ applyFixes({
 })
 ```
 
-**Returns:** project name, `fixedCount`, `fixersApplied` (diagnostic IDs actually fixed),
-`changedFiles` (solution-root-relative, forward slashes — the same path base as the navigation
-tools), a unified diff `patch`, `notes` (skipped/failed IDs and status messages), and
-`previewOnly` echoing back whether anything was written.
+**Returns:** project name, `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded),
+`fixedCount`, `fixersApplied` (diagnostic IDs actually fixed), `changedFiles`
+(solution-root-relative, forward slashes — the same path base as the navigation tools), a unified
+diff `patch`, `notes` (skipped/failed IDs and status messages), and `previewOnly` echoing back
+whether anything was written.
 
 ### 4. CreatePatch
 
@@ -371,6 +373,13 @@ RoselineMCP auto-discovers the solution/project from its working directory. When
 to a solution, the whole solution is loaded and symbol search/resolution spans every project in it
 (including sibling projects the requested project doesn't reference), so references/renames span
 projects. Full request/response shapes are in [docs/API.md](docs/API.md).
+
+> **Working in a git worktree?** Auto-discovery is anchored to **the server's** working directory —
+> the one the MCP client launched RoselineMCP in — not yours. They differ whenever work happens in a
+> git worktree (e.g. `.claude/worktrees/<name>`), which sits below the discovery walk's reach, so an
+> omitted `project` resolves the **main checkout** instead. Every project-loading response carries
+> `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered — check it, and pass an
+> absolute path as `project` to target a specific checkout.
 
 > **Tool names on the wire are `snake_case`.** The section headings below use friendly
 > PascalCase/`camelCase` for readability, but the actual MCP tool names returned by `tools/list`

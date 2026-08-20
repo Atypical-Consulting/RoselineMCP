@@ -140,13 +140,13 @@ Analyzes entire C# solutions for diagnostics with filtering options.
 Gets detailed diagnostics for specific projects with statistics. Loads via `IProjectLoader`, so
 `project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
 - **Parameters**: project (optional), ids[], files[], max
-- **Returns**: Diagnostics list, statistics by ID/severity, suggested fixable IDs
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), diagnostics list, statistics by ID/severity, suggested fixable IDs
 
 ### 3. ApplyFixes
 Applies automated code fixes for specified diagnostic IDs. Loads via `IProjectLoader`, so
 `project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
 - **Parameters**: ids[], project (optional), previewOnly
-- **Returns**: Changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list
 
 ### 4. CreatePatch
 Generates unified diff patches between text versions.
@@ -163,6 +163,13 @@ subdirectories — failing with an actionable message only when nothing is found
 itself has multiple candidates. The containing solution is loaded when present, and symbol search/resolution spans
 every project in it — a symbol declared only in a sibling project the anchor doesn't reference
 (e.g. the Tests project) is still found, and references/renames span projects.
+
+⚠️ **The working directory is the *server's*, fixed at spawn — not the agent's.** They diverge
+whenever work happens in a git worktree (`.claude/worktrees/<name>`), which sits below the level
+walk's reach, so an omitted `project` silently resolves the **main checkout**. Two checkouts of the
+same repo are otherwise reported identically (same project name, same relative paths), so every
+project-loading response carries **`resolvedPath`** — the absolute `.sln`/`.csproj` that actually
+answered. Pass an absolute path as `project` to target a specific checkout.
 
 - **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
 - **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source); accessibility is inside `signature`, and empty/absent fields are omitted.
