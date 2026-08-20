@@ -18,8 +18,13 @@
 - **Full test:** `dotnet test`
 - **Single-suite filter (per-task, fast):** `dotnet test --filter "FullyQualifiedName~<Suite>"`
 - **Coverage run (matches the CI gate):**
-  `dotnet test -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=./TestResults/coverage.cobertura.xml`
+  `dotnet test --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml --results-directory RoselineMCP.Tests/TestResults`
   — the report lands at `RoselineMCP.Tests/TestResults/coverage.cobertura.xml`
+- **`dotnet test` runs in Microsoft.Testing.Platform mode** (`global.json` → `test.runner`), because
+  xunit.v3 4.x dropped the VSTest bridge. VSTest options are gone: `--logger` exits 5, and the old
+  coverlet `-p:CollectCoverage=true` properties are accepted by MSBuild but **produce no report at
+  all, silently** — the CI gate is what catches that. `--filter "FullyQualifiedName~<Suite>"` still
+  works via xunit's VSTest-syntax shim.
 - **Format/lint apply:** `dotnet format RoselineMCP.sln` — **house style only, not a gate.** A 9 KB
   house-style `.editorconfig` is committed and Roslyn/Roslynator analyzers run at build, but **no CI
   job runs `dotnet format`**. Scope it to the files you touched; do not reformat the repo.

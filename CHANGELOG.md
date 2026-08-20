@@ -19,6 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged. (#139)
 
 ### Changed
+- **Tests now run on Microsoft.Testing.Platform instead of VSTest.** `xunit.v3` 4.0.0 drops the
+  VSTest bridge, and on the .NET 10 SDK the old path is not deprecated but *removed*: it fails
+  with `Testing with VSTest target is no longer supported by Microsoft.Testing.Platform`. A
+  `global.json` `test.runner` section opts `dotnet test` into MTP mode, the test project became an
+  executable (`<OutputType>Exe</OutputType>`, previously supplied by `Microsoft.NET.Test.Sdk`), and
+  `xunit.runner.visualstudio` plus `Microsoft.NET.Test.Sdk` are gone. Every test passes, on all
+  three CI legs, with the suite's size unchanged.
+  Contributor-visible: `--logger` is now rejected with exit code 5, and a bare project path must be
+  written `dotnet test --project <path>`; `--filter "FullyQualifiedName~X"` still works.
+- **Coverage is produced by `Microsoft.Testing.Extensions.CodeCoverage`, replacing
+  `coverlet.msbuild`.** coverlet hooks the `VSTest` MSBuild target, which MTP mode never invokes,
+  so under the new runner it produced no report at all and said nothing about it — only the CI
+  threshold check caught the absence. The report still lands at
+  `RoselineMCP.Tests/TestResults/coverage.cobertura.xml` and the 80% line gate is unchanged
+  (measured 87.9%, against coverlet's 88.3% for the same scope). The three coverlet filters were
+  dropped rather than translated: only the project's own modules are instrumented, and `Program.cs`
+  was already excluded by its `[ExcludeFromCodeCoverage]` attribute rather than by the filter.
+  TRX now comes from `Microsoft.Testing.Extensions.TrxReport`. Both extensions are versioned
+  against `Microsoft.Testing.Platform` and must be bumped together with `xunit.v3`.
 - Documented the working-directory anchor and its remedy — pass an absolute `.sln`/`.csproj` path
   when your working directory differs from the server's — in `docs/API.md`, `README.md` and
   `CLAUDE.md`. (#139)
