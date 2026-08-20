@@ -1,6 +1,8 @@
 using System.Reflection;
 using FakeItEasy;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using RoselineMCP.Interfaces;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -314,5 +316,40 @@ public class ProjectLoaderTests : IDisposable
             """);
 
         return slnPath;
+    }
+
+    /// <summary>
+    /// <see cref="LoadedProject.ResolvedPath"/> reports the <c>.sln</c> when the solution has a file
+    /// path — the field that tells two checkouts of the same repository apart.
+    /// </summary>
+    [Fact]
+    public void ResolvedPath_PrefersTheSolutionFile()
+    {
+        var slnPath = Path.Combine(_baseDir, "Acme.sln");
+        using var workspace = new AdhocWorkspace();
+        workspace.AddSolution(SolutionInfo.Create(
+            SolutionId.CreateNewId(), VersionStamp.Create(), filePath: slnPath));
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "Acme", "Acme",
+            LanguageNames.CSharp, filePath: Path.Combine(_baseDir, "Acme.csproj")));
+
+        using var loaded = new LoadedProject(workspace, project.Solution, project, ownsWorkspace: false);
+
+        loaded.ResolvedPath.ShouldBe(slnPath);
+    }
+
+    /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
+    [Fact]
+    public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
+    {
+        var csprojPath = Path.Combine(_baseDir, "Acme.csproj");
+        using var workspace = new AdhocWorkspace();
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "Acme", "Acme",
+            LanguageNames.CSharp, filePath: csprojPath));
+
+        using var loaded = new LoadedProject(workspace, project.Solution, project, ownsWorkspace: false);
+
+        loaded.ResolvedPath.ShouldBe(csprojPath);
     }
 }
