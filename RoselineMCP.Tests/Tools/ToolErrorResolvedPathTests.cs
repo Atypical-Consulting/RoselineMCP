@@ -1,6 +1,9 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Services;
@@ -148,4 +151,151 @@ public class ToolErrorResolvedPathTests
     [Fact]
     public void Read_Returns_Null_For_An_Unstamped_Exception()
         => ResolvedPathStamp.Read(new InvalidOperationException("boom")).ShouldBeNull();
+
+    [Fact]
+    public void Read_Returns_Null_For_No_Exception_At_All()
+        => ResolvedPathStamp.Read(null).ShouldBeNull();
+
+    /// <summary>
+    /// A <c>ValidationError</c> is not automatically path-less. The rule is <em>where the failure
+    /// was detected</em>, not which type it classified as: an <see cref="ArgumentException"/> raised
+    /// by a service that had already loaded — <c>get_call_graph</c> handed a type instead of a
+    /// method — classifies as <c>ValidationError</c> through <c>Error&lt;T&gt;</c> and carries the
+    /// stamp, whereas one caught at the tool boundary before the service ran cannot.
+    /// </summary>
+    [Fact]
+    public async Task ValidationError_Raised_After_The_Load_Still_Names_The_Checkout()
+    {
+        var (workspace, project) = AdhocProjectBuilder.Create(
+            "Demo", [("Services.cs", "public class UserService { }")]);
+        var navigationService = new CodeNavigationService(
+            A.Fake<ILogger<CodeNavigationService>>(), AdhocProjectBuilder.FakeLoaderFor(workspace, project));
+
+        // A type, not a method: rejected by the service *after* it resolved the symbol.
+        var result = await GetCallGraphTool.GetCallGraph(navigationService, "UserService");
+
+        result.Error.ShouldNotBeNull();
+        result.Error.Type.ShouldBe("ValidationError");
+        result.Error.ResolvedPath.ShouldBe(project.FilePath);
+    }
+
+    /// <summary>
+    /// The timeout case is the one where "which checkout answered?" matters most — being pointed at
+    /// an unexpectedly large checkout is a leading cause of one — so the stamp must survive the
+    /// <c>catch (OperationCanceledException)</c> arm too, which builds its envelope through
+    /// <c>Cancellation&lt;T&gt;</c> rather than <c>Error&lt;T&gt;</c>.
+    /// </summary>
+    [Fact]
+    public async Task Timeout_After_The_Load_Still_Names_The_Checkout()
+    {
+        const string SolutionPath = "/checkouts/main/Demo.sln";
+
+        var result = await FindReferencesTool.FindReferences(
+            StampingCancellingService(SolutionPath), "Whatever",
+            options: Options.Create(new RoselineMcpOptions { DefaultTimeout = 1 }));
+
+        result.Error.ShouldNotBeNull();
+        result.Error.Type.ShouldBe("TimeoutError");
+        result.Error.ResolvedPath.ShouldBe(SolutionPath);
+    }
+
+    /// <summary>The caller-cancelled twin of the timeout case: same arm, same stamp.</summary>
+    [Fact]
+    public async Task Caller_Cancellation_After_The_Load_Still_Names_The_Checkout()
+    {
+        const string SolutionPath = "/checkouts/main/Demo.sln";
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var result = await FindReferencesTool.FindReferences(
+            StampingCancellingService(SolutionPath), "Whatever", cancellationToken: cts.Token);
+
+        result.Error.ShouldNotBeNull();
+        result.Error.Type.ShouldBe("CancelledError");
+        result.Error.ResolvedPath.ShouldBe(SolutionPath);
+    }
+
+    /// <summary>
+    /// A service that has loaded and is now waiting: it observes the cancellation, stamps the
+    /// checkout that was answering, and rethrows — exactly what the real services' catch arms do.
+    /// </summary>
+    private static ICodeNavigationService StampingCancellingService(string resolvedPath)
+    {
+        var navigationService = A.Fake<ICodeNavigationService>();
+        A.CallTo(() => navigationService.FindReferencesAsync(
+                A<string?>._, A<string>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily(async call =>
+            {
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, call.GetArgument<CancellationToken>(4));
+                }
+                catch (Exception ex)
+                {
+                    ResolvedPathStamp.Stamp(ex, resolvedPath);
+                    throw;
+                }
+
+                return new ReferencesResponse();
+            });
+        return navigationService;
+    }
+
+    /// <summary>
+    /// The stamp is hand-placed at every site that loads a project, so a site added later can drop
+    /// <c>resolvedPath</c> from its failures with the whole suite still green — nothing else would
+    /// notice, because the omission is invisible on the success path. This pairs the two counts per
+    /// file: every <c>projectLoader.LoadAsync</c> must be matched by exactly one
+    /// <c>ResolvedPathStamp.Stamp</c> in the same file.
+    /// </summary>
+    /// <remarks>
+    /// <c>CachingProjectLoader</c>'s own <c>_inner.LoadAsync</c> delegations are deliberately not
+    /// matched: a failure *inside* loading resolved nothing, so it has no path to name, which is
+    /// the absent case this feature is careful to preserve.
+    /// </remarks>
+    [Fact]
+    public void Every_Site_That_Loads_A_Project_Also_Stamps_The_Path()
+    {
+        var sources = Directory.EnumerateFiles(RepoPath("RoselineMCP"), "*.cs", SearchOption.AllDirectories);
+        var loadSites = 0;
+
+        foreach (var source in sources)
+        {
+            var text = File.ReadAllText(source);
+            var loads = Occurrences(text, "projectLoader.LoadAsync(");
+            if (loads == 0)
+            {
+                continue;
+            }
+
+            loadSites += loads;
+            Occurrences(text, "ResolvedPathStamp.Stamp(").ShouldBe(
+                loads,
+                $"{Path.GetFileName(source)} loads a project {loads}x but does not stamp the resolved " +
+                "path the same number of times — its failures would omit 'resolvedPath'.");
+        }
+
+        // Guards the guard: a rename of the loader would silently match nothing and pass.
+        loadSites.ShouldBeGreaterThanOrEqualTo(12);
+    }
+
+    private static int Occurrences(string haystack, string needle)
+    {
+        var count = 0;
+        for (var i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// Resolves a repository-relative path from this source file's compile-time location, the same
+    /// idiom <c>ReleaseWorkflowTests</c> uses. This file lives at <c>RoselineMCP.Tests/Tools/</c>,
+    /// so the repository root is two levels up.
+    /// </summary>
+    private static string RepoPath(string relativePath, [CallerFilePath] string sourceFile = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", "..", relativePath));
 }

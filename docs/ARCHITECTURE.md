@@ -366,13 +366,24 @@ Every tool returns the typed `ToolResult<T>` envelope (`{ ok, data, error }`); a
 ```
 
 `resolvedPath` reaches the envelope on `Exception.Data` (`ResolvedPathStamp`), stamped by the
-service method that was holding the `LoadedProject` and read back by
-`ToolExecutionHelper.Error<T>`. The tool's `catch` block only ever sees the exception — the service
-loads internally, so `loaded` is a local that no longer exists by then — which is why the path
-cannot simply be passed as an argument. The consequence that makes the mechanism correct rather
-than merely convenient: an exception raised *before* resolution carries no stamp, so the field is
-absent rather than empty, and `ValidationError`/`Cancellation` (which build envelopes from no
-exception at all) inherit that answer for free.
+service method that was holding the `LoadedProject` and read back by both
+`ToolExecutionHelper.Error<T>` and `Cancellation<T>`. The tool's `catch` block only ever sees the
+exception — the service loads internally, so `loaded` is a local that no longer exists by then —
+which is why the path cannot simply be passed as an argument. The consequence that makes the
+mechanism correct rather than merely convenient: an exception raised *before* resolution carries no
+stamp, so the field is absent rather than empty.
+
+What decides presence is **when** the failure happened, not which `type` it classified as. A
+`ValidationError` the service raised after loading (`get_call_graph` handed a type instead of a
+method) carries the path; one caught at the tool boundary before the service ran cannot, because
+`ValidationError<T>` builds its envelope from no exception at all. Likewise a cancellation or
+timeout that lands after the load carries it — which is the point, since being pointed at an
+unexpectedly large checkout is a leading cause of a timeout.
+
+Because the stamp is hand-placed at each site that loads a project, a site added later would drop
+the field silently — the omission is invisible on the success path.
+`ToolErrorResolvedPathTests.Every_Site_That_Loads_A_Project_Also_Stamps_The_Path` pins the two
+counts together per file so that cannot pass unnoticed.
 
 See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` values and examples.
 
@@ -529,6 +540,10 @@ restating an idealized version.
 - `InternalError`-class failures always return a fixed, generic message
   ("An unexpected internal error occurred. Check the server logs for details.") — the real
   exception message and stack trace are logged server-side only, never returned to the caller.
+  What is sanitized is the **message**: an `InternalError` still reports `correlationId` and, when
+  one was resolved, `resolvedPath`. Neither is derived from the exception, and the same absolute
+  path already rides every success response, so withholding it would cost the caller its only
+  means of diagnosing the failure while protecting nothing.
 - Non-internal failures (validation, not-found, analysis, cancellation, timeout) return the
   exception's own message, classified into the closed `ToolErrorTypes` set rather than a raw CLR
   type name (see `docs/API.md#error-handling`).

@@ -1307,10 +1307,13 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
                              // that call (see "Tracing Individual Tool Calls" in the README).
     resolvedPath?: string;  // The absolute .sln/.csproj that answered this call — the same value the
                              // success responses carry. Present whenever the failure happened AFTER a
-                             // project was resolved, including for InternalError (the message is
-                             // scrubbed; the path is not secret). OMITTED — never "" — when nothing
-                             // was ever resolved: every ValidationError and CancelledError, and any
-                             // failure in loading itself. See "Which checkout answered?" below.
+                             // project was resolved — for ANY type, including InternalError (the
+                             // message is scrubbed; the path is not secret), TimeoutError, and a
+                             // ValidationError the server raised post-load. OMITTED — never "" —
+                             // when nothing was ever resolved: a bad argument rejected before the
+                             // work starts, or a failure in loading itself. What decides it is WHEN
+                             // the failure happened, not which `type` it got.
+                             // See "Which checkout answered?" below.
   };
 }
 ```
@@ -1327,6 +1330,10 @@ On the success path that mismatch surfaces as a `resolvedPath` you did not expec
 path it surfaces as `NotFoundError: Symbol not found: 'X'` — and without this field there is nothing
 in the response to tell that apart from "the symbol does not exist". Compare `error.resolvedPath`
 against the checkout you meant, and pass an absolute path as `project` to target a specific one.
+
+A `TimeoutError` carries the field for the same reason: being pointed at an unexpectedly large
+checkout is a leading cause of one, so the answer to "why did that take 120 s?" is often the path
+itself.
 
 ### Error Types
 

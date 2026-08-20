@@ -88,10 +88,10 @@ public static class EditMemberTool
             invocation.MarkSuccess();
             return ToolResult<EditMemberResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<EditMemberResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<EditMemberResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {

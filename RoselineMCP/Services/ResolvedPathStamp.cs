@@ -73,11 +73,16 @@ public static class ResolvedPathStamp
     /// Reads back the path stamped by <see cref="Stamp(Exception, string?)"/>, or
     /// <see langword="null"/> when this exception was raised before any project was resolved.
     /// </summary>
-    /// <param name="ex">The exception being turned into a failure envelope.</param>
+    /// <param name="ex">
+    /// The exception being turned into a failure envelope. <see langword="null"/> is accepted and
+    /// yields <see langword="null"/>: some envelopes are built from no exception at all (a
+    /// validation failure caught at the tool boundary), and "no exception" and "no stamp" mean the
+    /// same thing here — nothing was resolved.
+    /// </param>
     /// <returns>The absolute resolved path, or <see langword="null"/> when none was stamped.</returns>
-    public static string? Read(Exception ex)
+    public static string? Read(Exception? ex)
     {
-        var data = ex.Data;
+        var data = ex?.Data;
         return data is not null && data.Contains(DataKey) ? data[DataKey] as string : null;
     }
 }

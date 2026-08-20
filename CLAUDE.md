@@ -93,10 +93,14 @@ The application uses a dependency injection-based service architecture with clea
   `UseStructuredContent = true` so the SDK also advertises an `outputSchema` and emits structured content.
   `error` carries `{ type, message, hint?, correlationId, resolvedPath? }`. `resolvedPath` names the
   absolute `.sln`/`.csproj` that answered, mirroring the success responses; it is **omitted — never
-  `""` — when the failure happened before any project was resolved** (`ValidationError`,
-  `CancelledError`, a load that itself failed), because "never resolved" is a different claim from
-  "resolved to nothing". The path travels from the service to `Error<T>` on `Exception.Data`
-  (`ResolvedPathStamp`) — the tool's `catch` block never sees the service's `loaded` handle
+  `""` — when the failure happened before any project was resolved** (a bad argument rejected at the
+  tool boundary, a load that itself failed), because "never resolved" is a different claim from
+  "resolved to nothing". What decides presence is **when** the failure happened, not its `type`: an
+  `InternalError` carries the path (only the *message* is scrubbed), so do a `TimeoutError` and a
+  `ValidationError` the service raised after loading. The path travels from the service to
+  `Error<T>`/`Cancellation<T>` on `Exception.Data` (`ResolvedPathStamp`) — the tool's `catch` block
+  never sees the service's `loaded` handle. Every site that loads a project must stamp; a test pins
+  the two counts together, since a missed site would drop the field silently
 - **Error Resilience**: All tools return the failure envelope (`ok: false`) with error details, never
   throwing to the MCP layer
 - **Streaming Prevention**: Stderr logging ensures clean stdio communication for MCP protocol
