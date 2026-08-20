@@ -47,10 +47,10 @@ public static class GetCallGraphTool
             invocation.MarkSuccess();
             return ToolResult<CallGraphResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<CallGraphResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<CallGraphResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {

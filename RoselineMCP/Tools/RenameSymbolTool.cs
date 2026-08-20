@@ -79,10 +79,10 @@ public static class RenameSymbolTool
             invocation.MarkSuccess();
             return ToolResult<RenameSymbolResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<RenameSymbolResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<RenameSymbolResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {

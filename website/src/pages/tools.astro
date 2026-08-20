@@ -57,12 +57,14 @@ const groupBlurb: Record<string, string> = {
           on each card below is the shape of <code>data</code> — the payload — not the whole envelope.</p>
         <div class="env-shapes">
           <div class="env-row"><span class="pill read">ok</span><code class="mono">{`{ "ok": true, "data": { … } }`}</code></div>
-          <div class="env-row"><span class="pill write">err</span><code class="mono">{`{ "ok": false, "error": { "type", "message", "correlationId" } }`}</code></div>
+          <div class="env-row"><span class="pill write">err</span><code class="mono">{`{ "ok": false, "error": { "type", "message", "correlationId", "resolvedPath"? } }`}</code></div>
         </div>
         <p class="muted" style="margin-bottom:0">Tools set <code>UseStructuredContent</code>, so
           <code>data</code> is also delivered as MCP <code>structuredContent</code> alongside an advertised
           <code>outputSchema</code>. Long-running tools emit <strong>progress notifications</strong>;
-          failures carry a <code>correlationId</code> to the client’s log stream.</p>
+          failures carry a <code>correlationId</code> to the client’s log stream, plus
+          <code>resolvedPath</code> — the checkout that answered — whenever the call failed
+          <em>after</em> resolving a project. It is omitted entirely when nothing was resolved.</p>
       </div>
 
       {groups.map((g) => (

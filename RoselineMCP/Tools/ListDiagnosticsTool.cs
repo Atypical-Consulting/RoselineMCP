@@ -54,10 +54,10 @@ public static class ListDiagnosticsTool
             invocation.MarkSuccess();
             return ToolResult<ListDiagnosticsResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<ListDiagnosticsResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ListDiagnosticsResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {

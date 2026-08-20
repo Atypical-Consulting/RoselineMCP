@@ -90,7 +90,17 @@ The application uses a dependency injection-based service architecture with clea
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
   payload nested under `data` on success, error details under `error` on failure — and sets
-  `UseStructuredContent = true` so the SDK also advertises an `outputSchema` and emits structured content
+  `UseStructuredContent = true` so the SDK also advertises an `outputSchema` and emits structured content.
+  `error` carries `{ type, message, hint?, correlationId, resolvedPath? }`. `resolvedPath` names the
+  absolute `.sln`/`.csproj` that answered, mirroring the success responses; it is **omitted — never
+  `""` — when the failure happened before any project was resolved** (a bad argument rejected at the
+  tool boundary, a load that itself failed), because "never resolved" is a different claim from
+  "resolved to nothing". What decides presence is **when** the failure happened, not its `type`: an
+  `InternalError` carries the path (only the *message* is scrubbed), so do a `TimeoutError` and a
+  `ValidationError` the service raised after loading. The path travels from the service to
+  `Error<T>`/`Cancellation<T>` on `Exception.Data` (`ResolvedPathStamp`) — the tool's `catch` block
+  never sees the service's `loaded` handle. Every site that loads a project must stamp; a test pins
+  the two counts together, since a missed site would drop the field silently
 - **Error Resilience**: All tools return the failure envelope (`ok: false`) with error details, never
   throwing to the MCP layer
 - **Streaming Prevention**: Stderr logging ensures clean stdio communication for MCP protocol
@@ -205,6 +215,11 @@ the absolute `.sln`/`.csproj` that actually answered. Pass an absolute path as `
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
 
+That remedy covers **failures too**, and they are the common shape of this mistake: querying the
+wrong checkout usually produces `NotFoundError: Symbol not found: 'X'`, not a wrong-but-successful
+answer. The failure envelope's `error.resolvedPath` names the checkout that was searched, so
+"the symbol is not there" stays distinguishable from "you asked the wrong tree".
+
 - **5. SearchSymbols** — `project`, `query` (wildcard/substring), `file` (outline), `kinds[]`, `max`. Returns symbol summaries or a file outline.
 - **6. GetSymbolInfo** — `project`, `symbol`, `includeSource`. Returns kind/modifiers/signature/baseTypes/interfaces/docs/definition (+ optional source); accessibility is inside `signature`, and empty/absent fields are omitted.
 - **7. FindReferences** — `project`, `symbol`, `includeDefinition`, `max`. Returns use sites (file/line/snippet).
@@ -261,7 +276,8 @@ public static async Task<ToolResult<Result>> NewTool(
     {
         invocation.MarkFailure(ex.Message);
         // ToolExecutionHelper.Error<T> classifies the exception into the closed error-type set and
-        // returns { ok: false, error: { type, message, correlationId } } — never rethrowing.
+        // returns { ok: false, error: { type, message, correlationId, resolvedPath? } } —
+        // never rethrowing. resolvedPath is read off ex.Data and stays absent when nothing resolved.
         return ToolExecutionHelper.Error<Result>(ex, invocation.CorrelationId, invocation.Logger);
     }
 }

@@ -43,10 +43,10 @@ public static class FindImplementationsTool
             invocation.MarkSuccess();
             return ToolResult<ImplementationsResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<ImplementationsResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ImplementationsResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {

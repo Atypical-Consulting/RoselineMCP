@@ -72,10 +72,10 @@ public static class AnalyzeSolutionTool
             invocation.MarkSuccess();
             return ToolResult<AnalyzeSolutionResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<AnalyzeSolutionResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<AnalyzeSolutionResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {
