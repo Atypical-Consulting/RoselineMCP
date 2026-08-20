@@ -36,7 +36,10 @@ var compilation = await project.GetCompilationAsync()
 
 var sharedLoader = new SharedProjectLoader(solution, project);
 var nav = new CodeNavigationService(NullLogger<CodeNavigationService>.Instance, sharedLoader);
-var edit = new CodeEditService(NullLogger<CodeEditService>.Instance, sharedLoader, new DiffService());
+var verification = new VerificationService(
+    NullLogger<VerificationService>.Instance, DiagnosticComputationService.CompilerOnly);
+var edit = new CodeEditService(
+    NullLogger<CodeEditService>.Instance, sharedLoader, new DiffService(), verification);
 
 Console.WriteLine($"Loaded project '{project.Name}' with {project.Documents.Count()} documents.");
 
@@ -257,6 +260,70 @@ suites.Add(Suite("edit-output", "rename_symbol", "Emitting a diff instead of rew
     "Output-side saving: the tokens an agent must *emit*. Compare a `rename_symbol` unified diff against re-emitting the full text of every file it changes.",
     "B1 = the full text of each changed file (what you'd write to rewrite them). Illustrative curated cases, not a sweep.", false, editRows));
 
+// ── Suite 8: check_compilation vs. real `dotnet build` stdout ──
+// The only suite whose baseline is not source an agent reads but a COMMAND an agent runs, and the
+// only one where the tool replaces a tool rather than a file read — so it is pooled separately
+// from the navigation headline rather than folded into it.
+Console.WriteLine("Suite 8: check_compilation vs dotnet build…");
+var buildRows = new List<TaskRow>();
+var buildFixtureRoot = Path.Combine(Path.GetTempPath(), "RoselineMCP.TokenBench_" + Guid.NewGuid().ToString("n"));
+
+try
+{
+    foreach (var (label, files, expectManyErrors) in BuildComparisonFixtures())
+    {
+        var dir = Path.Combine(buildFixtureRoot, label);
+        Directory.CreateDirectory(dir);
+        var csproj = Path.Combine(dir, "Fixture.csproj");
+        File.WriteAllText(csproj, FixtureCsproj());
+        foreach (var (name, code) in files)
+        {
+            File.WriteAllText(Path.Combine(dir, name), code);
+        }
+
+        // The baseline: exactly what `dotnet build` prints to an agent's terminal. No verbosity
+        // flags — the default is what the agent actually sees, and pays for.
+        var buildOutput = RunDotnetBuild(dir);
+        if (buildOutput is null)
+        {
+            Console.Error.WriteLine($"  skipping {label}: dotnet build could not be run");
+            continue;
+        }
+
+        using var fixtureLoaded = await realLoader.LoadAsync(csproj);
+
+        // The shipped default (max: 20) — what a caller gets without asking for anything…
+        var capped = await verification.VerifyAsync(null, fixtureLoaded.Solution);
+        capped.ResolvedPath = fixtureLoaded.ResolvedPath;
+
+        // …and untruncated, so the comparison is not flattered by truncation alone. On the worst
+        // case these differ by an order of magnitude, and hiding that would turn the headline into
+        // a statement about `max` rather than about the tool.
+        var full = await verification.VerifyAsync(null, fixtureLoaded.Solution, int.MaxValue);
+        full.ResolvedPath = fixtureLoaded.ResolvedPath;
+
+        var errorCount = (full.Errors?.Count ?? 0) + full.Omitted;
+        if (expectManyErrors && errorCount < 100)
+        {
+            Console.Error.WriteLine(
+                $"  WARNING: {label} produced only {errorCount} errors — the worst case is not being exercised");
+        }
+
+        var buildMeasure = M(buildOutput);
+        buildRows.Add(Row($"{label} · {errorCount} error(s) · default (max 20)", buildMeasure, null, M(Ser(capped))));
+        buildRows.Add(Row($"{label} · {errorCount} error(s) · untruncated", buildMeasure, null, M(Ser(full))));
+    }
+}
+finally
+{
+    try { Directory.Delete(buildFixtureRoot, recursive: true); } catch { /* best-effort cleanup */ }
+}
+
+suites.Add(Suite("check-compilation", "check_compilation", "A compile verdict instead of `dotnet build` output",
+    "The edit loop's inner step. Compare `check_compilation`'s enveloped verdict against the stdout of a real `dotnet build` on the same broken state — one error, and the worst case of a rename that breaks hundreds of call sites.",
+    "B1 = the full stdout of `dotnet build` at default verbosity, the text an agent actually reads. Both the shipped `max: 20` default and the untruncated output are reported, so the saving is not mistaken for an artifact of truncation.",
+    false, buildRows));
+
 // ── Headline: pool the clear navigation wins (exclude the includeSource weak case and edit output) ──
 var headlineSuiteIds = new HashSet<string> { "outline", "symbol-info", "references", "implementations", "call-graph" };
 var headlineRows = suites.Where(s => headlineSuiteIds.Contains(s.Id)).SelectMany(s => s.Rows).ToList();
@@ -461,3 +528,81 @@ static List<string> Limitations() =>
     "find_references / find_implementations baselines assume you read whole referencing files to be as complete as the tool (which searches the whole solution). If those references sit in large test files, the whole-file baseline is large — the targeted (B2) column keeps that honest.",
     "Results are specific to this codebase and its file sizes. A repo of tiny files saves less; a repo of large files saves more. Re-run on your own solution to get your numbers: dotnet run --project RoselineMCP.TokenBenchmark.",
 ];
+
+/// <summary>A minimal SDK-style project with no PackageReferences, so `dotnet build` needs no restore feed.</summary>
+static string FixtureCsproj() =>
+    """
+    <Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+      </PropertyGroup>
+    </Project>
+    """;
+
+/// <summary>
+/// The two cases: one error, and the mass-failure case. The second has the declaration already
+/// renamed to <c>Helper2</c> while every caller still says <c>Helper</c> — the shape a careless
+/// rename produces, and the one where `dotnet build` output is at its worst.
+/// </summary>
+static List<(string Label, List<(string Name, string Code)> Files, bool ExpectManyErrors)> BuildComparisonFixtures()
+{
+    var single = new List<(string, string)>
+    {
+        ("Program.cs", "public static class Program { public static void Main() { } }"),
+        ("Broken.cs", "public class Broken { public int Nope() => Missing.Thing(); }"),
+    };
+
+    // 20 files x 15 call sites = 300 binding errors.
+    var mass = new List<(string, string)>
+    {
+        ("Program.cs", "public static class Program { public static void Main() { } }"),
+        ("Shared.cs", "public static class Helper2 { public static int Do() => 1; }"),
+    };
+    for (var f = 0; f < 20; f++)
+    {
+        var body = string.Join(
+            "\n    ", Enumerable.Range(0, 15).Select(i => $"public int M{i}() => Helper.Do();"));
+        mass.Add(($"Caller{f:D2}.cs", $"public class Caller{f:D2}\n{{\n    {body}\n}}"));
+    }
+
+    return
+    [
+        ("one-error", single, false),
+        ("mass-failure-rename", mass, true),
+    ];
+}
+
+/// <summary>
+/// Runs a real <c>dotnet build</c> and returns its stdout — the baseline this suite measures
+/// against. Returns <see langword="null"/> when the SDK cannot be invoked, so the suite is skipped
+/// rather than reporting a fabricated baseline.
+/// </summary>
+static string? RunDotnetBuild(string projectDirectory)
+{
+    try
+    {
+        var psi = new ProcessStartInfo("dotnet", "build")
+        {
+            WorkingDirectory = projectDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        using var process = Process.Start(psi);
+        if (process is null) return null;
+
+        // Both pipes must be drained concurrently. Reading stdout to completion first lets a child
+        // that fills the stderr buffer block on the write, stop producing stdout, and deadlock the
+        // pair — unlikely for `dotnet build`, but the fix costs one line.
+        var stderr = process.StandardError.ReadToEndAsync();
+        var stdout = process.StandardOutput.ReadToEnd();
+        stderr.GetAwaiter().GetResult();
+        process.WaitForExit();
+        return stdout;
+    }
+    catch
+    {
+        return null;
+    }
+}

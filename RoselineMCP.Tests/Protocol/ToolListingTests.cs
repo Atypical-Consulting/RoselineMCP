@@ -28,6 +28,7 @@ public class ToolListingTests : McpProtocolTestBase
         "get_type_hierarchy",
         "edit_member",
         "rename_symbol",
+        "check_compilation",
     ];
 
     [Fact]
@@ -71,7 +72,8 @@ public class ToolListingTests : McpProtocolTestBase
         // 'project' is now optional (auto-discovered from the working directory, same as the
         // navigation tools); only 'ids' remains required.
         GetRequired(tool).ShouldBe(["ids"]);
-        GetPropertyNames(tool).ShouldBe(["project", "ids", "previewOnly"], ignoreOrder: true);
+        GetPropertyNames(tool).ShouldBe(
+            ["project", "ids", "previewOnly", "allowIntroducedErrors", "max"], ignoreOrder: true);
     }
 
     [Fact]
@@ -114,6 +116,17 @@ public class ToolListingTests : McpProtocolTestBase
     }
 
     [Fact]
+    public async Task CheckCompilation_Schema_Has_No_Required_Params()
+    {
+        var tool = await GetToolAsync("check_compilation");
+
+        // Both parameters are optional: with neither, it answers "does the auto-discovered
+        // solution compile?", which is the whole point of it replacing `dotnet build`.
+        GetRequired(tool).ShouldBeEmpty();
+        GetPropertyNames(tool).ShouldBe(["project", "max"], ignoreOrder: true);
+    }
+
+    [Fact]
     public async Task EditMember_Schema_Requires_Symbol_And_Operation()
     {
         var tool = await GetToolAsync("edit_member");
@@ -122,7 +135,8 @@ public class ToolListingTests : McpProtocolTestBase
         // 'operation' remain required.
         GetRequired(tool).ShouldBe(["symbol", "operation"], ignoreOrder: true);
         GetPropertyNames(tool).ShouldBe(
-            ["project", "symbol", "operation", "newSource", "previewOnly"], ignoreOrder: true);
+            ["project", "symbol", "operation", "newSource", "previewOnly", "allowIntroducedErrors", "max"],
+            ignoreOrder: true);
     }
 
     [Theory]

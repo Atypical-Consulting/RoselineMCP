@@ -50,12 +50,22 @@
   },
   "apply_fixes": {
     "properties": {
+      "allowIntroducedErrors": {
+        "default": false,
+        "description": "If false (the default), fixes whose result introduces compiler errors are refused and nothing is written: the response carries the patch and the introduced errors with applied=false. Set true to write them anyway.",
+        "type": "boolean"
+      },
       "ids": {
         "description": "List of diagnostic IDs to fix (e.g., [\u0027RCS1213\u0027, \u0027SA1101\u0027])",
         "items": {
           "type": "string"
         },
         "type": "array"
+      },
+      "max": {
+        "default": 20,
+        "description": "Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.",
+        "type": "integer"
       },
       "previewOnly": {
         "default": true,
@@ -74,6 +84,24 @@
     "required": [
       "ids"
     ],
+    "type": "object"
+  },
+  "check_compilation": {
+    "properties": {
+      "max": {
+        "default": 20,
+        "description": "Maximum number of errors to return (default: 20); the remainder are counted in \u0060omitted\u0060.",
+        "type": "integer"
+      },
+      "project": {
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
     "type": "object"
   },
   "create_patch": {
@@ -113,6 +141,16 @@
   },
   "edit_member": {
     "properties": {
+      "allowIntroducedErrors": {
+        "default": false,
+        "description": "If false (the default), an edit that introduces compiler errors is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.",
+        "type": "boolean"
+      },
+      "max": {
+        "default": 20,
+        "description": "Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.",
+        "type": "integer"
+      },
       "newSource": {
         "default": null,
         "description": "New C# member declaration source (required for \u0027replace\u0027 and \u0027add\u0027; ignored for \u0027delete\u0027)",
@@ -375,6 +413,16 @@
   },
   "rename_symbol": {
     "properties": {
+      "allowIntroducedErrors": {
+        "default": false,
+        "description": "If false (the default), a rename that introduces compiler errors \u2014 including in a downstream project the caller never named \u2014 is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.",
+        "type": "boolean"
+      },
+      "max": {
+        "default": 20,
+        "description": "Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.",
+        "type": "integer"
+      },
       "newName": {
         "description": "New name for the symbol (must be a valid C# identifier)",
         "type": "string"

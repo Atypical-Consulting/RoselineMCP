@@ -24,13 +24,21 @@ public interface ICodeFixService
     /// non-destructive, read-only behavior — callers must opt in explicitly by passing
     /// <see langword="false"/> to write changes to disk.
     /// </param>
+    /// <param name="allowIntroducedErrors">
+    /// Escape hatch for the compile gate. When false (the default), fixes whose result introduces
+    /// compiler errors are <b>refused</b>: the response carries the patch and the introduced errors,
+    /// <c>applied</c> is false, and no file is written.
+    /// </param>
+    /// <param name="max">Maximum diagnostics reported per list in the verdict; the rest are counted.</param>
     /// <param name="progress">Optional sink for progress updates (project load / per-diagnostic fixing).</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>Response containing changed files, patch, and fix statistics.</returns>
+    /// <returns>Response containing changed files, patch, fix statistics, and the compiler's verdict.</returns>
     Task<ApplyFixesResponse> ApplyFixesAsync(
         string? project,
         List<string> ids,
         bool previewOnly = true,
+        bool allowIntroducedErrors = false,
+        int max = 20,
         IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default);
 }

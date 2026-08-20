@@ -4,7 +4,7 @@
 
 <!-- mcp-name: io.github.Atypical-Consulting/roseline-mcp -->
 
-> **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 89% fewer tokens (median) →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
+> **Roslyn code intelligence for AI coding agents, over MCP.** Give Claude, Cursor, and Copilot a semantic view of your C# solution — symbols, references, call graphs, surgical edits — so they navigate by *structure* instead of re-reading source. **[Measured 85% fewer tokens (median) →](https://atypical-consulting.github.io/RoselineMCP/benchmark)**
 
 <!-- Badges: Row 1 — Identity -->
 [![Atypical-Consulting - RoselineMCP](https://img.shields.io/static/v1?label=Atypical-Consulting&message=RoselineMCP&color=blue&logo=github)](https://github.com/Atypical-Consulting/RoselineMCP)
@@ -28,7 +28,7 @@
 
 <!-- Badges: Row 5 — Docs & result -->
 [![Docs & Benchmark](https://img.shields.io/badge/docs-site-e01e5a)](https://atypical-consulting.github.io/RoselineMCP/)
-[![Tokens saved](https://img.shields.io/badge/tokens-89%25_fewer_(median)-1baf7a)](https://atypical-consulting.github.io/RoselineMCP/benchmark)
+[![Tokens saved](https://img.shields.io/badge/tokens-85%25_fewer_(median)-1baf7a)](https://atypical-consulting.github.io/RoselineMCP/benchmark)
 
 **📖 [Documentation, tool reference & the honest benchmark →](https://atypical-consulting.github.io/RoselineMCP/)**
 
@@ -64,7 +64,7 @@ Instead of dumping source into the model, it answers *structural* questions prec
 this symbol used, what implements this interface, who calls this method, what's the shape of this
 file — and it edits **surgically**: a member-level diff, not a whole-file rewrite.
 
-On RoselineMCP's own source, the read-only navigation tools returned a **median 89% fewer tokens
+On RoselineMCP's own source, the read-only navigation tools returned a **median 85% fewer tokens
 per task** (pooled, size-weighted: 93%) than reading the corresponding files —
 [measured honestly, weak cases included](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 
@@ -91,7 +91,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 
 ## Features
 
-- [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **89% median** token reduction per task (93% pooled, size-weighted) -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
+- [x] **Token-efficient code navigation** -- symbols, references, call graphs, type hierarchies, and file outlines via Roslyn instead of whole files. A measured **85% median** token reduction per task (93% pooled, size-weighted) -- [see the benchmark](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 - [x] **Surgical code edits** -- replace/add/delete a member or rename a symbol solution-wide, emitting a unified diff instead of a whole-file rewrite. Preview by default.
 - [x] **Comprehensive analysis & auto-fix** -- diagnostics across a solution (Roslyn + Roslynator) with automated fixes and reviewable patches.
 - [x] **Read-only by default** -- the seven navigation tools and the diagnostics/patch tools never touch disk; the three write tools require an explicit `previewOnly: false`.
@@ -343,8 +343,35 @@ applyFixes({
 **Returns:** project name, `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded),
 `fixedCount`, `fixersApplied` (diagnostic IDs actually fixed), `changedFiles`
 (solution-root-relative, forward slashes — the same path base as the navigation tools), a unified
-diff `patch`, `notes` (skipped/failed IDs and status messages), and `previewOnly` echoing back
-whether anything was written.
+diff `patch`, `notes` (skipped/failed IDs and status messages), `previewOnly` echoing back what the
+caller asked for, `applied` (whether anything actually reached disk), and `verification` — the
+compiler's verdict on the fixed code.
+
+### 14. CheckCompilation
+
+Answers **"does this compile right now, and what broke"** against on-disk state — the replacement
+for a `dotnet build` round trip in an agent's edit loop. Read-only, and compiler diagnostics only:
+analyzers cost several times a bare compile, which is the whole reason this tool is fast enough to
+run after every edit.
+
+It reports on whatever is on disk, whoever wrote it, so it works just as well for edits made by
+other tools. The speed comes from the warm `MSBuildWorkspace` the server already holds: the first
+call of a session pays a cold load, every call after it reuses an incremental Roslyn compilation.
+
+```typescript
+checkCompilation({
+  project: "MyApp.sln",  // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
+  max: 20                 // Optional (default: 20). The rest are counted in `omitted`.
+})
+```
+
+**Returns:** `resolvedPath`, `compiles`, `errors` (omitted when it compiles), `omitted`, `scope`
+(the projects compiled), `scopeComplete` and `notes`.
+
+> **`check_compilation` vs `list_diagnostics`:** `check_compilation` answers *"is it still
+> building?"* — compiler errors, fast, for the edit loop. `list_diagnostics` answers *"what should I
+> clean up?"* — analyzer diagnostics, statistics, and which IDs are auto-fixable. Reach for the
+> first after an edit and the second when exploring.
 
 ### 4. CreatePatch
 
@@ -388,7 +415,8 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > (and expected by `tools/call`) are: `search_symbols`, `get_symbol_info`, `find_references`,
 > `find_implementations`, `get_call_graph`, `get_type_hierarchy`, `get_symbol_at_position`,
 > `edit_member`, `rename_symbol`
-> (matching the existing `analyze_solution` / `list_diagnostics` / `apply_fixes` / `create_patch`).
+> (matching the existing `analyze_solution` / `list_diagnostics` / `apply_fixes` /
+> `check_compilation` / `create_patch`).
 
 #### 5. SearchSymbols
 
@@ -517,7 +545,16 @@ Rename a symbol and update every reference across the solution (Roslyn rename); 
 renameSymbol({ project: "MyApp.Core", symbol: "GetUser", newName: "GetUserById", previewOnly: false })
 ```
 
-**Returns:** symbol, newName, `changedFiles`, `patch`, `previewOnly`, `applied`, `notes`.
+**Returns:** symbol, newName, `changedFiles`, `patch`, `previewOnly`, `applied`, `verification`, `notes`.
+
+> **Every write is compile-verified.** Before `edit_member`, `rename_symbol` or `apply_fixes`
+> touches disk, the candidate change is compiled in memory. If it *introduces* compiler errors —
+> including in a downstream project you never named — the write is **refused**: the call still
+> succeeds, `applied` comes back `false`, nothing is written, and you get the diff *and* the
+> errors. Pass `allowIntroducedErrors: true` to write anyway. A repository that was already
+> broken stays editable: the gate is what the change *introduces*, never whether the tree
+> compiles. See [Compile Verification](docs/API.md#compile-verification) for the scope rule and
+> the guarantee boundary.
 
 ## Tool Annotations
 
@@ -531,6 +568,7 @@ RoselineMCP's SDK (`ModelContextProtocol` 2.2.0) supports the standard MCP tool
 | `AnalyzeSolution` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `ListDiagnostics` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `ApplyFixes` | ❌ false | ⚠️ true | ❌ false | `destructiveHint` is a static, worst-case annotation: it's `true` because the tool *can* write files when `previewOnly: false` is passed, even though the default call (`previewOnly` unset, i.e. `true`) writes nothing. The SDK's annotation model has no way to express "destructive only for a specific parameter value" — see the doc comment on `ApplyFixesTool.ApplyFixes` in source. |
+| `CheckCompilation` | ✅ true | ❌ false | ✅ true | Never writes to disk. Compiles the loaded solution and reports the compiler's verdict. |
 | `CreatePatch` | ✅ true | ❌ false | ✅ true | Operates purely on the two provided strings; never touches the filesystem. |
 | `SearchSymbols` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `GetSymbolInfo` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
@@ -566,7 +604,9 @@ top of.
 ## Supported Analyzers
 
 The diagnostics tools (`analyze_solution`, `list_diagnostics`, `apply_fixes`) report compiler
-diagnostics plus analyzer diagnostics, executed via Roslyn's `CompilationWithAnalyzers`:
+diagnostics plus analyzer diagnostics, executed via Roslyn's `CompilationWithAnalyzers`
+(`check_compilation` is deliberately **not** in this list — it is compiler-only, which is what makes
+it fast enough for an edit loop):
 
 - **Roslyn Analyzers** -- Built-in C# compiler diagnostics
 - **Roslynator** -- 500+ analyzers and fixes for C#, **bundled with RoselineMCP** (shipped as an

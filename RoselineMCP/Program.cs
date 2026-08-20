@@ -142,6 +142,12 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
                 sp.GetRequiredService<ILogger<CachingProjectLoader>>()));
 
             // Add Business Services
+            // Compiler-only, on purpose: verification is a build gate, not a style gate. Handing it
+            // the analyzer-aware DiagnosticComputationService would cost several times a bare
+            // compile and start refusing writes over RCS/StyleCop opinions.
+            services.AddSingleton<IVerificationService>(sp => new VerificationService(
+                sp.GetRequiredService<ILogger<VerificationService>>(),
+                DiagnosticComputationService.CompilerOnly));
             services.AddSingleton<ISolutionAnalyzerService, SolutionAnalyzerService>();
             services.AddSingleton<ICodeFixService, CodeFixService>();
             services.AddSingleton<IPatchService, PatchService>();

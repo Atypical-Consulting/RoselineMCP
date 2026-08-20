@@ -4,6 +4,7 @@ using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Services;
+using RoselineMCP.Tests.Services;
 using RoselineMCP.Tools;
 using Shouldly;
 
@@ -78,7 +79,7 @@ public class ToolErrorContractTests
     {
         var codeFixService = A.Fake<ICodeFixService>();
         A.CallTo(() => codeFixService.ApplyFixesAsync(
-                A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+                A<string>._, A<List<string>>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .Throws(thrown);
 
         var result = await ApplyFixesTool.ApplyFixes(codeFixService, ["CS0168"], "TestProject");
@@ -115,7 +116,8 @@ public class ToolErrorContractTests
             A.Fake<ISolutionAnalyzerService>(),
             A.Fake<ICodeFixProviderFactory>(),
             A.Fake<IDiffService>(),
-            new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), A.Fake<IMSBuildService>()));
+            new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), A.Fake<IMSBuildService>()),
+            TestVerification.New());
 
         var result = await ApplyFixesTool.ApplyFixes(codeFixService, ["CS0168"], "/nonexistent/x.csproj");
 

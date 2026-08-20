@@ -29,6 +29,8 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<bool>._,
+                A<int>._,
                 A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new InvalidOperationException("Workspace failed to load"));
@@ -69,6 +71,8 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>>._,
                 false,
+                A<bool>._,
+                A<int>._,
                 A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(new ApplyFixesResponse
@@ -99,6 +103,8 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<bool>._,
+                A<int>._,
                 A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new FileNotFoundException("Project file not found"));
@@ -128,6 +134,8 @@ public class AnalysisToolsAdditionalTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<bool>._,
+                A<int>._,
                 A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Throws(new OperationCanceledException());

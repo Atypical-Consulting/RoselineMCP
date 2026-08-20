@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RoselineMCP.Interfaces;
 
 namespace RoselineMCP.Models;
 
@@ -8,7 +9,7 @@ namespace RoselineMCP.Models;
 /// to the change rather than to the files touched. Defaults to preview mode; nothing is written to
 /// disk unless the caller explicitly opts in.
 /// </summary>
-public class RenameSymbolResponse
+public class RenameSymbolResponse : IWriteToolResponse
 {
     /// <summary>Name of the project the rename was anchored in.</summary>
     [JsonPropertyName("project")]
@@ -45,6 +46,15 @@ public class RenameSymbolResponse
     /// <summary>Whether changes were actually written to disk (only true when <c>previewOnly</c> was explicitly false and there were changes).</summary>
     [JsonPropertyName("applied")]
     public bool Applied { get; set; }
+
+    /// <summary>
+    /// The compiler's verdict on this change, computed in memory before anything touched disk. When
+    /// <c>introduced</c> is non-empty and the caller did not pass <c>allowIntroducedErrors</c>, the
+    /// edit was <b>refused</b>: <c>applied</c> is false and no file was written.
+    /// </summary>
+    [JsonPropertyName("verification")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public VerificationVerdict? Verification { get; set; }
 
     /// <summary>Additional notes or warnings about the rename.</summary>
     [JsonPropertyName("notes")]

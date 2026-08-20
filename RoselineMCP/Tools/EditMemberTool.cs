@@ -42,6 +42,10 @@ public static class EditMemberTool
         bool previewOnly = true,
         [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
+        [Description("If false (the default), an edit that introduces compiler errors is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.")]
+        bool allowIntroducedErrors = false,
+        [Description("Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.")]
+        int max = 20,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,
@@ -58,8 +62,8 @@ public static class EditMemberTool
                 "Valid operations are: replace, add, delete.");
         }
 
-        // Created only once the confirmation below has resolved — see the comment there.
-        CancellationTokenSource? timeoutSource = null;
+        // Verify, then ask, then write — the shared flow, so the three write tools cannot drift.
+        using var budget = new AnalysisBudget(cancellationToken, options);
 
         try
         {
@@ -100,32 +104,18 @@ public static class EditMemberTool
             var subject = operation.Equals("add", StringComparison.OrdinalIgnoreCase)
                 ? $"a member to type '{symbol}'"
                 : $"member '{symbol}'";
-            var (effectivePreviewOnly, confirmationNote, writeTarget) = await ToolExecutionHelper.ResolveWriteModeAsync(
+            var result = await ToolExecutionHelper.RunVerifiedWriteAsync(
                 server,
                 options,
                 previewOnly,
+                allowIntroducedErrors,
                 project,
                 target => $"Write the '{operation}' of {subject} to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '{target}'.",
+                (target, phasePreviewOnly, _, token) => editService.EditMemberAsync(
+                    target, symbol, operation, newSource, phasePreviewOnly, allowIntroducedErrors, max, token),
+                budget,
                 invocation.Logger,
                 cancellationToken);
-
-            // Only NOW does the analysis budget start. Arming it before the confirmation would
-            // charge the human's think-time against it — the very thing the confirmation's own
-            // clock exists to prevent — and with the shipped defaults (DefaultTimeout 120s,
-            // ConfirmDestructiveWritesTimeout 300s) it would already have expired, turning the
-            // documented preview into a TimeoutError the caller cannot act on.
-            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
-
-            // The path the human approved, when they were asked; otherwise the caller's own
-            // argument, because nothing was resolved and so nothing was shown.
-            var result = await editService.EditMemberAsync(
-                writeTarget ?? project, symbol, operation, newSource, effectivePreviewOnly, timeoutSource.Token);
-
-            if (confirmationNote is not null)
-            {
-                result.PreviewOnly = true;
-                result.Notes.Add(confirmationNote);
-            }
 
             invocation.MarkSuccess();
             return ToolResult<EditMemberResponse>.Success(result);
@@ -133,16 +123,12 @@ public static class EditMemberTool
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<EditMemberResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<EditMemberResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
             return ToolExecutionHelper.Error<EditMemberResponse>(ex, invocation.CorrelationId, invocation.Logger);
-        }
-        finally
-        {
-            timeoutSource?.Dispose();
         }
     }
 }

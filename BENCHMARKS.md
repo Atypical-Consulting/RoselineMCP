@@ -1,8 +1,9 @@
 # Benchmarks
 
 RoselineMCP.Benchmarks is a [BenchmarkDotNet](https://benchmarkdotnet.org/) console app that
-measures the two core service-layer operations directly — `ISolutionAnalyzerService.AnalyzeSolutionAsync`
-and `ICodeFixService.ApplyFixesAsync` — bypassing the MCP protocol/JSON layer entirely. It exists
+measures the core service-layer operations directly — `ISolutionAnalyzerService.AnalyzeSolutionAsync`,
+`ICodeFixService.ApplyFixesAsync` and `IVerificationService.VerifyAsync` — bypassing the MCP
+protocol/JSON layer entirely. It exists
 to answer a question the rest of the docs don't: *how long does analysis/fixing actually take, and
 how does it scale with project size?*
 
@@ -28,6 +29,7 @@ To run a subset (BenchmarkDotNet's `--filter` uses glob patterns against `Type.M
 ```bash
 dotnet run -c Release --project RoselineMCP.Benchmarks -- --filter "*AnalyzeSolution*"
 dotnet run -c Release --project RoselineMCP.Benchmarks -- --filter "*ApplyFixes*"
+dotnet run -c Release --project RoselineMCP.Benchmarks -- --filter "*CheckCompilation*" "*VerifiedWriteOverhead*"
 ```
 
 Results (full text report, HTML, CSV, and a GitHub-flavored markdown table) are written to
@@ -59,11 +61,23 @@ real to fix, without needing any analyzer packages restored.
   application, formatting, and diff generation, without writing to disk (so repeated iterations
   always start from the same on-disk state).
 
-Both classes use a fixed, small job (`warmupCount: 2, iterationCount: 5`, single process) instead
+- **`CheckCompilationColdBenchmarks` / `CheckCompilationWarmBenchmarks` / `CheckCompilationAfterEditBenchmarks`**
+  measure `check_compilation` — load the solution, then `VerifyAsync(baseline: null, …)` — in the
+  three states a session actually passes through: the first call (cold MSBuild load), a repeat call
+  with nothing changed (pure cache hit), and a call right after a file changed on disk (the real
+  edit loop). Reported separately, because they differ by four orders of magnitude and quoting the
+  cache-hit figure as "warm" would be quoting the wrong scenario.
+- **`VerifiedWriteOverheadBenchmarks`** measures what the compile gate *costs* on the happy path:
+  the same `edit_member` preview with and without verification, on an edit that introduces nothing.
+  The un-verified arm uses a no-op verifier rather than an older build, so the only difference
+  between the arms is the compilation itself.
+
+All classes use a fixed, small job (`warmupCount: 2, iterationCount: 5`, single process) instead
 of BenchmarkDotNet's default pilot-driven job. Each invocation does a real MSBuild workspace
 creation plus a real Roslyn compilation, so letting BenchmarkDotNet auto-tune toward its usual
 15+ iterations per benchmark would burn many minutes for negligible extra statistical value on
-fixtures this size. The whole suite (4 benchmarks) runs in well under a minute.
+fixtures this size. The `AnalyzeSolution`/`ApplyFixes` pair runs in well under a minute; the
+verification classes add roughly another minute, dominated by the cold-start measurements.
 
 ## Results
 
@@ -87,6 +101,53 @@ release.
 |-------------------------------------------------------|---------:|----------:|---------:|----------:|----------:|----------:|
 | ApplyFixes (preview) — small project (5 files)        | 424.2 ms |  15.06 ms |  2.33 ms | 5000.0000 | 1000.0000 |  40.02 MB |
 | ApplyFixes (preview) — medium project (10 files)      | 495.2 ms | 105.50 ms | 16.33 ms | 9000.0000 | 1000.0000 |  73.84 MB |
+
+### check_compilation
+
+Measured 2026-08-20 (same machine, .NET SDK 10.0.400, BenchmarkDotNet v0.15.8).
+
+| State | Small (1 project, 5 files) | Medium (4 projects, 40 files) |
+|---|---:|---:|
+| **Cold** — first call of a session (median; mean/StdDev 833±593 ms and 952±500 ms) | 610 ms | 751 ms |
+| **After an on-disk edit** — the real edit loop | 413 ms | 625 ms |
+| **Repeat call, nothing changed** — pure cache hit | 32 µs | 108 µs |
+
+**Target: warm < 1 s. Met** — 413 ms / 625 ms after a real edit, which is the number that matters.
+The 32–108 µs row is honest but answers a question nobody asks: an agent calls this tool *because*
+it just edited a file, and that edit invalidates the workspace. Do not quote it as the headline.
+
+The cold row is deliberately noisy (5 iterations, `RunStrategy.ColdStart`, no warmup — each
+measurement is a genuine first call, and StdDev is as large as the mean). Medians are shown because
+the mean is not representative at that spread.
+
+### Verified-write overhead (happy path)
+
+`edit_member` preview against the medium fixture, warm workspace, on an edit that introduces
+nothing — the overwhelmingly common case.
+
+| Arm | Mean | Ratio |
+|---|---:|---:|
+| WITHOUT verification | 2.00 ms | 1.00 |
+| WITH verification, novel edit (real compile) | 8.17 ms | 4.10 |
+| WITH verification, repeated edit (identical text) | 8.46 ms | 4.25 |
+
+**Target: overhead < 500 ms. Met** — the gate adds **~6 ms** to a member-level edit. The 4× ratio
+looks alarming only because the un-gated baseline is 2 ms; the absolute figure is what an agent
+feels, and 6 ms against the 30–90 s `dotnet build` it removes is not a trade-off that needs
+defending.
+
+**Two findings worth keeping, both of which the numbers contradict an obvious guess about:**
+
+1. **Re-applying identical text is not cheaper than a novel edit** (8.46 ms vs 8.17 ms — within
+   noise). Roslyn's version stamps are identity-based, not content-based, so `WithDocumentText`
+   yields a new document version even for byte-identical text and the *candidate* compilation always
+   misses the cache. The baseline cache is real and does hit (see
+   `VerificationServiceCacheTests.An_Unchanged_Baseline_Is_Compiled_Once_Across_Two_Verifications`);
+   it is the candidate side that is always paid. Content-addressing the candidate is a possible
+   future saving, not something the current design claims.
+2. **The overhead is not the compilation of the whole scope.** 6 ms for a 4-project fixture is far
+   below the ~600 ms a cold load of the same fixture costs, because the workspace stays warm and
+   Roslyn recompiles incrementally from the changed document.
 
 ### Reading these numbers
 

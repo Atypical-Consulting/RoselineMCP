@@ -36,6 +36,10 @@ public static class RenameSymbolTool
         bool previewOnly = true,
         [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
+        [Description("If false (the default), a rename that introduces compiler errors — including in a downstream project the caller never named — is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.")]
+        bool allowIntroducedErrors = false,
+        [Description("Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.")]
+        int max = 20,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         IProgress<ProgressNotificationValue>? progress = null,
@@ -53,38 +57,24 @@ public static class RenameSymbolTool
                 "Pass a valid C# identifier as newName, e.g. newName: \"GetUserById\".");
         }
 
-        // Created only once the confirmation below has resolved — see the comment there.
-        CancellationTokenSource? timeoutSource = null;
+        // Verify, then ask, then write — the shared flow, so the three write tools cannot drift.
+        using var budget = new AnalysisBudget(cancellationToken, options);
 
         try
         {
-            // Gate policy lives in the helper; only the wording is this tool's own.
-            var (effectivePreviewOnly, confirmationNote, writeTarget) = await ToolExecutionHelper.ResolveWriteModeAsync(
+            var result = await ToolExecutionHelper.RunVerifiedWriteAsync(
                 server,
                 options,
                 previewOnly,
+                allowIntroducedErrors,
                 project,
                 target => $"Rename '{symbol}' to '{newName}' across the solution of '{target}' and write the changes to disk?",
+                (target, phasePreviewOnly, reportProgress, token) => editService.RenameSymbolAsync(
+                    target, symbol, newName, phasePreviewOnly, allowIntroducedErrors, max,
+                    reportProgress ? progress : null, token),
+                budget,
                 invocation.Logger,
                 cancellationToken);
-
-            // Only NOW does the analysis budget start. Arming it before the confirmation would
-            // charge the human's think-time against it — the very thing the confirmation's own
-            // clock exists to prevent — and with the shipped defaults (DefaultTimeout 120s,
-            // ConfirmDestructiveWritesTimeout 300s) it would already have expired, turning the
-            // documented preview into a TimeoutError the caller cannot act on.
-            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
-
-            // The path the human approved, when they were asked; otherwise the caller's own
-            // argument, because nothing was resolved and so nothing was shown.
-            var result = await editService.RenameSymbolAsync(
-                writeTarget ?? project, symbol, newName, effectivePreviewOnly, progress, timeoutSource.Token);
-
-            if (confirmationNote is not null)
-            {
-                result.PreviewOnly = true;
-                result.Notes.Add(confirmationNote);
-            }
 
             invocation.MarkSuccess();
             return ToolResult<RenameSymbolResponse>.Success(result);
@@ -92,16 +82,12 @@ public static class RenameSymbolTool
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<RenameSymbolResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<RenameSymbolResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
             return ToolExecutionHelper.Error<RenameSymbolResponse>(ex, invocation.CorrelationId, invocation.Logger);
-        }
-        finally
-        {
-            timeoutSource?.Dispose();
         }
     }
 }

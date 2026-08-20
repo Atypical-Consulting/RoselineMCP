@@ -1,11 +1,12 @@
 using System.Text.Json.Serialization;
+using RoselineMCP.Interfaces;
 
 namespace RoselineMCP.Models;
 
 /// <summary>
 /// Response model for code fix application operations.
 /// </summary>
-public class ApplyFixesResponse
+public class ApplyFixesResponse : IWriteToolResponse
 {
     /// <summary>
     /// Name of the project where fixes were applied.
@@ -56,4 +57,26 @@ public class ApplyFixesResponse
     /// </summary>
     [JsonPropertyName("previewOnly")]
     public bool PreviewOnly { get; set; }
+
+    /// <summary>
+    /// Whether the fixes actually reached disk (only true when <c>previewOnly</c> was explicitly
+    /// false, there were changes, and the compile gate did not refuse them).
+    /// </summary>
+    /// <remarks>
+    /// Without this field a refusal is indistinguishable from a success: the response still carries
+    /// <c>previewOnly: false</c>, a patch and a <c>fixedCount</c>, and an agent reading it would
+    /// move on believing the fixes landed.
+    /// </remarks>
+    [JsonPropertyName("applied")]
+    public bool Applied { get; set; }
+
+    /// <summary>
+    /// The compiler's verdict on the fixed solution, computed in memory before anything touched
+    /// disk. A code fix is generated code the caller never wrote, so "the fixer said it was fine"
+    /// is exactly the assurance worth checking. When <c>introduced</c> is non-empty and the caller
+    /// did not pass <c>allowIntroducedErrors</c>, the fixes were <b>refused</b>.
+    /// </summary>
+    [JsonPropertyName("verification")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public VerificationVerdict? Verification { get; set; }
 }

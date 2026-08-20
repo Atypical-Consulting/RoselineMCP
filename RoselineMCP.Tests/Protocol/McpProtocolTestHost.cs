@@ -1,10 +1,12 @@
 using System.IO.Pipelines;
+using FakeItEasy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using RoselineMCP.Configuration;
+using RoselineMCP.Interfaces;
 using RoselineMCP.Tools;
 
 namespace RoselineMCP.Tests.Protocol;
@@ -108,6 +110,14 @@ internal sealed class McpProtocolTestHost : IAsyncDisposable
             // IOptions<RoselineMcpOptions> as a known service type, and the SDK would try to bind it from
             // the caller-supplied arguments instead of excluding it from the schema.
             services.Configure<RoselineMcpOptions>(options => configureOptions?.Invoke(options));
+
+            // Same reason as the options binding above, and the same failure mode: a service the
+            // container does not know is not excluded from a tool's JSON schema — the SDK exposes it
+            // as a required *tool parameter* instead. check_compilation takes these two, so without
+            // them the snapshot would pin a schema no real client ever sees. Registered before
+            // configureServices so a test can still substitute its own.
+            services.AddSingleton(A.Fake<IProjectLoader>());
+            services.AddSingleton(A.Fake<IVerificationService>());
 
             configureServices(services);
         });

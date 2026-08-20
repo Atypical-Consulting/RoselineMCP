@@ -168,6 +168,26 @@ Location: `Services/` and `Interfaces/`
   `AnalyzerReferences` but run as part of building any `Compilation` rather than as part of this
   pass — so they execute on every semantic path, this one included. See `SECURITY.md`.
 
+**VerificationService**
+- Compiles a **candidate** `Solution` in memory and reports what the change did to the compiler's
+  verdict — the gate behind `EditMember`/`RenameSymbol`/`ApplyFixes` and the entire payload of
+  `CheckCompilation`
+- **Scope** = the changed projects plus their *transitive dependents*, from
+  `Solution.GetProjectDependencyGraph()`. File-only scope misses the cross-project breakage agents
+  fail at most; whole-solution scope pays to compile projects the change cannot affect. The changed
+  set is derived internally from `candidate.GetChanges(baseline)` and is deliberately not a
+  parameter — a caller that under-reported it would silently narrow the scope and let the gate pass
+  broken code
+- **Delta** = a *multiset* difference over the position-insensitive key
+  `(project, file, diagnostic id, message)`. Line and column are retained in the payload but never
+  decide identity: a pre-existing `CS0103` at line 80 that a three-line edit above pushes to line 83
+  is the same error, and a position-sensitive key would call it introduced *and* the original
+  resolved, refusing a write for a break the edit never made. Multiset rather than set semantics so
+  an edit that genuinely adds a *second* identical error still reports one
+- Compiler diagnostics only, by design: production DI passes
+  `DiagnosticComputationService.CompilerOnly`, because analyzers cost several times a bare compile
+  and would turn a build gate into a style gate
+
 **CodeFixService**
 - Applies automated code fixes
 - Manages code fix providers
@@ -371,6 +391,31 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    (`ApplyFixes`/`EditMember`/`RenameSymbol`) self-invalidate the entry on the next call. Disable
    with `RoselineMCP:WorkspaceCache = false` (every call then loads a fresh workspace, the
    pre-cache behavior).
+5. **Verification baseline (`VerificationService`)**: per-project compiler-error sets, cached under
+   a `SemaphoreSlim` with a small LRU bound (16 entries). Three properties of the key matter, each
+   for a reason that was measured rather than assumed:
+   - Keyed by the project's **file path** rather than its `ProjectId` — but not, as an earlier draft
+     of this section claimed, because that makes entries survive a reload. Measured 2026-08-20
+     against Roslyn 5.6.0: across a reload of the same project the path is stable while the
+     `ProjectId` **and both version stamps** change, so an entry cached before a reload can never be
+     hit after one, with either key. The path is simply the stable half of a key whose version half
+     is what actually decides, and it keeps two projects from colliding. The hit this cache is really
+     for is a repeat verification against the *same warm workspace* — the default `previewOnly` flow,
+     where the baseline is re-verified on every edit while only the candidate changes.
+   - Keyed by **both** `GetDependentSemanticVersionAsync()` and `GetDependentVersionAsync()`. The
+     *semantic* version tracks consumable declarations and is blind to a method-body edit — and a
+     body edit is precisely how a write introduces a compiler error. Keying on it alone would serve
+     a stale baseline right after a write and blame the *next* edit for an error it did not cause.
+     (`VerificationServiceCacheTests.A_Body_Only_Change_Misses_The_Cache` asserts both halves of
+     that directly against Roslyn.)
+   - Entries hold projected `DiagnosticDetail` values only — never `Diagnostic`, `Compilation` or
+     `Location`, which would root a `SyntaxTree` into a workspace whose memory is never returned to
+     the OS (see Memory Management below).
+
+   Concurrent misses on the same project are single-flighted: the in-flight `Task` is stored under
+   the gate, so two parallel `VerifyAsync` calls await one compilation. The cache serves the
+   **baseline** side; the candidate side is always compiled, because Roslyn's version stamps are
+   identity-based rather than content-based (measured — see `BENCHMARKS.md`).
 
 ### Parallel Project Analysis
 

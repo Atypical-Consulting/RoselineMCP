@@ -349,7 +349,7 @@ public class NavigationToolsTests
             result.Error.Hint.ShouldNotBeNull();
             result.Error.Hint.ShouldContain("replace, add, delete");
 
-            A.CallTo(() => _service.EditMemberAsync(A<string>._, A<string>._, A<string>._, A<string?>._, A<bool>._, A<CancellationToken>._))
+            A.CallTo(() => _service.EditMemberAsync(A<string>._, A<string>._, A<string>._, A<string?>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
         }
 
@@ -357,8 +357,8 @@ public class NavigationToolsTests
         public async Task Should_Default_To_PreviewOnly_True()
         {
             bool? captured = null;
-            A.CallTo(() => _service.EditMemberAsync(A<string>._, A<string>._, A<string>._, A<string?>._, A<bool>._, A<CancellationToken>._))
-                .Invokes((string _, string _, string _, string? _, bool previewOnly, CancellationToken _) => captured = previewOnly)
+            A.CallTo(() => _service.EditMemberAsync(A<string>._, A<string>._, A<string>._, A<string?>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+                .Invokes((string _, string _, string _, string? _, bool previewOnly, bool _, int _, CancellationToken _) => captured = previewOnly)
                 .Returns(Task.FromResult(new EditMemberResponse()));
 
             await EditMemberTool.EditMember(_service, "Foo.Bar", "delete", project: "Demo");
@@ -371,8 +371,8 @@ public class NavigationToolsTests
         {
             string? capturedSource = null;
             bool? capturedPreview = null;
-            A.CallTo(() => _service.EditMemberAsync(A<string>._, A<string>._, A<string>._, A<string?>._, A<bool>._, A<CancellationToken>._))
-                .Invokes((string _, string _, string _, string? src, bool preview, CancellationToken _) => { capturedSource = src; capturedPreview = preview; })
+            A.CallTo(() => _service.EditMemberAsync(A<string>._, A<string>._, A<string>._, A<string?>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+                .Invokes((string _, string _, string _, string? src, bool preview, bool _, int _, CancellationToken _) => { capturedSource = src; capturedPreview = preview; })
                 .Returns(Task.FromResult(new EditMemberResponse { Applied = true }));
 
             await EditMemberTool.EditMember(_service, "Foo", "add", "public int X => 1;", previewOnly: false, project: "Demo");
@@ -395,7 +395,7 @@ public class NavigationToolsTests
             result.Error.ShouldNotBeNull();
             result.Error.Type.ShouldBe("ValidationError");
 
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
         }
 
@@ -403,8 +403,8 @@ public class NavigationToolsTests
         public async Task Should_Default_To_PreviewOnly_True()
         {
             bool? captured = null;
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
-                .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) => captured = previewOnly)
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+                .Invokes((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) => captured = previewOnly)
                 .Returns(Task.FromResult(new RenameSymbolResponse()));
 
             await RenameSymbolTool.RenameSymbol(_service, "Foo.Bar", "Baz", project: "Demo");
@@ -415,7 +415,7 @@ public class NavigationToolsTests
         [Fact]
         public async Task Should_Return_Success_Envelope()
         {
-            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            A.CallTo(() => _service.RenameSymbolAsync(A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
                 .Returns(Task.FromResult(new RenameSymbolResponse
                 {
                     Symbol = "Acme.Foo.Bar",

@@ -38,6 +38,10 @@ public static class ApplyFixesTool
         string? project = null,
         [Description("If true (the default), only preview changes and return a diff — no files are modified. Set explicitly to false to apply the fixes and write changes to disk.")]
         bool previewOnly = true,
+        [Description("If false (the default), fixes whose result introduces compiler errors are refused and nothing is written: the response carries the patch and the introduced errors with applied=false. Set true to write them anyway.")]
+        bool allowIntroducedErrors = false,
+        [Description("Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.")]
+        int max = 20,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         IProgress<ProgressNotificationValue>? progress = null,
@@ -55,8 +59,8 @@ public static class ApplyFixesTool
                 "Call ListDiagnostics first to discover fixable diagnostic IDs for this project, then pass one or more of them, e.g. ids: [\"RCS1213\"].");
         }
 
-        // Created only once the confirmation below has resolved — see the comment there.
-        CancellationTokenSource? timeoutSource = null;
+        // Verify, then ask, then write — the shared flow, so the three write tools cannot drift.
+        using var budget = new AnalysisBudget(cancellationToken, options);
 
         try
         {
@@ -75,10 +79,11 @@ public static class ApplyFixesTool
             // resolved once for the prompt and again after a round-trip the gate allows five
             // minutes for, with nothing guaranteeing the two agree. Saying which *scope* will be
             // written is honest about that limit; naming the project would not be.
-            var (effectivePreviewOnly, confirmationNote, writeTarget) = await ToolExecutionHelper.ResolveWriteModeAsync(
+            var result = await ToolExecutionHelper.RunVerifiedWriteAsync(
                 server,
                 options,
                 previewOnly,
+                allowIntroducedErrors,
                 project,
                 target =>
                 {
@@ -89,30 +94,12 @@ public static class ApplyFixesTool
                         : string.Empty;
                     return $"Apply code fixes for {ids.Length} diagnostic ID(s) to {scope}'{target}' and write the changes to disk?";
                 },
+                (target, phasePreviewOnly, reportProgress, token) => codeFixService.ApplyFixesAsync(
+                    target, ids.ToList(), phasePreviewOnly, allowIntroducedErrors, max,
+                    reportProgress ? progress : null, token),
+                budget,
                 invocation.Logger,
                 cancellationToken);
-
-            // Only NOW does the analysis budget start. Arming it before the confirmation would
-            // charge the human's think-time against it — the very thing the confirmation's own
-            // clock exists to prevent — and with the shipped defaults (DefaultTimeout 120s,
-            // ConfirmDestructiveWritesTimeout 300s) it would already have expired, turning the
-            // documented preview into a TimeoutError the caller cannot act on.
-            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
-
-            // The path the human approved, when they were asked; otherwise the caller's own
-            // argument, because nothing was resolved and so nothing was shown.
-            var result = await codeFixService.ApplyFixesAsync(
-                writeTarget ?? project,
-                ids.ToList(),
-                effectivePreviewOnly,
-                progress,
-                timeoutSource.Token);
-
-            if (confirmationNote is not null)
-            {
-                result.PreviewOnly = true;
-                result.Notes.Add(confirmationNote);
-            }
 
             invocation.MarkSuccess();
             return ToolResult<ApplyFixesResponse>.Success(result);
@@ -120,16 +107,12 @@ public static class ApplyFixesTool
         catch (OperationCanceledException)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<ApplyFixesResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ApplyFixesResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId);
         }
         catch (Exception ex)
         {
             invocation.MarkFailure(ex.Message);
             return ToolExecutionHelper.Error<ApplyFixesResponse>(ex, invocation.CorrelationId, invocation.Logger);
-        }
-        finally
-        {
-            timeoutSource?.Dispose();
         }
     }
 }

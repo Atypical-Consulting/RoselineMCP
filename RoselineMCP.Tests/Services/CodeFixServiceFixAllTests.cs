@@ -71,7 +71,7 @@ public class CodeFixServiceFixAllTests : IDisposable
         var diffService = new DiffService();
         var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
 
-        return new CodeFixService(logger, analyzerService, factory, diffService, projectLoader);
+        return new CodeFixService(logger, analyzerService, factory, diffService, projectLoader, TestVerification.New());
     }
 
     /// <summary>

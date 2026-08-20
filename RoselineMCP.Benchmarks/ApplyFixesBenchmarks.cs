@@ -50,7 +50,8 @@ public class ApplyFixesBenchmarks
             analyzerService,
             codeFixProviderFactory,
             diffService,
-            projectLoader);
+            projectLoader,
+            new VerificationService(NullLogger<VerificationService>.Instance, DiagnosticComputationService.CompilerOnly));
 
         // Same fixtures as AnalyzeSolutionBenchmarks; ApplyFixes targets a single project
         // (the first one), matching how the tool is used in practice.

@@ -23,13 +23,51 @@ public class CodeEditService : ICodeEditService
     private readonly ILogger<CodeEditService> _logger;
     private readonly IProjectLoader _projectLoader;
     private readonly IDiffService _diffService;
+    private readonly IVerificationService _verificationService;
 
     /// <summary>Initializes a new instance of the <see cref="CodeEditService"/>.</summary>
-    public CodeEditService(ILogger<CodeEditService> logger, IProjectLoader projectLoader, IDiffService diffService)
+    public CodeEditService(
+        ILogger<CodeEditService> logger,
+        IProjectLoader projectLoader,
+        IDiffService diffService,
+        IVerificationService verificationService)
     {
         _logger = logger;
         _projectLoader = projectLoader;
         _diffService = diffService;
+        _verificationService = verificationService;
+    }
+
+    /// <summary>
+    /// The compile gate, shared by both write paths: verify the in-memory candidate against the
+    /// loaded baseline and decide whether the write may go ahead.
+    /// </summary>
+    /// <returns><see langword="true"/> when the caller should refuse to write.</returns>
+    /// <remarks>
+    /// Deliberately runs on the candidate <see cref="Solution"/>, which exists only in memory —
+    /// Roslyn snapshots are immutable, so a refused edit never had any chance to reach disk.
+    /// </remarks>
+    private async Task<(VerificationVerdict Verdict, bool Refused)> VerifyAsync(
+        Solution baseline,
+        Solution candidate,
+        bool allowIntroducedErrors,
+        int max,
+        CancellationToken cancellationToken)
+    {
+        var verdict = await _verificationService.VerifyAsync(baseline, candidate, max, cancellationToken);
+        var introducedCount = verdict.Introduced?.Count ?? 0;
+        // The gate is `introduced`, never `compiles`: a repository that was already broken must
+        // still be editable, or RoselineMCP is useless on exactly the branches agents are sent to fix.
+        return (verdict, introducedCount > 0 && !allowIntroducedErrors);
+    }
+
+    /// <summary>The note a refusal carries — it has to say what to do next, not merely that it said no.</summary>
+    private static string RefusalNote(VerificationVerdict verdict)
+    {
+        var count = verdict.Introduced?.Count ?? 0;
+        var omitted = verdict.Omitted > 0 ? $" (+{verdict.Omitted} more not shown)" : string.Empty;
+        return $"Refused: this change introduces {count} compiler error(s){omitted} — nothing was written. "
+            + "Fix the change, or pass allowIntroducedErrors: true to write it anyway.";
     }
 
     /// <inheritdoc/>
@@ -39,6 +77,8 @@ public class CodeEditService : ICodeEditService
         string operation,
         string? newSource,
         bool previewOnly,
+        bool allowIntroducedErrors = false,
+        int max = 20,
         CancellationToken cancellationToken = default)
     {
         var op = (operation ?? string.Empty).Trim().ToLowerInvariant();
@@ -103,6 +143,22 @@ public class CodeEditService : ICodeEditService
 
         response.Patch = patch;
         response.ChangedFiles.Add(relativePath);
+
+        // The candidate solution: the edit applied in memory, nothing on disk. This is what the
+        // compiler is asked about, before the write and before any human is asked to approve one.
+        var candidate = loaded.Solution.WithDocumentText(document.Id, newSourceText);
+        var (verdict, refused) = await VerifyAsync(
+            loaded.Solution, candidate, allowIntroducedErrors, max, cancellationToken);
+        response.Verification = verdict;
+
+        if (refused)
+        {
+            _logger.LogInformation(
+                "Refused edit of '{Symbol}': it introduces {Count} compiler error(s)",
+                symbol, verdict.Introduced?.Count ?? 0);
+            response.Notes.Add(RefusalNote(verdict));
+            return response;
+        }
 
         if (!previewOnly)
         {
@@ -223,6 +279,8 @@ public class CodeEditService : ICodeEditService
         string symbol,
         string newName,
         bool previewOnly,
+        bool allowIntroducedErrors = false,
+        int max = 20,
         IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -307,6 +365,22 @@ public class CodeEditService : ICodeEditService
         }
 
         response.Patch = patchBuilder.ToString();
+
+        // Ahead of the write loop, never inside it: the loop is not atomic (see the guarantee
+        // boundary in docs/API.md), so a rename that breaks a downstream project must be stopped
+        // before the first file is touched rather than unwound after the fifth.
+        var (verdict, refused) = await VerifyAsync(
+            originalSolution, newSolution, allowIntroducedErrors, max, cancellationToken);
+        response.Verification = verdict;
+
+        if (refused)
+        {
+            _logger.LogInformation(
+                "Refused rename of '{Symbol}' to '{NewName}': it introduces {Count} compiler error(s)",
+                symbol, newName, verdict.Introduced?.Count ?? 0);
+            response.Notes.Add(RefusalNote(verdict));
+            return response;
+        }
 
         if (!previewOnly)
         {

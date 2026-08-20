@@ -50,6 +50,10 @@
       "description": "Apply automated Roslyn/Roslynator code fixes; preview-only by default."
     },
     {
+      "name": "check_compilation",
+      "description": "Does this code compile right now, and what broke? Compiler errors only, in under a second on a warm workspace — use instead of running `dotnet build` after an edit. Read-only."
+    },
+    {
       "name": "create_patch",
       "description": "Generate a unified diff between two text versions."
     },

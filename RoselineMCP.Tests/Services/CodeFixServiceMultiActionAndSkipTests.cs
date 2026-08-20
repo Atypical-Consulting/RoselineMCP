@@ -75,7 +75,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
         var diffService = new DiffService();
         var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
 
-        return new CodeFixService(logger, analyzerService, factory, diffService, projectLoader);
+        return new CodeFixService(logger, analyzerService, factory, diffService, projectLoader, TestVerification.New());
     }
 
     /// <summary>
@@ -164,7 +164,11 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
             var sut = CreateSut(factory);
 
             // Act
-            var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false);
+            // allowIntroducedErrors: this fixture's "fix" replaces the whole file with a comment,
+            // deleting Main — so the compile gate would (correctly) refuse it. The question here is
+            // which registered action lands, not whether the result builds.
+            var result = await sut.ApplyFixesAsync(
+                csprojPath, ["CS0219"], previewOnly: false, allowIntroducedErrors: true);
 
             // Assert — exactly one fix applied for the one occurrence, not one per action.
             result.FixedCount.ShouldBe(1);

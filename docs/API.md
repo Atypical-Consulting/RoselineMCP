@@ -5,10 +5,12 @@ Complete API reference for RoselineMCP tools and services.
 ## Table of Contents
 
 - [MCP Tools](#mcp-tools)
+  - [Compile Verification](#compile-verification)
   - [Write Confirmation](#write-confirmation)
   - [AnalyzeSolution](#analyzesolution)
   - [ListDiagnostics](#listdiagnostics)
   - [ApplyFixes](#applyfixes)
+  - [CheckCompilation](#checkcompilation)
   - [CreatePatch](#createpatch)
   - [SearchSymbols](#searchsymbols)
   - [GetSymbolInfo](#getsymbolinfo)
@@ -49,6 +51,84 @@ Each tool's **Response** schema shown below describes the shape of the `data` ob
 payload), not the envelope. The tools set `UseStructuredContent = true`, so the same object is also
 delivered as MCP `structuredContent` alongside an advertised `outputSchema`.
 
+### Compile Verification
+
+Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes), [`EditMember`](#editmember)
+and [`RenameSymbol`](#renamesymbol) — and is the whole payload of
+[`CheckCompilation`](#checkcompilation).
+
+Before anything reaches disk, the candidate change is compiled **in memory** and its compiler
+diagnostics are diffed against the same scope's diagnostics before the change. When the change
+*introduces* compiler errors, the write is **refused**: the call still succeeds (`ok: true`), but
+`applied` comes back `false`, nothing is written, and the response carries the diff *and* the
+introduced errors. Pass `allowIntroducedErrors: true` to write anyway.
+
+**The gate is `introduced`, never `compiles`.** A repository that was already broken before the edit
+reports `compiles: false` with an empty `introduced`, and the write proceeds — refusing there would
+make RoselineMCP unusable on exactly the branches an agent is sent to fix. `preexisting` counts
+those errors so an agent does not mistake them for its own.
+
+Verification runs **before** the [Write Confirmation](#write-confirmation) prompt. Asking a human to
+approve a write the gate is about to refuse spends the one thing the elicitation costs — their
+attention — and trains them to click through it; a refusal is also strictly more informative than a
+decline, since it carries the errors as well as the diff.
+
+Only **compiler** diagnostics are computed, never analyzers: analyzers cost several times a bare
+compile and would turn a build gate into a style gate. Use [`ListDiagnostics`](#listdiagnostics) for
+the analyzer view.
+
+#### The `verification` object
+
+```typescript
+{
+  resolvedPath?: string;   // check_compilation only; omitted when nested in a write response
+  compiles?: boolean;      // absolute: does the scope compile? omitted when nothing was compiled
+  errors?: DiagnosticDetail[];      // absolute mode only (check_compilation); omitted when empty
+  introduced?: DiagnosticDetail[];  // errors this change added — a non-empty list refuses the write
+  resolved?: DiagnosticDetail[];    // errors this change removed
+  preexisting?: number;    // errors that were already there; omitted when zero
+  omitted?: number;        // diagnostics dropped to honor `max`; omitted when zero
+  scope?: string[];        // projects compiled: the changed ones plus their transitive dependents
+  scopeComplete: boolean;  // always present — see below
+  notes?: string[];        // chiefly why scopeComplete is false
+}
+```
+
+Every collection is omitted from the wire when empty and every counter when zero: the verdict rides
+on every edit, and always-present fields would spend tokens on the overwhelmingly common
+"nothing to report" case. `scopeComplete` is the deliberate exception and is **always** emitted,
+because `false` is its informative value and an absent field would be indistinguishable from a
+full-coverage gate.
+
+#### Scope
+
+The compiled set is the **changed projects plus their transitive dependents**. File-only scope
+misses the cross-project breakage agents fail at most; whole-solution scope pays to compile projects
+the change cannot possibly affect. `check_compilation`, which has no before-state, compiles the
+whole loaded solution.
+
+`scopeComplete: false` means the workspace could not prove it holds every dependent — a bare
+`.csproj` was loaded with no containing solution. The write still proceeds, but the caller is told
+the gate was partial rather than handed a false green. Pass the `.sln` path as `project` to close it.
+
+#### Truncation
+
+All four tools accept `max` (default **20**) and report `omitted`. A rename that breaks a public
+member of a base project produces thousands of binding errors; unbounded, the refusal would cost
+more tokens than the `dotnet build` output it replaces.
+
+#### Guarantee boundary
+
+The promise is precise, and deliberately narrower than it could be made to sound:
+
+> **The verified change set compiles, and no refused edit is ever written.**
+
+It is **not** "the working tree always compiles after any outcome". Both multi-file writers apply
+changes **file by file**, so a failure partway through a twelve-file rename leaves some files written
+and some not — the tree is then in a state neither the baseline nor the candidate describes. That is
+a documented boundary, covered by a test
+(`CodeEditServiceTests.RenameSymbol_Multi_File_Write_Is_Not_Atomic`), not an aspiration.
+
 ### Write Confirmation
 
 Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes),
@@ -57,6 +137,10 @@ Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes),
 
 Behind that opt-in sits a second, **best-effort** guard: when `previewOnly: false` is passed, the
 server sends an MCP `elicitation/create` asking the connected client to confirm before writing.
+
+[Compile Verification](#compile-verification) runs **first**: a change that would introduce compiler
+errors is refused before any prompt is sent, so a human is never asked to approve a write that was
+never going to happen.
 
 The prompt **names the concrete `.sln` or `.csproj` the write resolved to** — an absolute path, never
 a placeholder — whether the caller passed `project`, left it out, or passed an empty string:
@@ -316,6 +400,8 @@ same thing, but it is only shown on a `previewOnly: false` call to an eliciting 
   ids: string[];         // Diagnostic IDs to fix (required, at least one)
   project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
   previewOnly?: boolean; // If true (the default), only generate a diff — no files written. Pass false to apply.
+  allowIntroducedErrors?: boolean; // If false (default), fixes that introduce compiler errors are refused
+  max?: number;          // Max diagnostics per verification list (default 20); the rest are counted in `omitted`
 }
 ```
 
@@ -335,7 +421,9 @@ same thing, but it is only shown on a `previewOnly: false` call to an eliciting 
   changedFiles: string[];    // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln) of files that were modified
   patch: string;             // Unified diff across all changed files (headers use the same relative paths)
   notes: string[];           // Per-ID status messages: skipped (no provider/no diagnostics), errors, or "applied N fixes to M files" / "Preview mode - no changes were saved to disk"
-  previewOnly: boolean;      // Echoes back whether this call actually wrote to disk
+  previewOnly: boolean;      // Echoes back whether the caller asked for a preview
+  applied: boolean;          // True only when previewOnly was false, there were changes, and verification did not refuse
+  verification?: object;     // The compiler's verdict — see Compile Verification
 }
 ```
 
@@ -347,6 +435,55 @@ mcp call applyFixes '{
   "ids": ["CS0168", "RCS1001", "IDE0059"],
   "previewOnly": true
 }'
+```
+
+### CheckCompilation
+
+Answers *"does this compile right now, and what broke"* against on-disk state — the replacement for
+a `dotnet build` round trip in an agent's edit loop. **Read-only** (`readOnlyHint: true`,
+`destructiveHint: false`): it never touches disk.
+
+It answers about whatever is on disk, whoever wrote it, so it serves agents that never call
+RoselineMCP's write tools at all. The saving comes from the warm `MSBuildWorkspace` the server
+already holds: the first call of a session pays a cold load, every call after it reuses an
+incremental Roslyn compilation.
+
+Compiler diagnostics only. For an exploratory inventory — analyzer diagnostics, severity statistics,
+which IDs are auto-fixable — use [`ListDiagnostics`](#listdiagnostics), the slower and broader tool.
+Rule of thumb: **`check_compilation` answers "is it still building?", `list_diagnostics` answers
+"what should I clean up?"**
+
+#### Request
+
+```typescript
+{
+  project?: string;  // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  max?: number;      // Max errors to return (default 20); the rest are counted in `omitted`
+}
+```
+
+#### Response
+
+The [`verification` object](#the-verification-object) itself, with `resolvedPath` set and the
+absolute-mode fields populated (`compiles`, `errors`); `introduced`/`resolved` are absent, since
+there is no before-state to compare against.
+
+```typescript
+{
+  resolvedPath: string;    // Absolute .sln/.csproj that was actually loaded
+  compiles: boolean;
+  errors?: DiagnosticDetail[];  // omitted when the scope compiles
+  omitted?: number;
+  scope?: string[];
+  scopeComplete: boolean;
+  notes?: string[];
+}
+```
+
+#### Example
+
+```bash
+mcp call checkCompilation '{ "max": 20 }'
 ```
 
 ### CreatePatch
@@ -699,6 +836,8 @@ subject to the [Write Confirmation](#write-confirmation) gate.
   operation: string;   // "replace" | "add" | "delete"
   newSource?: string;  // C# member declaration — required for "replace" and "add"
   previewOnly?: boolean; // If true (default), only return a diff; pass false to write
+  allowIntroducedErrors?: boolean; // If false (default), an edit that introduces compiler errors is refused
+  max?: number;          // Max diagnostics per verification list (default 20); the rest are counted in `omitted`
 }
 ```
 
@@ -713,7 +852,8 @@ subject to the [Write Confirmation](#write-confirmation) gate.
   changedFiles: string[];  // Solution-root-relative path(s) modified (or that would be); forward slashes, project-dir-relative when no .sln
   patch: string;           // Unified diff
   previewOnly: boolean;
-  applied: boolean;        // True only when previewOnly was false and there were changes
+  applied: boolean;        // True only when previewOnly was false, there were changes, and verification did not refuse
+  verification?: object;   // The compiler's verdict — see Compile Verification
   notes: string[];
 }
 ```
@@ -733,6 +873,8 @@ call is subject to the [Write Confirmation](#write-confirmation) gate.
   symbol: string;
   newName: string;       // Must be a valid C# identifier
   previewOnly?: boolean; // If true (default), only return a diff; pass false to write
+  allowIntroducedErrors?: boolean; // If false (default), a rename that introduces compiler errors is refused
+  max?: number;          // Max diagnostics per verification list (default 20); the rest are counted in `omitted`
 }
 ```
 
@@ -747,7 +889,8 @@ call is subject to the [Write Confirmation](#write-confirmation) gate.
   changedFiles: string[];  // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln)
   patch: string;           // Unified diff across all changed files
   previewOnly: boolean;
-  applied: boolean;
+  applied: boolean;        // True only when previewOnly was false, there were changes, and verification did not refuse
+  verification?: object;   // The compiler's verdict — see Compile Verification
   notes: string[];
 }
 ```
@@ -762,6 +905,7 @@ Every tool declares the standard MCP annotation hints (`readOnlyHint`, `destruct
 | `AnalyzeSolution` | `true` | `false` | `true` |
 | `ListDiagnostics` | `true` | `false` | `true` |
 | `ApplyFixes` | `false` | `true`\* | `false` |
+| `CheckCompilation` | `true` | `false` | `true` |
 | `CreatePatch` | `true` | `false` | `true` |
 | `SearchSymbols` | `true` | `false` | `true` |
 | `GetSymbolInfo` | `true` | `false` | `true` |
@@ -814,9 +958,13 @@ public interface ICodeFixService
     Task<ApplyFixesResponse> ApplyFixesAsync(
         string? project,            // null → auto-discovered via IProjectLoader
         List<string> ids,
-        bool previewOnly = false); // NOTE: this C# default is `false`; the MCP `ApplyFixes`
+        bool previewOnly = false,  // NOTE: this C# default is `false`; the MCP `ApplyFixes`
                                     // tool always passes an explicit value and defaults to
                                     // `true` at that boundary — see the ApplyFixes tool section above.
+        bool allowIntroducedErrors = false,
+        int max = 20,
+        IProgress<ProgressNotificationValue>? progress = null,
+        CancellationToken cancellationToken = default);
 }
 ```
 
@@ -905,13 +1053,45 @@ public interface ICodeEditService
 {
     Task<EditMemberResponse> EditMemberAsync(
         string? project, string symbol, string operation, string? newSource, bool previewOnly,
+        bool allowIntroducedErrors = false, int max = 20,
         CancellationToken cancellationToken = default);
 
     Task<RenameSymbolResponse> RenameSymbolAsync(
         string? project, string symbol, string newName, bool previewOnly,
+        bool allowIntroducedErrors = false, int max = 20,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default);
 }
 ```
+
+### IVerificationService
+
+Compiles a candidate `Solution` in memory and reports what the change did to the compiler's verdict
+— the machinery behind the write tools' refusal gate and behind `CheckCompilation`. Compiler
+diagnostics only, by design.
+
+```csharp
+public interface IVerificationService
+{
+    Task<VerificationVerdict> VerifyAsync(
+        Solution? baseline,   // null → absolute verdict (check_compilation)
+        Solution candidate,
+        int max = 20,
+        CancellationToken cancellationToken = default);
+}
+```
+
+`touched` is deliberately **not** a parameter: the changed-project set is derived internally from
+`candidate.GetChanges(baseline)`, because a caller that under-reported it would silently narrow the
+scope and let the gate pass broken code.
+
+The production registration passes `DiagnosticComputationService.CompilerOnly`, never the
+analyzer-aware implementation. Per-project results are cached, keyed by the project's **file path**
+(stable across reloads, unlike the `ProjectId` GUIDs a reload mints afresh) plus **both** its
+dependent semantic version and its dependent version — the semantic version alone is blind to
+method-body edits, which is exactly how a write introduces a compiler error. Entries hold projected
+`DiagnosticDetail` values only, never `Diagnostic`/`Compilation`/`Location`, which would root a
+`SyntaxTree` into a workspace whose memory is never returned to the OS.
 
 ### IProjectLoader
 
@@ -983,8 +1163,31 @@ public class ApplyFixesResponse
     public List<string> Notes { get; set; }
     public int FixedCount { get; set; }               // JSON: "fixedCount"
     public bool PreviewOnly { get; set; }              // JSON: "previewOnly"
+    public bool Applied { get; set; }                  // JSON: "applied"
+    public VerificationVerdict? Verification { get; set; }  // JSON: "verification"
 }
 ```
+
+### VerificationVerdict
+
+```csharp
+public class VerificationVerdict
+{
+    public string? ResolvedPath { get; set; }          // check_compilation only
+    public bool? Compiles { get; set; }                // absolute over the scope; null = nothing compiled
+    public List<DiagnosticDetail>? Errors { get; set; }        // absolute mode
+    public List<DiagnosticDetail>? Introduced { get; set; }    // the gate
+    public List<DiagnosticDetail>? Resolved { get; set; }
+    public int Preexisting { get; set; }
+    public int Omitted { get; set; }
+    public List<string>? Scope { get; set; }
+    public bool ScopeComplete { get; set; }            // always serialized
+    public List<string>? Notes { get; set; }
+}
+```
+
+See [Compile Verification](#compile-verification) for the semantics, the scope rule and the
+guarantee boundary.
 
 ### CreatePatchResponse
 
