@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -346,96 +345,6 @@ internal static class ToolExecutionHelper
         server is not null
         && options?.Value.ConfirmDestructiveWrites != false
         && server.ClientCapabilities?.Elicitation is not null;
-
-    /// <summary>
-    /// What a caller-supplied value renders as when it is empty or nothing but whitespace. Never an
-    /// empty quoted run: <c>edit_member</c> does not validate <c>symbol</c>, so a whitespace-only
-    /// one reaches the prompt, and "member ''" is the same unanswerable sentence PR #142 removed
-    /// from the target side.
-    /// </summary>
-    private const string UnnamedPromptValue = "(unnamed)";
-
-    /// <summary>
-    /// The maximum rendered length of a caller-supplied value in a confirmation prompt. Generous
-    /// beside any real fully-qualified name — <c>RoselineMCP.Services.CodeEditService.EditMemberAsync</c>
-    /// is 51 characters — and small enough that a payload cannot bury the rest of the sentence.
-    /// </summary>
-    private const int MaxPromptValueLength = 120;
-
-    /// <summary>
-    /// A caller-supplied value, made safe to interpolate into the confirmation prompt.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The prompt is the last human checkpoint before a disk write, and two of the values it names —
-    /// <c>symbol</c> and <c>newName</c> — are free-form caller input. Interpolated raw, a symbol
-    /// carrying quote-and-punctuation rendered a complete, plausible sentence that ended before the
-    /// real one began: the human read that first sentence, saw a scratch project, approved, and the
-    /// write landed on the resolved target instead (#161). A guard whose text is partly authored by
-    /// the party being guarded is not a guard.
-    /// </para>
-    /// <para>
-    /// Three rules, in order, each chosen to be <em>invisible</em> on every value a caller
-    /// legitimately sends — a C# symbol reference carries no whitespace and no apostrophe, so an
-    /// ordinary name comes back byte-for-byte:
-    /// </para>
-    /// <list type="number">
-    /// <item>
-    /// <b>Whitespace is removed, not collapsed.</b> Collapsing to single spaces still lets a payload
-    /// read as prose ("… to disk? Exactly one file …"); removing it leaves one unbroken token no
-    /// reader mistakes for the frame. It is lossless precisely because no identifier contains
-    /// whitespace — which is what makes this safe to apply where a general-purpose escaper is not.
-    /// </item>
-    /// <item>
-    /// <b>The apostrophe becomes U+2019.</b> The frame quotes with ASCII <c>'</c>, so that is the one
-    /// character able to open or close a quoted run. Substituting rather than stripping keeps the
-    /// value readable, and the substitute cannot be mistaken for a delimiter.
-    /// </item>
-    /// <item>
-    /// <b>The length is capped, eliding the middle.</b> Both ends survive, so a long name stays
-    /// recognisable: the head names the namespace, the tail the member.
-    /// </item>
-    /// </list>
-    /// <para>
-    /// The resolved <em>target</em> is deliberately NOT put through this. It is not caller-authored
-    /// text but a path that has to exist on disk, and it is the one thing in the sentence a human can
-    /// check against reality — eliding or re-punctuating it would break that
-    /// (<c>ElicitationTests.ShouldNameARealProject</c> asserts <c>File.Exists</c> on it). A checkout
-    /// path may legitimately contain an apostrophe — <c>C:\Users\O'Brien\src</c>, <c>~/Bob's
-    /// Projects</c> — which is why every prompt puts the target in its <em>last</em> quoted run:
-    /// whatever a path contains, no frame text follows it to be forged past.
-    /// </para>
-    /// </remarks>
-    internal static string SanitizeForPrompt(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return UnnamedPromptValue;
-        }
-
-        var builder = new StringBuilder(value.Length);
-        foreach (var c in value)
-        {
-            if (char.IsWhiteSpace(c))
-            {
-                continue;
-            }
-
-            builder.Append(c == '\'' ? '\u2019' : c);
-        }
-
-        var sanitized = builder.ToString();
-        if (sanitized.Length <= MaxPromptValueLength)
-        {
-            return sanitized;
-        }
-
-        // Keep both ends, elide the middle: the head names the namespace, the tail the member.
-        const int ellipsisLength = 1;
-        var head = (MaxPromptValueLength - ellipsisLength + 1) / 2;
-        var tail = MaxPromptValueLength - ellipsisLength - head;
-        return string.Concat(sanitized.AsSpan(0, head), "…", sanitized.AsSpan(sanitized.Length - tail));
-    }
 
     /// <summary>
     /// The concrete <c>.sln</c>/<c>.csproj</c> path a write will land on — an absolute path, whether

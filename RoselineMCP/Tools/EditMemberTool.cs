@@ -106,8 +106,8 @@ public static class EditMemberTool
             // benign-looking sentence naming a project this write will never touch (#161).
             // `operation` needs none — it was validated against a closed set above.
             var subject = operation.Equals("add", StringComparison.OrdinalIgnoreCase)
-                ? $"a member to type '{ToolExecutionHelper.SanitizeForPrompt(symbol)}'"
-                : $"member '{ToolExecutionHelper.SanitizeForPrompt(symbol)}'";
+                ? $"a member to type '{WritePrompt.Sanitize(symbol)}'"
+                : $"member '{WritePrompt.Sanitize(symbol)}'";
             var result = await ToolExecutionHelper.RunVerifiedWriteAsync(
                 server,
                 options,

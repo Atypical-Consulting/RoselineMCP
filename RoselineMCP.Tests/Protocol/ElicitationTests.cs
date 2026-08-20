@@ -1444,4 +1444,78 @@ public class ElicitationTests : IDisposable
 
         rendered.ShouldBe("(unnamed)");
     }
+    // ---------------------------------------------------------------------------------------
+    // The closed scope vocabulary (#161b). The three sentences above are asserted end-to-end,
+    // through the protocol, which is what makes them true of the shipped tools — but it also means
+    // each is only ever exercised by the one tool that happens to use it. These render every
+    // WriteScope member directly, against both kinds of target, so the vocabulary is pinned
+    // independently of who calls it: a fourth write tool picking a member gets the wording its
+    // sibling already agreed to, and cannot invent a fourth phrasing to sit beside three others.
+    // ---------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("/repo/App.sln", "the primary project of ")]
+    [InlineData("/repo/App.csproj", "")]
+    public void PrimaryProjectOf_Renders_The_ApplyFixes_Sentence(string target, string qualifier)
+    {
+        // The one scope whose clause DOES branch on the target's extension (#149): CodeFixService
+        // narrows a solution to a single anchor project, so naming the solution outright would have
+        // the human authorise a write broader than the one about to happen. A .csproj target *is*
+        // its own write scope, so it takes no qualifier.
+        WritePrompt.ForPrimaryProjectOf(3).Render(target).ShouldBe(
+            $"Apply code fixes for 3 diagnostic ID(s) to {qualifier}'{target}' and write the changes to disk?");
+    }
+
+    [Theory]
+    [InlineData("/repo/App.sln")]
+    [InlineData("/repo/App.csproj")]
+    public void SingleFile_Renders_The_EditMember_Sentence(string target)
+    {
+        // Deliberately does NOT branch on the extension: this write is one file whether the target
+        // is a solution or a project, and it says "loaded from" rather than "in" because a .csproj
+        // does not bound it either — ProjectLoader opens the containing solution and resolution
+        // spans every project in it.
+        WritePrompt.ForSingleFile("delete", "Foo.Bar").Render(target).ShouldBe(
+            "Write the 'delete' of member 'Foo.Bar' to disk? Exactly one file is rewritten — the "
+            + $"declaration it resolves to, anywhere in the code loaded from '{target}'.");
+    }
+
+    [Theory]
+    [InlineData("/repo/App.sln")]
+    [InlineData("/repo/App.csproj")]
+    public void SingleFile_Names_The_Container_Type_When_The_Operation_Is_Add(string target)
+    {
+        // It branches on the OPERATION, and only on the noun: 'add' resolves `symbol` as the
+        // container type (CodeEditService.AddMember rejects anything else), so calling it a member
+        // would name the human a thing that does not exist yet. That belongs with the values rather
+        // than with the scope, which is why the factory takes the operation.
+        WritePrompt.ForSingleFile("add", "Foo.Bar").Render(target).ShouldBe(
+            "Write the 'add' of a member to type 'Foo.Bar' to disk? Exactly one file is rewritten — "
+            + $"the declaration it resolves to, anywhere in the code loaded from '{target}'.");
+    }
+
+    [Theory]
+    [InlineData("/repo/App.sln")]
+    [InlineData("/repo/App.csproj")]
+    public void WholeSolution_Renders_The_RenameSymbol_Sentence(string target)
+    {
+        // The counterweight, and the reason the other two are not a blanket rule: RenameSymbolAsync
+        // really is solution-wide, so naming the solution is exact and a narrowing qualifier here
+        // would be a fresh inaccuracy of the same family #149/#154 closed.
+        WritePrompt.ForWholeSolution("Foo", "Bar").Render(target).ShouldBe(
+            $"Rename 'Foo' to 'Bar' across the solution of '{target}' and write the changes to disk?");
+    }
+
+    [Fact]
+    public void Render_Sanitises_Every_Caller_Supplied_Value()
+    {
+        // The rendering and the sanitiser are one unit: moving composition here is what put every
+        // caller-supplied value behind the sanitiser at once, rather than behind three call sites
+        // that each had to remember (#161a). Asserted per scope, because a value reached by only
+        // one of them is exactly how the previous three-copy arrangement drifted.
+        WritePrompt.ForSingleFile("delete", "A B'C").Render("/repo/App.sln")
+            .ShouldContain("member 'AB’C'");
+        WritePrompt.ForWholeSolution("A B'C", "D E'F").Render("/repo/App.sln")
+            .ShouldBe("Rename 'AB’C' to 'DE’F' across the solution of '/repo/App.sln' and write the changes to disk?");
+    }
 }
