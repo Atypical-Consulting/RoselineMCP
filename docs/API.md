@@ -214,6 +214,7 @@ of truth for "fixable" is `ICodeFixProviderFactory`, not a hand-maintained list)
 ```typescript
 {
   project: string;                    // Project name
+  resolvedPath: string;               // Absolute .sln/.csproj that was actually loaded
   totalDiagnostics: number;          // Total count before limiting
   diagnostics: Array<{
     project: string;
@@ -274,6 +275,7 @@ the [Write Confirmation](#write-confirmation) gate.
 ```typescript
 {
   project: string;           // Project name
+  resolvedPath: string;      // Absolute .sln/.csproj that was actually loaded
   fixedCount: number;        // Total number of individual fixes applied across all requested IDs
   fixersApplied: string[];   // Diagnostic IDs that were successfully fixed at least once
   changedFiles: string[];    // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln) of files that were modified
@@ -354,6 +356,14 @@ project) is still found — so cross-project references and renames are complete
 `ListDiagnostics` and `ApplyFixes` resolve and load their `project` through this same mechanism, so
 every tool accepts the same references and reports the same solution-root-relative paths.
 
+**Working in a git worktree.** Auto-discovery is anchored to **the server's** working directory —
+the directory the MCP client launched RoselineMCP in — not the agent's. They differ whenever work
+happens in a git worktree (e.g. `.claude/worktrees/<name>`): the worktree sits below the level
+walk's reach, so an omitted `project` resolves the main checkout instead. Two checkouts of the same
+repository are otherwise indistinguishable in a response — same project name, same
+solution-root-relative paths — so pass an absolute `.sln`/`.csproj` path to target a specific
+checkout, and check `resolvedPath` in the response to confirm which one answered.
+
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
 disambiguate. If a simple name matches more than one symbol (including the same name declared in
@@ -383,6 +393,7 @@ At least one of `query` or `file` is required (otherwise `ValidationError`).
 ```typescript
 {
   project: string;
+  resolvedPath: string;  // Absolute .sln/.csproj that was actually loaded
   query: string | null;
   file: string | null;
   totalFound: number;    // Count before `max` was applied
@@ -424,6 +435,7 @@ Declaration metadata, signature, and (optionally) the source of a single symbol.
 
 ```typescript
 {
+  resolvedPath: string;        // Absolute .sln/.csproj that was actually loaded
   name: string;
   fullName: string;
   kind: string;
@@ -440,7 +452,7 @@ Declaration metadata, signature, and (optionally) the source of a single symbol.
 
 The `accessibility` field is not returned separately — it is already part of `signature`. Every
 optional field above is omitted from the JSON when empty/absent, so a minimal symbol collapses to
-just `name`, `fullName`, `kind`, and `signature`.
+just `resolvedPath`, `name`, `fullName`, `kind`, and `signature`.
 
 ### FindReferences
 
@@ -461,6 +473,7 @@ Every use site of a symbol across the solution. **Read-only.**
 
 ```typescript
 {
+  resolvedPath: string;      // Absolute .sln/.csproj that was actually loaded
   symbol: string;
   fullName: string;
   totalReferences: number;   // Count before `max`
@@ -492,6 +505,7 @@ of a class. **Read-only.**
 
 ```typescript
 {
+  resolvedPath: string;             // Absolute .sln/.csproj that was actually loaded
   symbol: string;
   fullName: string;
   kind: string;
@@ -521,6 +535,7 @@ A depth-bounded caller and/or callee graph for a method, with cycle detection. *
 
 ```typescript
 {
+  resolvedPath: string;      // Absolute .sln/.csproj that was actually loaded
   method: string;
   fullName: string;
   direction: string;
@@ -564,6 +579,7 @@ A type's base-class chain, implemented interfaces, and/or derived types. **Read-
 
 ```typescript
 {
+  resolvedPath: string;             // Absolute .sln/.csproj that was actually loaded
   type: string;
   fullName: string;
   direction: string;
@@ -600,6 +616,7 @@ with no symbol (e.g. a blank or comment line), is a `NotFoundError`.
 
 ```typescript
 {
+  resolvedPath: string;       // Absolute .sln/.csproj that was actually loaded
   name: string;
   fullName: string;
   kind: string;               // e.g. "method", "class", "local"
@@ -636,6 +653,7 @@ subject to the [Write Confirmation](#write-confirmation) gate.
 ```typescript
 {
   project: string;
+  resolvedPath: string;    // Absolute .sln/.csproj that was actually loaded
   operation: string;
   target: string;          // Fully-qualified name of the member/type edited
   changedFiles: string[];  // Solution-root-relative path(s) modified (or that would be); forward slashes, project-dir-relative when no .sln
@@ -669,6 +687,7 @@ call is subject to the [Write Confirmation](#write-confirmation) gate.
 ```typescript
 {
   project: string;
+  resolvedPath: string;    // Absolute .sln/.csproj that was actually loaded
   symbol: string;          // Fully-qualified name that was renamed
   newName: string;
   changedFiles: string[];  // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln)

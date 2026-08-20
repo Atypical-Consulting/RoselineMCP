@@ -141,4 +141,32 @@ public class SolutionAnalyzerServiceAdhocTests
             result.TopDiagnostics.Count.ShouldBe(3);
         }
     }
+
+    /// <summary>
+    /// <c>list_diagnostics</c> loads through the shared <see cref="IProjectLoader"/> just like the
+    /// navigation tools, so its payload must disclose which checkout answered too.
+    /// </summary>
+    public class ResolvedPathTests
+    {
+        [Fact]
+        public async Task ListDiagnostics_Reports_The_Resolved_Project_Path()
+        {
+            var baseDir = Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
+            var (workspace, project) = AdhocProjectBuilder.Create(
+                "Acme", [("A.cs", "public class Widget { }")], baseDir);
+            using (workspace)
+            {
+                var codeFixProviderFactory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
+                var sut = new SolutionAnalyzerService(
+                    A.Fake<ILogger<SolutionAnalyzerService>>(),
+                    A.Fake<IMSBuildService>(),
+                    new DiagnosticFilterService(codeFixProviderFactory),
+                    AdhocProjectBuilder.FakeLoaderFor(workspace, project));
+
+                var response = await sut.ListDiagnosticsAsync(null, null, null, 100, CancellationToken.None);
+
+                response.ResolvedPath.ShouldBe(Path.Combine(baseDir, "Acme.csproj"));
+            }
+        }
+    }
 }

@@ -1,6 +1,8 @@
 using System.Reflection;
 using FakeItEasy;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using RoselineMCP.Interfaces;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -314,5 +316,68 @@ public class ProjectLoaderTests : IDisposable
             """);
 
         return slnPath;
+    }
+
+    /// <summary>
+    /// <see cref="LoadedProject.ResolvedPath"/> reports the <c>.sln</c> when the solution has a file
+    /// path — the field that tells two checkouts of the same repository apart.
+    /// </summary>
+    [Fact]
+    public void ResolvedPath_PrefersTheSolutionFile()
+    {
+        var slnPath = Path.Combine(_baseDir, "Acme.sln");
+        using var workspace = new AdhocWorkspace();
+        workspace.AddSolution(SolutionInfo.Create(
+            SolutionId.CreateNewId(), VersionStamp.Create(), filePath: slnPath));
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "Acme", "Acme",
+            LanguageNames.CSharp, filePath: Path.Combine(_baseDir, "Acme.csproj")));
+
+        using var loaded = new LoadedProject(workspace, project.Solution, project, ownsWorkspace: false);
+
+        loaded.ResolvedPath.ShouldBe(slnPath);
+    }
+
+    /// <summary>
+    /// Pins the resolution contract behind the worktree bug: a worktree nested inside its own main
+    /// checkout is structurally unreachable from that checkout (level 0 wins, and only immediate
+    /// subdirectories are ever scanned), so an omitted <c>project</c> answers from the main
+    /// checkout. That is by design — the defect was that nothing told the caller. The escape hatch,
+    /// an explicit absolute path, must keep overriding the working-directory anchor.
+    /// </summary>
+    [Fact]
+    public void AutoDiscovery_ResolvesTheNearestCheckout_AndAnExplicitWorktreePathBeatsTheCwd()
+    {
+        // A worktree nested inside its own main checkout, the layout Claude Code creates.
+        var mainSln = Touch("Main.sln");
+
+        var worktreeDir = Path.Combine(_baseDir, ".claude", "worktrees", "wt");
+        Directory.CreateDirectory(worktreeDir);
+        var worktreeSln = Touch(Path.Combine(".claude", "worktrees", "wt", "Main.sln"));
+
+        // From the main checkout, level 0 wins immediately — the worktree is three levels down and
+        // only immediate subdirectories are ever scanned, so it is unreachable. This is by design.
+        ResolveTargetPath(null, _baseDir).ShouldBe(mainSln);
+
+        // From inside the worktree, the worktree wins.
+        ResolveTargetPath(null, worktreeDir).ShouldBe(worktreeSln);
+
+        // The escape hatch: an explicit absolute path overrides the cwd anchor entirely.
+        ResolveTargetPath(worktreeSln, _baseDir).ShouldBe(worktreeSln);
+    }
+
+    /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
+    [Fact]
+    public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
+    {
+        var csprojPath = Path.Combine(_baseDir, "Acme.csproj");
+        using var workspace = new AdhocWorkspace();
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "Acme", "Acme",
+            LanguageNames.CSharp, filePath: csprojPath));
+
+        using var loaded = new LoadedProject(workspace, project.Solution, project, ownsWorkspace: false);
+
+        loaded.ResolvedPath.ShouldBe(csprojPath);
     }
 }

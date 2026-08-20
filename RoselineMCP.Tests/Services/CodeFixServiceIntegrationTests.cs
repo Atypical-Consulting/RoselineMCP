@@ -394,6 +394,34 @@ public class CodeFixServiceIntegrationTests : IDisposable
             result.Patch.ShouldContain("a/App/Program.cs");
             result.Patch.ShouldContain("b/App/Program.cs");
         }
+
+        /// <summary>
+        /// The resolved path is the <c>.sln</c> that was actually opened — an absolute path, not the
+        /// <c>.csproj</c> the caller happened to name. That is what lets a caller tell a git
+        /// worktree from its main checkout, which report identical project names and relative paths.
+        /// </summary>
+        [Fact]
+        public async Task ApplyFixes_Reports_The_Absolute_Resolved_Solution_Path()
+        {
+            var appCsproj = CreateProject("App.csproj",
+                ("Program.cs", """
+                 class Program
+                 {
+                     static void Main()
+                     {
+                         int unused = 1;
+                         System.Console.WriteLine("hi");
+                     }
+                 }
+                 """));
+            CreateProject("Lib.csproj",
+                ("Thing.cs", "public class Thing { }"));
+            var slnPath = CreateSolutionFile("Resolved.sln", "App", "Lib");
+
+            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
+
+            result.ResolvedPath.ShouldBe(slnPath);
+        }
     }
 
     public class MultiDocumentTests : CodeFixServiceIntegrationTests

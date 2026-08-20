@@ -358,4 +358,43 @@ public class CodeEditServiceTests
         bytes.Take(2).ShouldBe([(byte)0xFF, (byte)0xFE], customMessage: "the UTF-16 LE BOM must be preserved on write");
         Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2).ShouldContain("Sum");
     }
+
+    /// <summary>
+    /// The write tools are where a wrong checkout costs the most — an edit lands in the main
+    /// checkout while the agent believes it is in an isolated worktree. The absolute resolved path
+    /// is the only field that distinguishes them, so both write payloads must carry it.
+    /// </summary>
+    [Fact]
+    public async Task EditMember_ReportsTheResolvedProjectPath_InPreview()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
+        var (workspace, project) = AdhocProjectBuilder.Create(
+            "Acme", [("A.cs", "public class Widget { public int X => 1; }")], baseDir);
+        using (workspace)
+        {
+            var service = CreateService(workspace, project);
+
+            var response = await service.EditMemberAsync(
+                null, "Widget.X", "replace", "public int X => 2;", previewOnly: true, CancellationToken.None);
+
+            response.ResolvedPath.ShouldBe(Path.Combine(baseDir, "Acme.csproj"));
+        }
+    }
+
+    [Fact]
+    public async Task RenameSymbol_ReportsTheResolvedProjectPath_InPreview()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
+        var (workspace, project) = AdhocProjectBuilder.Create(
+            "Acme", [("A.cs", "public class Widget { public int X => 1; }")], baseDir);
+        using (workspace)
+        {
+            var service = CreateService(workspace, project);
+
+            var response = await service.RenameSymbolAsync(
+                null, "Widget.X", "Y", previewOnly: true, cancellationToken: CancellationToken.None);
+
+            response.ResolvedPath.ShouldBe(Path.Combine(baseDir, "Acme.csproj"));
+        }
+    }
 }

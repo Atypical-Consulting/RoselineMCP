@@ -50,6 +50,15 @@ public sealed class LoadedProject : IDisposable
     /// <summary>The primary project that was requested — the anchor for symbol resolution.</summary>
     public Project Project { get; }
 
+    /// <summary>
+    /// The absolute path that was actually resolved and loaded — the <c>.sln</c> when the solution
+    /// has one, otherwise the primary project's <c>.csproj</c>. This is the only thing that
+    /// distinguishes two checkouts of the same repository (a git worktree from its main checkout),
+    /// which are otherwise reported identically: same project name, same solution-root-relative
+    /// file paths. Empty for in-memory solutions that have no path.
+    /// </summary>
+    public string ResolvedPath => Solution.FilePath ?? Project.FilePath ?? string.Empty;
+
     /// <summary>Initializes a new <see cref="LoadedProject"/>.</summary>
     /// <param name="workspace">The workspace the project/solution was loaded into.</param>
     /// <param name="solution">The loaded solution snapshot.</param>

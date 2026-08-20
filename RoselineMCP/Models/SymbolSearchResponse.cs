@@ -13,6 +13,14 @@ public class SymbolSearchResponse
     [JsonPropertyName("project")]
     public string Project { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Absolute path of the <c>.sln</c> (or <c>.csproj</c>) that was actually resolved and loaded.
+    /// Auto-discovery starts from the server's working directory, so this is how a caller confirms
+    /// which checkout answered — e.g. a git worktree versus its main checkout.
+    /// </summary>
+    [JsonPropertyName("resolvedPath")]
+    public string ResolvedPath { get; set; } = string.Empty;
+
     /// <summary>The search query that was applied (wildcard/substring pattern), or <c>null</c> when a file outline was requested.</summary>
     [JsonPropertyName("query")]
     public string? Query { get; set; }

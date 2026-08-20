@@ -88,6 +88,7 @@ public class CodeEditService : ICodeEditService
         var response = new EditMemberResponse
         {
             Project = loaded.Project.Name,
+            ResolvedPath = loaded.ResolvedPath,
             Operation = op,
             Target = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
             PreviewOnly = previewOnly
@@ -255,6 +256,7 @@ public class CodeEditService : ICodeEditService
         var response = new RenameSymbolResponse
         {
             Project = loaded.Project.Name,
+            ResolvedPath = loaded.ResolvedPath,
             Symbol = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
             NewName = newName,
             PreviewOnly = previewOnly

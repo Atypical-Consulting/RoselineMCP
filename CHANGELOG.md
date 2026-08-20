@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Every project-loading tool now reports **`resolvedPath`**, the absolute `.sln`/`.csproj` it
+  actually loaded, so callers can tell a git worktree from its main checkout. Auto-discovery is
+  anchored to the *server's* working directory (fixed when the MCP client spawned it), not the
+  agent's — a worktree nested under `.claude/worktrees/` is below the discovery walk's reach, so an
+  omitted `project` resolves the main checkout, and until now nothing in the response said so.
+  Added to `search_symbols`, `get_symbol_info`, `find_references`, `find_implementations`,
+  `get_call_graph`, `get_type_hierarchy`, `get_symbol_at_position`, `edit_member`, `rename_symbol`,
+  `list_diagnostics` and `apply_fixes`. Purely additive to the wire shape; discovery order is
+  unchanged. (#139)
+
+### Changed
+- Documented the working-directory anchor and its remedy — pass an absolute `.sln`/`.csproj` path
+  when your working directory differs from the server's — in `docs/API.md`, `README.md` and
+  `CLAUDE.md`. (#139)
+
 ### Fixed
 - **The write-confirmation prompt now names the project it will actually write to.** The gate exists
   to tell a human what is about to be modified so they can refuse, and in the two most common shapes
