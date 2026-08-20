@@ -25,10 +25,20 @@ namespace RoselineMCP.Services;
 /// times a bare compile and would turn a build gate into a style gate.
 /// </para>
 /// </remarks>
-public class VerificationService : IVerificationService
+public class VerificationService : IVerificationService, IDisposable
 {
+    /// <summary>Maximum number of cached per-project diagnostic sets before the least-recently-used one is evicted.</summary>
+    internal const int MaxCacheEntries = 16;
+
+    private static readonly StringComparer PathComparer =
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
     private readonly ILogger<VerificationService> _logger;
     private readonly IDiagnosticComputationService _diagnostics;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly Dictionary<CacheKey, CacheEntry> _cache = new(CacheKeyComparer.Instance);
+    private long _accessCounter;
+    private bool _disposed;
 
     /// <summary>Initializes a new instance of the <see cref="VerificationService"/>.</summary>
     /// <param name="logger">Logger for diagnostic output.</param>
@@ -52,6 +62,7 @@ public class VerificationService : IVerificationService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(candidate);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         var scope = ComputeScope(baseline, candidate);
         var verdict = new VerificationVerdict
@@ -196,24 +207,182 @@ public class VerificationService : IVerificationService
                 continue;
             }
 
-            var compilation = await project.GetCompilationAsync(cancellationToken);
-            if (compilation is null)
-            {
-                _logger.LogWarning("Project {Project} produced no compilation; skipping it in verification", project.Name);
-                continue;
-            }
+            errors.AddRange(await ErrorsForProjectAsync(project, baseDirectory, cancellationToken));
+        }
 
-            var diagnostics = await _diagnostics.GetDiagnosticsAsync(project, compilation, cancellationToken);
-            foreach (var diagnostic in diagnostics)
+        return errors;
+    }
+
+    /// <summary>
+    /// One project's errors, served from the cache when this exact project state has already been
+    /// compiled. The default <c>previewOnly</c> flow verifies the same baseline over and over while
+    /// the candidate changes, so this is what turns two compilations per edit into one.
+    /// </summary>
+    private async Task<IReadOnlyList<DiagnosticDetail>> ErrorsForProjectAsync(
+        Project project,
+        string? baseDirectory,
+        CancellationToken cancellationToken)
+    {
+        var filePath = project.FilePath;
+        if (string.IsNullOrEmpty(filePath))
+        {
+            // Nothing stable to key on (an in-memory project). Compile it every time rather than
+            // risk serving one anonymous project's diagnostics for another's.
+            return await ComputeErrorsAsync(project, baseDirectory, cancellationToken);
+        }
+
+        // The path, not the ProjectId: CachingProjectLoader mints fresh ProjectId GUIDs every time it
+        // reloads after a write, so an id-keyed cache would miss on exactly the calls it exists for.
+        //
+        // Both versions, not just the semantic one: the dependent *semantic* version tracks
+        // consumable declarations, so a body-only edit leaves it untouched — and a body-only edit is
+        // precisely how a write introduces a compiler error. Keying on it alone would serve a stale
+        // baseline and blame the next edit for an error it did not cause.
+        var key = new CacheKey(
+            filePath,
+            await project.GetDependentSemanticVersionAsync(cancellationToken),
+            await project.GetDependentVersionAsync(cancellationToken));
+
+        Task<List<DiagnosticDetail>> pending;
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            if (_cache.TryGetValue(key, out var entry))
             {
-                if (diagnostic.Severity == DiagnosticSeverity.Error)
-                {
-                    errors.Add(ToDetail(diagnostic, project.Name, baseDirectory));
-                }
+                entry.LastAccess = ++_accessCounter;
+                pending = entry.Errors;
+                _logger.LogDebug("Verification cache hit for {Project}", project.Name);
+            }
+            else
+            {
+                // Started and stored under the gate, so two concurrent misses on the same project
+                // await one compilation instead of racing into two. The shared work deliberately
+                // runs uncancelled: one caller walking away must not cancel it for the other.
+                pending = ComputeErrorsAsync(project, baseDirectory, CancellationToken.None);
+                _cache[key] = new CacheEntry { Errors = pending, LastAccess = ++_accessCounter };
+                EvictWhileOverBound();
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        try
+        {
+            return await pending.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (!pending.IsFaulted)
+        {
+            // Our own cancellation; the shared computation is still good for whoever else wants it.
+            throw;
+        }
+        catch
+        {
+            // Never keep a faulted result: the key is immutable, so a cached failure would be permanent.
+            await ForgetAsync(key, pending);
+            throw;
+        }
+    }
+
+    /// <summary>Compiles one project and projects its errors into detached, workspace-free values.</summary>
+    private async Task<List<DiagnosticDetail>> ComputeErrorsAsync(
+        Project project,
+        string? baseDirectory,
+        CancellationToken cancellationToken)
+    {
+        var errors = new List<DiagnosticDetail>();
+
+        var compilation = await project.GetCompilationAsync(cancellationToken);
+        if (compilation is null)
+        {
+            _logger.LogWarning("Project {Project} produced no compilation; skipping it in verification", project.Name);
+            return errors;
+        }
+
+        var diagnostics = await _diagnostics.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        foreach (var diagnostic in diagnostics)
+        {
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                errors.Add(ToDetail(diagnostic, project.Name, baseDirectory));
             }
         }
 
         return errors;
+    }
+
+    private async Task ForgetAsync(CacheKey key, Task<List<DiagnosticDetail>> pending)
+    {
+        await _gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (_cache.TryGetValue(key, out var entry) && ReferenceEquals(entry.Errors, pending))
+            {
+                _cache.Remove(key);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>Evicts least-recently-used entries. Callers must hold <see cref="_gate"/>.</summary>
+    private void EvictWhileOverBound()
+    {
+        while (_cache.Count > MaxCacheEntries)
+        {
+            var oldest = _cache.MinBy(pair => pair.Value.LastAccess).Key;
+            _cache.Remove(oldest);
+        }
+    }
+
+    /// <summary>
+    /// Identity of one compiled project state. The path is stable across reloads; the two versions
+    /// together change on any source edit, declaration-level or not.
+    /// </summary>
+    private readonly record struct CacheKey(string FilePath, VersionStamp SemanticVersion, VersionStamp Version);
+
+    private sealed class CacheEntry
+    {
+        /// <summary>
+        /// Detached values only — never <see cref="Diagnostic"/>, <see cref="Compilation"/> or
+        /// <see cref="Location"/>, which would root a <see cref="SyntaxTree"/> into a workspace whose
+        /// memory is never returned to the OS (see <c>docs/ARCHITECTURE.md</c> § Memory Management).
+        /// </summary>
+        public required Task<List<DiagnosticDetail>> Errors { get; init; }
+
+        public long LastAccess { get; set; }
+    }
+
+    private sealed class CacheKeyComparer : IEqualityComparer<CacheKey>
+    {
+        public static readonly CacheKeyComparer Instance = new();
+
+        public bool Equals(CacheKey x, CacheKey y) =>
+            x.SemanticVersion == y.SemanticVersion
+            && x.Version == y.Version
+            && PathComparer.Equals(x.FilePath, y.FilePath);
+
+        public int GetHashCode(CacheKey obj) =>
+            HashCode.Combine(PathComparer.GetHashCode(obj.FilePath), obj.SemanticVersion, obj.Version);
+    }
+
+    /// <summary>Releases the cache gate. The cached values themselves hold no unmanaged resources.</summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _cache.Clear();
+        _gate.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
