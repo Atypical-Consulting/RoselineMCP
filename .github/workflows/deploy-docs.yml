@@ -9,15 +9,16 @@ on:
     paths:
       - 'website/**'
       - '.github/workflows/deploy-docs.yml'
-  # Rebuild after the release workflow finishes so the /releases page (generated from the GitHub
-  # Releases API at build time) picks up the new release. A `release:` trigger would NOT work here:
-  # the release is created by the publish workflow's GITHUB_TOKEN, and GitHub deliberately does not
-  # fire workflows from token-created events. `workflow_run` keys off the workflow's completion
-  # (its original trigger was a human tag push), so it fires - regardless of the publish outcome,
-  # so a failed registry step still refreshes the page with whatever release was created.
-  workflow_run:
-    workflows: ["Publish NuGet"]
-    types: [completed]
+  # The /releases page is generated from the GitHub Releases API at build time, so it has to be
+  # rebuilt after a release. That is driven by release-please.yml's `publish` job, which ends with
+  # `gh workflow run deploy-docs.yml` — workflow_dispatch and repository_dispatch are the documented
+  # exceptions to GitHub's rule that GITHUB_TOKEN-created events do not trigger workflows, so the
+  # dispatch fires where a `release:` trigger would not.
+  #
+  # A `workflow_run` on release-please.yml would NOT be the equivalent: that workflow runs on every
+  # push to `dev`, so it would rebuild and redeploy the site on every dev push, bypassing the paths
+  # filter above. The previous `workflow_run` here named "Publish NuGet", a tag-triggered workflow
+  # that no longer exists — a dead trigger that could never fire again.
   workflow_dispatch:
 
 permissions:
