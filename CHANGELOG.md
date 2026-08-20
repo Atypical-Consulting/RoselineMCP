@@ -43,6 +43,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CLAUDE.md`. (#139)
 
 ### Fixed
+- **A permission-denied file or directory is now reported as `AnalysisError` with its message
+  intact, instead of a message-scrubbed `InternalError`.** `UnauthorizedAccessException` derives
+  from `SystemException`, not `IOException`, so it fell through `ToolExecutionHelper.Classify` to
+  the catch-all arm — the one arm that deliberately replaces the message with a correlation id.
+  That scrubbing is right for genuinely unexpected failures and wrong here: *"Access to the path
+  '...' is denied."* is precisely what a caller can act on. It hurt most on the write path, where
+  `apply_fixes` / `edit_member` / `rename_symbol` answered a read-only file with an opaque internal
+  error *after* a human had already approved the write. The closed set of `type` values is
+  unchanged. Separately, the recursive project-name lookup now skips directories it cannot read
+  (`EnumerationOptions.IgnoreInaccessible`, which the legacy `SearchOption` overloads disable)
+  instead of failing the whole call over a directory unrelated to the request; naming an unreadable
+  directory explicitly still surfaces the permission failure, since that is the answer the caller
+  asked for. (#150)
 - **The `apply_fixes` write confirmation no longer implies a solution-wide write.** When the
   resolved target is a `.sln`, the prompt now names *the primary project of* that solution — which
   is the only project `ApplyFixes` fixes — instead of naming the solution itself. On a solution with
