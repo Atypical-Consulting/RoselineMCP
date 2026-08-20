@@ -128,15 +128,19 @@ the two differ: it is a project-scoped tool whose resolved target may be a
 solution, so when the prompt names a `.sln` it says *the primary project of* it
 — the single project the fixes actually land in. Approving that prompt does not
 authorise a solution-wide rewrite, and the projects that are skipped are not
-reported anywhere in the response. `EditMember` is narrower still — it rewrites
-the one file declaring the member — and its prompt carries a qualifier of its
-own, *to the single file declaring it*, unconditionally: the write is one file
-whether the resolved target is a `.sln` or a `.csproj`, so unlike `ApplyFixes`
-there is no branch. Which file is deliberately left unnamed, since resolving it
-means loading an MSBuild workspace before the human has agreed to anything.
-`RenameSymbol` is the one prompt that names the resolved target with no
-qualifier, and there it is exact: the rename really can rewrite files across
-every project in the solution.
+reported anywhere in the response. `EditMember` is narrower still, and its prompt
+says so outright — *exactly one file is rewritten* — rather than letting the
+target stand in for the scope. Note what that sentence deliberately does **not**
+claim. It does not say the file is *in* the named target: a `.csproj` does not
+bound the write, because `ProjectLoader` opens the containing solution and symbol
+resolution spans every project in it, so the file rewritten can belong to a
+sibling project the caller never named. And it does not claim to be *the* file
+declaring the symbol: a partial type has several declarations and Roslyn picks
+one. Which file it lands on is deliberately left unnamed, since resolving it
+means loading an MSBuild workspace before the human has agreed to anything — so
+approving an `EditMember` prompt authorises *one* write, not a known one.
+`RenameSymbol` carries no scope qualifier, and there none is needed: the rename
+really can rewrite files across every project in the solution.
 
 **An unanswered confirmation declines, it does not proceed.** A client that
 accepts the elicitation request and then never answers used to block the tool

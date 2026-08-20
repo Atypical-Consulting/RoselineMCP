@@ -58,6 +58,40 @@ public class CodeEditServiceTests
         result.Patch.ShouldContain("Zero");
     }
 
+    /// <summary>
+    /// The behavioural half of the <c>edit_member</c> confirmation wording (#154). The prompt claims
+    /// two things about the write, and the protocol tests can only pin the sentence — with a faked
+    /// service they would stay green if this method ever grew a multi-file write. Both claims are
+    /// asserted here against the real Roslyn path:
+    /// <list type="number">
+    /// <item>exactly one file is rewritten, which is why the prompt says so rather than naming the
+    /// resolved target as if it were the scope; and</item>
+    /// <item>that file is <em>not</em> bounded by the project the caller named — the anchor is
+    /// <c>App</c>, which does not reference <c>Lib</c>, and the write still lands in <c>Lib</c>.
+    /// That is why the prompt says the declaration is "anywhere in the code loaded from" the target
+    /// rather than "in" it: <c>ProjectLoader</c> opens the containing solution and
+    /// <c>SymbolResolver</c> searches every project in it.</item>
+    /// </list>
+    /// </summary>
+    [Fact]
+    public async Task EditMember_Writes_One_File_Which_May_Be_Outside_The_Anchor_Project()
+    {
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [
+                ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+                ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { public int Value; } }")])
+            ],
+            solutionFileName: "Everything.sln");
+        var service = CreateService(workspace, anchor);
+
+        var result = await service.EditMemberAsync(
+            "App", "LibNs.Widget.Value", "delete", newSource: null,
+            previewOnly: true, CancellationToken.None);
+
+        result.ChangedFiles.ShouldHaveSingleItem();
+        result.ChangedFiles[0].ShouldBe("Lib/Widget.cs");
+    }
+
     [Fact]
     public async Task EditMember_Delete_Removes_Member()
     {

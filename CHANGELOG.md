@@ -24,18 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CLAUDE.md`. (#139)
 
 ### Fixed
-- **The `edit_member` write confirmation no longer implies a solution-wide write — it names the
-  single file it rewrites, which is all it ever writes.** The prompt named the resolved target, which
-  is the discovered `.sln` whenever there is one, for a write that resolves one member declaration
-  and rewrites exactly the one file declaring it: the widest of the three prompts' scope gaps, wider
-  than the `apply_fixes` one fixed just below. The qualifier is unconditional — unlike
-  `apply_fixes`', it does not branch on the target's extension, because the write is a single file
-  whether the target is a `.sln` or a `.csproj` — and it holds for `replace`, `add` and `delete`
-  alike, since `add` resolves `symbol` as the container type. Which file is deliberately not named:
-  that would mean loading an MSBuild workspace before the human is asked, and re-resolving after a
-  round-trip the gate allows five minutes for. `rename_symbol` is unchanged — it really is
-  solution-wide, so naming the solution is exact. Wording only: no parameters, response shape or
-  annotations move. (#154)
+- **The `edit_member` write confirmation no longer implies a solution-wide write — it says that
+  exactly one file is rewritten, which is all it ever writes.** The prompt named the resolved target,
+  which is the discovered `.sln` whenever there is one, for a write that resolves one declaration and
+  calls the writer once: the widest of the three prompts' scope gaps, wider than the `apply_fixes`
+  one fixed just below. The new sentence claims only what the code guarantees, and two omissions are
+  deliberate — it does not say the file is *in* the named target, because a `.csproj` does not bound
+  the write (the loader opens the containing solution and resolution spans every project in it, so
+  the file can be in a sibling project the caller never named), and it does not call it *the* file
+  declaring the symbol, because a partial type has several declarations and Roslyn picks one. On
+  `add` it names the container **type** rather than a member that does not exist yet. Which file the
+  write lands on is still not named: that would mean loading an MSBuild workspace before the human is
+  asked, and re-resolving after a round-trip the gate allows five minutes for. `rename_symbol` is
+  unchanged — it really is solution-wide, so naming the solution is exact. Wording only: no
+  parameters, response shape or annotations move. (#154)
 - **The `apply_fixes` write confirmation no longer implies a solution-wide write.** When the
   resolved target is a `.sln`, the prompt now names *the primary project of* that solution — which
   is the only project `ApplyFixes` fixes — instead of naming the solution itself. On a solution with

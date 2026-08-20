@@ -58,10 +58,10 @@ Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes),
 Behind that opt-in sits a second, **best-effort** guard: when `previewOnly: false` is passed, the
 server sends an MCP `elicitation/create` asking the connected client to confirm before writing.
 
-The prompt **names the concrete `.sln` or `.csproj` that will be written** — an absolute path, never
+The prompt **names the concrete `.sln` or `.csproj` the write resolved to** — an absolute path, never
 a placeholder — whether the caller passed `project`, left it out, or passed an empty string:
 
-> Write the 'replace' of member 'Foo.Bar' to the single file declaring it in '/Users/me/src/Acme/Acme.sln' to disk?
+> Rename 'Foo' to 'Bar' across the solution of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
 
 The path is resolved by the same function, against the same base directory, that the loader uses —
 and the **resolved path is what the write is then performed against**, rather than the argument the
@@ -90,21 +90,31 @@ documents, not about who *sees* the change: a file linked into several projects
 the anchor project changes what every project linking it compiles.
 
 The other two write tools are not described by the sentence above, and they differ from each other.
-[`EditMember`](#editmember) resolves one member declaration and rewrites the **single file** that
-declares it — the narrowest scope of the three — so its prompt says so too, and unconditionally:
-unlike `ApplyFixes`' qualifier, this one does not depend on what the resolved target turns out to
-be, because the write is one file whether the target is a `.sln` or a `.csproj`:
+[`EditMember`](#editmember) has the narrowest scope of the three: it resolves one declaration and
+rewrites **exactly one file**. Its prompt says that outright rather than letting the target stand in
+for the scope, and unlike `ApplyFixes`' qualifier it does not branch on the target's extension,
+because the write is one file whether the target is a `.sln` or a `.csproj`:
 
-> Write the 'delete' of member 'Foo.Bar' to the single file declaring it in '/Users/me/src/Acme/Acme.sln' to disk?
+> Write the 'delete' of member 'Foo.Bar' to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '/Users/me/src/Acme/Acme.sln'.
 
-The sentence holds for `replace`, `add` and `delete` alike: on `add`, `symbol` names the container
-type, so "the single file declaring it" is that type's declaration — the file that gets written.
-Which file that is stays unnamed, for the same reason `ApplyFixes` does not name its anchor project:
-resolving it means loading an MSBuild workspace before the human has agreed to anything.
+Two words there are load-bearing. **"Exactly one file"** is the part the code guarantees:
+`CodeEditService` resolves a single declaration and writes once. **"loaded from"**, rather than *in*,
+is the other: a `.csproj` target does not bound the write, because `ProjectLoader` opens the
+containing solution when it finds one and symbol resolution spans every project in it — so the file
+rewritten can belong to a sibling project the caller never named. For the same reason the prompt does
+not claim *the* file declaring the symbol: a partial type has several declarations, and Roslyn picks
+one. Which file it lands on stays unnamed, for the reason `ApplyFixes` does not name its anchor
+project: resolving it means loading an MSBuild workspace before the human has agreed to anything.
 
-[`RenameSymbol`](#renamesymbol) is the exception, and the only prompt that names the resolved target
-with no scope qualifier: it is a genuinely solution-wide Roslyn operation that can rewrite files
-across every project in the loaded solution, so naming the solution is exact.
+On `add` the sentence names a **type** instead of a member — `symbol` is the container type there,
+and the member being added is declared nowhere yet:
+
+> Write the 'add' of a member to type 'Acme.OrderService' to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '/Users/me/src/Acme/Acme.sln'.
+
+[`RenameSymbol`](#renamesymbol) carries no scope qualifier at all — it is a genuinely solution-wide
+Roslyn operation that can rewrite files across every project in the loaded solution, so naming the
+solution is already exact. (`ApplyFixes` also drops its qualifier when the target is a `.csproj`, for
+the same reason: there the target *is* the scope.)
 
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory

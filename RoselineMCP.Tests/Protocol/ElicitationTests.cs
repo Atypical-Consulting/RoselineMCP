@@ -76,15 +76,14 @@ public class ElicitationTests : IDisposable
 
     /// <summary>
     /// The write target named by a confirmation prompt — the last quoted segment, which is where
-    /// all three messages put it ("… of member 'Foo.Bar' to the single file declaring it in
-    /// '&lt;target&gt;' to disk?"). Reading it out of the message, rather than re-deriving the
-    /// expected path, is what keeps these assertions from re-implementing the resolution they are
-    /// supposed to be checking.
+    /// all three messages put it ("… anywhere in the code loaded from '&lt;target&gt;'."). Reading
+    /// it out of the message, rather than re-deriving the expected path, is what keeps these
+    /// assertions from re-implementing the resolution they are supposed to be checking.
     /// </summary>
     /// <remarks>
     /// Two constraints pull against each other here, which is why this is hand-rolled rather than a
     /// quoted-run regex. The messages quote other things first ("… the 'delete' of member 'Foo.Bar'
-    /// to the single file declaring it in '&lt;target&gt;' to disk?"), so the parser cannot simply
+    /// to disk? … loaded from '&lt;target&gt;'."), so the parser cannot simply
     /// take the widest quoted span; and a
     /// resolved path may itself contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
     /// <c>~/Bob's Projects</c> — so it cannot take the narrowest one either. The opening quote is
@@ -614,12 +613,9 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        message.ShouldBe($"Write the 'delete' of member 'Foo.Bar' to the single file declaring it in '{_fixtureSolution}' to disk?");
-
-        // The scope qualifier must not cost the absolute-path guarantee the other prompt shapes
-        // have — and it sits between the symbol and the target, which is exactly where a careless
-        // rewording would break TargetFromPrompt's "last quoted run" parse.
-        ShouldNameARealProject(message);
+        message.ShouldBe(
+            "Write the 'delete' of member 'Foo.Bar' to disk? Exactly one file is rewritten — the "
+            + $"declaration it resolves to, anywhere in the code loaded from '{_fixtureSolution}'.");
     }
 
     [Theory]
@@ -630,14 +626,15 @@ public class ElicitationTests : IDisposable
     {
         // Two properties in one, both of which a substring assertion would miss.
         //
-        // 1. The qualifier is UNCONDITIONAL, unlike ApplyFixes' (#149). ApplyFixes' scope depends on
-        //    the target — a .csproj target *is* its whole write scope — so its wording branches.
-        //    EditMember writes one file whatever the target is, so a .csproj target gets the same
-        //    sentence a .sln does. A test that only checked the .sln branch would still pass if the
-        //    qualifier had been copied across as a conditional.
-        // 2. The sentence holds for all three operations. It does because 'add' resolves `symbol` as
-        //    the CONTAINING TYPE (CodeEditService.AddMember rejects anything else), so "the single
-        //    file declaring it" names that type's declaration — the file actually written.
+        // 1. The scope clause does NOT branch on the target's extension, unlike ApplyFixes' (#149).
+        //    ApplyFixes' scope depends on it — a .csproj target *is* its whole write scope — so its
+        //    wording branches. EditMember writes one file whatever the target is, so a .csproj
+        //    target gets the same clause a .sln does, and it still says "loaded from" rather than
+        //    "in": a .csproj does not bound the write either, since ProjectLoader opens the
+        //    containing solution and resolution spans every project in it.
+        // 2. It DOES branch on the operation, and only on the noun. 'add' resolves `symbol` as the
+        //    container type (CodeEditService.AddMember rejects anything else), so the prompt names a
+        //    type rather than calling it a member that does not exist yet.
         string? message = null;
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.EditMemberAsync(
@@ -664,7 +661,14 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        message.ShouldBe($"Write the '{operation}' of member 'Foo.Bar' to the single file declaring it in '{_fixtureProject}' to disk?");
+        var subject = operation == "add" ? "a member to type 'Foo.Bar'" : "member 'Foo.Bar'";
+        message.ShouldBe(
+            $"Write the '{operation}' of {subject} to disk? Exactly one file is rewritten — the "
+            + $"declaration it resolves to, anywhere in the code loaded from '{_fixtureProject}'.");
+
+        // "in '<target>'" would be the false claim this wording exists to avoid — see
+        // CodeEditService_Writes_One_File_Which_May_Be_Outside_The_Named_Project.
+        message.ShouldNotContain($"in '{_fixtureProject}'");
     }
 
     [Fact]
@@ -700,7 +704,7 @@ public class ElicitationTests : IDisposable
 
         message.ShouldNotBeNull();
         message.ShouldBe($"Rename 'Foo' to 'Bar' across the solution of '{_fixtureSolution}' and write the changes to disk?");
-        message.ShouldNotContain("single file");
+        message.ShouldNotContain("Exactly one file");
     }
 
     [Fact]
