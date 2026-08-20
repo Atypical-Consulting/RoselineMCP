@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using FakeItEasy;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
@@ -64,16 +63,28 @@ public class ElicitationTests : IDisposable
     }
 
     /// <summary>
-    /// The write target named by a confirmation prompt: the LAST single-quoted segment, which is
-    /// where all three messages put it ("… of member 'Foo.Bar' in '&lt;target&gt;' to disk?").
-    /// Reading it out of the message — rather than re-deriving the expected path — is what keeps
-    /// these assertions from re-implementing the resolution they are supposed to be checking.
+    /// The write target named by a confirmation prompt — the last quoted segment, which is where
+    /// all three messages put it ("… of member 'Foo.Bar' in '&lt;target&gt;' to disk?"). Reading it
+    /// out of the message, rather than re-deriving the expected path, is what keeps these
+    /// assertions from re-implementing the resolution they are supposed to be checking.
     /// </summary>
+    /// <remarks>
+    /// Two constraints pull against each other here, which is why this is hand-rolled rather than a
+    /// quoted-run regex. The messages quote other things first ("… the 'delete' of member 'Foo.Bar'
+    /// in '&lt;target&gt;' to disk?"), so the parser cannot simply take the widest quoted span; and a
+    /// resolved path may itself contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
+    /// <c>~/Bob's Projects</c> — so it cannot take the narrowest one either. The opening quote is
+    /// therefore identified as the last one that follows a space (an apostrophe inside a path
+    /// follows a letter), and the closing quote as the last in the message, since every message's
+    /// tail after the target holds none.
+    /// </remarks>
     private static string TargetFromPrompt(string message)
     {
-        var quoted = Regex.Matches(message, "'([^']*)'");
-        quoted.Count.ShouldBeGreaterThan(0, $"the prompt names no target at all: {message}");
-        return quoted[^1].Groups[1].Value;
+        var open = message.LastIndexOf(" '", StringComparison.Ordinal);
+        var close = message.LastIndexOf('\'');
+        open.ShouldBeGreaterThanOrEqualTo(0, $"the prompt names no target at all: {message}");
+        close.ShouldBeGreaterThan(open + 1, $"the prompt's target quoting is unbalanced: {message}");
+        return message[(open + 2)..close];
     }
 
     /// <summary>
@@ -494,6 +505,74 @@ public class ElicitationTests : IDisposable
     }
 
     [Fact]
+    public async Task Approved_Write_Goes_To_The_Exact_Path_The_Human_Was_Shown()
+    {
+        // Naming the target is only half the guarantee. If the tool then hands the service the
+        // caller's original argument, that argument is resolved a SECOND time — after a round-trip
+        // the gate allows up to ConfirmDestructiveWritesTimeout (5 minutes by default) to complete.
+        // A build, a checkout or a generator dropping a sibling .sln in that window is enough for
+        // the second resolution to pick a different target, or to fail as ambiguous, and the human
+        // approved neither. Resolving once and carrying the answer forward closes the window rather
+        // than narrowing it, which is what docs/API.md and SECURITY.md actually claim.
+        string? message = null;
+        string? projectSeenByService = null;
+
+        var codeFix = A.Fake<ICodeFixService>();
+        A.CallTo(() => codeFix.ApplyFixesAsync(
+                A<string>._, A<List<string>>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string project, List<string> _, bool _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                projectSeenByService = project)
+            .ReturnsLazily((string _, List<string> _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); });
+
+        // The directory alias again: what the caller passes and what gets written are different
+        // strings, so "the service saw the approved path" is a claim with teeth.
+        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureRoot,
+            ["ids"] = new[] { "RCS1213" },
+            ["previewOnly"] = false,
+        });
+
+        message.ShouldNotBeNull();
+        projectSeenByService.ShouldBe(TargetFromPrompt(message));
+        projectSeenByService.ShouldBe(_fixtureProject);
+    }
+
+    [Fact]
+    public async Task Write_Confirmation_Names_An_Absolute_Path_For_A_Relative_Project()
+    {
+        // ProjectLoader.ResolveTargetPath returns an existing .csproj argument verbatim, so a
+        // relative one would reach the prompt exactly as typed. A human cannot evaluate
+        // '..\\src\\Acme.csproj' without knowing the server's working directory — which is the one
+        // fact the prompt exists to expose, and the reason docs/API.md promises an absolute path.
+        var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), _fixtureProject);
+        relative.ShouldNotBe(_fixtureProject, "the fixture must be reachable by a genuinely relative path");
+
+        string? message = null;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        {
+            ["project"] = relative,
+            ["ids"] = new[] { "RCS1213" },
+            ["previewOnly"] = false,
+        });
+
+        message.ShouldNotBeNull();
+        ShouldNameARealProject(message);
+        TargetFromPrompt(message).ShouldBe(_fixtureProject);
+    }
+
+    [Fact]
     public async Task Preview_Call_Never_Builds_The_Confirmation_Message()
     {
         // The read-only path must never build the prompt, because building it names the concrete
@@ -502,12 +581,12 @@ public class ElicitationTests : IDisposable
         // eagerly, resolution would throw and this call would come back as a failure envelope
         // instead of a preview. So the two assertions below pin one guarantee from both sides —
         // nobody was asked, and nothing was resolved in order to ask them.
-        var built = 0;
+        var elicited = 0;
         var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
 
         await using var host = await StartHostAsync(
             codeFix,
-            (_, _) => { built++; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); });
+            (_, _) => { elicited++; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); });
 
         // previewOnly defaults to true — nothing is written, so nothing should be asked or resolved.
         var result = await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
@@ -516,8 +595,13 @@ public class ElicitationTests : IDisposable
             ["ids"] = new[] { "RCS1213" },
         });
 
-        built.ShouldBe(0);
+        // Nobody was asked. On its own that is the weaker half: the factory could still have been
+        // invoked and its result thrown away.
+        elicited.ShouldBe(0);
 
+        // This is the half that pins the laziness. 'TestProject' resolves to nothing from the test
+        // output directory, so any resolution at all — eager or discarded — surfaces here as a
+        // failure envelope instead of the preview.
         var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
         payload.GetProperty("ok").GetBoolean()
             .ShouldBeTrue("a preview call must not resolve — let alone fail on — the write target");
@@ -573,7 +657,15 @@ public class ElicitationTests : IDisposable
             ["previewOnly"] = false,
         });
 
-        messages.Count.ShouldBe(3, "every write tool must ask before writing");
+        messages.Count.ShouldBe(
+            3,
+            "every write tool must ask before writing. If this is zero, auto-discovery found nothing "
+            + "from the test runner's working directory and all three calls failed before eliciting: "
+            + "these two omitted/empty-project facts rely on the ambient cwd resolving to a real "
+            + "project, which holds because the output directory sits within ProjectLoader's "
+            + "parent-walk depth of the test project's .csproj. A deeper output layout (a "
+            + "RID-specific folder, an artifacts/ layout) breaks that assumption — the prompt is "
+            + "fine, the fixture is not.");
         foreach (var message in messages)
         {
             ShouldNameARealProject(message);
@@ -616,8 +708,11 @@ public class ElicitationTests : IDisposable
         message.ShouldNotContain("in ''");
     }
 
-    [Fact]
-    public async Task Unresolvable_Write_Target_Fails_Without_Eliciting()
+    [Theory]
+    [InlineData("apply_fixes")]
+    [InlineData("edit_member")]
+    [InlineData("rename_symbol")]
+    public async Task Unresolvable_Write_Target_Fails_Without_Eliciting(string tool)
     {
         // Naming the target means resolving it, and resolution can fail — auto-discovery finding
         // nothing or several candidates, or, as here, an explicit reference that matches no project
@@ -630,24 +725,60 @@ public class ElicitationTests : IDisposable
         // raised inside its try would read as "this client cannot be asked" and the write would go
         // ahead unasked — the inversion of the whole gate. Hence the second assertion: it is not
         // enough that the call failed, it must have failed without eliciting.
+        //
+        // Run for all three write tools. Each composes its own prompt, so each could regress into
+        // resolving inside the try independently of the others; asserting only the tool that was
+        // fixed last would leave the other two free to break next.
         var elicited = false;
-        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+        var unresolvable = Path.Combine(_fixtureRoot, "NoSuchProjectAnywhere");
+
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
 
         await using var host = await StartHostAsync(
-            codeFix,
-            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); });
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
+            editService: edit);
 
-        var result = await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        var arguments = new Dictionary<string, object?>
         {
-            ["project"] = Path.Combine(_fixtureRoot, "NoSuchProjectAnywhere"),
-            ["ids"] = new[] { "RCS1213" },
+            ["project"] = unresolvable,
             ["previewOnly"] = false,
-        });
+        };
+        switch (tool)
+        {
+            case "apply_fixes":
+                arguments["ids"] = new[] { "RCS1213" };
+                break;
+            case "edit_member":
+                arguments["symbol"] = "Foo.Bar";
+                arguments["operation"] = "delete";
+                break;
+            default:
+                arguments["symbol"] = "Foo";
+                arguments["newName"] = "Bar";
+                break;
+        }
+
+        var result = await host.Client.CallToolAsync(tool, arguments);
 
         elicited.ShouldBeFalse("a target that cannot be resolved must not reach a human as a question");
 
         var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
         payload.GetProperty("ok").GetBoolean().ShouldBeFalse();
-        payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("NotFoundError");
+
+        // Either of the two types docs/API.md documents for this row: NotFoundError for an explicit
+        // reference that matches nothing (this case), ValidationError for auto-discovery finding no
+        // or several candidates. Which one is not the point — that the call failed rather than
+        // asking is.
+        payload.GetProperty("error").GetProperty("type").GetString()
+            .ShouldBeOneOf("NotFoundError", "ValidationError");
     }
 }

@@ -17,8 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same empty string as auto-discovery and resolved somewhere real. All three write tools
   (`ApplyFixes`, `EditMember`, `RenameSymbol`) now name the concrete `.sln`/`.csproj` path —
   resolved by the same function, against the same base directory, that the loader uses to perform
-  the write — so the prompt and the write cannot disagree about their target. **The text a human
-  reads therefore changes**; no tool's parameters, response shape or annotations do.
+  the write — and that resolved path is what the write is then performed against, instead of the
+  caller's original argument. Resolving once rather than again after the confirmation is what makes
+  the two genuinely inseparable: a second resolution, minutes later, could pick a different target
+  on a file system that moved in between. **The text a human reads therefore changes**; no tool's
+  parameters, response shape or annotations do. A relative `.csproj` argument is normalized, so the
+  prompt always shows an absolute path.
 - **An unresolvable write target now fails before a human is asked.** When auto-discovery finds no
   candidate or several, or an explicit `project` matches nothing, the call returns its ordinary
   failure envelope without sending an elicitation. Previously it asked for confirmation and then

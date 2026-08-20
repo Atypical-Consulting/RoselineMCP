@@ -213,16 +213,19 @@ internal static class ToolExecutionHelper
     /// then, so the <c>previewOnly: false</c> opt-in is the only remaining guard before a write.
     /// </para>
     /// <para>
-    /// <paramref name="message"/> arrives as a factory rather than a string so the prompt is built
-    /// only on the path that actually sends it. Building it is no longer free — it names the
-    /// concrete target, which means resolving it — so a deployment with the gate switched off must
-    /// neither pay for, nor fail on, a question it will never ask.
+    /// The prompt is composed here rather than handed in ready-made, because naming the write target
+    /// means resolving it and resolution is no longer free (see <see cref="ResolveWriteTarget"/>).
+    /// Every path that will not send a prompt therefore returns before resolving: a deployment with
+    /// the gate switched off, and a client that cannot be asked, must neither pay for nor fail on a
+    /// question they will never see. The resolved target is returned alongside the answer so the
+    /// caller can write to the exact path the human approved.
     /// </para>
     /// </remarks>
-    private static async Task<WriteConfirmation> ConfirmDestructiveWriteAsync(
+    private static async Task<(WriteConfirmation Confirmation, string? ResolvedTarget)> ConfirmDestructiveWriteAsync(
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
-        Func<string> message,
+        string? project,
+        Func<string, string> describeWrite,
         CancellationToken cancellationToken)
     {
         // Nothing to ask, or the operator turned the confirmation off for this deployment
@@ -231,7 +234,17 @@ internal static class ToolExecutionHelper
         // one, so a client that would decline is never given the chance to.
         if (server is null || options?.Value.ConfirmDestructiveWrites == false)
         {
-            return WriteConfirmation.Proceed;
+            return (WriteConfirmation.Proceed, null);
+        }
+
+        // A client that never negotiated elicitation cannot be asked, so the explicit opt-in stands
+        // — the same answer the catch-all below has always produced when ElicitAsync threw for this
+        // reason. Deciding it from the negotiated capability instead of from an exception is what
+        // keeps the target from being resolved for a prompt that has nowhere to go: this is the
+        // common shape of "no human is reachable", not the rare one.
+        if (server.ClientCapabilities?.Elicitation is null)
+        {
+            return (WriteConfirmation.Proceed, null);
         }
 
         // The confirmation gets its own clock. Think-time must not be charged against the analysis
@@ -242,13 +255,14 @@ internal static class ToolExecutionHelper
         var timeoutMs = options?.Value.ConfirmDestructiveWritesTimeout
             ?? RoselineMcpOptions.DefaultConfirmDestructiveWritesTimeoutMs;
 
-        // Build the prompt BEFORE the try. It names the concrete target, so building it resolves
-        // that target and can throw when nothing resolves — and every catch below ends in
-        // WriteConfirmation.Proceed. Inside the try, an unresolvable target would therefore be read
-        // as "this client cannot be asked", and the write would go ahead on a question nobody was
-        // ever shown: the exact inversion this gate exists to prevent. Out here it propagates to
-        // the tool's own handler and becomes the error envelope, with no elicitation sent.
-        var prompt = message();
+        // Resolve the target and build the prompt BEFORE the try, and exactly once. Resolution can
+        // throw when nothing resolves — and every catch below ends in WriteConfirmation.Proceed.
+        // Inside the try, an unresolvable target would therefore be read as "this client cannot be
+        // asked", and the write would go ahead on a question nobody was ever shown: the exact
+        // inversion this gate exists to prevent. Out here it propagates to the tool's own handler
+        // and becomes the error envelope, with no elicitation sent.
+        var target = ResolveWriteTarget(project);
+        var prompt = describeWrite(target);
 
         using var elicitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (timeoutMs > 0)
@@ -265,7 +279,7 @@ internal static class ToolExecutionHelper
                 RequestedSchema = new ElicitRequestParams.RequestSchema(),
             };
             var result = await server.ElicitAsync(request, elicitCts.Token);
-            return result.IsAccepted ? WriteConfirmation.Proceed : WriteConfirmation.Declined;
+            return (result.IsAccepted ? WriteConfirmation.Proceed : WriteConfirmation.Declined, target);
         }
         // OUR deadline fired, and the caller did not cancel: the client was asked and said
         // nothing. Silence is not consent — downgrade to a preview instead of writing. The test
@@ -284,7 +298,7 @@ internal static class ToolExecutionHelper
         catch (Exception)
             when (timeoutMs > 0 && elicitCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            return WriteConfirmation.TimedOut;
+            return (WriteConfirmation.TimedOut, target);
         }
         catch (OperationCanceledException)
         {
@@ -293,8 +307,10 @@ internal static class ToolExecutionHelper
         }
         catch (Exception)
         {
-            // Client does not support elicitation (or it failed) — honor the explicit opt-in.
-            return WriteConfirmation.Proceed;
+            // The round-trip failed for some reason other than our deadline — honor the explicit
+            // opt-in, and keep the target we already resolved: the write still lands where the
+            // prompt said it would.
+            return (WriteConfirmation.Proceed, target);
         }
     }
 
@@ -319,22 +335,39 @@ internal static class ToolExecutionHelper
     };
 
     /// <summary>
-    /// How a write tool's confirmation prompt names the project it is about to touch: the concrete
-    /// <c>.sln</c>/<c>.csproj</c> path that will actually be written, whether the caller passed one,
-    /// left it out, or passed an empty string.
+    /// The concrete <c>.sln</c>/<c>.csproj</c> path a write will land on — an absolute path, whether
+    /// the caller passed a project, left it out, or passed an empty string. This is both what the
+    /// confirmation prompt names and what the write is then performed against.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This resolves through the very function the loader will use moments later —
+    /// It resolves through the very function the loader uses —
     /// <see cref="ProjectLoader.ResolveTargetPath"/> with the same base directory
     /// (<see cref="Directory.GetCurrentDirectory"/>, as <c>IProjectLoader.LoadAsync</c> passes it) —
-    /// so the prompt cannot describe a different target from the one the write lands on. It is pure
-    /// path resolution: no MSBuild workspace is loaded, so naming the target costs nothing.
+    /// and the result is handed back to the caller to use as the <c>project</c> argument for the
+    /// write itself. That last part is what actually makes prompt and write agree: resolving twice
+    /// around a round-trip that may take minutes would let the file system change in between, so
+    /// the human could approve one solution and a second resolution could pick another (or fail).
+    /// Resolving once and carrying the answer forward removes the window rather than narrowing it.
+    /// </para>
+    /// <para>
+    /// <see cref="Path.GetFullPath(string)"/> because <see cref="ProjectLoader.ResolveTargetPath"/>
+    /// returns an existing <c>.csproj</c> argument verbatim, so a relative one would otherwise reach
+    /// the prompt as typed — unreadable to a human who does not know the server's working directory,
+    /// which is the one fact the prompt exists to expose. <c>CachingProjectLoader</c> normalizes the
+    /// same value for its cache key.
+    /// </para>
+    /// <para>
+    /// No MSBuild workspace is loaded, so this is far cheaper than the load that follows — but it is
+    /// not free. A bare project name that matches neither a file nor a directory falls through to a
+    /// recursive <c>*.csproj</c> scan of the working directory, which on a large tree is slow and
+    /// can throw on an unreadable subdirectory. That is the main reason every path which will not
+    /// send a prompt returns before calling this.
     /// </para>
     /// <para>
     /// Two symptoms shared one cause here. A caller who omitted <c>project</c> — the documented
     /// default, since auto-discovery is the advertised behavior — was asked to authorise a write to
-    /// the literal placeholder "the auto-discovered project"; and an empty string fell through the
+    /// the literal placeholder "the auto-discovered project"; and an empty string fell through a
     /// <c>??</c> to render <c>in ''</c>, because the prompt tested for null while the loader treats
     /// null <em>and whitespace</em> alike. Delegating removes both at once: there is no second
     /// opinion left to disagree with.
@@ -347,8 +380,8 @@ internal static class ToolExecutionHelper
     /// a call that was going to fail anyway.
     /// </para>
     /// </remarks>
-    public static string DescribeWriteTarget(string? project) =>
-        ProjectLoader.ResolveTargetPath(project, Directory.GetCurrentDirectory());
+    private static string ResolveWriteTarget(string? project) =>
+        Path.GetFullPath(ProjectLoader.ResolveTargetPath(project, Directory.GetCurrentDirectory()));
 
     /// <summary>
     /// Resolves whether a write tool should actually write. Applies the confirmation gate when the
@@ -361,14 +394,22 @@ internal static class ToolExecutionHelper
     /// what to log, and what to tell the caller — so the three write tools cannot drift apart. They
     /// already did once: three hand-maintained copies of this block grew three different
     /// confirmation messages, one of which asked the human to approve a write "in ''". Only
-    /// <paramref name="confirmationMessage"/> legitimately varies per tool.
+    /// <paramref name="describeWrite"/> legitimately varies per tool.
     /// </para>
     /// <para>
-    /// <paramref name="confirmationMessage"/> is a factory, not a string, so the prompt is built
-    /// only when it is actually sent. Naming the concrete write target means resolving it, and a
-    /// <c>previewOnly: true</c> call has no use for that answer: eager building would make every
-    /// read-only call do directory discovery, and would fail outright from a working directory
-    /// where discovery is ambiguous — a call that succeeds today.
+    /// <paramref name="describeWrite"/> receives the already-resolved target and returns the
+    /// sentence around it, rather than composing the whole message itself. That shape is what makes
+    /// the guarantee structural: a tool cannot forget to resolve, cannot resolve differently from
+    /// its siblings, and cannot interpolate the raw <c>project</c> back in — which is exactly the
+    /// bug this gate has now grown twice. It is also lazy by construction: nothing resolves on a
+    /// <c>previewOnly: true</c> call, which has no use for the answer and would otherwise pay for
+    /// directory discovery, or fail outright where discovery is ambiguous.
+    /// </para>
+    /// <para>
+    /// The returned <c>ResolvedTarget</c> is the path the human was shown; callers pass it to the
+    /// service in place of the caller's <c>project</c> so the write lands on precisely what was
+    /// approved. It is <see langword="null"/> whenever no prompt was sent — a preview, a disabled
+    /// gate, a client that cannot elicit — since nothing was resolved and nothing was approved.
     /// </para>
     /// <para>
     /// The human round-trip is bounded by <paramref name="cancellationToken"/> (the caller's request
@@ -378,11 +419,12 @@ internal static class ToolExecutionHelper
     /// analysis budget (<see cref="CreateLinkedTimeoutSource"/>) only <em>after</em> this returns.
     /// </para>
     /// </remarks>
-    public static async Task<(bool PreviewOnly, string? Note)> ResolveWriteModeAsync(
+    public static async Task<(bool PreviewOnly, string? Note, string? ResolvedTarget)> ResolveWriteModeAsync(
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
         bool previewOnly,
-        Func<string> confirmationMessage,
+        string? project,
+        Func<string, string> describeWrite,
         ILogger? logger,
         CancellationToken cancellationToken)
     {
@@ -391,20 +433,21 @@ internal static class ToolExecutionHelper
         // read-only path entirely.
         if (previewOnly)
         {
-            return (true, null);
+            return (true, null, null);
         }
 
-        var confirmation = await ConfirmDestructiveWriteAsync(server, options, confirmationMessage, cancellationToken);
+        var (confirmation, resolvedTarget) =
+            await ConfirmDestructiveWriteAsync(server, options, project, describeWrite, cancellationToken);
         if (confirmation == WriteConfirmation.Proceed)
         {
-            return (false, null);
+            return (false, null, resolvedTarget);
         }
 
         logger?.LogWarning(
             "Write not confirmed ({Outcome}): returning a preview only, nothing was written to disk.",
             confirmation);
 
-        return (true, WriteConfirmationNote(confirmation));
+        return (true, WriteConfirmationNote(confirmation), resolvedTarget);
     }
 
     /// <summary>

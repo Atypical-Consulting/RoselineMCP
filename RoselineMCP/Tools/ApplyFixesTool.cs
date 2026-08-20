@@ -61,11 +61,12 @@ public static class ApplyFixesTool
         try
         {
             // Gate policy lives in the helper; only the wording is this tool's own.
-            var (effectivePreviewOnly, confirmationNote) = await ToolExecutionHelper.ResolveWriteModeAsync(
+            var (effectivePreviewOnly, confirmationNote, writeTarget) = await ToolExecutionHelper.ResolveWriteModeAsync(
                 server,
                 options,
                 previewOnly,
-                () => $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{ToolExecutionHelper.DescribeWriteTarget(project)}' and write the changes to disk?",
+                project,
+                target => $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{target}' and write the changes to disk?",
                 invocation.Logger,
                 cancellationToken);
 
@@ -76,8 +77,10 @@ public static class ApplyFixesTool
             // documented preview into a TimeoutError the caller cannot act on.
             timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
 
+            // The path the human approved, when they were asked; otherwise the caller's own
+            // argument, because nothing was resolved and so nothing was shown.
             var result = await codeFixService.ApplyFixesAsync(
-                project,
+                writeTarget ?? project,
                 ids.ToList(),
                 effectivePreviewOnly,
                 progress,

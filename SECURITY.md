@@ -109,9 +109,11 @@ install, and treat disabling it as a decision about a specific deployment.
 
 **The confirmation names the target it is about to write.** The prompt carries
 the concrete `.sln`/`.csproj` path — resolved by the same function, against the
-same base directory, that the loader uses to perform the write moments later —
-rather than a placeholder, and it does so whether the caller passed `project`,
-omitted it, or passed an empty string. This matters because `project` is
+same base directory, that the loader uses — rather than a placeholder, and it
+does so whether the caller passed `project`, omitted it, or passed an empty
+string. The resolved path is then what the write is performed against, so the
+answer cannot be given about one target and spent on another: resolving a second
+time after a round-trip that may last minutes would reopen exactly that window. This matters because `project` is
 optional and auto-discovery walks the working directory, up to three parent
 directories and then the immediate subdirectories: a server launched from an
 unexpected directory can present a write to a solution the human never had in
