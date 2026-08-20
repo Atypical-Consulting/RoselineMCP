@@ -57,21 +57,21 @@ public class RoselineMcpOptionsBindingTests
     {
         // The exact spelling README.md/CLAUDE.md tell operators to set, including the double
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
-        var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_")
-            .AddInMemoryCollection(new Dictionary<string, string?>()));
+        const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWrites";
 
-        // Sanity: with the variable unset the default stands, so the assertion below is meaningful.
+        // Enforces the "unset" precondition below instead of assuming it, and hands any exported
+        // value back afterwards — see ScopedEnvironmentVariable for why that matters.
+        using var _ = ScopedEnvironmentVariable.Set(key, null);
+
+        var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
+
+        // With the variable unset the default stands, so the assertion below is meaningful.
         options.ConfirmDestructiveWrites.ShouldBeTrue();
 
-        Environment.SetEnvironmentVariable("ROSELINE_RoselineMCP__ConfirmDestructiveWrites", "false");
-        try
+        using (ScopedEnvironmentVariable.Set(key, "false"))
         {
             Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"))
                 .ConfirmDestructiveWrites.ShouldBeFalse();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ROSELINE_RoselineMCP__ConfirmDestructiveWrites", null);
         }
     }
 
@@ -115,23 +115,23 @@ public class RoselineMcpOptionsBindingTests
     {
         // The exact spelling README.md/CLAUDE.md tell operators to set, including the double
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
-        var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_")
-            .AddInMemoryCollection(new Dictionary<string, string?>()));
+        const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout";
 
-        // Sanity: with the variable unset the default stands, so the assertion below is meaningful.
+        // Enforces the "unset" precondition below instead of assuming it, and hands any exported
+        // value back afterwards — see ScopedEnvironmentVariable for why that matters.
+        using var _ = ScopedEnvironmentVariable.Set(key, null);
+
+        var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
+
+        // With the variable unset the default stands, so the assertion below is meaningful.
         options.ConfirmDestructiveWritesTimeout.ShouldBe(300_000);
 
-        Environment.SetEnvironmentVariable("ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout", "0");
-        try
+        using (ScopedEnvironmentVariable.Set(key, "0"))
         {
             // Zero is the documented escape hatch back to an unbounded wait, so it must survive
             // the round-trip as zero rather than being treated as "unset".
             Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"))
                 .ConfirmDestructiveWritesTimeout.ShouldBe(0);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout", null);
         }
     }
 
