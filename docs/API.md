@@ -44,8 +44,13 @@ All tools are exposed via the Model Context Protocol and return JSON responses.
   (see [Error Handling](#error-handling)):
 
   ```json
-  { "ok": false, "error": { "type": "...", "message": "...", "correlationId": "..." } }
+  { "ok": false, "error": { "type": "...", "message": "...", "correlationId": "...", "resolvedPath": "..." } }
   ```
+
+  `resolvedPath` is **optional**, and its absence is meaningful: it names the absolute
+  `.sln`/`.csproj` that answered the call, and is **omitted entirely — never `""` — when the failure
+  happened before any project was resolved**. "Never resolved" and "resolved to nothing" are
+  different claims, so they are never conflated on the wire.
 
 Each tool's **Response** schema shown below describes the shape of the `data` object (the success
 payload), not the envelope. The tools set `UseStructuredContent = true`, so the same object is also
@@ -1300,9 +1305,28 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
     correlationId: string;  // Per-invocation GUID, always present. Lets a user reporting a failure
                              // hand you one ID that ties back to the full server-side log entry for
                              // that call (see "Tracing Individual Tool Calls" in the README).
+    resolvedPath?: string;  // The absolute .sln/.csproj that answered this call — the same value the
+                             // success responses carry. Present whenever the failure happened AFTER a
+                             // project was resolved, including for InternalError (the message is
+                             // scrubbed; the path is not secret). OMITTED — never "" — when nothing
+                             // was ever resolved: every ValidationError and CancelledError, and any
+                             // failure in loading itself. See "Which checkout answered?" below.
   };
 }
 ```
+
+#### Which checkout answered?
+
+Two checkouts of one repository — a git worktree and its main checkout — are otherwise reported
+identically: same project name, same solution-root-relative file paths. When `project` is omitted,
+RoselineMCP auto-discovers from **the server process's** working directory, which is not the
+agent's; a worktree under `.claude/worktrees/<name>` sits below the discovery walk's reach, so the
+main checkout answers instead.
+
+On the success path that mismatch surfaces as a `resolvedPath` you did not expect. On the failure
+path it surfaces as `NotFoundError: Symbol not found: 'X'` — and without this field there is nothing
+in the response to tell that apart from "the symbol does not exist". Compare `error.resolvedPath`
+against the checkout you meant, and pass an absolute path as `project` to target a specific one.
 
 ### Error Types
 
@@ -1324,6 +1348,21 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
     "type": "NotFoundError",
     "message": "Solution file not found: /path/to/missing.sln",
     "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21"
+  }
+}
+```
+
+No `resolvedPath` above: the solution was never loaded, so no checkout answered. Contrast a lookup
+that failed *inside* a loaded solution — the field names the checkout that was searched:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "type": "NotFoundError",
+    "message": "Symbol not found: 'UserService'. Use search_symbols to discover exact names in this solution.",
+    "correlationId": "3fa1c2b4e6a94f1c8b2d1e0a5c7d9f21",
+    "resolvedPath": "/Users/me/repo/MySolution.sln"
   }
 }
 ```

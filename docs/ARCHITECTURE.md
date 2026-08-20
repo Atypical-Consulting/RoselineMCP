@@ -359,10 +359,20 @@ Every tool returns the typed `ToolResult<T>` envelope (`{ ok, data, error }`); a
     "type": "ValidationError | NotFoundError | AnalysisError | CancelledError | TimeoutError | InternalError",
     "message": "Human-readable message (fixed, generic text for InternalError — never a raw exception message/stack trace)",
     "hint": "Optional, present on some ValidationError responses",
-    "correlationId": "Always present — per-invocation GUID (see ToolInvocation.CorrelationId) that correlates a client-reported failure with the server-side log entry for that call"
+    "correlationId": "Always present — per-invocation GUID (see ToolInvocation.CorrelationId) that correlates a client-reported failure with the server-side log entry for that call",
+    "resolvedPath": "Optional — the absolute .sln/.csproj that answered, mirroring the success responses. OMITTED (never \"\") when the failure happened before any project was resolved"
   }
 }
 ```
+
+`resolvedPath` reaches the envelope on `Exception.Data` (`ResolvedPathStamp`), stamped by the
+service method that was holding the `LoadedProject` and read back by
+`ToolExecutionHelper.Error<T>`. The tool's `catch` block only ever sees the exception — the service
+loads internally, so `loaded` is a local that no longer exists by then — which is why the path
+cannot simply be passed as an argument. The consequence that makes the mechanism correct rather
+than merely convenient: an exception raised *before* resolution carries no stamp, so the field is
+absent rather than empty, and `ValidationError`/`Cancellation` (which build envelopes from no
+exception at all) inherit that answer for free.
 
 See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` values and examples.
 
