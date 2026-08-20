@@ -62,4 +62,20 @@ public sealed class ToolError
     /// <summary>Per-invocation correlation ID tying this response to the full server-side log entry.</summary>
     [JsonPropertyName("correlationId")]
     public string CorrelationId { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The absolute <c>.sln</c>/<c>.csproj</c> that answered this call — the same value the success
+    /// responses carry, so a caller can tell "the symbol is not there" apart from "I was answered
+    /// from a different checkout" (two checkouts of one repository are otherwise reported
+    /// identically: same project name, same solution-root-relative paths).
+    /// </summary>
+    /// <remarks>
+    /// <b>Absent is meaningful.</b> The field is omitted — never <c>""</c> — when the failure
+    /// happened before any project was resolved (a caller-input validation error, a load that
+    /// itself failed). "Never resolved" is a different claim from "resolved to nothing", so the
+    /// two are never conflated on the wire.
+    /// </remarks>
+    [JsonPropertyName("resolvedPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ResolvedPath { get; init; }
 }

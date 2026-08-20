@@ -86,198 +86,208 @@ public class CodeFixService : ICodeFixService
             progress?.Report(new ProgressNotificationValue { Progress = 0, Total = ids.Count, Message = "Loading project via MSBuild…" });
 
             using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-            var msProject = loaded.Project;
-            response.Project = msProject.Name;
-            response.ResolvedPath = loaded.ResolvedPath;
-
-            // Emitted paths are solution-root-relative (falling back to the project directory when
-            // no .sln was loaded), matching the navigation and edit tools.
-            var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? msProject.FilePath);
-
-            // Get the original solution text for diff generation
-            var originalSolution = loaded.Solution;
-            var originalTexts = new Dictionary<string, string>();
-
-            foreach (var document in msProject.Documents)
+            try
             {
-                var text = await document.GetTextAsync(cancellationToken);
-                originalTexts[document.FilePath!] = text.ToString();
-            }
+                var msProject = loaded.Project;
+                response.Project = msProject.Name;
+                response.ResolvedPath = loaded.ResolvedPath;
 
-            // Apply fixes for each diagnostic ID
-            var appliedFixes = new HashSet<string>();
-            var changedDocuments = new HashSet<string>();
-            var currentSolution = originalSolution;
-            var fixCount = 0;
+                // Emitted paths are solution-root-relative (falling back to the project directory when
+                // no .sln was loaded), matching the navigation and edit tools.
+                var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? msProject.FilePath);
 
-            var diagnosticIndex = 0;
-            foreach (var diagnosticId in ids)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
+                // Get the original solution text for diff generation
+                var originalSolution = loaded.Solution;
+                var originalTexts = new Dictionary<string, string>();
 
-                diagnosticIndex++;
-                progress?.Report(new ProgressNotificationValue
+                foreach (var document in msProject.Documents)
                 {
-                    Progress = diagnosticIndex,
-                    Total = ids.Count,
-                    Message = $"Fixing {diagnosticId} ({diagnosticIndex}/{ids.Count})"
-                });
-                _logger.LogInformation("Attempting to fix diagnostic: {Id}", diagnosticId);
-
-                // Find code fix provider for this diagnostic
-                var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId);
-                if (provider == null)
-                {
-                    response.Notes.Add($"No code fix provider found for {diagnosticId}");
-                    continue;
+                    var text = await document.GetTextAsync(cancellationToken);
+                    originalTexts[document.FilePath!] = text.ToString();
                 }
 
-                try
-                {
-                    var (updatedSolution, fixedForThisId, anyDiagnosticsFound) =
-                        await ApplyFixesForDiagnosticIdAsync(
-                            currentSolution, msProject.Id, diagnosticId, provider, changedDocuments, cancellationToken);
+                // Apply fixes for each diagnostic ID
+                var appliedFixes = new HashSet<string>();
+                var changedDocuments = new HashSet<string>();
+                var currentSolution = originalSolution;
+                var fixCount = 0;
 
-                    currentSolution = updatedSolution;
-
-                    if (fixedForThisId > 0)
-                    {
-                        fixCount += fixedForThisId;
-                        appliedFixes.Add(diagnosticId);
-                    }
-                    else if (!anyDiagnosticsFound)
-                    {
-                        response.Notes.Add($"No diagnostics found for {diagnosticId}");
-                    }
-                    else
-                    {
-                        response.Notes.Add($"No code fix could be applied for {diagnosticId}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error applying fixes for diagnostic {Id}", diagnosticId);
-                    response.Notes.Add($"Error fixing {diagnosticId}: {ex.Message}");
-                }
-            }
-
-            response.FixersApplied = appliedFixes.ToList();
-            response.FixedCount = fixCount;
-
-            // Format the changed documents
-            if (changedDocuments.Any())
-            {
-                _logger.LogInformation("Formatting {Count} changed documents", changedDocuments.Count);
-
-                foreach (var filePath in changedDocuments)
-                {
-                    var document = currentSolution.Projects
-                        .SelectMany(p => p.Documents)
-                        .FirstOrDefault(d => d.FilePath == filePath);
-
-                    if (document != null)
-                    {
-                        document = await Formatter.FormatAsync(document, cancellationToken: cancellationToken);
-                        currentSolution = document.Project.Solution;
-                    }
-                }
-            }
-
-            // Generate patch
-            if (changedDocuments.Any())
-            {
-                var patchBuilder = new StringBuilder();
-
-                foreach (var filePath in changedDocuments.OrderBy(f => f))
+                var diagnosticIndex = 0;
+                foreach (var diagnosticId in ids)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var relativePath = SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
-
-                    var newDocument = currentSolution.Projects
-                        .SelectMany(p => p.Documents)
-                        .FirstOrDefault(d => d.FilePath == filePath);
-
-                    if (newDocument != null)
+                    diagnosticIndex++;
+                    progress?.Report(new ProgressNotificationValue
                     {
-                        var newText = await newDocument.GetTextAsync(cancellationToken);
-                        var oldText = originalTexts.GetValueOrDefault(filePath, "");
+                        Progress = diagnosticIndex,
+                        Total = ids.Count,
+                        Message = $"Fixing {diagnosticId} ({diagnosticIndex}/{ids.Count})"
+                    });
+                    _logger.LogInformation("Attempting to fix diagnostic: {Id}", diagnosticId);
 
-                        var diff = _diffService.GenerateUnifiedDiff(
-                            oldText,
-                            newText.ToString(),
-                            $"a/{relativePath}",
-                            $"b/{relativePath}");
+                    // Find code fix provider for this diagnostic
+                    var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId);
+                    if (provider == null)
+                    {
+                        response.Notes.Add($"No code fix provider found for {diagnosticId}");
+                        continue;
+                    }
 
-                        // Roslyn's changed-document set is a "this document object was touched"
-                        // signal, not a content-equality check — a fixer whose edit nets out to the
-                        // original text (or is undone by the formatting pass above) still shows up
-                        // in changedDocuments. Only count it as changed once there is a real, non-blank
-                        // diff, so HasChanges agrees with what ApplyFixes actually has to write.
-                        if (!string.IsNullOrWhiteSpace(diff))
+                    try
+                    {
+                        var (updatedSolution, fixedForThisId, anyDiagnosticsFound) =
+                            await ApplyFixesForDiagnosticIdAsync(
+                                currentSolution, msProject.Id, diagnosticId, provider, changedDocuments, cancellationToken);
+
+                        currentSolution = updatedSolution;
+
+                        if (fixedForThisId > 0)
                         {
-                            patchBuilder.AppendLine(diff);
-                            response.ChangedFiles.Add(relativePath);
+                            fixCount += fixedForThisId;
+                            appliedFixes.Add(diagnosticId);
+                        }
+                        else if (!anyDiagnosticsFound)
+                        {
+                            response.Notes.Add($"No diagnostics found for {diagnosticId}");
+                        }
+                        else
+                        {
+                            response.Notes.Add($"No code fix could be applied for {diagnosticId}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error applying fixes for diagnostic {Id}", diagnosticId);
+                        response.Notes.Add($"Error fixing {diagnosticId}: {ex.Message}");
+                    }
+                }
+
+                response.FixersApplied = appliedFixes.ToList();
+                response.FixedCount = fixCount;
+
+                // Format the changed documents
+                if (changedDocuments.Any())
+                {
+                    _logger.LogInformation("Formatting {Count} changed documents", changedDocuments.Count);
+
+                    foreach (var filePath in changedDocuments)
+                    {
+                        var document = currentSolution.Projects
+                            .SelectMany(p => p.Documents)
+                            .FirstOrDefault(d => d.FilePath == filePath);
+
+                        if (document != null)
+                        {
+                            document = await Formatter.FormatAsync(document, cancellationToken: cancellationToken);
+                            currentSolution = document.Project.Solution;
                         }
                     }
                 }
 
-                response.Patch = patchBuilder.ToString();
-            }
-
-            // The compiler's verdict on the fixed solution, before anything reaches disk. A code fix
-            // is generated code the caller never wrote, so this is the one assurance worth checking
-            // rather than trusting — and it runs ahead of the tool's write confirmation, so a human
-            // is never asked to approve a fix that is about to be refused.
-            if (changedDocuments.Any())
-            {
-                var verdict = await _verificationService.VerifyAsync(
-                    originalSolution, currentSolution, max, cancellationToken);
-                response.Verification = verdict;
-
-                if (verdict.Introduced is { Count: > 0 } introduced && !allowIntroducedErrors)
+                // Generate patch
+                if (changedDocuments.Any())
                 {
-                    _logger.LogInformation(
-                        "Refused {Count} fix(es): they introduce {Errors} compiler error(s)",
-                        fixCount, introduced.Count);
-                    var omitted = verdict.Omitted > 0 ? $" (+{verdict.Omitted} more not shown)" : string.Empty;
-                    response.Notes.Add(
-                        $"Refused: these fixes introduce {introduced.Count} compiler error(s){omitted} — nothing was "
-                        + "written. Fix the change, or pass allowIntroducedErrors: true to write it anyway.");
-                    return response;
-                }
-            }
+                    var patchBuilder = new StringBuilder();
 
-            // Apply changes if not preview only
-            if (!previewOnly && changedDocuments.Any())
-            {
-                _logger.LogInformation("Applying changes to {Count} files", changedDocuments.Count);
-
-                foreach (var filePath in changedDocuments)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    var document = currentSolution.Projects
-                        .SelectMany(p => p.Documents)
-                        .FirstOrDefault(d => d.FilePath == filePath);
-
-                    if (document != null)
+                    foreach (var filePath in changedDocuments.OrderBy(f => f))
                     {
-                        var text = await document.GetTextAsync(cancellationToken);
-                        // Write with the file's original encoding (BOM included) — see SourceTextWriter.
-                        await SourceTextWriter.WriteAsync(filePath, text, cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        var relativePath = SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
+
+                        var newDocument = currentSolution.Projects
+                            .SelectMany(p => p.Documents)
+                            .FirstOrDefault(d => d.FilePath == filePath);
+
+                        if (newDocument != null)
+                        {
+                            var newText = await newDocument.GetTextAsync(cancellationToken);
+                            var oldText = originalTexts.GetValueOrDefault(filePath, "");
+
+                            var diff = _diffService.GenerateUnifiedDiff(
+                                oldText,
+                                newText.ToString(),
+                                $"a/{relativePath}",
+                                $"b/{relativePath}");
+
+                            // Roslyn's changed-document set is a "this document object was touched"
+                            // signal, not a content-equality check — a fixer whose edit nets out to the
+                            // original text (or is undone by the formatting pass above) still shows up
+                            // in changedDocuments. Only count it as changed once there is a real, non-blank
+                            // diff, so HasChanges agrees with what ApplyFixes actually has to write.
+                            if (!string.IsNullOrWhiteSpace(diff))
+                            {
+                                patchBuilder.AppendLine(diff);
+                                response.ChangedFiles.Add(relativePath);
+                            }
+                        }
+                    }
+
+                    response.Patch = patchBuilder.ToString();
+                }
+
+                // The compiler's verdict on the fixed solution, before anything reaches disk. A code fix
+                // is generated code the caller never wrote, so this is the one assurance worth checking
+                // rather than trusting — and it runs ahead of the tool's write confirmation, so a human
+                // is never asked to approve a fix that is about to be refused.
+                if (changedDocuments.Any())
+                {
+                    var verdict = await _verificationService.VerifyAsync(
+                        originalSolution, currentSolution, max, cancellationToken);
+                    response.Verification = verdict;
+
+                    if (verdict.Introduced is { Count: > 0 } introduced && !allowIntroducedErrors)
+                    {
+                        _logger.LogInformation(
+                            "Refused {Count} fix(es): they introduce {Errors} compiler error(s)",
+                            fixCount, introduced.Count);
+                        var omitted = verdict.Omitted > 0 ? $" (+{verdict.Omitted} more not shown)" : string.Empty;
+                        response.Notes.Add(
+                            $"Refused: these fixes introduce {introduced.Count} compiler error(s){omitted} — nothing was "
+                            + "written. Fix the change, or pass allowIntroducedErrors: true to write it anyway.");
+                        return response;
                     }
                 }
 
-                response.Applied = true;
-                response.Notes.Add($"Applied {fixCount} fixes to {changedDocuments.Count} files");
-            }
-            else if (previewOnly)
-            {
-                response.Notes.Add("Preview mode - no changes were saved to disk");
-            }
+                // Apply changes if not preview only
+                if (!previewOnly && changedDocuments.Any())
+                {
+                    _logger.LogInformation("Applying changes to {Count} files", changedDocuments.Count);
 
-            return response;
+                    foreach (var filePath in changedDocuments)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        var document = currentSolution.Projects
+                            .SelectMany(p => p.Documents)
+                            .FirstOrDefault(d => d.FilePath == filePath);
+
+                        if (document != null)
+                        {
+                            var text = await document.GetTextAsync(cancellationToken);
+                            // Write with the file's original encoding (BOM included) — see SourceTextWriter.
+                            await SourceTextWriter.WriteAsync(filePath, text, cancellationToken);
+                        }
+                    }
+
+                    response.Applied = true;
+                    response.Notes.Add($"Applied {fixCount} fixes to {changedDocuments.Count} files");
+                }
+                else if (previewOnly)
+                {
+                    response.Notes.Add("Preview mode - no changes were saved to disk");
+                }
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                // Name the checkout that answered, so the failure envelope can tell
+                // "the symbol is not here" apart from "you asked the wrong checkout".
+                ResolvedPathStamp.Stamp(ex, loaded);
+                throw;
+            }
         }
         catch (OperationCanceledException)
         {

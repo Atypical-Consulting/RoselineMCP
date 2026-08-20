@@ -5,6 +5,7 @@ using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
+using RoselineMCP.Services;
 
 namespace RoselineMCP.Tools;
 
@@ -50,14 +51,24 @@ public static class CheckCompilationTool
         try
         {
             using var loaded = await projectLoader.LoadAsync(project, timeoutSource.Token);
+            try
+            {
 
-            // No baseline: an absolute verdict about what is on disk, which is the question asked.
-            var verdict = await verificationService.VerifyAsync(
-                baseline: null, loaded.Solution, max, timeoutSource.Token);
-            verdict.ResolvedPath = loaded.ResolvedPath;
+                // No baseline: an absolute verdict about what is on disk, which is the question asked.
+                var verdict = await verificationService.VerifyAsync(
+                    baseline: null, loaded.Solution, max, timeoutSource.Token);
+                verdict.ResolvedPath = loaded.ResolvedPath;
 
-            invocation.MarkSuccess();
-            return ToolResult<VerificationVerdict>.Success(verdict);
+                invocation.MarkSuccess();
+                return ToolResult<VerificationVerdict>.Success(verdict);
+            }
+            catch (Exception ex)
+            {
+                // Name the checkout that answered, so the failure envelope can tell
+                // "the symbol is not here" apart from "you asked the wrong checkout".
+                ResolvedPathStamp.Stamp(ex, loaded);
+                throw;
+            }
         }
         catch (OperationCanceledException)
         {

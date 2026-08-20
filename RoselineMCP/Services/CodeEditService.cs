@@ -93,86 +93,96 @@ public class CodeEditService : ICodeEditService
         }
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
-
-        var syntaxRef = resolved.DeclaringSyntaxReferences.FirstOrDefault()
-            ?? throw new InvalidOperationException($"'{symbol}' has no source declaration to edit (it is metadata-only).");
-
-        var oldNode = await syntaxRef.GetSyntaxAsync(cancellationToken);
-        var document = loaded.Solution.GetDocument(oldNode.SyntaxTree)
-            ?? throw new InvalidOperationException($"Could not locate the source document for '{symbol}'.");
-        var filePath = document.FilePath
-            ?? throw new InvalidOperationException($"The declaration of '{symbol}' has no file path on disk.");
-
-        var originalText = (await document.GetTextAsync(cancellationToken)).ToString();
-        var root = await document.GetSyntaxRootAsync(cancellationToken)
-            ?? throw new InvalidOperationException($"Could not parse the source document for '{symbol}'.");
-
-        var (newRoot, formatEditedNode) = op switch
+        try
         {
-            "add" => (AddMember(root, oldNode, resolved, symbol, newSource!), true),
-            "replace" => (ReplaceMember(root, oldNode, symbol, newSource!), true),
-            _ => (DeleteMember(root, oldNode), false)
-        };
+            var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
 
-        // Format only the edited node (tagged with Formatter.Annotation), never the whole file, so
-        // unrelated members keep their existing formatting and the diff stays proportional to the change.
-        var editedDocument = document.WithSyntaxRoot(newRoot);
-        var newDocument = formatEditedNode
-            ? await Formatter.FormatAsync(editedDocument, Formatter.Annotation, options: null, cancellationToken)
-            : editedDocument;
-        var newSourceText = await newDocument.GetTextAsync(cancellationToken);
-        var newText = newSourceText.ToString();
+            var syntaxRef = resolved.DeclaringSyntaxReferences.FirstOrDefault()
+                ?? throw new InvalidOperationException($"'{symbol}' has no source declaration to edit (it is metadata-only).");
 
-        var relativePath = RelativePath(loaded, filePath);
-        var response = new EditMemberResponse
-        {
-            Project = loaded.Project.Name,
-            ResolvedPath = loaded.ResolvedPath,
-            Operation = op,
-            Target = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
-            PreviewOnly = previewOnly
-        };
+            var oldNode = await syntaxRef.GetSyntaxAsync(cancellationToken);
+            var document = loaded.Solution.GetDocument(oldNode.SyntaxTree)
+                ?? throw new InvalidOperationException($"Could not locate the source document for '{symbol}'.");
+            var filePath = document.FilePath
+                ?? throw new InvalidOperationException($"The declaration of '{symbol}' has no file path on disk.");
 
-        var patch = _diffService.GenerateUnifiedDiff(originalText, newText, $"a/{relativePath}", $"b/{relativePath}");
-        if (string.IsNullOrWhiteSpace(patch))
-        {
-            response.Notes.Add("No changes were produced by the edit.");
+            var originalText = (await document.GetTextAsync(cancellationToken)).ToString();
+            var root = await document.GetSyntaxRootAsync(cancellationToken)
+                ?? throw new InvalidOperationException($"Could not parse the source document for '{symbol}'.");
+
+            var (newRoot, formatEditedNode) = op switch
+            {
+                "add" => (AddMember(root, oldNode, resolved, symbol, newSource!), true),
+                "replace" => (ReplaceMember(root, oldNode, symbol, newSource!), true),
+                _ => (DeleteMember(root, oldNode), false)
+            };
+
+            // Format only the edited node (tagged with Formatter.Annotation), never the whole file, so
+            // unrelated members keep their existing formatting and the diff stays proportional to the change.
+            var editedDocument = document.WithSyntaxRoot(newRoot);
+            var newDocument = formatEditedNode
+                ? await Formatter.FormatAsync(editedDocument, Formatter.Annotation, options: null, cancellationToken)
+                : editedDocument;
+            var newSourceText = await newDocument.GetTextAsync(cancellationToken);
+            var newText = newSourceText.ToString();
+
+            var relativePath = RelativePath(loaded, filePath);
+            var response = new EditMemberResponse
+            {
+                Project = loaded.Project.Name,
+                ResolvedPath = loaded.ResolvedPath,
+                Operation = op,
+                Target = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
+                PreviewOnly = previewOnly
+            };
+
+            var patch = _diffService.GenerateUnifiedDiff(originalText, newText, $"a/{relativePath}", $"b/{relativePath}");
+            if (string.IsNullOrWhiteSpace(patch))
+            {
+                response.Notes.Add("No changes were produced by the edit.");
+                return response;
+            }
+
+            response.Patch = patch;
+            response.ChangedFiles.Add(relativePath);
+
+            // The candidate solution: the edit applied in memory, nothing on disk. This is what the
+            // compiler is asked about, before the write and before any human is asked to approve one.
+            var candidate = loaded.Solution.WithDocumentText(document.Id, newSourceText);
+            var (verdict, refused) = await VerifyAsync(
+                loaded.Solution, candidate, allowIntroducedErrors, max, cancellationToken);
+            response.Verification = verdict;
+
+            if (refused)
+            {
+                _logger.LogInformation(
+                    "Refused edit of '{Symbol}': it introduces {Count} compiler error(s)",
+                    symbol, verdict.Introduced?.Count ?? 0);
+                response.Notes.Add(RefusalNote(verdict));
+                return response;
+            }
+
+            if (!previewOnly)
+            {
+                // Write with the file's original encoding (BOM included) — see SourceTextWriter.
+                await SourceTextWriter.WriteAsync(filePath, newSourceText, cancellationToken);
+                response.Applied = true;
+                response.Notes.Add($"Wrote changes to {relativePath}.");
+            }
+            else
+            {
+                response.Notes.Add("Preview mode - no changes were saved to disk.");
+            }
+
             return response;
         }
-
-        response.Patch = patch;
-        response.ChangedFiles.Add(relativePath);
-
-        // The candidate solution: the edit applied in memory, nothing on disk. This is what the
-        // compiler is asked about, before the write and before any human is asked to approve one.
-        var candidate = loaded.Solution.WithDocumentText(document.Id, newSourceText);
-        var (verdict, refused) = await VerifyAsync(
-            loaded.Solution, candidate, allowIntroducedErrors, max, cancellationToken);
-        response.Verification = verdict;
-
-        if (refused)
+        catch (Exception ex)
         {
-            _logger.LogInformation(
-                "Refused edit of '{Symbol}': it introduces {Count} compiler error(s)",
-                symbol, verdict.Introduced?.Count ?? 0);
-            response.Notes.Add(RefusalNote(verdict));
-            return response;
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
         }
-
-        if (!previewOnly)
-        {
-            // Write with the file's original encoding (BOM included) — see SourceTextWriter.
-            await SourceTextWriter.WriteAsync(filePath, newSourceText, cancellationToken);
-            response.Applied = true;
-            response.Notes.Add($"Wrote changes to {relativePath}.");
-        }
-        else
-        {
-            response.Notes.Add("Preview mode - no changes were saved to disk.");
-        }
-
-        return response;
     }
 
     private static SyntaxNode AddMember(SyntaxNode root, SyntaxNode oldNode, ISymbol resolved, string symbol, string newSource)
@@ -297,108 +307,118 @@ public class CodeEditService : ICodeEditService
         // Progress values must strictly increase (MCP requirement), so the three phases are 1/2/3.
         progress?.Report(new ProgressNotificationValue { Progress = 1, Message = "Loading project via MSBuild…" });
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-
-        progress?.Report(new ProgressNotificationValue { Progress = 2, Message = $"Resolving symbol '{symbol}'…" });
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
-
-        if (!resolved.Locations.Any(l => l.IsInSource))
+        try
         {
-            throw new InvalidOperationException($"'{symbol}' is metadata-only and cannot be renamed.");
-        }
 
-        var originalSolution = loaded.Solution;
-        progress?.Report(new ProgressNotificationValue { Progress = 3, Message = "Renaming across the solution…" });
-        var newSolution = await Renamer.RenameSymbolAsync(
-            originalSolution, resolved, new SymbolRenameOptions(), newName, cancellationToken);
+            progress?.Report(new ProgressNotificationValue { Progress = 2, Message = $"Resolving symbol '{symbol}'…" });
+            var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
 
-        var response = new RenameSymbolResponse
-        {
-            Project = loaded.Project.Name,
-            ResolvedPath = loaded.ResolvedPath,
-            Symbol = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
-            NewName = newName,
-            PreviewOnly = previewOnly
-        };
-
-        var patchBuilder = new StringBuilder();
-        var filesToWrite = new List<(string Path, SourceText Text)>();
-        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var projectChange in newSolution.GetChanges(originalSolution).GetProjectChanges())
-        {
-            foreach (var documentId in projectChange.GetChangedDocuments())
+            if (!resolved.Locations.Any(l => l.IsInSource))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var oldDocument = originalSolution.GetDocument(documentId);
-                var newDocument = newSolution.GetDocument(documentId);
-                if (oldDocument?.FilePath == null || newDocument == null || !seenPaths.Add(oldDocument.FilePath))
-                {
-                    continue;
-                }
-
-                var oldText = (await oldDocument.GetTextAsync(cancellationToken)).ToString();
-                var newSourceText = await newDocument.GetTextAsync(cancellationToken);
-                var newText = newSourceText.ToString();
-                if (oldText == newText)
-                {
-                    continue;
-                }
-
-                var relativePath = RelativePath(loaded, oldDocument.FilePath);
-                var diff = _diffService.GenerateUnifiedDiff(oldText, newText, $"a/{relativePath}", $"b/{relativePath}");
-                if (string.IsNullOrWhiteSpace(diff))
-                {
-                    continue;
-                }
-
-                patchBuilder.AppendLine(diff);
-                response.ChangedFiles.Add(relativePath);
-                filesToWrite.Add((oldDocument.FilePath, newSourceText));
-            }
-        }
-
-        if (filesToWrite.Count == 0)
-        {
-            response.Notes.Add("Rename produced no changes.");
-            return response;
-        }
-
-        response.Patch = patchBuilder.ToString();
-
-        // Ahead of the write loop, never inside it: the loop is not atomic (see the guarantee
-        // boundary in docs/API.md), so a rename that breaks a downstream project must be stopped
-        // before the first file is touched rather than unwound after the fifth.
-        var (verdict, refused) = await VerifyAsync(
-            originalSolution, newSolution, allowIntroducedErrors, max, cancellationToken);
-        response.Verification = verdict;
-
-        if (refused)
-        {
-            _logger.LogInformation(
-                "Refused rename of '{Symbol}' to '{NewName}': it introduces {Count} compiler error(s)",
-                symbol, newName, verdict.Introduced?.Count ?? 0);
-            response.Notes.Add(RefusalNote(verdict));
-            return response;
-        }
-
-        if (!previewOnly)
-        {
-            foreach (var (path, text) in filesToWrite)
-            {
-                // Write with each file's original encoding (BOM included) — see SourceTextWriter.
-                await SourceTextWriter.WriteAsync(path, text, cancellationToken);
+                throw new InvalidOperationException($"'{symbol}' is metadata-only and cannot be renamed.");
             }
 
-            response.Applied = true;
-            response.Notes.Add($"Applied rename to {filesToWrite.Count} file(s).");
-        }
-        else
-        {
-            response.Notes.Add("Preview mode - no changes were saved to disk.");
-        }
+            var originalSolution = loaded.Solution;
+            progress?.Report(new ProgressNotificationValue { Progress = 3, Message = "Renaming across the solution…" });
+            var newSolution = await Renamer.RenameSymbolAsync(
+                originalSolution, resolved, new SymbolRenameOptions(), newName, cancellationToken);
 
-        return response;
+            var response = new RenameSymbolResponse
+            {
+                Project = loaded.Project.Name,
+                ResolvedPath = loaded.ResolvedPath,
+                Symbol = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
+                NewName = newName,
+                PreviewOnly = previewOnly
+            };
+
+            var patchBuilder = new StringBuilder();
+            var filesToWrite = new List<(string Path, SourceText Text)>();
+            var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var projectChange in newSolution.GetChanges(originalSolution).GetProjectChanges())
+            {
+                foreach (var documentId in projectChange.GetChangedDocuments())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var oldDocument = originalSolution.GetDocument(documentId);
+                    var newDocument = newSolution.GetDocument(documentId);
+                    if (oldDocument?.FilePath == null || newDocument == null || !seenPaths.Add(oldDocument.FilePath))
+                    {
+                        continue;
+                    }
+
+                    var oldText = (await oldDocument.GetTextAsync(cancellationToken)).ToString();
+                    var newSourceText = await newDocument.GetTextAsync(cancellationToken);
+                    var newText = newSourceText.ToString();
+                    if (oldText == newText)
+                    {
+                        continue;
+                    }
+
+                    var relativePath = RelativePath(loaded, oldDocument.FilePath);
+                    var diff = _diffService.GenerateUnifiedDiff(oldText, newText, $"a/{relativePath}", $"b/{relativePath}");
+                    if (string.IsNullOrWhiteSpace(diff))
+                    {
+                        continue;
+                    }
+
+                    patchBuilder.AppendLine(diff);
+                    response.ChangedFiles.Add(relativePath);
+                    filesToWrite.Add((oldDocument.FilePath, newSourceText));
+                }
+            }
+
+            if (filesToWrite.Count == 0)
+            {
+                response.Notes.Add("Rename produced no changes.");
+                return response;
+            }
+
+            response.Patch = patchBuilder.ToString();
+
+            // Ahead of the write loop, never inside it: the loop is not atomic (see the guarantee
+            // boundary in docs/API.md), so a rename that breaks a downstream project must be stopped
+            // before the first file is touched rather than unwound after the fifth.
+            var (verdict, refused) = await VerifyAsync(
+                originalSolution, newSolution, allowIntroducedErrors, max, cancellationToken);
+            response.Verification = verdict;
+
+            if (refused)
+            {
+                _logger.LogInformation(
+                    "Refused rename of '{Symbol}' to '{NewName}': it introduces {Count} compiler error(s)",
+                    symbol, newName, verdict.Introduced?.Count ?? 0);
+                response.Notes.Add(RefusalNote(verdict));
+                return response;
+            }
+
+            if (!previewOnly)
+            {
+                foreach (var (path, text) in filesToWrite)
+                {
+                    // Write with each file's original encoding (BOM included) — see SourceTextWriter.
+                    await SourceTextWriter.WriteAsync(path, text, cancellationToken);
+                }
+
+                response.Applied = true;
+                response.Notes.Add($"Applied rename to {filesToWrite.Count} file(s).");
+            }
+            else
+            {
+                response.Notes.Add("Preview mode - no changes were saved to disk.");
+            }
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
+        }
     }
 
     /// <summary>

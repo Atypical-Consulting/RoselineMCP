@@ -656,6 +656,14 @@ internal static class ToolExecutionHelper
     /// <paramref name="correlationId"/> (see <see cref="ToolInvocation.CorrelationId"/>) is echoed
     /// back so a user reporting the failure can supply one ID that ties back to full server-side logs.
     /// </summary>
+    /// <remarks>
+    /// <c>ToolError.ResolvedPath</c> is deliberately left absent here, and the same reasoning covers
+    /// <see cref="Cancellation{T}"/>: both build an envelope for a failure that carries no
+    /// exception to read a stamp from, and neither has a resolved path in scope at any call site —
+    /// a validation failure is detected *before* the service is invoked, and a cancellation can
+    /// arrive before loading has even started. Absent is therefore the accurate answer, not a gap:
+    /// it says "no project was ever resolved", which is exactly what happened.
+    /// </remarks>
     public static ToolResult<T> ValidationError<T>(string message, string correlationId, string? hint = null) =>
         ToolResult<T>.Failure(new ToolError
         {
@@ -698,7 +706,12 @@ internal static class ToolExecutionHelper
         {
             Type = type,
             Message = message,
-            CorrelationId = correlationId
+            CorrelationId = correlationId,
+            // Stamped by the service that was holding the loaded project when this threw; null when
+            // the failure happened before anything was resolved, which must stay *absent* on the
+            // wire rather than "". Surfaced even for InternalError: the message is scrubbed, the
+            // path is not secret — the same absolute path rides every success response.
+            ResolvedPath = ResolvedPathStamp.Read(ex)
         });
     }
 

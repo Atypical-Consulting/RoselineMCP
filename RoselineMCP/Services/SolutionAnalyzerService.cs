@@ -339,31 +339,41 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             // auto-discovery when 'project' is omitted, .sln paths accepted, exact-name project
             // selection, and the shared workspace cache.
             using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-            var msProject = loaded.Project;
-
-            var compilation = await GetProjectCompilationAsync(msProject, cancellationToken);
-            if (compilation == null)
+            try
             {
+                var msProject = loaded.Project;
+
+                var compilation = await GetProjectCompilationAsync(msProject, cancellationToken);
+                if (compilation == null)
+                {
+                    return new ListDiagnosticsResponse
+                    {
+                        Project = msProject.Name,
+                        ResolvedPath = loaded.ResolvedPath
+                    };
+                }
+
+                var allDiagnostics = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
+                var stats = CollectDiagnosticStatistics(allDiagnostics);
+                var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
+
                 return new ListDiagnosticsResponse
                 {
                     Project = msProject.Name,
-                    ResolvedPath = loaded.ResolvedPath
+                    ResolvedPath = loaded.ResolvedPath,
+                    TotalDiagnostics = allDiagnostics.Count,
+                    Stats = stats.Stats,
+                    SuggestedFixableIds = stats.FixableIds,
+                    Diagnostics = diagnosticDetails
                 };
             }
-
-            var allDiagnostics = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
-            var stats = CollectDiagnosticStatistics(allDiagnostics);
-            var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
-
-            return new ListDiagnosticsResponse
+            catch (Exception ex)
             {
-                Project = msProject.Name,
-                ResolvedPath = loaded.ResolvedPath,
-                TotalDiagnostics = allDiagnostics.Count,
-                Stats = stats.Stats,
-                SuggestedFixableIds = stats.FixableIds,
-                Diagnostics = diagnosticDetails
-            };
+                // Name the checkout that answered, so the failure envelope can tell
+                // "the symbol is not here" apart from "you asked the wrong checkout".
+                ResolvedPathStamp.Stamp(ex, loaded);
+                throw;
+            }
         }
         catch (Exception ex)
         {
