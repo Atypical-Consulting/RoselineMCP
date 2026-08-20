@@ -638,18 +638,22 @@ USER roseline
 ENTRYPOINT ["dotnet", "RoselineMCP.dll"]
 ```
 
-Multi-arch images (`linux/amd64`, `linux/arm64`) are built and pushed to Docker Hub and GHCR by
-`.github/workflows/docker-publish.yml` on every `v*` tag push — see [`PUBLISH.md`](../PUBLISH.md)
-for the full release flow.
+Multi-arch images (`linux/amd64`, `linux/arm64`) are built and pushed to Docker Hub and GHCR by the
+`docker` job of `.github/workflows/release-please.yml`, when a release PR is merged — see
+[`PUBLISH.md`](../PUBLISH.md) for the full release flow.
 
 ### CI/CD Pipeline
 
 1. **CI** (`.github/workflows/ci.yml`): build + test with coverage on every push/PR to `main`/`dev`
    across Ubuntu, Windows, and macOS; enforces an 80% line-coverage threshold on Ubuntu
 2. **CodeQL** (`.github/workflows/codeql.yml`): static security analysis
-3. **Release** (on `v*` tag push): `publish-nuget.yml` packs and pushes to nuget.org;
-   `docker-publish.yml` builds and pushes the multi-arch container — both run in parallel,
-   triggered by the same tag
+3. **Release** (`release-please.yml`, on every push to `dev`): release-please keeps a release PR up
+   to date from the Conventional Commits since the last release; merging it tags `vX.Y.Z`, creates
+   the GitHub Release, and gates three jobs on `release_created` — `publish` (NuGet via Trusted
+   Publishing + the `.mcpb` bundle), `publish-registry` (the MCP Registry, after NuGet indexes the
+   version) and `docker` (multi-arch to Docker Hub + GHCR). Publishing lives in this workflow
+   rather than a tag-triggered one because GitHub does not fire `on: push: tags` for a
+   `GITHUB_TOKEN`-created tag
 
 ## Monitoring and Diagnostics
 

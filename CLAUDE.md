@@ -21,7 +21,9 @@ review and update every surface that mirrors it:
 - `website/src/data/tools.ts` and `website/src/pages/tools.astro` — the public tools reference
   (name, title, kind, params, `data` payload, capability pills)
 - `mcpb/manifest.json` — the `tools[]` array (names + descriptions)
-- `CHANGELOG.md` — add an entry under `## [Unreleased]` for any user-facing change
+- `CHANGELOG.md` — **nothing to edit by hand.** release-please generates each release's entries
+  from Conventional Commits, so a user-facing change is described by your PR *title*; write it to
+  read well as a changelog line. Expand it, if the one-liner is not enough, in the open release PR
 
 For non-tool changes, still check the docs that describe what you touched (architecture notes,
 security considerations, config, the release process below). When unsure whether a doc is affected,
@@ -409,35 +411,33 @@ Logging levels adjust automatically:
 
 ## Releasing a New Version
 
-A release is cut by pushing a `vX.Y.Z` git tag; the `Publish NuGet` workflow
-(`.github/workflows/publish-nuget.yml`) does everything else. **Follow these steps exactly every
-time** so releases are identical across sessions. Do them in order; do not skip or reorder.
+Releases are cut by [release-please](https://github.com/googleapis/release-please)
+(`.github/workflows/release-please.yml`). **There is no tag to push and no version to pick** — both
+are derived from the Conventional Commits on `dev`. Full detail in `PUBLISH.md`.
 
-1. **Land everything first.** All intended changes must be merged into `dev`, and `dev` must be
-   green (CI passing, no open blocking PRs).
-2. **Pick the version** by semver against the *shipped tool contract*:
-   - **patch** (`Z`) — bug fixes, dependency bumps, packaging/CI/docs only (no tool behavior change)
-   - **minor** (`Y`) — new tools or backward-compatible tool features
-   - **major** (`X`) — breaking changes to a tool's wire shape / parameters
-3. **Roll the CHANGELOG** (`CHANGELOG.md`): rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`
-   (today's date) and add a fresh empty `## [Unreleased]` above it.
-4. **Bump the checked-in version defaults to `X.Y.Z`** so they never drift (CI re-stamps them from
-   the tag at publish, but keep them consistent):
-   - `.mcp/server.json` → both `version` **and** `packages[0].version`
-   - `mcpb/manifest.json` → `version`
-5. **Commit** the prep as `chore(release): X.Y.Z — <summary>` and **push to `dev`**.
-6. **Tag and push**: `git tag -a vX.Y.Z -m "vX.Y.Z - <summary>" <commit>` then
-   `git push origin vX.Y.Z`. This is the only manual trigger.
-7. **The tag runs `publish-nuget.yml` automatically — never do these by hand:**
-   - `publish` job: build → test → pack → **verify the packed `.mcp/server.json`** (fails if the
-     manifest is missing or its version ≠ tag) → push to NuGet.org → build `RoselineMCP.mcpb` →
-     create the GitHub Release (attaches `.nupkg` + `.mcpb`, notes from the CHANGELOG section).
-   - `publish-registry` job: waits for NuGet to index the version → `mcp-publisher login
-     github-oidc` (no secret) → publishes `.mcp/server.json` to `registry.modelcontextprotocol.io`.
-   - `deploy-docs` then rebuilds the site via a `workflow_run` trigger, so the `/releases` page
-     picks up the new release.
-8. **Verify after the run**: NuGet has `X.Y.Z`, the GitHub Release exists with both assets, the MCP
-   Registry entry shows `X.Y.Z`, and the docs `/releases` page lists it.
+1. **Land everything first** with Conventional Commit PR titles. The repo squash-merges, so the PR
+   title *is* the commit release-please parses: the type selects the version bump (`feat:` → minor,
+   `fix:` → patch, `!`/`BREAKING CHANGE` → major) and the changelog section. A bare title produces
+   no release entry.
+   ⚠️ **On a single-commit PR the commit message wins over the PR title** — the repo's squash title
+   setting is `COMMIT_OR_PR_TITLE`, which only uses the PR title when there is more than one commit.
+   Give the commit a conventional message too. Merge and rebase merging are also still enabled, so
+   the squash premise is a convention, not a mechanism.
+2. **release-please opens or updates a release PR** (`chore(dev): release X.Y.Z` — the scope is the
+   target branch, not `main`) on every push to
+   `dev`, carrying the version bump, the regenerated `CHANGELOG.md`, and the three JSON manifest
+   version fields (`.mcp/server.json` ×2, `mcpb/manifest.json` — see `release-please-config.json`).
+3. **Review the release PR.** Check the version it chose, and expand any generated changelog entry
+   whose one-line commit subject loses something that mattered — it is an ordinary PR and editing it
+   before merge is the intended workflow.
+4. **Merge it. That is the release.** The same run tags `vX.Y.Z`, creates the GitHub Release, and
+   then — gated on `release_created` — runs `publish` (pack → verify the packed `.mcp/server.json`
+   → NuGet via Trusted Publishing → `.mcpb` → attach assets → trigger the docs rebuild),
+   `publish-registry` (wait for NuGet to index → `mcp-publisher login github-oidc` → publish), and
+   `docker` (multi-arch to Docker Hub + GHCR).
+5. **Verify after the run**: NuGet has `X.Y.Z`, the GitHub Release exists with both assets, the MCP
+   Registry entry shows `X.Y.Z`, the image is on both registries, and the docs `/releases` page
+   lists it.
 
 **Invariants (do not violate):**
 - The MCP server name and the README `<!-- mcp-name: … -->` marker are **case-sensitive** and must
@@ -445,7 +445,24 @@ time** so releases are identical across sessions. Do them in order; do not skip 
   the registry publish `403`.
 - `.mcp/server.json` must stay valid against the current published schema — check with
   `mcp-publisher validate .mcp/server.json` before releasing if you touched it.
-- **Never** run `dotnet nuget push` or create the GitHub Release manually — the workflow owns them
-  (idempotent; re-pushing the same tag heals rather than duplicates).
+- **Never** run `dotnet nuget push`, push a `vX.Y.Z` tag, or create the GitHub Release manually —
+  release-please owns all three. A hand-pushed tag now fires *nothing*: the publishing jobs are
+  gated on `release_created`, not on a tag.
+- **Publishing must never be moved back to a tag-triggered workflow.** GitHub does not fire
+  `on: push: tags` / `on: release` for a `GITHUB_TOKEN`-created tag, so such a workflow would never
+  run again — silently. Pinned by `RoselineMCP.Tests/Release/ReleaseWorkflowTests.cs`.
+- **`issues: write` must stay in the workflow's permissions.** release-please identifies a merged
+  release PR solely by the `autorelease: pending` label and has to create it; without the
+  permission the release PR merges and is never recognised — no tag, no Release, no publish, and no
+  failed step.
+- **The nuget.org Trusted Publishing policy names the workflow file** (`release-please.yml`).
+  Renaming or replacing that workflow invalidates the policy and the push 403s *after* the tag and
+  Release already exist.
+- **Recover a failed publish with "Re-run failed jobs", never "Re-run all jobs"** — the latter
+  re-runs release-please, which sees the release already created, reports `release_created: false`,
+  and skips every publishing job.
 - The registry entry is immutable per version: to change published metadata (e.g. `websiteUrl`),
   ship a new version.
+- `CHANGELOG.md` has **no `## [Unreleased]` section** any more; release-please generates each
+  release's entries. Do not reintroduce one — it would sit below the newest generated release and
+  read as stale.
