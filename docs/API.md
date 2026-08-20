@@ -139,9 +139,18 @@ Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes),
 Behind that opt-in sits a second, **best-effort** guard: when `previewOnly: false` is passed, the
 server sends an MCP `elicitation/create` asking the connected client to confirm before writing.
 
-[Compile Verification](#compile-verification) runs **first**: a change that would introduce compiler
-errors is refused before any prompt is sent, so a human is never asked to approve a write that was
-never going to happen.
+A confirmation is sent only once there is a change that is **valid, non-empty and compiles**. Three
+outcomes short-circuit before the prompt for the same reason: asking a human to approve a write that
+was never going to happen spends the one thing the elicitation costs — their attention.
+
+- **Invalid input** — e.g. `EditMember`'s `newSource` missing on `replace`/`add` — fails with the
+  ordinary validation error before the write path is even entered.
+- [Compile Verification](#compile-verification) **refuses** a change that would introduce compiler
+  errors: the call still succeeds (`ok: true`), but nothing is written.
+- **No changes** — a phase-1 preview that produces no changes at all (a rename to the symbol's own
+  name, or a `replace`/`add` whose `newSource` matches what is already there) returns that preview
+  directly; the tool's own note (`"No changes were produced by the edit."`,
+  `"Rename produced no changes."`) survives unchanged.
 
 The prompt **names the concrete `.sln` or `.csproj` the write resolved to** — an absolute path, never
 a placeholder — whether the caller passed `project`, left it out, or passed an empty string:
@@ -200,6 +209,27 @@ and the member being added is declared nowhere yet:
 Roslyn operation that can rewrite files across every project in the loaded solution, so naming the
 solution is already exact. (`ApplyFixes` also drops its qualifier when the target is a `.csproj`, for
 the same reason: there the target *is* the scope.)
+
+All three sentences above are rendered in **one place**, from structured inputs: a tool names its
+scope from a closed vocabulary (`WriteScope` — `PrimaryProjectOf`, `SingleFile`, `WholeSolution`) and
+hands over the values, and `WritePrompt.Render` composes the sentence. A tool no longer writes its
+own prompt, so the three phrasings cannot drift apart again and a fourth write tool inherits wording
+its siblings already agreed to.
+
+That is also what makes the sanitising structural. `symbol` and `newName` are free-form caller input;
+when each tool interpolated them itself, the injection had already happened by the time anything
+shared saw the string, and a crafted `symbol` could close the quoted run and append a second,
+plausible sentence naming a project the write would never touch. Rendering from values instead means
+every caller-supplied one passes through the same filter.
+
+That filter is a **whitelist**: a symbol reference may contain letters, digits and
+`` . _ < > , @ ` : + ``, and everything else is dropped, then the result is capped with a mid-string
+elision (`Acme.…Service`). Whitelisting rather than escaping is deliberate — the reader is a human,
+and the set of characters that *look* like a space or a quote is open-ended (U+2800 and U+3164 render
+blank without being whitespace; a caller-supplied U+2019 reads as the frame's own quote). An ordinary
+C# symbol contains none of them and renders unchanged. The **target** is deliberately left verbatim,
+because it has to stay checkable against the file system; see
+[SECURITY.md](../SECURITY.md) for the one residual that follows from that.
 
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory

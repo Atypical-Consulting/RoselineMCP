@@ -68,7 +68,7 @@ public static class RenameSymbolTool
                 previewOnly,
                 allowIntroducedErrors,
                 project,
-                target => $"Rename '{symbol}' to '{newName}' across the solution of '{target}' and write the changes to disk?",
+                WritePrompt.ForWholeSolution(symbol, newName),
                 (target, phasePreviewOnly, reportProgress, token) => editService.RenameSymbolAsync(
                     target, symbol, newName, phasePreviewOnly, allowIntroducedErrors, max,
                     reportProgress ? progress : null, token),

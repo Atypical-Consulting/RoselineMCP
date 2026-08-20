@@ -85,13 +85,13 @@ The application uses a dependency injection-based service architecture with clea
   errors returned). The gate is `introduced`, never `compiles` — an already-broken repository stays
   editable. Escape hatch: `allowIntroducedErrors: true`. Verification runs **before** the
   write-confirmation elicitation, so a human is never asked to approve a write that is about to be
-  refused; the ordering lives once in `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three
-  tools call
+  refused **or that carries no changes at all** — both checks live once in
+  `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three tools call
 - **Compile guard (opt-in, `RoselineMCP:Guard`)**: the same verdict, applied to **every** file
   write rather than only RoselineMCP's own. `GuardEndpoint` (an `IHostedService`, registered only
   when the switch is on) serves a local Unix-domain socket; the `roseline-mcp guard` verb
   (`Guard/GuardClient.cs`) is the `PostToolUse` hook client that queries it and exits `2` with the
-  report on stderr, or `0` and silent. `GuardService` keeps a per-solution Roslyn `Solution`
+  report on stderr, or `0` and silent. `GuardService` keeps a per-**solution** Roslyn `Solution`
   snapshot and edits it **forward** from disk — it never reloads to build a baseline, because two
   independent loads share no lineage and `GetChanges` then reports every pre-existing error as
   introduced (measured: `introduced: 1, preexisting: 0` on two loads of identical broken code).

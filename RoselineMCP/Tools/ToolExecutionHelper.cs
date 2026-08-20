@@ -226,7 +226,7 @@ internal static class ToolExecutionHelper
         McpServer? server,
         IOptions<RoselineMcpOptions>? options,
         string? project,
-        Func<string, string> describeWrite,
+        WritePrompt prompt,
         CancellationToken cancellationToken)
     {
         // Nothing to ask, or the operator turned the confirmation off for this deployment
@@ -258,7 +258,7 @@ internal static class ToolExecutionHelper
         // inversion this gate exists to prevent. Out here it propagates to the tool's own handler
         // and becomes the error envelope, with no elicitation sent.
         var target = ResolveWriteTarget(project);
-        var prompt = describeWrite(target);
+        var message = prompt.Render(target);
 
         using var elicitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (timeoutMs > 0)
@@ -271,7 +271,7 @@ internal static class ToolExecutionHelper
             // A field-less form: the user simply accepts or declines the confirmation prompt.
             var request = new ElicitRequestParams
             {
-                Message = prompt,
+                Message = message,
                 RequestedSchema = new ElicitRequestParams.RequestSchema(),
             };
             var result = await server.ElicitAsync(request, elicitCts.Token);
@@ -373,9 +373,11 @@ internal static class ToolExecutionHelper
     /// No MSBuild workspace is loaded, so this is far cheaper than the load that follows — but it is
     /// not free. A bare project name that matches neither a file nor a directory falls through to a
     /// recursive <c>*.csproj</c> scan of the working directory, which on a large tree is slow. That
-    /// is the main reason every path which will not send a prompt returns before calling this. The
-    /// scan no longer throws on an unreadable <em>sub</em>directory — it skips it
-    /// (<c>IgnoreInaccessible</c>) — so cost, not fragility, is what remains of the justification.
+    /// is the main reason every path which will not send a prompt returns before calling this. No
+    /// discovery scan reached from here — this recursive sweep, or the auto-discovery walk taken
+    /// when <paramref name="project"/> is omitted — throws on an unreadable directory it encounters
+    /// any more; every one of them skips it (the shared <c>IncidentalScan</c> options,
+    /// <c>IgnoreInaccessible</c>) — so cost, not fragility, is what remains of the justification.
     /// A <em>named</em> directory that cannot be read still throws, by design, and now surfaces as
     /// <c>AnalysisError</c> rather than a message-scrubbed <c>InternalError</c>.
     /// </para>
@@ -409,16 +411,21 @@ internal static class ToolExecutionHelper
     /// what to log, and what to tell the caller — so the three write tools cannot drift apart. They
     /// already did once: three hand-maintained copies of this block grew three different
     /// confirmation messages, one of which asked the human to approve a write "in ''". Only
-    /// <paramref name="describeWrite"/> legitimately varies per tool.
+    /// <paramref name="prompt"/> legitimately varies per tool — and since #161 it varies over a
+    /// closed vocabulary (<see cref="WriteScope"/>) rather than over free text, so the words can no
+    /// longer drift where the policy no longer can.
     /// </para>
     /// <para>
-    /// <paramref name="describeWrite"/> receives the already-resolved target and returns the
-    /// sentence around it, rather than composing the whole message itself. That shape is what makes
-    /// the guarantee structural: a tool cannot forget to resolve, cannot resolve differently from
-    /// its siblings, and cannot interpolate the raw <c>project</c> back in — which is exactly the
-    /// bug this gate has now grown twice. It is also lazy by construction: nothing resolves on a
-    /// <c>previewOnly: true</c> call, which has no use for the answer and would otherwise pay for
-    /// directory discovery, or fail outright where discovery is ambiguous.
+    /// <paramref name="prompt"/> carries the scope and the <em>values</em> — never a finished
+    /// sentence. That shape is what makes the guarantee structural: a tool cannot forget to resolve,
+    /// cannot resolve differently from its siblings, cannot interpolate the raw <c>project</c> back
+    /// in — the bug this gate grew twice — and, since #161, cannot hand over caller input that has
+    /// already been interpolated. The previous <c>Func&lt;string, string&gt;</c> had run the
+    /// interpolation before the helper ever saw the string, so there was nothing left to escape: a
+    /// crafted <c>symbol</c> closed the quoted run and appended a second, benign-looking sentence
+    /// naming a project the write would never touch. Resolution stays lazy either way — nothing
+    /// resolves on a <c>previewOnly: true</c> call, which has no use for the answer and would
+    /// otherwise pay for directory discovery, or fail outright where discovery is ambiguous.
     /// </para>
     /// <para>
     /// The returned <c>ResolvedTarget</c> is the path the human was shown; callers pass it to the
@@ -439,7 +446,7 @@ internal static class ToolExecutionHelper
         IOptions<RoselineMcpOptions>? options,
         bool previewOnly,
         string? project,
-        Func<string, string> describeWrite,
+        WritePrompt prompt,
         ILogger? logger,
         CancellationToken cancellationToken)
     {
@@ -452,7 +459,7 @@ internal static class ToolExecutionHelper
         }
 
         var (confirmation, resolvedTarget) =
-            await ConfirmDestructiveWriteAsync(server, options, project, describeWrite, cancellationToken);
+            await ConfirmDestructiveWriteAsync(server, options, project, prompt, cancellationToken);
         if (confirmation == WriteConfirmation.Proceed)
         {
             return (false, null, resolvedTarget);
@@ -473,12 +480,15 @@ internal static class ToolExecutionHelper
     /// The order is the whole point. Asking a human to approve a write the compile gate is about to
     /// refuse spends the one thing the elicitation costs — their attention — and trains them to
     /// click through it. A refusal is also strictly more informative than a decline: it carries the
-    /// diff <em>and</em> the errors.
+    /// diff <em>and</em> the errors. The same reasoning applies one step earlier: a phase-1 response
+    /// that carries no changes at all (<see cref="IWriteToolResponse.HasChanges"/> is <see
+    /// langword="false"/>) is returned immediately after the refusal check, for the same reason —
+    /// there is nothing for a human to approve.
     /// </para>
     /// <para>
     /// Phase 1 always runs as a preview, whatever the caller asked for, so nothing can reach disk
-    /// before the verdict is in. Phase 2 runs only on an approved, verified write — and re-verifies,
-    /// because the tree may have moved while the human was deciding.
+    /// before the verdict is in. Phase 2 runs only on an approved, verified write with real changes
+    /// to make — and re-verifies, because the tree may have moved while the human was deciding.
     /// </para>
     /// <para>
     /// Each phase gets its own analysis budget and the confirmation between them is charged to
@@ -493,7 +503,7 @@ internal static class ToolExecutionHelper
     /// <param name="previewOnly">The caller's own request. When true, phase 2 never runs.</param>
     /// <param name="allowIntroducedErrors">When true, the compile gate reports but does not refuse.</param>
     /// <param name="project">The caller's project argument, passed through to phase 1.</param>
-    /// <param name="describeWrite">Builds the confirmation sentence around the already-resolved target.</param>
+    /// <param name="prompt">The scope and values the confirmation sentence is rendered from.</param>
     /// <param name="execute">
     /// Runs the underlying service call for one phase: (project, previewOnly, reportProgress, token).
     /// <c>reportProgress</c> is true for exactly one phase per call, so a tool that emits MCP
@@ -508,7 +518,7 @@ internal static class ToolExecutionHelper
         bool previewOnly,
         bool allowIntroducedErrors,
         string? project,
-        Func<string, string> describeWrite,
+        WritePrompt prompt,
         Func<string?, bool, bool, CancellationToken, Task<T>> execute,
         AnalysisBudget budget,
         ILogger? logger,
@@ -535,12 +545,19 @@ internal static class ToolExecutionHelper
             return result;
         }
 
+        // A human is asked only once there is a valid, non-empty write to approve.
+        if (!result.HasChanges)
+        {
+            return result;
+        }
+
         // No budget is armed across the human round-trip.
         budget.Stop();
 
-        // Gate policy lives in ResolveWriteModeAsync; only the wording is each tool's own.
+        // Gate policy AND wording both live in ResolveWriteModeAsync: the tool named a scope and
+        // handed over its values, and the sentence is composed from them there (#161).
         var (effectivePreviewOnly, confirmationNote, writeTarget) = await ResolveWriteModeAsync(
-            server, options, previewOnly, project, describeWrite, logger, cancellationToken);
+            server, options, previewOnly, project, prompt, logger, cancellationToken);
 
         if (effectivePreviewOnly)
         {

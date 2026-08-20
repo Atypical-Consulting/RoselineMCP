@@ -123,6 +123,47 @@ returns its error envelope without eliciting, since asking someone to approve a
 write that cannot be targeted spends their attention on a call that was going
 to fail regardless.
 
+**The caller cannot author the sentence a human approves.** Two of the values a
+prompt names — `symbol` and `newName` — are free-form caller input, and until
+v2.2.0 they were interpolated raw. A symbol carrying quote-and-punctuation
+therefore rendered a *complete, plausible, benign-looking* sentence that ended
+before the real one began: a human could read that first sentence, see a scratch
+project, approve — and the write would land on the resolved target instead. The
+gate exists to let a human refuse, so a sentence the guarded party can partly
+write is not a gate. Every caller-supplied value is now filtered and length-capped
+in the one place the sentence is composed (`WritePrompt.Render`).
+
+The filter is a **whitelist**, not an escape list, and that matters. These values
+are C# symbol references, so everything a legitimate one may contain is
+enumerable — letters, digits, and `. _ < > , @ ` : +` — and everything else is
+dropped. A denylist cannot work here, because the reader being protected is a
+*human*: U+2800 and U+3164 render as blanks without being whitespace (U+3164 is
+categorised as a letter), U+200B is invisible, and a caller-supplied U+2019 is
+indistinguishable from the frame's own quote at a glance. Each would rebuild the
+forged sentence in characters a denylist had not named. An ordinary symbol
+contains none of this and renders untouched.
+
+What this does and does not guarantee. It guarantees the **shape**: one question,
+and every quoted run opened and closed by the fixed frame, so what a caller
+supplies stays one unbroken token inside the quotes the server wrote. It does
+**not** make the caller's text meaningful — a symbol name can still be
+misleading, so the **target** is the load-bearing part of the sentence to read.
+And in every case the write is performed against the resolved target, never
+against the string that was displayed: the displayed path is a rendering of the
+write target, not its source.
+
+The resolved target is deliberately **not** filtered: it must stay checkable
+against the file system, which is the whole reason it is in the prompt. One
+residual follows from that, and is stated here rather than glossed. A checkout
+path may legitimately contain an apostrophe (`C:\Users\O'Brien\src`,
+`~/Bob's Projects`), and in the two prompts where frame text follows the target
+— `ApplyFixes` and `RenameSymbol` both end "… and write the changes to disk?" —
+such a path unbalances the quoting and could forge that trailing clause. Only
+`EditMember`'s sentence ends on the target. This is not the caller's boundary:
+it takes control of the directory the server is launched against, i.e. the host
+filesystem, which is already trusted input per *No path-traversal sanitization*
+below.
+
 **Naming the target is not the same as naming the scope**, and for `ApplyFixes`
 the two differ: it is a project-scoped tool whose resolved target may be a
 solution, so when the prompt names a `.sln` it says *the primary project of* it
