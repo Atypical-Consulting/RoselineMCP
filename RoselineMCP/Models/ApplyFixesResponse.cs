@@ -79,4 +79,8 @@ public class ApplyFixesResponse : IWriteToolResponse
     [JsonPropertyName("verification")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public VerificationVerdict? Verification { get; set; }
+
+    /// <inheritdoc />
+    [JsonIgnore]
+    public bool HasChanges => ChangedFiles.Count > 0;
 }

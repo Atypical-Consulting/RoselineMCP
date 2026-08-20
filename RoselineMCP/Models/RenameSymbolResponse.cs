@@ -59,4 +59,8 @@ public class RenameSymbolResponse : IWriteToolResponse
     /// <summary>Additional notes or warnings about the rename.</summary>
     [JsonPropertyName("notes")]
     public List<string> Notes { get; set; } = new();
+
+    /// <inheritdoc />
+    [JsonIgnore]
+    public bool HasChanges => ChangedFiles.Count > 0;
 }

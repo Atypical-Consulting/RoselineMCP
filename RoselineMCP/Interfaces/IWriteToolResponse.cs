@@ -27,4 +27,11 @@ public interface IWriteToolResponse
 
     /// <summary>Human-readable notes; the flow appends the confirmation outcome here.</summary>
     List<string> Notes { get; }
+
+    /// <summary>
+    /// Whether this response carries anything to write. Derived from the payload's own changed-file
+    /// collection, never a flag a tool sets independently, so no tool can disagree with the flow
+    /// about what "no changes" means.
+    /// </summary>
+    bool HasChanges { get; }
 }
