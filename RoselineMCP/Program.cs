@@ -153,6 +153,16 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
             services.AddSingleton<IPatchService, PatchService>();
             services.AddSingleton<ICodeNavigationService, CodeNavigationService>();
             services.AddSingleton<ICodeEditService, CodeEditService>();
+
+            // Compile guard (RoselineMCP:Guard, default false). Registered only when asked for, so a
+            // default install neither holds guard state nor opens a local socket. Read straight off
+            // the configuration rather than through IOptions: this decides whether the hosted service
+            // is registered at all, which has to happen while the container is still being built.
+            if (bool.TryParse(context.Configuration["RoselineMCP:Guard"], out var guardEnabled) && guardEnabled)
+            {
+                services.AddSingleton<IGuardService, GuardService>();
+                services.AddHostedService<GuardEndpoint>();
+            }
         })
         .ConfigureLogging((context, logging) =>
         {
