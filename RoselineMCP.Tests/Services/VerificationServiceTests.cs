@@ -274,4 +274,60 @@ public class VerificationServiceTests
         verdict.Errors.Count.ShouldBe(2);
         verdict.Omitted.ShouldBe(4);
     }
+
+    [Fact]
+    public async Task A_Bare_Project_With_No_Containing_Solution_Reports_An_Incomplete_Scope()
+    {
+        // Arrange — one project, loaded on its own (no .sln). Changing a public signature is safe
+        // *within* this project and breaks anything outside it, which is exactly what the workspace
+        // cannot see.
+        var (workspace, project) = AdhocProjectBuilder.Create("Lonely",
+            [("Api.cs", "public class Api { public int Value(int a) => a; }")]);
+        using var _ = workspace;
+        var baseline = project.Solution;
+        var document = baseline.Projects.Single().Documents.Single();
+        var candidate = baseline.WithDocumentText(document.Id, SourceText.From(
+            "public class Api { public int Value(int a, int b) => a + b; }"));
+
+        // Act
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert — the write still proceeds (nothing was introduced *that we can see*), but the
+        // caller is told the gate was partial rather than handed a false green.
+        verdict.Introduced.ShouldBeNull();
+        verdict.ScopeComplete.ShouldBeFalse();
+        verdict.Notes.ShouldNotBeNull();
+        verdict.Notes.ShouldContain(n => n.Contains("solution", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task A_Project_Loaded_Through_Its_Solution_Reports_A_Complete_Scope()
+    {
+        var (workspace, anchor) = CreateChain();
+        using var _ = workspace;
+        var baseline = anchor.Solution;
+        var candidate = WithChangedDocument(baseline, "Core", "Thing.cs",
+            "public class Thing { public int Value() => 2; }");
+
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+
+        verdict.ScopeComplete.ShouldBeTrue();
+        verdict.Notes.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Absolute_Mode_Reports_The_Incomplete_Scope_Too()
+    {
+        // check_compilation against a bare .csproj answers "this project compiles", which is not
+        // the same claim as "the build is green" — and the difference has to be on the wire.
+        var (workspace, project) = AdhocProjectBuilder.Create("Lonely",
+            [("Api.cs", "public class Api { public int Value(int a) => a; }")]);
+        using var _ = workspace;
+
+        var verdict = await CreateService().VerifyAsync(null, project.Solution, cancellationToken: TestContext.Current.CancellationToken);
+
+        verdict.Compiles.ShouldBe(true);
+        verdict.ScopeComplete.ShouldBeFalse();
+        verdict.Notes.ShouldNotBeNull();
+    }
 }

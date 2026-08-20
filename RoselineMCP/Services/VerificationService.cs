@@ -65,13 +65,27 @@ public class VerificationService : IVerificationService, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         var scope = ComputeScope(baseline, candidate);
+        var scopeComplete = candidate.FilePath is not null;
         var verdict = new VerificationVerdict
         {
             Scope = scope.Select(id => candidate.GetProject(id)?.Name ?? id.ToString())
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList(),
-            ScopeComplete = true
+            ScopeComplete = scopeComplete
         };
+
+        if (!scopeComplete)
+        {
+            // A bare .csproj was loaded with no containing solution, so the workspace holds no
+            // dependents to compile — a public-signature change is safe *within* this project and
+            // may break every consumer of it. Saying so is the difference between a partial gate
+            // and a false green: the write still proceeds, but the caller knows what was checked.
+            verdict.Notes =
+            [
+                "Scope is incomplete: no containing solution was loaded, so projects that depend on "
+                + "this one were not compiled. Pass the .sln path as `project` to verify them too."
+            ];
+        }
 
         var candidateErrors = await CollectErrorsAsync(candidate, scope, cancellationToken);
         verdict.Compiles = candidateErrors.Count == 0;
