@@ -470,6 +470,42 @@ public class ProjectLoaderTests : IDisposable
         ResolveTargetPath("Acme", _baseDir).ShouldBe(csproj);
     }
 
+    /// <summary>
+    /// Auto-discovery's final level — the base directory's immediate subdirectories — must not
+    /// abort over one it cannot read. An unreadable sibling here has nothing to do with the
+    /// request; a readable subdirectory holding the only <c>.sln</c> must still resolve.
+    /// </summary>
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void AutoDiscover_SkipsAnUnreadableSubdirectory_AndStillFindsTheSolution()
+    {
+        RequireEnforcedUnixPermissions();
+
+        var sln = Touch(Path.Combine("Readable", "Acme.sln"));
+        using var _ = Lock("Locked");
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(sln);
+    }
+
+    /// <summary>
+    /// The base directory itself is the edge case named in the spec: <see cref="Directory.Exists"/>
+    /// reports <c>true</c> for a mode-000 directory on Unix, so the walk proceeds — and both
+    /// enumerations rooted there must now return empty rather than throw, leaving the ordinary
+    /// "nothing found" <see cref="ArgumentException"/> as the outcome, not an escaped
+    /// <see cref="UnauthorizedAccessException"/>.
+    /// </summary>
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void AutoDiscover_UnreadableBaseDirectory_YieldsNothingFound_NotUnauthorizedAccess()
+    {
+        RequireEnforcedUnixPermissions();
+
+        File.SetUnixFileMode(_baseDir, UnixFileMode.None);
+        using var _ = new LockedDirectory(_baseDir);
+
+        Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+    }
+
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
     [Fact]
     public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
