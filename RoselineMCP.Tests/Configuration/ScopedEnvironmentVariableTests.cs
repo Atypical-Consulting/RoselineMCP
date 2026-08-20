@@ -91,3 +91,111 @@ public class ScopedEnvironmentVariableTests
         Environment.GetEnvironmentVariable(NestedKey).ShouldBe("ambient");
     }
 }
+
+/// <summary>
+/// Pins the property <see cref="ScopedEnvironmentNamespace"/> exists for: <b>every</b> casing of a
+/// prefixed variable the target section would see is cleared for the scope, and every one of them
+/// comes back exactly as the scope found it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The keys below carry the real <c>ROSELINE_</c> prefix — how that prefix is matched is the thing
+/// under test, so faking it would test something else — but they sit in a <b>probe section</b>
+/// (<c>ScopedNsProbe:</c>), never <c>RoselineMCP:</c>. That is deliberate and load-bearing.
+/// <see cref="RoselineMcpOptionsBindingTests"/> is a separate xUnit collection, so it runs in
+/// parallel with this one, and it now scopes the whole <c>ROSELINE_</c> → <c>RoselineMCP:</c>
+/// namespace. Two classes clearing and restoring the same variables concurrently is a race
+/// whichever way it lands; disjoint sections is what keeps them independent. The probe keys are
+/// still ingested by that class's <c>AddEnvironmentVariables(prefix: "ROSELINE_")</c>, but they
+/// land under <c>ScopedNsProbe:</c>, which its <c>GetSection("RoselineMCP")</c> never reads.
+/// </para>
+/// <para>
+/// The section name is passed mixed-case while several keys are all-caps, on purpose: the section
+/// match is <c>OrdinalIgnoreCase</c>, and that asymmetry — a case-sensitive OS environment block
+/// under a case-insensitive configuration stack — is exactly what this type exists to absorb.
+/// </para>
+/// </remarks>
+public class ScopedEnvironmentNamespaceTests
+{
+    private const string Prefix = "ROSELINE_";
+    private const string Section = "ScopedNsProbe";
+
+    private const string AllCapsKey = "ROSELINE_SCOPEDNSPROBE__ALLCAPSPROBE";
+    private const string BothMixedKey = "ROSELINE_ScopedNsProbe__BothProbe";
+    private const string BothAllCapsKey = "ROSELINE_SCOPEDNSPROBE__BOTHPROBE";
+    private const string OtherSectionKey = "ROSELINE_ScopedNsOutside__Probe";
+    private const string NoSectionKey = "ROSELINE_SCOPEDNSPROBEUNSECTIONED";
+
+    [Fact]
+    public void An_All_Caps_Spelling_Is_Cleared_For_The_Scope_And_Restored_After()
+    {
+        // The hole this type closes: on a case-sensitive environment block an all-caps name is a
+        // *different* variable from the documented mixed-case one, so a per-key scope never touches
+        // it — while the case-insensitive configuration stack binds it just the same.
+        using var ambient = ScopedEnvironmentVariable.Set(AllCapsKey, "exported");
+
+        using (ScopedEnvironmentNamespace.Clear(Prefix, Section))
+        {
+            Environment.GetEnvironmentVariable(AllCapsKey).ShouldBeNull();
+        }
+
+        Environment.GetEnvironmentVariable(AllCapsKey).ShouldBe("exported");
+    }
+
+    [Fact]
+    public void Both_Casings_Set_At_Once_Are_Cleared_And_Both_Are_Restored()
+    {
+        using var ambientMixed = ScopedEnvironmentVariable.Set(BothMixedKey, "mixed");
+        using var ambientAllCaps = ScopedEnvironmentVariable.Set(BothAllCapsKey, "caps");
+
+        // Read what the process actually holds instead of branching on the OS: on a case-sensitive
+        // block (Linux, macOS) these are two variables holding "mixed" and "caps"; on a
+        // case-insensitive one (Windows) they are a single variable the second Set overwrote, so
+        // both spellings read "caps". "Restored as found" is the invariant on either, and asserting
+        // it against the observed prior values says exactly that without an OS switch.
+        var mixedBefore = Environment.GetEnvironmentVariable(BothMixedKey);
+        var allCapsBefore = Environment.GetEnvironmentVariable(BothAllCapsKey);
+
+        using (ScopedEnvironmentNamespace.Clear(Prefix, Section))
+        {
+            Environment.GetEnvironmentVariable(BothMixedKey).ShouldBeNull();
+            Environment.GetEnvironmentVariable(BothAllCapsKey).ShouldBeNull();
+        }
+
+        Environment.GetEnvironmentVariable(BothMixedKey).ShouldBe(mixedBefore);
+        Environment.GetEnvironmentVariable(BothAllCapsKey).ShouldBe(allCapsBefore);
+    }
+
+    [Fact]
+    public void A_Prefixed_Variable_Outside_The_Section_Is_Left_Untouched()
+    {
+        // What keeps the blast radius narrow, and the reason the filter is not "starts with the
+        // prefix". ROSELINE_UPDATE_SCHEMA_SNAPSHOT — read by ToolSchemaSnapshotTests, in yet
+        // another parallel collection — is a live instance of the second shape below: prefixed, no
+        // "__" at all, so it normalizes to no section and must survive untouched.
+        using var otherSection = ScopedEnvironmentVariable.Set(OtherSectionKey, "other-section");
+        using var noSection = ScopedEnvironmentVariable.Set(NoSectionKey, "no-section");
+
+        using (ScopedEnvironmentNamespace.Clear(Prefix, Section))
+        {
+            Environment.GetEnvironmentVariable(OtherSectionKey).ShouldBe("other-section");
+            Environment.GetEnvironmentVariable(NoSectionKey).ShouldBe("no-section");
+        }
+
+        Environment.GetEnvironmentVariable(OtherSectionKey).ShouldBe("other-section");
+        Environment.GetEnvironmentVariable(NoSectionKey).ShouldBe("no-section");
+    }
+
+    [Fact]
+    public void With_Nothing_In_The_Section_Nothing_Is_Captured_And_Dispose_Is_A_No_Op()
+    {
+        // The ordinary case on a clean machine, and the one a namespace-wide scope must not make
+        // worse than the per-key scope it sits beside.
+        using (ScopedEnvironmentNamespace.Clear(Prefix, "ScopedNsNothingHere"))
+        {
+            Environment.GetEnvironmentVariable(AllCapsKey).ShouldBeNull();
+        }
+
+        Environment.GetEnvironmentVariable(AllCapsKey).ShouldBeNull();
+    }
+}
