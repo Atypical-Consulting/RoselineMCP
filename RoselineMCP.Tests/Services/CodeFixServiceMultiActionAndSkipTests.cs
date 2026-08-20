@@ -36,7 +36,9 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
     }
 
     private const string MinimalCsprojXml =
@@ -167,8 +169,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
             // allowIntroducedErrors: this fixture's "fix" replaces the whole file with a comment,
             // deleting Main — so the compile gate would (correctly) refuse it. The question here is
             // which registered action lands, not whether the result builds.
-            var result = await sut.ApplyFixesAsync(
-                csprojPath, ["CS0219"], previewOnly: false, allowIntroducedErrors: true);
+            var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false, allowIntroducedErrors: true, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert — exactly one fix applied for the one occurrence, not one per action.
             result.FixedCount.ShouldBe(1);
@@ -176,7 +177,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
 
             // Only the FIRST action's edit should have landed; the second must not have
             // silently overwritten it.
-            var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs"));
+            var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs"), TestContext.Current.CancellationToken);
             onDisk.ShouldBe("// FIRST\n");
         }
     }
@@ -248,7 +249,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
 
             var sut = CreateSut(factory);
 
-            var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
+            var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             result.FixedCount.ShouldBe(1, "the fixer DID run and register a change to the solution");
             result.ChangedFiles.ShouldBeEmpty("nothing textually changed, so nothing should count as changed");
@@ -305,7 +306,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
             var sut = CreateSut(factory);
 
             // Act
-            var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false);
+            var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert — the unfixable first occurrence did not abort the fixable second one.
             result.FixedCount.ShouldBe(1);
@@ -314,8 +315,8 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
             result.ChangedFiles.ShouldNotContain("AFirstUnfixable.cs");
 
             var projectDir = Path.GetDirectoryName(csprojPath)!;
-            var fileA = await File.ReadAllTextAsync(Path.Combine(projectDir, "AFirstUnfixable.cs"));
-            var fileB = await File.ReadAllTextAsync(Path.Combine(projectDir, "BSecondFixable.cs"));
+            var fileA = await File.ReadAllTextAsync(Path.Combine(projectDir, "AFirstUnfixable.cs"), TestContext.Current.CancellationToken);
+            var fileB = await File.ReadAllTextAsync(Path.Combine(projectDir, "BSecondFixable.cs"), TestContext.Current.CancellationToken);
             fileA.ShouldContain("unusedA", customMessage: "the unfixable occurrence must be left untouched");
             fileB.ShouldNotContain("unusedB", customMessage: "the fixable occurrence in the other file must still be fixed");
         }

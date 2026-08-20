@@ -70,7 +70,9 @@ public class ElicitationTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_fixtureRoot, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_fixtureRoot, true); }
+        catch { /* ignored */ }
         GC.SuppressFinalize(this);
     }
 
@@ -161,7 +163,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureProject,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // The client was actually asked to confirm, and the declined write was downgraded to a
         // preview: the service was invoked in preview mode and the response says so.
@@ -189,7 +191,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureProject,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // Accepted → the write proceeds; the service was invoked with previewOnly = false.
         captured.ShouldBe(false);
@@ -250,7 +252,7 @@ public class ElicitationTests : IDisposable
             await Task.WhenAny(elicited.Task, Task.Delay(TimeSpan.FromSeconds(15)));
             await Task.Delay(ConfirmTimeoutMs * 8);
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
-        });
+        }, TestContext.Current.CancellationToken);
 
         var finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(15)));
         finished.ShouldBeSameAs(call, "the tool call did not return after the confirmation timed out");
@@ -333,7 +335,7 @@ public class ElicitationTests : IDisposable
             await Task.WhenAny(elicited.Task, Task.Delay(TimeSpan.FromSeconds(15)));
             await Task.Delay(ConfirmTimeoutMs * 3);
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
-        });
+        }, TestContext.Current.CancellationToken);
 
         async Task<CallToolResult> CallApplyFixesAsync() =>
             await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
@@ -378,7 +380,7 @@ public class ElicitationTests : IDisposable
             ["project"] = "TestProject",
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // The gate is off, so the client is never asked — its decline never happens and the write
         // stands. Note the client here DOES advertise elicitation support: this proves the option
@@ -420,7 +422,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         captured.ShouldBe(true);
     }
@@ -453,7 +455,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeFalse();
         captured.ShouldBe(false);
@@ -485,7 +487,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         captured.ShouldBe(true);
 
@@ -540,7 +542,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeFalse("a refused edit must never reach the human confirmation");
         writeAttempted.ShouldBeFalse("a refused edit must never reach the write pass");
@@ -593,7 +595,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeTrue("a clean edit still needs the human confirmation");
         writeAttempted.ShouldBeTrue();
@@ -630,7 +632,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         calls.ShouldBe(1);
 
@@ -659,7 +661,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureProject,
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         calls.ShouldBe(1);
     }
@@ -695,7 +697,7 @@ public class ElicitationTests : IDisposable
             ["operation"] = "replace",
             ["newSource"] = "public int Bar { get; set; }",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeFalse("a write that changes nothing has nothing for a human to approve");
 
@@ -747,7 +749,7 @@ public class ElicitationTests : IDisposable
             ["operation"] = "replace",
             ["newSource"] = "public int Bar { get; set; }",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeTrue("a write that carries real changes still needs a human's approval");
         writeAttempted.ShouldBeTrue();
@@ -790,7 +792,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["newName"] = "Baz",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         progressPhases.ShouldBe(1);
     }
@@ -815,7 +817,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureRoot,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
         message.ShouldContain(_fixtureProject);
@@ -1043,7 +1045,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureRoot,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
         projectSeenByService.ShouldBe(TargetFromPrompt(message));
@@ -1088,7 +1090,7 @@ public class ElicitationTests : IDisposable
                 ["project"] = relative,
                 ["ids"] = new[] { "RCS1213" },
                 ["previewOnly"] = false,
-            });
+            }, cancellationToken: TestContext.Current.CancellationToken);
 
             message.ShouldNotBeNull();
             ShouldNameARealProject(message);
@@ -1096,7 +1098,9 @@ public class ElicitationTests : IDisposable
         }
         finally
         {
-            try { Directory.Delete(directory, true); } catch { /* ignored */ }
+            try
+            { Directory.Delete(directory, true); }
+            catch { /* ignored */ }
         }
     }
 
@@ -1121,7 +1125,7 @@ public class ElicitationTests : IDisposable
         {
             ["project"] = "TestProject",
             ["ids"] = new[] { "RCS1213" },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // Nobody was asked. On its own that is the weaker half: the factory could still have been
         // invoked and its result thrown away.
@@ -1171,19 +1175,19 @@ public class ElicitationTests : IDisposable
         {
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
         {
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
         {
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         messages.Count.ShouldBe(
             3,
@@ -1229,7 +1233,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
         ShouldNameARealProject(message);
@@ -1295,7 +1299,7 @@ public class ElicitationTests : IDisposable
                 break;
         }
 
-        var result = await host.Client.CallToolAsync(tool, arguments);
+        var result = await host.Client.CallToolAsync(tool, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeFalse("a target that cannot be resolved must not reach a human as a question");
 
