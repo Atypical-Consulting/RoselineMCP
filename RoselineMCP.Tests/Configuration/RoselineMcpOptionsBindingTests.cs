@@ -59,9 +59,13 @@ public class RoselineMcpOptionsBindingTests
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
         const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWrites";
 
-        // Enforces the "unset" precondition below instead of assuming it, and hands any exported
-        // value back afterwards — see ScopedEnvironmentVariable for why that matters.
-        using var _ = ScopedEnvironmentVariable.Set(key, null);
+        // Neutralizes the WHOLE ROSELINE_ → RoselineMCP: namespace for the scope, not just this one
+        // key, and hands every variable it captures back afterwards. Do not narrow it back: this
+        // test reads the real provider, whose prefix and section matching are case-INsensitive,
+        // while a POSIX environment block is case-sensitive — so an ambient
+        // ROSELINE_ROSELINEMCP__CONFIRMDESTRUCTIVEWRITES is a different variable that a per-key
+        // clear leaves standing and the binder below still reads (#141).
+        using var _ = ScopedEnvironmentNamespace.Clear("ROSELINE_", "RoselineMCP");
 
         var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
 
@@ -117,9 +121,13 @@ public class RoselineMcpOptionsBindingTests
         // prefix: ROSELINE_ (provider prefix, stripped) + RoselineMCP__ (the section).
         const string key = "ROSELINE_RoselineMCP__ConfirmDestructiveWritesTimeout";
 
-        // Enforces the "unset" precondition below instead of assuming it, and hands any exported
-        // value back afterwards — see ScopedEnvironmentVariable for why that matters.
-        using var _ = ScopedEnvironmentVariable.Set(key, null);
+        // Neutralizes the WHOLE ROSELINE_ → RoselineMCP: namespace for the scope, not just this one
+        // key, and hands every variable it captures back afterwards. Do not narrow it back: this
+        // test reads the real provider, whose prefix and section matching are case-INsensitive,
+        // while a POSIX environment block is case-sensitive — so an ambient
+        // ROSELINE_ROSELINEMCP__CONFIRMDESTRUCTIVEWRITESTIMEOUT is a different variable that a
+        // per-key clear leaves standing and the binder below still reads (#141).
+        using var _ = ScopedEnvironmentNamespace.Clear("ROSELINE_", "RoselineMCP");
 
         var options = Bind(b => b.AddEnvironmentVariables(prefix: "ROSELINE_"));
 
