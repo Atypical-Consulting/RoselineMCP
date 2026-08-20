@@ -25,6 +25,20 @@ namespace RoselineMCP.Models;
 public class VerificationVerdict
 {
     /// <summary>
+    /// Absolute path of the <c>.sln</c> (or <c>.csproj</c>) that was actually resolved and loaded.
+    /// Set by <c>check_compilation</c>, whose verdict is the whole response; omitted when the verdict
+    /// is nested inside a write tool's response, which carries its own <c>resolvedPath</c>.
+    /// </summary>
+    /// <remarks>
+    /// The server's working directory is fixed at spawn and is not the agent's, so an omitted
+    /// <c>project</c> can silently resolve the main checkout while the agent works in a git worktree.
+    /// Two checkouts of the same repository are otherwise reported identically.
+    /// </remarks>
+    [JsonPropertyName("resolvedPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ResolvedPath { get; set; }
+
+    /// <summary>
     /// Whether the verified scope compiles — an <b>absolute</b> statement about the candidate, not a
     /// comparison. <see langword="null"/> (omitted) when no compilation was performed.
     /// </summary>

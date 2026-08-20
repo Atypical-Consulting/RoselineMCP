@@ -86,6 +86,24 @@
     ],
     "type": "object"
   },
+  "check_compilation": {
+    "properties": {
+      "max": {
+        "default": 20,
+        "description": "Maximum number of errors to return (default: 20); the remainder are counted in \u0060omitted\u0060.",
+        "type": "integer"
+      },
+      "project": {
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "type": "object"
+  },
   "create_patch": {
     "properties": {
       "after": {

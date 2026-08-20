@@ -28,6 +28,7 @@ public class ToolListingTests : McpProtocolTestBase
         "get_type_hierarchy",
         "edit_member",
         "rename_symbol",
+        "check_compilation",
     ];
 
     [Fact]
@@ -112,6 +113,17 @@ public class ToolListingTests : McpProtocolTestBase
         GetRequired(tool).ShouldBe(["file", "line"], ignoreOrder: true);
         GetPropertyNames(tool).ShouldBe(
             ["file", "line", "column", "project"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task CheckCompilation_Schema_Has_No_Required_Params()
+    {
+        var tool = await GetToolAsync("check_compilation");
+
+        // Both parameters are optional: with neither, it answers "does the auto-discovered
+        // solution compile?", which is the whole point of it replacing `dotnet build`.
+        GetRequired(tool).ShouldBeEmpty();
+        GetPropertyNames(tool).ShouldBe(["project", "max"], ignoreOrder: true);
     }
 
     [Fact]
