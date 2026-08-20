@@ -68,7 +68,11 @@ public static class RenameSymbolTool
                 previewOnly,
                 allowIntroducedErrors,
                 project,
-                target => $"Rename '{symbol}' to '{newName}' across the solution of '{target}' and write the changes to disk?",
+                // Both interpolated values are free-form caller input, and sanitising only `symbol`
+                // would leave the same hole open through `newName` (#161).
+                target => $"Rename '{ToolExecutionHelper.SanitizeForPrompt(symbol)}' to "
+                    + $"'{ToolExecutionHelper.SanitizeForPrompt(newName)}' across the solution of "
+                    + $"'{target}' and write the changes to disk?",
                 (target, phasePreviewOnly, reportProgress, token) => editService.RenameSymbolAsync(
                     target, symbol, newName, phasePreviewOnly, allowIntroducedErrors, max,
                     reportProgress ? progress : null, token),

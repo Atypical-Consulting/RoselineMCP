@@ -1216,4 +1216,232 @@ public class ElicitationTests : IDisposable
         payload.GetProperty("error").GetProperty("type").GetString()
             .ShouldBeOneOf("NotFoundError", "ValidationError");
     }
+    /// <summary>
+    /// The crafted <c>symbol</c> from #161, verbatim: a complete, plausible sentence that closes the
+    /// quoted run, names a scratch project, and leaves the real one trailing behind as apparent
+    /// noise. It is reproduced exactly rather than abbreviated because the exploit *is* the text —
+    /// a short stand-in like <c>"a' b"</c> would satisfy the assertions below while proving nothing
+    /// about the attack that was reported.
+    /// </summary>
+    private const string ForgedSymbol =
+        "Config' to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in "
+        + "the code loaded from '/repo/scratch/Sandbox.csproj'.  ";
+
+    /// <summary>Non-overlapping occurrences of <paramref name="needle"/> in <paramref name="haystack"/>.</summary>
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        for (var i = haystack.IndexOf(needle, StringComparison.Ordinal);
+             i >= 0;
+             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// Asserts that whatever the caller put in a prompt, the sentence still has exactly one shape:
+    /// one question, and three quoted runs opened and closed by the frame rather than by the caller.
+    /// </summary>
+    /// <remarks>
+    /// The apostrophe count is the load-bearing half. "Contains no second sentence" is a property of
+    /// this particular payload; "the caller cannot open or close a quoted run" is the property that
+    /// holds against every payload, and it is what makes the last quoted run — the one the human
+    /// checks the target in, and the one <see cref="TargetFromPrompt"/> reads — the frame's rather
+    /// than the caller's. All three prompts quote exactly three things, so the expected count is 6.
+    /// </remarks>
+    private static void ShouldBeOneUnforgeableSentence(string message, string expectedTarget)
+    {
+        CountOccurrences(message, "to disk?").ShouldBe(
+            1, $"caller input appended a second question to the prompt: {message}");
+        message.Count(c => c == '\'').ShouldBe(
+            6, $"caller input opened or closed a quoted run: {message}");
+        TargetFromPrompt(message).ShouldBe(
+            expectedTarget, $"the prompt's last quoted run is no longer the real target: {message}");
+    }
+
+    [Fact]
+    public async Task EditMember_Confirmation_Cannot_Be_Forged_By_A_Crafted_Symbol()
+    {
+        // #161. `symbol` is free-form caller input interpolated straight into the sentence, so a
+        // symbol carrying quote-and-punctuation used to render a complete, benign-looking sentence
+        // that ended before the real one began: the human read the first sentence, saw a scratch
+        // project, approved — and the write went to the resolved target instead. The gate's entire
+        // purpose is to let a human refuse, so a sentence the caller can author is not a gate.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "edit_member",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = ForgedSymbol,
+                ["operation"] = "delete",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution);
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Confirmation_Cannot_Be_Forged_By_A_Crafted_NewName()
+    {
+        // rename_symbol interpolates TWO free-form values, and sanitising only `symbol` would leave
+        // the hole open through `newName` — which is why this asserts on the second one. Its prompt
+        // also puts the target mid-sentence, so a forged run here has a tail to imitate.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "rename_symbol",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = "Foo",
+                ["newName"] = "Bar' across the solution of '/repo/scratch/Sandbox.csproj' and write the changes to disk? Ignore",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution);
+    }
+
+    [Fact]
+    public async Task Write_Confirmation_Renders_An_Ordinary_Symbol_Unchanged()
+    {
+        // The counterweight to the two above: sanitising must be INVISIBLE on every input a caller
+        // legitimately sends. A C# symbol reference contains no whitespace and no apostrophe, so the
+        // sanitiser has nothing to do here — and a long fully-qualified name with a generic argument
+        // is the worst realistic case, since it is what a length cap would mangle first.
+        const string symbol = "RoselineMCP.Services.CodeEditService.EditMemberAsync<TResult>";
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "edit_member",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = symbol,
+                ["operation"] = "replace",
+                ["newSource"] = "public int Bar { get; set; }",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe(
+            $"Write the 'replace' of member '{symbol}' to disk? Exactly one file is rewritten — the "
+            + $"declaration it resolves to, anywhere in the code loaded from '{_fixtureSolution}'.");
+    }
+    /// <summary>
+    /// The symbol as the prompt rendered it — the run between <c>edit_member</c>'s fixed
+    /// <c>member '</c> and <c>' to disk?</c>. Reading it back out, rather than rebuilding the
+    /// expected string, keeps these assertions from re-implementing the sanitiser they check.
+    /// </summary>
+    private static string RenderedSymbolFromEditMemberPrompt(string message)
+    {
+        const string open = "member '";
+        const string close = "' to disk?";
+        var start = message.IndexOf(open, StringComparison.Ordinal);
+        var end = message.IndexOf(close, StringComparison.Ordinal);
+        start.ShouldBeGreaterThanOrEqualTo(0, $"the prompt names no member: {message}");
+        end.ShouldBeGreaterThan(start, $"the prompt's member quoting is unbalanced: {message}");
+        return message[(start + open.Length)..end];
+    }
+
+    private async Task<string> EditMemberPromptForSymbolAsync(string symbol)
+    {
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "edit_member",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = symbol,
+                ["operation"] = "replace",
+                ["newSource"] = "public int Bar { get; set; }",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        return message;
+    }
+
+    [Fact]
+    public async Task Write_Confirmation_Elides_The_Middle_Of_An_Overlong_Symbol()
+    {
+        // A cap is what stops a payload that survives the other two rules from burying the rest of
+        // the sentence under its own bulk. Eliding the MIDDLE rather than truncating is what keeps
+        // it honest for the legitimate case it also catches: a genuinely long fully-qualified name
+        // stays recognisable because the head still names the namespace and the tail still names
+        // the member.
+        var symbol = string.Join(".", Enumerable.Repeat("VeryLongNamespace", 20));
+        symbol.Length.ShouldBeGreaterThan(300);
+
+        var rendered = RenderedSymbolFromEditMemberPrompt(await EditMemberPromptForSymbolAsync(symbol));
+
+        rendered.Length.ShouldBeLessThanOrEqualTo(
+            121, $"an unbounded value can bury the sentence it sits in: {rendered}");
+        rendered.ShouldContain("…");
+        rendered.ShouldStartWith(symbol[..20]);
+        rendered.ShouldEndWith(symbol[^20..]);
+    }
+
+    [Fact]
+    public async Task Write_Confirmation_Never_Renders_An_Empty_Quoted_Run_For_A_Blank_Symbol()
+    {
+        // Removing whitespace is what stops a payload reading as prose, and it has one edge:
+        // `edit_member` validates `operation` but not `symbol`, so a whitespace-only symbol reaches
+        // the prompt and would render "member ''" — the same unanswerable sentence PR #142 removed
+        // from the target side. A placeholder says plainly that the caller named nothing.
+        var rendered = RenderedSymbolFromEditMemberPrompt(await EditMemberPromptForSymbolAsync("   "));
+
+        rendered.ShouldBe("(unnamed)");
+    }
 }

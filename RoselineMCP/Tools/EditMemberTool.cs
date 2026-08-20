@@ -101,9 +101,13 @@ public static class EditMemberTool
             // prompt, again after a round-trip the gate allows five minutes for, with nothing
             // guaranteeing the two agree. Saying which *scope* will be written is honest about that
             // limit; naming a file that may have moved by the time it is written would not be.
+            // `symbol` is free-form caller input, so it goes through the shared sanitiser before it
+            // is interpolated: raw, a crafted symbol closes the quoted run and appends a second,
+            // benign-looking sentence naming a project this write will never touch (#161).
+            // `operation` needs none — it was validated against a closed set above.
             var subject = operation.Equals("add", StringComparison.OrdinalIgnoreCase)
-                ? $"a member to type '{symbol}'"
-                : $"member '{symbol}'";
+                ? $"a member to type '{ToolExecutionHelper.SanitizeForPrompt(symbol)}'"
+                : $"member '{ToolExecutionHelper.SanitizeForPrompt(symbol)}'";
             var result = await ToolExecutionHelper.RunVerifiedWriteAsync(
                 server,
                 options,
