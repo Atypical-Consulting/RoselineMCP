@@ -76,6 +76,69 @@ public class ProjectLoader : IProjectLoader
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<LoadedProject?> LoadForFileAsync(string absoluteFilePath, CancellationToken cancellationToken = default)
+    {
+        var projectPath = ResolveProjectForFile(absoluteFilePath);
+
+        return projectPath is null ? null : await LoadAsync(projectPath, cancellationToken);
+    }
+
+    /// <summary>
+    /// Finds the <c>.csproj</c> nearest to <paramref name="absoluteFilePath"/> by walking upward
+    /// from its directory, or <see langword="null"/> when no project sits above it.
+    /// </summary>
+    /// <remarks>
+    /// Nearest wins, so a project nested inside another (a sample app under a library, say) claims
+    /// its own files. Finding the containing <c>.sln</c> is deliberately NOT done here — that is
+    /// already <see cref="LoadAsync"/>'s job, and duplicating it is how two resolution behaviors
+    /// start to drift apart.
+    /// </remarks>
+    internal static string? ResolveProjectForFile(string absoluteFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(absoluteFilePath))
+        {
+            throw new ArgumentException("A file path is required.", nameof(absoluteFilePath));
+        }
+
+        if (!Path.IsPathRooted(absoluteFilePath))
+        {
+            // The caller's working directory is not ours — resolving a relative path here would
+            // silently answer about a different tree. See LoadForFileAsync's remarks.
+            throw new ArgumentException(
+                $"A file-anchored load needs an absolute path; got '{absoluteFilePath}'.",
+                nameof(absoluteFilePath));
+        }
+
+        var directory = Path.GetDirectoryName(Path.GetFullPath(absoluteFilePath));
+
+        while (!string.IsNullOrEmpty(directory))
+        {
+            string[] projects;
+            try
+            {
+                projects = Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // One unreadable directory must not abort the walk: the answer may still be above it,
+                // and the guard's contract is to stay silent rather than to fail loudly.
+                projects = [];
+            }
+
+            if (projects.Length > 0)
+            {
+                // Sorted so a directory holding several .csproj files resolves deterministically.
+                Array.Sort(projects, StringComparer.Ordinal);
+                return projects[0];
+            }
+
+            directory = Directory.GetParent(directory)?.FullName;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Chooses the anchor project for a loaded solution: the C# project whose file name (without
     /// extension) matches the <c>.sln</c> name if present, otherwise the first C# project. Symbol

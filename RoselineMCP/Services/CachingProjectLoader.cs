@@ -70,6 +70,21 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Resolves the owning <c>.csproj</c> and then goes through this decorator's own
+    /// <see cref="LoadAsync"/>, so a file-anchored load is a cache <em>hit</em> on the same entry a
+    /// path-anchored one would use. Delegating to the inner loader instead would bypass the cache
+    /// and pay a full MSBuild reload on every write — which, for a guard that fires after every
+    /// write, is the difference between sub-second and unusable.
+    /// </remarks>
+    public async Task<LoadedProject?> LoadForFileAsync(string absoluteFilePath, CancellationToken cancellationToken = default)
+    {
+        var projectPath = ProjectLoader.ResolveProjectForFile(absoluteFilePath);
+
+        return projectPath is null ? null : await LoadAsync(projectPath, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<LoadedProject> LoadAsync(string? project, CancellationToken cancellationToken = default)
     {
         if (!_enabled)
