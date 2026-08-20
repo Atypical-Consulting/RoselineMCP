@@ -76,14 +76,16 @@ public class ElicitationTests : IDisposable
 
     /// <summary>
     /// The write target named by a confirmation prompt — the last quoted segment, which is where
-    /// all three messages put it ("… of member 'Foo.Bar' in '&lt;target&gt;' to disk?"). Reading it
-    /// out of the message, rather than re-deriving the expected path, is what keeps these
-    /// assertions from re-implementing the resolution they are supposed to be checking.
+    /// all three messages put it ("… of member 'Foo.Bar' to the single file declaring it in
+    /// '&lt;target&gt;' to disk?"). Reading it out of the message, rather than re-deriving the
+    /// expected path, is what keeps these assertions from re-implementing the resolution they are
+    /// supposed to be checking.
     /// </summary>
     /// <remarks>
     /// Two constraints pull against each other here, which is why this is hand-rolled rather than a
     /// quoted-run regex. The messages quote other things first ("… the 'delete' of member 'Foo.Bar'
-    /// in '&lt;target&gt;' to disk?"), so the parser cannot simply take the widest quoted span; and a
+    /// to the single file declaring it in '&lt;target&gt;' to disk?"), so the parser cannot simply
+    /// take the widest quoted span; and a
     /// resolved path may itself contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
     /// <c>~/Bob's Projects</c> — so it cannot take the narrowest one either. The opening quote is
     /// therefore identified as the last one that follows a space (an apostrophe inside a path

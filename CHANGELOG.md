@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CLAUDE.md`. (#139)
 
 ### Fixed
+- **The `edit_member` write confirmation no longer implies a solution-wide write — it names the
+  single file it rewrites, which is all it ever writes.** The prompt named the resolved target, which
+  is the discovered `.sln` whenever there is one, for a write that resolves one member declaration
+  and rewrites exactly the one file declaring it: the widest of the three prompts' scope gaps, wider
+  than the `apply_fixes` one fixed just below. The qualifier is unconditional — unlike
+  `apply_fixes`', it does not branch on the target's extension, because the write is a single file
+  whether the target is a `.sln` or a `.csproj` — and it holds for `replace`, `add` and `delete`
+  alike, since `add` resolves `symbol` as the container type. Which file is deliberately not named:
+  that would mean loading an MSBuild workspace before the human is asked, and re-resolving after a
+  round-trip the gate allows five minutes for. `rename_symbol` is unchanged — it really is
+  solution-wide, so naming the solution is exact. Wording only: no parameters, response shape or
+  annotations move. (#154)
 - **The `apply_fixes` write confirmation no longer implies a solution-wide write.** When the
   resolved target is a `.sln`, the prompt now names *the primary project of* that solution — which
   is the only project `ApplyFixes` fixes — instead of naming the solution itself. On a solution with
@@ -31,8 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were left untouched, and nothing in the prompt revealed which one would be picked. A `.csproj`
   target is already exactly the scope that gets written, so its wording is unchanged. Nothing is
   resolved or loaded that was not resolved before: only the sentence changed, so no tool's
-  parameters, response shape or annotations move. `EditMember` and `RenameSymbol` keep naming the
-  resolved target without a qualifier. (#149)
+  parameters, response shape or annotations move. `RenameSymbol` keeps naming the resolved target
+  without a qualifier; `EditMember` gained one of its own in the entry above. (#149)
 - **The write-confirmation prompt now names the project it will actually write to.** The gate exists
   to tell a human what is about to be modified so they can refuse, and in the two most common shapes
   it could not. With `project` omitted — the *documented default*, since auto-discovery is the
