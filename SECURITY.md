@@ -123,6 +123,33 @@ returns its error envelope without eliciting, since asking someone to approve a
 write that cannot be targeted spends their attention on a call that was going
 to fail regardless.
 
+**The caller cannot author the sentence a human approves.** Two of the values a
+prompt names — `symbol` and `newName` — are free-form caller input, and until
+v2.2.0 they were interpolated raw. A symbol carrying quote-and-punctuation
+therefore rendered a *complete, plausible, benign-looking* sentence that ended
+before the real one began: a human could read that first sentence, see a scratch
+project, approve — and the write would land on the resolved target instead. The
+gate exists to let a human refuse, so a sentence the guarded party can partly
+write is not a gate. Every caller-supplied value is now escaped and length-capped
+in the one place the sentence is composed (`WritePrompt.Render`): whitespace is
+removed, an apostrophe becomes `’` so it cannot open or close a quoted run, and
+an over-long value is elided in the middle. A C# symbol reference contains
+neither whitespace nor an apostrophe, so an ordinary name is unaffected.
+
+What this does and does not guarantee. It guarantees the *shape*: one question,
+and every quoted run opened and closed by the fixed frame, so the last quoted run
+is always the real target. It does **not** guarantee that the caller-supplied
+text inside those quotes is meaningful — a caller can still put misleading
+characters in a symbol name, and a human should read the **target** rather than
+the symbol as the load-bearing part of the sentence. The resolved target is
+deliberately not escaped or elided: it must stay checkable against the file
+system, and a checkout path may legitimately contain an apostrophe
+(`C:\Users\O'Brien\src`). What protects it is position — every prompt puts the
+target in its **last** quoted run, so no frame text follows it to be forged past.
+And in every case the write is performed against the resolved target, never
+against the string that was displayed: the displayed path is a rendering of the
+write target, not its source.
+
 **Naming the target is not the same as naming the scope**, and for `ApplyFixes`
 the two differ: it is a project-scoped tool whose resolved target may be a
 solution, so when the prompt names a `.sln` it says *the primary project of* it

@@ -200,6 +200,22 @@ Roslyn operation that can rewrite files across every project in the loaded solut
 solution is already exact. (`ApplyFixes` also drops its qualifier when the target is a `.csproj`, for
 the same reason: there the target *is* the scope.)
 
+All three sentences above are rendered in **one place**, from structured inputs: a tool names its
+scope from a closed vocabulary (`WriteScope` — `PrimaryProjectOf`, `SingleFile`, `WholeSolution`) and
+hands over the values, and `WritePrompt.Render` composes the sentence. A tool no longer writes its
+own prompt, so the three phrasings cannot drift apart again and a fourth write tool inherits wording
+its siblings already agreed to.
+
+That is also what makes the escaping structural. `symbol` and `newName` are free-form caller input;
+when each tool interpolated them itself, the injection had already happened by the time anything
+shared saw the string, and a crafted `symbol` could close the quoted run and append a second,
+plausible sentence naming a project the write would never touch. Rendering from values instead means
+every caller-supplied one passes through the same sanitiser: whitespace removed, `'` replaced with
+`’` so it cannot delimit, and an over-long value elided in the middle (`Acme.…Service`). An
+ordinary C# symbol has neither whitespace nor an apostrophe and renders unchanged. The **target** is
+deliberately left verbatim — it has to stay checkable against the file system — and is protected by
+position instead: it is always the sentence's last quoted run.
+
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory
 falls back to a recursive `*.csproj` scan of the working directory. Nothing on a path that will not
