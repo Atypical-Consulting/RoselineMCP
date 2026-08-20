@@ -37,6 +37,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of failing the whole call over a directory unrelated to the request; naming an unreadable
   directory explicitly still surfaces the permission failure, since that is the answer the caller
   asked for. (#150)
+- **The `apply_fixes` write confirmation no longer implies a solution-wide write.** When the
+  resolved target is a `.sln`, the prompt now names *the primary project of* that solution — which
+  is the only project `ApplyFixes` fixes — instead of naming the solution itself. On a solution with
+  three C# projects the previous sentence asked a human to approve a write to all of it while two
+  were left untouched, and nothing in the prompt revealed which one would be picked. A `.csproj`
+  target is already exactly the scope that gets written, so its wording is unchanged. Nothing is
+  resolved or loaded that was not resolved before: only the sentence changed, so no tool's
+  parameters, response shape or annotations move. `EditMember` and `RenameSymbol` keep naming the
+  resolved target without a qualifier. (#149)
 - **The write-confirmation prompt now names the project it will actually write to.** The gate exists
   to tell a human what is about to be modified so they can refuse, and in the two most common shapes
   it could not. With `project` omitted — the *documented default*, since auto-discovery is the

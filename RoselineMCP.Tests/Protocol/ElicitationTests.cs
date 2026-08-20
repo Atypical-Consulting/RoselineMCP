@@ -46,6 +46,16 @@ public class ElicitationTests : IDisposable
     /// <summary>The fixture <c>.csproj</c> itself — the path a prompt naming this target must contain.</summary>
     private readonly string _fixtureProject;
 
+    /// <summary>
+    /// A <c>.sln</c> beside the fixture project, for the cases that need the resolved write target
+    /// to be a <em>solution</em>. It only ever has to exist: <c>ResolveTargetPath</c> returns an
+    /// existing <c>.sln</c> argument verbatim, and the prompt is built from that path alone — no
+    /// MSBuild load happens before the human is asked, which is the property those cases pin.
+    /// Passing the directory instead would resolve to the <c>.csproj</c> (<c>ResolveProjectPath</c>
+    /// globs <c>*.csproj</c>), so the solution branch has to be targeted explicitly.
+    /// </summary>
+    private readonly string _fixtureSolution;
+
     public ElicitationTests()
     {
         _fixtureRoot = Path.Combine(Path.GetTempPath(), $"RoselineElicitation_{Guid.NewGuid():N}");
@@ -54,6 +64,8 @@ public class ElicitationTests : IDisposable
         File.WriteAllText(
             _fixtureProject,
             "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        _fixtureSolution = Path.Combine(_fixtureRoot, "Fixture.sln");
+        File.WriteAllText(_fixtureSolution, "Microsoft Visual Studio Solution File, Format Version 12.00\n");
     }
 
     public void Dispose()
@@ -502,6 +514,71 @@ public class ElicitationTests : IDisposable
 
         message.ShouldNotBeNull();
         message.ShouldContain(_fixtureProject);
+    }
+
+    [Fact]
+    public async Task ApplyFixes_Confirmation_Names_The_Primary_Project_When_The_Target_Is_A_Solution()
+    {
+        // ApplyFixes is a PROJECT-scoped tool whose resolved write target may be a SOLUTION:
+        // CodeFixService narrows it to one project (ProjectLoader.SelectPrimaryProject) and fixes
+        // only that project's documents. A prompt naming the .sln therefore describes a broader
+        // scope than the write actually has — the human reading "…to '/repo/Acme.sln'" cannot tell
+        // that two of their three projects will be untouched. The sentence has to say so.
+        string? message = null;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+        await host.Client.CallToolAsync(
+            "apply_fixes",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldContain("primary project of");
+        message.ShouldContain(_fixtureSolution);
+
+        // The scope qualifier must not cost the absolute-path guarantee the other prompt shapes
+        // have: ResolveTargetPath returns an existing .sln argument verbatim, so normalization is
+        // the only thing making a relative one readable, and this is the branch that pins it.
+        ShouldNameARealProject(message);
+    }
+
+    [Fact]
+    public async Task ApplyFixes_Confirmation_Names_The_Project_Exactly_When_The_Target_Is_A_Csproj()
+    {
+        // The other side of the branch, and the reason it is asserted byte-for-byte rather than by
+        // substring: when the resolved target is already the project that gets written, today's
+        // wording is exact and the scope qualifier would be a fresh inaccuracy. A test that only
+        // checked for the .csproj path would still pass if the qualifier fired on both branches.
+        string? message = null;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+        // The directory alias resolves to the fixture .csproj — see ResolveProjectPath.
+        await host.Client.CallToolAsync(
+            "apply_fixes",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureRoot,
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe($"Apply code fixes for 1 diagnostic ID(s) to '{_fixtureProject}' and write the changes to disk?");
+        message.ShouldNotContain("primary project of");
     }
 
     [Fact]
