@@ -64,12 +64,33 @@ public static class EditMemberTool
         try
         {
             // Gate policy lives in the helper; only the wording is this tool's own.
+            //
+            // The resolved target is whatever ResolveTargetPath found — the discovered .sln when
+            // there is one — but this tool never writes it. CodeEditService.EditMemberAsync
+            // resolves the ONE document declaring `symbol` and calls SourceTextWriter.WriteAsync
+            // once, so naming the target alone claims a solution-wide write for a single-file one.
+            // The qualifier says which scope is actually being authorised.
+            //
+            // Unlike ApplyFixes' equivalent (#149) it is UNCONDITIONAL: ApplyFixes' scope depends on
+            // the target (a .csproj target *is* its whole write scope), whereas this one is a single
+            // file whatever the target turns out to be — so there is no .sln branch to make.
+            //
+            // The one sentence holds for all three operations because 'add' resolves `symbol` as the
+            // container type (AddMember rejects anything else), so "the single file declaring it"
+            // names that type's declaration — the file that gets written.
+            //
+            // The file itself is deliberately NOT named: that costs an MSBuildWorkspace load and a
+            // symbol resolution before the human has even been asked (see ResolveWriteTarget's
+            // remarks), and it would reopen the window PR #142 closed — resolved once for the
+            // prompt, again after a round-trip the gate allows five minutes for, with nothing
+            // guaranteeing the two agree. Saying which *scope* will be written is honest about that
+            // limit; naming a file that may have moved by the time it is written would not be.
             var (effectivePreviewOnly, confirmationNote, writeTarget) = await ToolExecutionHelper.ResolveWriteModeAsync(
                 server,
                 options,
                 previewOnly,
                 project,
-                target => $"Write the '{operation}' of member '{symbol}' in '{target}' to disk?",
+                target => $"Write the '{operation}' of member '{symbol}' to the single file declaring it in '{target}' to disk?",
                 invocation.Logger,
                 cancellationToken);
 

@@ -582,6 +582,126 @@ public class ElicitationTests : IDisposable
     }
 
     [Fact]
+    public async Task EditMember_Confirmation_Names_The_Single_File_Scope_When_The_Target_Is_A_Solution()
+    {
+        // EditMember is the widest of the three gaps: CodeEditService resolves ONE document and
+        // calls SourceTextWriter.WriteAsync once, so a prompt naming a solution of N projects
+        // describes a write that touches a single file in one of them. ApplyFixes at least writes a
+        // whole project (#149); this one overstates by the entire solution.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "edit_member",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = "Foo.Bar",
+                ["operation"] = "delete",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe($"Write the 'delete' of member 'Foo.Bar' to the single file declaring it in '{_fixtureSolution}' to disk?");
+
+        // The scope qualifier must not cost the absolute-path guarantee the other prompt shapes
+        // have — and it sits between the symbol and the target, which is exactly where a careless
+        // rewording would break TargetFromPrompt's "last quoted run" parse.
+        ShouldNameARealProject(message);
+    }
+
+    [Theory]
+    [InlineData("replace")]
+    [InlineData("add")]
+    [InlineData("delete")]
+    public async Task EditMember_Confirmation_Names_The_Single_File_Scope_For_Every_Operation_And_A_Csproj_Target(string operation)
+    {
+        // Two properties in one, both of which a substring assertion would miss.
+        //
+        // 1. The qualifier is UNCONDITIONAL, unlike ApplyFixes' (#149). ApplyFixes' scope depends on
+        //    the target — a .csproj target *is* its whole write scope — so its wording branches.
+        //    EditMember writes one file whatever the target is, so a .csproj target gets the same
+        //    sentence a .sln does. A test that only checked the .sln branch would still pass if the
+        //    qualifier had been copied across as a conditional.
+        // 2. The sentence holds for all three operations. It does because 'add' resolves `symbol` as
+        //    the CONTAINING TYPE (CodeEditService.AddMember rejects anything else), so "the single
+        //    file declaring it" names that type's declaration — the file actually written.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        // The directory alias resolves to the fixture .csproj — see ResolveProjectPath.
+        await host.Client.CallToolAsync(
+            "edit_member",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureRoot,
+                ["symbol"] = "Foo.Bar",
+                ["operation"] = operation,
+                ["newSource"] = "public int Bar { get; set; }",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe($"Write the '{operation}' of member 'Foo.Bar' to the single file declaring it in '{_fixtureProject}' to disk?");
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Confirmation_Names_The_Solution_Without_A_Scope_Qualifier()
+    {
+        // The counterweight to the two above, and the reason they are not a blanket rule.
+        // RenameSymbolAsync really is solution-wide — Renamer.RenameSymbolAsync, then every changed
+        // project, then every changed file — so naming the solution is exact and a "single file"
+        // qualifier here would be a fresh inaccuracy of the same family this issue is closing.
+        // Asserted byte-for-byte: a substring check would not notice the qualifier leaking in.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync(
+            "rename_symbol",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["symbol"] = "Foo",
+                ["newName"] = "Bar",
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        message.ShouldNotBeNull();
+        message.ShouldBe($"Rename 'Foo' to 'Bar' across the solution of '{_fixtureSolution}' and write the changes to disk?");
+        message.ShouldNotContain("single file");
+    }
+
+    [Fact]
     public async Task Approved_Write_Goes_To_The_Exact_Path_The_Human_Was_Shown()
     {
         // Naming the target is only half the guarantee. If the tool then hands the service the
