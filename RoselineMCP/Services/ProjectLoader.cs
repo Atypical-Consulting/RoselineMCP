@@ -235,21 +235,30 @@ public class ProjectLoader : IProjectLoader
     }
 
     /// <summary>
-    /// Enumeration settings for every INCIDENTAL directory scan (auto-discovery and the bare-name
-    /// sweep). <see cref="EnumerationOptions.IgnoreInaccessible"/> defaults <c>true</c> here — and
-    /// covers the enumeration's own root, measured — whereas the <see cref="SearchOption"/>
-    /// overloads pass <see cref="EnumerationOptions.Compatible"/> (<c>false</c>). The other two
-    /// properties are pinned back to <c>Compatible</c>'s values: <c>AttributesToSkip = 0</c>
-    /// because the default (<c>Hidden | System</c>) hides every dot-directory on Unix, and
-    /// <see cref="MatchType.Win32"/> for pattern parity. Scans where the CALLER NAMED the directory
-    /// (<see cref="ResolveProjectPath"/>'s first branch) deliberately do NOT use this.
+    /// Builds the enumeration settings shared by every INCIDENTAL directory scan (auto-discovery
+    /// and the bare-name sweep). <see cref="EnumerationOptions.IgnoreInaccessible"/> defaults
+    /// <c>true</c> here — and covers the enumeration's own root, measured — whereas the
+    /// <see cref="SearchOption"/> overloads pass <see cref="EnumerationOptions.Compatible"/>
+    /// (<c>false</c>). The other two properties are pinned back to <c>Compatible</c>'s values:
+    /// <c>AttributesToSkip = 0</c> because the default (<c>Hidden | System</c>) hides every
+    /// dot-directory on Unix, and <see cref="MatchType.Win32"/> for pattern parity. Scans where the
+    /// CALLER NAMED the directory (<see cref="ResolveProjectPath"/>'s first branch) deliberately do
+    /// NOT use this. One factory rather than two independently-maintained property lists, so a
+    /// property added here can never silently diverge between the non-recursive and recursive scan.
     /// </summary>
-    private static readonly EnumerationOptions IncidentalScan = new()
+    private static EnumerationOptions CreateIncidentalScan(bool recurseSubdirectories = false) => new()
     {
         IgnoreInaccessible = true,
         AttributesToSkip = 0,
-        MatchType = MatchType.Win32
+        MatchType = MatchType.Win32,
+        RecurseSubdirectories = recurseSubdirectories
     };
+
+    /// <summary>Non-recursive incidental scan — <see cref="DiscoveryLevels"/>, <see cref="FindFilesAcross"/>, <see cref="FindSolutionFile"/>.</summary>
+    private static readonly EnumerationOptions IncidentalScan = CreateIncidentalScan();
+
+    /// <summary>Recursive incidental scan — the bare-name sweep in <see cref="ResolveProjectPath"/>.</summary>
+    private static readonly EnumerationOptions IncidentalRecursiveScan = CreateIncidentalScan(recurseSubdirectories: true);
 
     /// <summary>
     /// The levels auto-discovery inspects, nearest first: the base directory; each parent
@@ -367,20 +376,14 @@ public class ProjectLoader : IProjectLoader
 
         // This sweep is incidental — an unreadable directory anywhere under the base directory has
         // nothing to do with resolving a project NAME — so aborting the whole lookup over one was
-        // wrong regardless of how the resulting exception was labelled. Reuses IncidentalScan
-        // (see its doc) rather than a second options literal, cloned only to turn on recursion.
-        var options = new EnumerationOptions
-        {
-            RecurseSubdirectories = true,
-            IgnoreInaccessible = IncidentalScan.IgnoreInaccessible,
-            AttributesToSkip = IncidentalScan.AttributesToSkip,
-            MatchType = IncidentalScan.MatchType
-        };
-
+        // wrong regardless of how the resulting exception was labelled. IncidentalRecursiveScan
+        // (see CreateIncidentalScan's doc) is the same settings as every other incidental scan here,
+        // recursive.
+        //
         // EnumerateFiles, not GetFiles: this streams and stops at the first name match instead of
         // materializing every .csproj in the tree first. The scan runs on the write-confirmation
         // path before a human is prompted, so the early exit is worth the one-word difference.
-        var match = Directory.EnumerateFiles(baseDirectory, "*.csproj", options)
+        var match = Directory.EnumerateFiles(baseDirectory, "*.csproj", IncidentalRecursiveScan)
             .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(project, StringComparison.OrdinalIgnoreCase));
         if (match != null)
         {
