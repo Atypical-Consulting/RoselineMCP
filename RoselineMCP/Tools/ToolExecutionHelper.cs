@@ -7,6 +7,7 @@ using ModelContextProtocol.Server;
 using RoselineMCP.Configuration;
 using RoselineMCP.Diagnostics;
 using RoselineMCP.Models;
+using RoselineMCP.Services;
 
 namespace RoselineMCP.Tools;
 
@@ -318,13 +319,36 @@ internal static class ToolExecutionHelper
     };
 
     /// <summary>
-    /// How a write tool's confirmation prompt names the project it is about to touch. Single-sourced
-    /// because this fallback is the exact thing that drifted while each tool built its own prompt:
-    /// one interpolated the raw <see langword="null"/> and asked the human to approve a write
-    /// <c>in ''</c>, blanking the one fact the prompt exists to convey. The wording around it stays
-    /// per-tool; the name of the target does not.
+    /// How a write tool's confirmation prompt names the project it is about to touch: the concrete
+    /// <c>.sln</c>/<c>.csproj</c> path that will actually be written, whether the caller passed one,
+    /// left it out, or passed an empty string.
     /// </summary>
-    public static string DescribeWriteTarget(string? project) => project ?? "the auto-discovered project";
+    /// <remarks>
+    /// <para>
+    /// This resolves through the very function the loader will use moments later —
+    /// <see cref="ProjectLoader.ResolveTargetPath"/> with the same base directory
+    /// (<see cref="Directory.GetCurrentDirectory"/>, as <c>IProjectLoader.LoadAsync</c> passes it) —
+    /// so the prompt cannot describe a different target from the one the write lands on. It is pure
+    /// path resolution: no MSBuild workspace is loaded, so naming the target costs nothing.
+    /// </para>
+    /// <para>
+    /// Two symptoms shared one cause here. A caller who omitted <c>project</c> — the documented
+    /// default, since auto-discovery is the advertised behavior — was asked to authorise a write to
+    /// the literal placeholder "the auto-discovered project"; and an empty string fell through the
+    /// <c>??</c> to render <c>in ''</c>, because the prompt tested for null while the loader treats
+    /// null <em>and whitespace</em> alike. Delegating removes both at once: there is no second
+    /// opinion left to disagree with.
+    /// </para>
+    /// <para>
+    /// Unresolvable targets throw rather than degrade to a placeholder, and that is deliberate.
+    /// <see cref="ConfirmDestructiveWriteAsync"/> calls this outside its try, so the exception
+    /// reaches the tool's own handler and becomes the standard error envelope with no elicitation
+    /// sent: asking a human to approve a write that cannot even be targeted wastes their answer on
+    /// a call that was going to fail anyway.
+    /// </para>
+    /// </remarks>
+    public static string DescribeWriteTarget(string? project) =>
+        ProjectLoader.ResolveTargetPath(project, Directory.GetCurrentDirectory());
 
     /// <summary>
     /// Resolves whether a write tool should actually write. Applies the confirmation gate when the

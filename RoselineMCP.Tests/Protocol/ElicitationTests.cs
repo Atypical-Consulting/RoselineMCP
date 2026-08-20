@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FakeItEasy;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
@@ -21,14 +22,75 @@ namespace RoselineMCP.Tests.Protocol;
 /// that would decline is deliberately never asked, so the write stands — asserted for both
 /// <c>apply_fixes</c> and <c>rename_symbol</c>, since the gate lives in the shared helper.
 /// <c>edit_member</c> gets a decline case of its own so all three write tools are covered
-/// end-to-end, and a last case pins the <em>content</em> of all three prompts rather than the
-/// answer: each must name the project even when the caller omitted it, which is the drift three
-/// hand-maintained copies of the gate produced before it was consolidated into
-/// <c>ResolveWriteModeAsync</c>.
+/// end-to-end.
+///
+/// A final group pins the <em>content</em> of the prompts rather than the answer. A confirmation
+/// whose target is a placeholder cannot be answered correctly however well-gated it is, so each
+/// message must name the concrete <c>.sln</c>/<c>.csproj</c> that will be written — when the caller
+/// passes a directory, when they omit <c>project</c> entirely, and when they pass an empty string.
+/// Two boundary cases sit either side of that: a target that resolves to nothing fails before a
+/// human is ever asked, and a <c>previewOnly</c> call never builds the message at all, since naming
+/// the target costs a resolution a read-only call has no use for.
 /// </summary>
 [Collection(McpProtocolCollection.Name)]
-public class ElicitationTests
+public class ElicitationTests : IDisposable
 {
+    /// <summary>
+    /// A throwaway directory holding one real <c>.csproj</c>. The confirmation prompt now names the
+    /// concrete project it will write to, which means resolving the caller's <c>project</c> argument
+    /// against the file system — so every case that expects to be <em>asked</em> has to point at
+    /// something that actually resolves. A bare name like "TestProject" no longer does, and is kept
+    /// deliberately in the two cases that must never resolve at all (see below).
+    /// </summary>
+    private readonly string _fixtureRoot;
+
+    /// <summary>The fixture <c>.csproj</c> itself — the path a prompt naming this target must contain.</summary>
+    private readonly string _fixtureProject;
+
+    public ElicitationTests()
+    {
+        _fixtureRoot = Path.Combine(Path.GetTempPath(), $"RoselineElicitation_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_fixtureRoot);
+        _fixtureProject = Path.Combine(_fixtureRoot, "Fixture.csproj");
+        File.WriteAllText(
+            _fixtureProject,
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_fixtureRoot, true); } catch { /* ignored */ }
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// The write target named by a confirmation prompt: the LAST single-quoted segment, which is
+    /// where all three messages put it ("… of member 'Foo.Bar' in '&lt;target&gt;' to disk?").
+    /// Reading it out of the message — rather than re-deriving the expected path — is what keeps
+    /// these assertions from re-implementing the resolution they are supposed to be checking.
+    /// </summary>
+    private static string TargetFromPrompt(string message)
+    {
+        var quoted = Regex.Matches(message, "'([^']*)'");
+        quoted.Count.ShouldBeGreaterThan(0, $"the prompt names no target at all: {message}");
+        return quoted[^1].Groups[1].Value;
+    }
+
+    /// <summary>
+    /// Asserts a prompt names a concrete solution/project that exists on disk — the whole point of
+    /// the confirmation. Deliberately makes no claim about <em>which</em> one auto-discovery picks:
+    /// that depends on the working directory the suite happens to run from, and pinning it would
+    /// test the runner rather than the prompt.
+    /// </summary>
+    private static void ShouldNameARealProject(string message)
+    {
+        var target = TargetFromPrompt(message);
+        Path.IsPathRooted(target).ShouldBeTrue($"the prompt must name an absolute path, not '{target}'");
+        File.Exists(target).ShouldBeTrue($"the prompt names '{target}', which is not on disk");
+        Path.GetExtension(target).ToLowerInvariant()
+            .ShouldBeOneOf(".sln", ".csproj");
+    }
+
     private static Task<McpProtocolTestHost> StartHostAsync(
         ICodeFixService codeFixService,
         Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>> elicitationHandler,
@@ -72,7 +134,7 @@ public class ElicitationTests
 
         var result = await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
         {
-            ["project"] = "TestProject",
+            ["project"] = _fixtureProject,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
         });
@@ -100,7 +162,7 @@ public class ElicitationTests
 
         await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
         {
-            ["project"] = "TestProject",
+            ["project"] = _fixtureProject,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
         });
@@ -136,7 +198,7 @@ public class ElicitationTests
         async Task<CallToolResult> CallApplyFixesAsync() =>
             await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
             {
-                ["project"] = "TestProject",
+                ["project"] = _fixtureProject,
                 ["ids"] = new[] { "RCS1213" },
                 ["previewOnly"] = false,
             });
@@ -248,7 +310,7 @@ public class ElicitationTests
         async Task<CallToolResult> CallApplyFixesAsync() =>
             await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
             {
-                ["project"] = "TestProject",
+                ["project"] = _fixtureProject,
                 ["ids"] = new[] { "RCS1213" },
                 ["previewOnly"] = false,
             });
@@ -293,6 +355,11 @@ public class ElicitationTests
         // The gate is off, so the client is never asked — its decline never happens and the write
         // stands. Note the client here DOES advertise elicitation support: this proves the option
         // suppresses the request itself rather than merely auto-accepting an answer.
+        //
+        // `project` is deliberately left as a name that resolves to nothing. Building the prompt
+        // resolves the target, so an operator who switched the gate off must not be made to pay
+        // for — or fail on — a question that is never asked. Were resolution to creep back in
+        // ahead of that switch, this call would come back as a failure envelope instead.
         elicited.ShouldBeFalse();
         captured.ShouldBe(false);
 
@@ -321,7 +388,7 @@ public class ElicitationTests
 
         await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
         {
-            ["project"] = "Demo",
+            ["project"] = _fixtureProject,
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
@@ -334,7 +401,8 @@ public class ElicitationTests
     public async Task RenameSymbol_With_PreviewOnly_False_Skips_Elicitation_When_Confirmation_Is_Disabled()
     {
         // The disabled gate lives in the shared helper, not in apply_fixes: prove it through a
-        // second tool, mirroring the decline-path test above.
+        // second tool, mirroring the decline-path test above — including the unresolvable
+        // `project`, which pins that a suppressed prompt is never built and so never resolved.
         bool? captured = null;
         var elicited = false;
         var edit = A.Fake<ICodeEditService>();
@@ -385,7 +453,7 @@ public class ElicitationTests
 
         var result = await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
         {
-            ["project"] = "Demo",
+            ["project"] = _fixtureProject,
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
@@ -397,6 +465,32 @@ public class ElicitationTests
         payload.GetProperty("data").GetProperty("previewOnly").GetBoolean().ShouldBeTrue();
         payload.GetProperty("data").GetProperty("notes").EnumerateArray()
             .Select(n => n.GetString()).ShouldContain(s => s!.Contains("declined"));
+    }
+
+    [Fact]
+    public async Task Write_Confirmation_Names_The_Resolved_Project_Path()
+    {
+        // The caller passes the DIRECTORY holding the fixture project — one of the aliases
+        // IProjectLoader accepts. The prompt must name what will actually be written, so it has to
+        // show the resolved '.csproj', not the argument it was handed. Echoing the argument back is
+        // precisely the old behavior, so a test that passed the .csproj itself would pass before
+        // the fix and prove nothing.
+        string? message = null;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureRoot,
+            ["ids"] = new[] { "RCS1213" },
+            ["previewOnly"] = false,
+        });
+
+        message.ShouldNotBeNull();
+        message.ShouldContain(_fixtureProject);
     }
 
     [Fact]
@@ -433,13 +527,12 @@ public class ElicitationTests
     [Fact]
     public async Task Write_Confirmation_Prompts_Name_The_Project_When_It_Is_Omitted()
     {
-        // Regression guard for the drift three hand-maintained copies of the gate produced. With
-        // `project` omitted — the documented default, since auto-discovery is the advertised
-        // behavior — one copy interpolated the raw null and asked the human to approve writing a
-        // member "in ''": the single fact the confirmation exists to convey was blank. All three
-        // prompts now name their target through ToolExecutionHelper.DescribeWriteTarget, so all
-        // three are asserted here. Pinning only the tool that broke last time would leave the other
-        // two free to break next, which is how the messages diverged in the first place.
+        // With `project` omitted — the documented default, since auto-discovery is the advertised
+        // behavior — the prompt used to name the literal placeholder "the auto-discovered project".
+        // A human cannot refuse a write they cannot see the target of, so all three prompts must
+        // now resolve it and name the concrete file. All three are asserted here: pinning only the
+        // tool that broke last time would leave the other two free to break next, which is how the
+        // messages diverged in the first place.
         var messages = new List<string>();
 
         var edit = A.Fake<ICodeEditService>();
@@ -483,8 +576,78 @@ public class ElicitationTests
         messages.Count.ShouldBe(3, "every write tool must ask before writing");
         foreach (var message in messages)
         {
-            message.ShouldContain("the auto-discovered project");
+            ShouldNameARealProject(message);
+            message.ShouldNotContain("the auto-discovered project");
             message.ShouldNotContain("''");
         }
+    }
+
+    [Fact]
+    public async Task Write_Confirmation_Names_The_Project_When_It_Is_An_Empty_String()
+    {
+        // The #125 blank-target symptom, reached through a second input. `project: ""` rendered
+        // "in ''" because the prompt tested for null while IProjectLoader.LoadAsync documents null
+        // OR whitespace as the auto-discovery trigger — so prompt and loader disagreed about the
+        // same argument, the prompt claiming a blank target while the loader quietly resolved a
+        // real one and wrote to it. Resolving through the loader's own function makes the two agree
+        // by construction, which is why this needs no separate empty-string branch to guard it.
+        string? message = null;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
+            editService: edit);
+
+        await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["project"] = "",
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "delete",
+            ["previewOnly"] = false,
+        });
+
+        message.ShouldNotBeNull();
+        ShouldNameARealProject(message);
+        message.ShouldNotContain("in ''");
+    }
+
+    [Fact]
+    public async Task Unresolvable_Write_Target_Fails_Without_Eliciting()
+    {
+        // Naming the target means resolving it, and resolution can fail — auto-discovery finding
+        // nothing or several candidates, or, as here, an explicit reference that matches no project
+        // on disk. Such a call was always going to fail; asking a human to approve it first only
+        // spends their attention on a decision that changes nothing. So the failure must arrive
+        // BEFORE the prompt, not after it.
+        //
+        // This is also the sharp edge of building the message inside the gate: every catch in
+        // ConfirmDestructiveWriteAsync ends in WriteConfirmation.Proceed, so a resolution failure
+        // raised inside its try would read as "this client cannot be asked" and the write would go
+        // ahead unasked — the inversion of the whole gate. Hence the second assertion: it is not
+        // enough that the call failed, it must have failed without eliciting.
+        var elicited = false;
+        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); });
+
+        var result = await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        {
+            ["project"] = Path.Combine(_fixtureRoot, "NoSuchProjectAnywhere"),
+            ["ids"] = new[] { "RCS1213" },
+            ["previewOnly"] = false,
+        });
+
+        elicited.ShouldBeFalse("a target that cannot be resolved must not reach a human as a question");
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("ok").GetBoolean().ShouldBeFalse();
+        payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("NotFoundError");
     }
 }
