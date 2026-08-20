@@ -113,6 +113,16 @@
   },
   "edit_member": {
     "properties": {
+      "allowIntroducedErrors": {
+        "default": false,
+        "description": "If false (the default), an edit that introduces compiler errors is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.",
+        "type": "boolean"
+      },
+      "max": {
+        "default": 20,
+        "description": "Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.",
+        "type": "integer"
+      },
       "newSource": {
         "default": null,
         "description": "New C# member declaration source (required for \u0027replace\u0027 and \u0027add\u0027; ignored for \u0027delete\u0027)",

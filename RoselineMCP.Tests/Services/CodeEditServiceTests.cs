@@ -18,7 +18,11 @@ public class CodeEditServiceTests
     private static CodeEditService CreateService(AdhocWorkspace workspace, Project project)
     {
         var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, project);
-        return new CodeEditService(A.Fake<ILogger<CodeEditService>>(), loader, new DiffService());
+        return new CodeEditService(
+            A.Fake<ILogger<CodeEditService>>(),
+            loader,
+            new DiffService(),
+            new VerificationService(A.Fake<ILogger<VerificationService>>(), DiagnosticComputationService.CompilerOnly));
     }
 
     private static CodeEditService CreateService(string projectName, params (string Name, string Code)[] files)
@@ -35,7 +39,7 @@ public class CodeEditServiceTests
 
         var result = await service.EditMemberAsync(
             "Demo", "Add", "replace", "public int Add(int a, int b) { return a + b + 0; }",
-            previewOnly: true, CancellationToken.None);
+            previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.Operation.ShouldBe("replace");
         result.PreviewOnly.ShouldBeTrue();
@@ -52,7 +56,7 @@ public class CodeEditServiceTests
 
         var result = await service.EditMemberAsync(
             "Demo", "Calc", "add", "public int Zero() { return 0; }",
-            previewOnly: true, CancellationToken.None);
+            previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.Operation.ShouldBe("add");
         result.Patch.ShouldContain("Zero");
@@ -65,7 +69,7 @@ public class CodeEditServiceTests
             "public class Calc { public int Add(int a, int b) { return a + b; } public int Sub(int a, int b) { return a - b; } }"));
 
         var result = await service.EditMemberAsync(
-            "Demo", "Sub", "delete", null, previewOnly: true, CancellationToken.None);
+            "Demo", "Sub", "delete", null, previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.Operation.ShouldBe("delete");
         result.Patch.ShouldContain("Sub");
@@ -78,7 +82,7 @@ public class CodeEditServiceTests
             "public class Foo { private int _counter; public int Value() { return 0; } }"));
 
         var result = await service.EditMemberAsync(
-            "Demo", "_counter", "delete", null, previewOnly: true, CancellationToken.None);
+            "Demo", "_counter", "delete", null, previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.Operation.ShouldBe("delete");
         result.Patch.ShouldContain("_counter");
@@ -93,7 +97,7 @@ public class CodeEditServiceTests
             "public class Foo { private int _a, _b; }"));
 
         var result = await service.EditMemberAsync(
-            "Demo", "_a", "delete", null, previewOnly: true, CancellationToken.None);
+            "Demo", "_a", "delete", null, previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.Patch.ShouldNotBeNullOrEmpty();
         result.Patch.ShouldNotContain("private int ;");
@@ -106,7 +110,7 @@ public class CodeEditServiceTests
             "public class Foo { private int _x = 1; }"));
 
         var result = await service.EditMemberAsync(
-            "Demo", "_x", "replace", "private int _x = 2;", previewOnly: true, CancellationToken.None);
+            "Demo", "_x", "replace", "private int _x = 2;", previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.Operation.ShouldBe("replace");
         result.Patch.ShouldContain("2");
@@ -121,7 +125,7 @@ public class CodeEditServiceTests
         var result = await service.EditMemberAsync(
             "Demo", "Add", "replace",
             "/// <summary>New and improved.</summary>\npublic int Add(int a, int b) { return a + b; }",
-            previewOnly: true, CancellationToken.None);
+            previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.Patch.ShouldContain("New and improved");
     }
@@ -133,7 +137,7 @@ public class CodeEditServiceTests
             "public class Calc { public int Add(int a, int b) { return a + b; } }"));
 
         await Should.ThrowAsync<ArgumentException>(() => service.EditMemberAsync(
-            "Demo", "Add", "replace", "public int (((", previewOnly: true, CancellationToken.None));
+            "Demo", "Add", "replace", "public int (((", previewOnly: true, cancellationToken: CancellationToken.None));
     }
 
     [Fact]
@@ -143,7 +147,7 @@ public class CodeEditServiceTests
             "public class Calc { public int Add(int a, int b) { return a + b; } }"));
 
         await Should.ThrowAsync<ArgumentException>(() => service.EditMemberAsync(
-            "Demo", "Add", "add", "public int X() => 1;", previewOnly: true, CancellationToken.None));
+            "Demo", "Add", "add", "public int X() => 1;", previewOnly: true, cancellationToken: CancellationToken.None));
     }
 
     [Fact]
@@ -219,7 +223,7 @@ public class CodeEditServiceTests
 
         var result = await service.EditMemberAsync(
             "App", "Add", "replace", "public int Add(int a, int b) { return a + b + 1; }",
-            previewOnly: true, CancellationToken.None);
+            previewOnly: true, cancellationToken: CancellationToken.None);
 
         result.ChangedFiles.ShouldBe(["App/Calc.cs"]);
         result.Patch.ShouldContain("a/App/Calc.cs");
@@ -236,7 +240,7 @@ public class CodeEditServiceTests
         A.CallTo(() => progress.Report(A<ProgressNotificationValue>._))
             .Invokes((ProgressNotificationValue v) => reports.Add(v));
 
-        await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, progress, CancellationToken.None);
+        await service.RenameSymbolAsync("Demo", "Add", "Sum", previewOnly: true, progress: progress, cancellationToken: CancellationToken.None);
 
         // The load/resolve/rename phases each report progress, and the value must strictly increase
         // (MCP requirement).
@@ -322,7 +326,7 @@ public class CodeEditServiceTests
         {
             var result = await service.EditMemberAsync(
                 "Demo", "Add", "replace", "public int Add(int a, int b) { return a + b + 1; }",
-                previewOnly: false, CancellationToken.None);
+                previewOnly: false, cancellationToken: CancellationToken.None);
             result.Applied.ShouldBeTrue();
         });
 
@@ -375,7 +379,7 @@ public class CodeEditServiceTests
             var service = CreateService(workspace, project);
 
             var response = await service.EditMemberAsync(
-                null, "Widget.X", "replace", "public int X => 2;", previewOnly: true, CancellationToken.None);
+                null, "Widget.X", "replace", "public int X => 2;", previewOnly: true, cancellationToken: CancellationToken.None);
 
             response.ResolvedPath.ShouldBe(Path.Combine(baseDir, "Acme.csproj"));
         }
@@ -397,4 +401,122 @@ public class CodeEditServiceTests
             response.ResolvedPath.ShouldBe(Path.Combine(baseDir, "Acme.csproj"));
         }
     }
+
+    // ---------------------------------------------------------------------------------------
+    // Compile verification (#133): no write may introduce a compiler error.
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Runs a scenario against a real on-disk file and hands back what the file holds afterwards, so
+    /// "was it refused?" can be answered by the disk rather than by the response alone.
+    /// </summary>
+    private static async Task<(T Result, string OnDisk)> RunAgainstDiskAsync<T>(
+        string code,
+        Func<CodeEditService, Task<T>> run,
+        string fileName = "Calc.cs")
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-verify-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(baseDirectory);
+        var filePath = Path.Combine(baseDirectory, fileName);
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var (workspace, project) = AdhocProjectBuilder.Create("Demo", [(fileName, code)], baseDirectory);
+            using (workspace)
+            {
+                var result = await run(CreateService(workspace, project));
+                return (result, await File.ReadAllTextAsync(filePath));
+            }
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    private const string CleanCalc = "public class Calc { public int Add(int a, int b) { return a + b; } }";
+
+    [Fact]
+    public async Task EditMember_Refuses_An_Edit_That_Introduces_A_Compiler_Error()
+    {
+        // Arrange + Act — an explicit opt-in to write, on an edit that does not compile.
+        var (result, onDisk) = await RunAgainstDiskAsync(CleanCalc, service => service.EditMemberAsync(
+            "Demo", "Add", "replace", "public int Add(int a, int b) { return Missing.Thing(); }",
+            previewOnly: false, cancellationToken: CancellationToken.None));
+
+        // Assert — the call succeeds and says so plainly: it did not apply.
+        result.Applied.ShouldBeFalse();
+        result.Verification.ShouldNotBeNull();
+        result.Verification.Introduced.ShouldNotBeNull();
+        result.Verification.Introduced.ShouldContain(d => d.Id == "CS0103");
+        result.Patch.ShouldNotBeNullOrEmpty();
+        result.Notes.ShouldContain(n => n.Contains("compiler error", StringComparison.OrdinalIgnoreCase));
+
+        // …and nothing reached disk. This is the whole promise.
+        onDisk.ShouldBe(CleanCalc);
+    }
+
+    [Fact]
+    public async Task EditMember_Writes_A_Breaking_Edit_When_AllowIntroducedErrors_Is_Set()
+    {
+        var (result, onDisk) = await RunAgainstDiskAsync(CleanCalc, service => service.EditMemberAsync(
+            "Demo", "Add", "replace", "public int Add(int a, int b) { return Missing.Thing(); }",
+            previewOnly: false, allowIntroducedErrors: true, cancellationToken: CancellationToken.None));
+
+        result.Applied.ShouldBeTrue();
+        result.Verification!.Introduced.ShouldNotBeNull();
+        onDisk.ShouldContain("Missing.Thing()");
+    }
+
+    [Fact]
+    public async Task EditMember_Writes_A_Clean_Edit_To_A_Project_That_Is_Already_Broken()
+    {
+        // The gate is `introduced`, never `compiles` — otherwise RoselineMCP would be unusable on
+        // exactly the branches an agent is sent to repair.
+        const string broken = "public class Calc { public int Add(int a, int b) { return a + b; } public int Bad() { return Missing.Thing(); } }";
+
+        var (result, onDisk) = await RunAgainstDiskAsync(broken, service => service.EditMemberAsync(
+            "Demo", "Add", "replace", "public int Add(int a, int b) { return a + b + 1; }",
+            previewOnly: false, cancellationToken: CancellationToken.None));
+
+        result.Applied.ShouldBeTrue();
+        result.Verification!.Compiles.ShouldBe(false);
+        result.Verification.Introduced.ShouldBeNull();
+        result.Verification.Preexisting.ShouldBe(1);
+        onDisk.ShouldContain("a + b + 1");
+    }
+
+    [Fact]
+    public async Task EditMember_Truncates_The_Refusal_To_Max_And_Reports_What_It_Dropped()
+    {
+        // A broken edit can produce thousands of binding errors; unbounded, the refusal would cost
+        // more tokens than the `dotnet build` output it replaces.
+        var body = string.Join(" ", Enumerable.Range(0, 5).Select(i => $"Missing{i}.Thing();"));
+
+        var (result, _) = await RunAgainstDiskAsync(CleanCalc, service => service.EditMemberAsync(
+            "Demo", "Add", "replace", $"public int Add(int a, int b) {{ {body} return a + b; }}",
+            previewOnly: false, max: 2, cancellationToken: CancellationToken.None));
+
+        result.Applied.ShouldBeFalse();
+        result.Verification!.Introduced!.Count.ShouldBe(2);
+        result.Verification.Omitted.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task EditMember_Preview_Reports_The_Verdict_Without_Refusing_Anything()
+    {
+        var service = CreateService("Demo", ("Calc.cs", CleanCalc));
+
+        var result = await service.EditMemberAsync(
+            "Demo", "Add", "replace", "public int Add(int a, int b) { return a + b + 1; }",
+            previewOnly: true, cancellationToken: CancellationToken.None);
+
+        result.PreviewOnly.ShouldBeTrue();
+        result.Applied.ShouldBeFalse();
+        result.Verification.ShouldNotBeNull();
+        result.Verification.Compiles.ShouldBe(true);
+        result.Verification.Introduced.ShouldBeNull();
+    }
+
 }

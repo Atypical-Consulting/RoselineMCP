@@ -42,6 +42,10 @@ public static class EditMemberTool
         bool previewOnly = true,
         [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
+        [Description("If false (the default), an edit that introduces compiler errors is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.")]
+        bool allowIntroducedErrors = false,
+        [Description("Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.")]
+        int max = 20,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,
         McpServer? server = null,
@@ -58,12 +62,34 @@ public static class EditMemberTool
                 "Valid operations are: replace, add, delete.");
         }
 
-        // Created only once the confirmation below has resolved — see the comment there.
+        // Each phase gets its own budget; the confirmation between them is charged to neither.
         CancellationTokenSource? timeoutSource = null;
 
         try
         {
-            // Gate policy lives in the helper; only the wording is this tool's own.
+            // PHASE 1 — build the candidate, diff it, and put it to the compiler. Always a preview,
+            // whatever the caller asked for: nothing may reach disk before the verdict is in.
+            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
+            var result = await editService.EditMemberAsync(
+                project, symbol, operation, newSource, previewOnly: true,
+                allowIntroducedErrors, max, timeoutSource.Token);
+
+            // Refused, or the caller only ever wanted a preview: either way we are done, and — this
+            // is the point of the ordering — no human was asked to approve a write that was never
+            // going to happen. A refusal is also strictly more informative than a decline: it
+            // carries the diff *and* the errors.
+            if (previewOnly || WasRefused(result, allowIntroducedErrors))
+            {
+                invocation.MarkSuccess();
+                return ToolResult<EditMemberResponse>.Success(result);
+            }
+
+            timeoutSource.Dispose();
+            timeoutSource = null;
+
+            // Gate policy lives in the helper; only the wording is this tool's own. No analysis
+            // budget is armed across it: human think-time must not be charged against the clock
+            // that bounds analysis (DefaultTimeout 120s vs ConfirmDestructiveWritesTimeout 300s).
             var (effectivePreviewOnly, confirmationNote, writeTarget) = await ToolExecutionHelper.ResolveWriteModeAsync(
                 server,
                 options,
@@ -73,23 +99,30 @@ public static class EditMemberTool
                 invocation.Logger,
                 cancellationToken);
 
-            // Only NOW does the analysis budget start. Arming it before the confirmation would
-            // charge the human's think-time against it — the very thing the confirmation's own
-            // clock exists to prevent — and with the shipped defaults (DefaultTimeout 120s,
-            // ConfirmDestructiveWritesTimeout 300s) it would already have expired, turning the
-            // documented preview into a TimeoutError the caller cannot act on.
-            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
+            if (effectivePreviewOnly)
+            {
+                // Declined or timed out. Phase 1's response already holds the diff and the verdict,
+                // so there is nothing left to compute.
+                result.PreviewOnly = true;
+                if (confirmationNote is not null)
+                {
+                    result.Notes.Add(confirmationNote);
+                }
 
+                invocation.MarkSuccess();
+                return ToolResult<EditMemberResponse>.Success(result);
+            }
+
+            // PHASE 2 — the approved write, on a fresh budget. It re-verifies against whatever is on
+            // disk *now*: the tree may have moved while the human was deciding, and the service
+            // refuses on its own if it has.
+            //
             // The path the human approved, when they were asked; otherwise the caller's own
             // argument, because nothing was resolved and so nothing was shown.
-            var result = await editService.EditMemberAsync(
-                writeTarget ?? project, symbol, operation, newSource, effectivePreviewOnly, timeoutSource.Token);
-
-            if (confirmationNote is not null)
-            {
-                result.PreviewOnly = true;
-                result.Notes.Add(confirmationNote);
-            }
+            timeoutSource = ToolExecutionHelper.CreateLinkedTimeoutSource(cancellationToken, options);
+            result = await editService.EditMemberAsync(
+                writeTarget ?? project, symbol, operation, newSource, previewOnly: false,
+                allowIntroducedErrors, max, timeoutSource.Token);
 
             invocation.MarkSuccess();
             return ToolResult<EditMemberResponse>.Success(result);
@@ -109,4 +142,11 @@ public static class EditMemberTool
             timeoutSource?.Dispose();
         }
     }
+
+    /// <summary>
+    /// Whether the compile gate refused this change. Read off the verdict rather than a flag so the
+    /// tool cannot disagree with the service about what "refused" means.
+    /// </summary>
+    internal static bool WasRefused(EditMemberResponse result, bool allowIntroducedErrors) =>
+        !allowIntroducedErrors && result.Verification?.Introduced is { Count: > 0 };
 }

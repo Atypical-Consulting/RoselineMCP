@@ -122,7 +122,8 @@ public class ToolListingTests : McpProtocolTestBase
         // 'operation' remain required.
         GetRequired(tool).ShouldBe(["symbol", "operation"], ignoreOrder: true);
         GetPropertyNames(tool).ShouldBe(
-            ["project", "symbol", "operation", "newSource", "previewOnly"], ignoreOrder: true);
+            ["project", "symbol", "operation", "newSource", "previewOnly", "allowIntroducedErrors", "max"],
+            ignoreOrder: true);
     }
 
     [Theory]

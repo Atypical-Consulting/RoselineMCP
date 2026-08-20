@@ -46,6 +46,15 @@ public class EditMemberResponse
     [JsonPropertyName("applied")]
     public bool Applied { get; set; }
 
+    /// <summary>
+    /// The compiler's verdict on this change, computed in memory before anything touched disk. When
+    /// <c>introduced</c> is non-empty and the caller did not pass <c>allowIntroducedErrors</c>, the
+    /// edit was <b>refused</b>: <c>applied</c> is false and no file was written.
+    /// </summary>
+    [JsonPropertyName("verification")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public VerificationVerdict? Verification { get; set; }
+
     /// <summary>Additional notes or warnings about the edit.</summary>
     [JsonPropertyName("notes")]
     public List<string> Notes { get; set; } = new();

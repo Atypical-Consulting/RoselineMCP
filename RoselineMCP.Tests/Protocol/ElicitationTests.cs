@@ -386,10 +386,10 @@ public class ElicitationTests : IDisposable
         bool? captured = null;
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.RenameSymbolAsync(
-                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
-            .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 captured = previewOnly)
-            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
 
         await using var host = await StartHostAsync(
@@ -418,10 +418,10 @@ public class ElicitationTests : IDisposable
         var elicited = false;
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.RenameSymbolAsync(
-                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
-            .Invokes((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 captured = previewOnly)
-            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
 
         await using var host = await StartHostAsync(
@@ -451,10 +451,10 @@ public class ElicitationTests : IDisposable
         bool? captured = null;
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.EditMemberAsync(
-                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
-            .Invokes((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
                 captured = previewOnly)
-            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
                 Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
 
         await using var host = await StartHostAsync(
@@ -476,6 +476,112 @@ public class ElicitationTests : IDisposable
         payload.GetProperty("data").GetProperty("previewOnly").GetBoolean().ShouldBeTrue();
         payload.GetProperty("data").GetProperty("notes").EnumerateArray()
             .Select(n => n.GetString()).ShouldContain(s => s!.Contains("declined"));
+    }
+
+    [Fact]
+    public async Task EditMember_Refused_By_Verification_Never_Asks_For_Confirmation()
+    {
+        // Ordering, not politeness. Asking a human to approve a write the compile gate is about to
+        // refuse spends the one thing the elicitation costs — their attention — and trains them to
+        // click through it. A refusal is also strictly more informative than a decline: it carries
+        // the diff *and* the errors.
+        var elicited = false;
+        var writeAttempted = false;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+            {
+                if (!previewOnly)
+                {
+                    writeAttempted = true;
+                }
+            })
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse
+                {
+                    PreviewOnly = previewOnly,
+                    Verification = new VerificationVerdict
+                    {
+                        Compiles = false,
+                        Introduced = [new DiagnosticDetail { Id = "CS0103", File = "src/A.cs", Line = 7, Severity = "error" }]
+                    }
+                }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) =>
+            {
+                elicited = true;
+                return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" });
+            },
+            editService: edit);
+
+        var result = await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureProject,
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "delete",
+            ["previewOnly"] = false,
+        });
+
+        elicited.ShouldBeFalse("a refused edit must never reach the human confirmation");
+        writeAttempted.ShouldBeFalse("a refused edit must never reach the write pass");
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("ok").GetBoolean().ShouldBeTrue();
+        payload.GetProperty("data").GetProperty("applied").GetBoolean().ShouldBeFalse();
+        payload.GetProperty("data").GetProperty("verification").GetProperty("introduced")
+            .EnumerateArray().ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task EditMember_Verified_Clean_Still_Asks_For_Confirmation_And_Writes()
+    {
+        // The other half of the ordering: a change the compiler is happy with must still go through
+        // the human gate. Verification narrows what gets asked about; it does not replace the ask.
+        var elicited = false;
+        var writeAttempted = false;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+            {
+                if (!previewOnly)
+                {
+                    writeAttempted = true;
+                }
+            })
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse
+                {
+                    PreviewOnly = previewOnly,
+                    Applied = !previewOnly,
+                    Verification = new VerificationVerdict { Compiles = true, ScopeComplete = true }
+                }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) =>
+            {
+                elicited = true;
+                return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" });
+            },
+            editService: edit);
+
+        var result = await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureProject,
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "delete",
+            ["previewOnly"] = false,
+        });
+
+        elicited.ShouldBeTrue("a clean edit still needs the human confirmation");
+        writeAttempted.ShouldBeTrue();
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("data").GetProperty("applied").GetBoolean().ShouldBeTrue();
     }
 
     [Fact]
@@ -642,12 +748,12 @@ public class ElicitationTests : IDisposable
 
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.EditMemberAsync(
-                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
-            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
                 Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
         A.CallTo(() => edit.RenameSymbolAsync(
-                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
-            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
 
         await using var host = await StartHostAsync(
@@ -707,8 +813,8 @@ public class ElicitationTests : IDisposable
         string? message = null;
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.EditMemberAsync(
-                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
-            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
                 Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
 
         await using var host = await StartHostAsync(
@@ -755,12 +861,12 @@ public class ElicitationTests : IDisposable
 
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.EditMemberAsync(
-                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<CancellationToken>._))
-            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
                 Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
         A.CallTo(() => edit.RenameSymbolAsync(
-                A<string>._, A<string>._, A<string>._, A<bool>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
-            .ReturnsLazily((string _, string _, string _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
 
         await using var host = await StartHostAsync(

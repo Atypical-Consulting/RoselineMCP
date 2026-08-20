@@ -78,7 +78,8 @@ public static class RenameSymbolTool
             // The path the human approved, when they were asked; otherwise the caller's own
             // argument, because nothing was resolved and so nothing was shown.
             var result = await editService.RenameSymbolAsync(
-                writeTarget ?? project, symbol, newName, effectivePreviewOnly, progress, timeoutSource.Token);
+                writeTarget ?? project, symbol, newName, effectivePreviewOnly,
+                progress: progress, cancellationToken: timeoutSource.Token);
 
             if (confirmationNote is not null)
             {
