@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -6,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
-using System.Text;
 
 namespace RoselineMCP.Services;
 
@@ -193,7 +193,6 @@ public class CodeFixService : ICodeFixService
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var relativePath = SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
-                    response.ChangedFiles.Add(relativePath);
 
                     var newDocument = currentSolution.Projects
                         .SelectMany(p => p.Documents)
@@ -210,9 +209,15 @@ public class CodeFixService : ICodeFixService
                             $"a/{relativePath}",
                             $"b/{relativePath}");
 
+                        // Roslyn's changed-document set is a "this document object was touched"
+                        // signal, not a content-equality check — a fixer whose edit nets out to the
+                        // original text (or is undone by the formatting pass above) still shows up
+                        // in changedDocuments. Only count it as changed once there is a real, non-blank
+                        // diff, so HasChanges agrees with what ApplyFixes actually has to write.
                         if (!string.IsNullOrWhiteSpace(diff))
                         {
                             patchBuilder.AppendLine(diff);
+                            response.ChangedFiles.Add(relativePath);
                         }
                     }
                 }
@@ -314,7 +319,10 @@ public class CodeFixService : ICodeFixService
         CancellationToken cancellationToken)
     {
         var initialDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken);
-        if (initialDiagnostics.Count == 0) return (solution, 0, false);
+        if (initialDiagnostics.Count == 0)
+        {
+            return (solution, 0, false);
+        }
 
         var totalFixed = 0;
         var remaining = initialDiagnostics.Count;
@@ -356,10 +364,16 @@ public class CodeFixService : ICodeFixService
         CancellationToken cancellationToken)
     {
         var project = solution.GetProject(projectId);
-        if (project == null) return [];
+        if (project == null)
+        {
+            return [];
+        }
 
         var compilation = await project.GetCompilationAsync(cancellationToken);
-        if (compilation == null) return [];
+        if (compilation == null)
+        {
+            return [];
+        }
 
         var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
         return allDiagnostics
@@ -390,7 +404,10 @@ public class CodeFixService : ICodeFixService
         CancellationToken cancellationToken)
     {
         var project = solution.GetProject(projectId);
-        if (project == null) return (solution, 0);
+        if (project == null)
+        {
+            return (solution, 0);
+        }
 
         var firstDiagnostic = diagnostics
             .OrderBy(d => d.Location.SourceTree!.FilePath, StringComparer.Ordinal)
@@ -399,7 +416,10 @@ public class CodeFixService : ICodeFixService
 
         var document = project.Documents.FirstOrDefault(doc =>
             doc.FilePath == firstDiagnostic.Location.SourceTree!.FilePath);
-        if (document == null) return (solution, 0);
+        if (document == null)
+        {
+            return (solution, 0);
+        }
 
         var registeredActions = new List<CodeAction>();
         var context = new CodeFixContext(
@@ -409,7 +429,10 @@ public class CodeFixService : ICodeFixService
             cancellationToken);
 
         await provider.RegisterCodeFixesAsync(context);
-        if (registeredActions.Count == 0) return (solution, 0);
+        if (registeredActions.Count == 0)
+        {
+            return (solution, 0);
+        }
 
         var fixAllContext = new FixAllContext(
             document,
@@ -421,11 +444,17 @@ public class CodeFixService : ICodeFixService
             cancellationToken);
 
         var fixAllAction = await fixAllProvider.GetFixAsync(fixAllContext);
-        if (fixAllAction == null) return (solution, 0);
+        if (fixAllAction == null)
+        {
+            return (solution, 0);
+        }
 
         var operations = await fixAllAction.GetOperationsAsync(cancellationToken);
         var operation = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
-        if (operation == null) return (solution, 0);
+        if (operation == null)
+        {
+            return (solution, 0);
+        }
 
         var newSolution = operation.ChangedSolution;
 
@@ -527,7 +556,10 @@ public class CodeFixService : ICodeFixService
             cancellationToken.ThrowIfCancellationRequested();
 
             var project = solution.GetProject(projectId);
-            if (project == null) break;
+            if (project == null)
+            {
+                break;
+            }
 
             // Compiler + analyzer diagnostics, recomputed against the latest snapshot.
             var matchingDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken);
@@ -537,7 +569,10 @@ public class CodeFixService : ICodeFixService
                 .ThenBy(d => d.Location.SourceSpan.Start)
                 .FirstOrDefault();
 
-            if (diagnostic == null) break;
+            if (diagnostic == null)
+            {
+                break;
+            }
 
             var locationKey = (diagnostic.Location.SourceTree!.FilePath, diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length);
 

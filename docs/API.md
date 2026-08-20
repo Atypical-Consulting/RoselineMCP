@@ -138,9 +138,18 @@ Applies to the three write-capable tools — [`ApplyFixes`](#applyfixes),
 Behind that opt-in sits a second, **best-effort** guard: when `previewOnly: false` is passed, the
 server sends an MCP `elicitation/create` asking the connected client to confirm before writing.
 
-[Compile Verification](#compile-verification) runs **first**: a change that would introduce compiler
-errors is refused before any prompt is sent, so a human is never asked to approve a write that was
-never going to happen.
+A confirmation is sent only once there is a change that is **valid, non-empty and compiles**. Three
+outcomes short-circuit before the prompt for the same reason: asking a human to approve a write that
+was never going to happen spends the one thing the elicitation costs — their attention.
+
+- **Invalid input** — e.g. `EditMember`'s `newSource` missing on `replace`/`add` — fails with the
+  ordinary validation error before the write path is even entered.
+- [Compile Verification](#compile-verification) **refuses** a change that would introduce compiler
+  errors: the call still succeeds (`ok: true`), but nothing is written.
+- **No changes** — a phase-1 preview that produces no changes at all (a rename to the symbol's own
+  name, or a `replace`/`add` whose `newSource` matches what is already there) returns that preview
+  directly; the tool's own note (`"No changes were produced by the edit."`,
+  `"Rename produced no changes."`) survives unchanged.
 
 The prompt **names the concrete `.sln` or `.csproj` the write resolved to** — an absolute path, never
 a placeholder — whether the caller passed `project`, left it out, or passed an empty string:

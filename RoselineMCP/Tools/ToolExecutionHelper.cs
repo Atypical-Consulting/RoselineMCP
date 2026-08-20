@@ -480,12 +480,15 @@ internal static class ToolExecutionHelper
     /// The order is the whole point. Asking a human to approve a write the compile gate is about to
     /// refuse spends the one thing the elicitation costs — their attention — and trains them to
     /// click through it. A refusal is also strictly more informative than a decline: it carries the
-    /// diff <em>and</em> the errors.
+    /// diff <em>and</em> the errors. The same reasoning applies one step earlier: a phase-1 response
+    /// that carries no changes at all (<see cref="IWriteToolResponse.HasChanges"/> is <see
+    /// langword="false"/>) is returned immediately after the refusal check, for the same reason —
+    /// there is nothing for a human to approve.
     /// </para>
     /// <para>
     /// Phase 1 always runs as a preview, whatever the caller asked for, so nothing can reach disk
-    /// before the verdict is in. Phase 2 runs only on an approved, verified write — and re-verifies,
-    /// because the tree may have moved while the human was deciding.
+    /// before the verdict is in. Phase 2 runs only on an approved, verified write with real changes
+    /// to make — and re-verifies, because the tree may have moved while the human was deciding.
     /// </para>
     /// <para>
     /// Each phase gets its own analysis budget and the confirmation between them is charged to
@@ -538,6 +541,12 @@ internal static class ToolExecutionHelper
         var result = await execute(project, true, true, budget.Start());
 
         if (WasRefused(result, allowIntroducedErrors))
+        {
+            return result;
+        }
+
+        // A human is asked only once there is a valid, non-empty write to approve.
+        if (!result.HasChanges)
         {
             return result;
         }

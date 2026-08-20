@@ -70,7 +70,9 @@ public class ElicitationTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_fixtureRoot, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_fixtureRoot, true); }
+        catch { /* ignored */ }
         GC.SuppressFinalize(this);
     }
 
@@ -141,7 +143,7 @@ public class ElicitationTests : IDisposable
             .Invokes((string _, List<string> _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 capture(previewOnly))
             .ReturnsLazily((string _, List<string> _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly, ChangedFiles = { "Fixture.cs" } }));
         return codeFix;
     }
 
@@ -161,7 +163,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureProject,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // The client was actually asked to confirm, and the declined write was downgraded to a
         // preview: the service was invoked in preview mode and the response says so.
@@ -189,7 +191,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureProject,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // Accepted → the write proceeds; the service was invoked with previewOnly = false.
         captured.ShouldBe(false);
@@ -250,7 +252,7 @@ public class ElicitationTests : IDisposable
             await Task.WhenAny(elicited.Task, Task.Delay(TimeSpan.FromSeconds(15)));
             await Task.Delay(ConfirmTimeoutMs * 8);
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
-        });
+        }, TestContext.Current.CancellationToken);
 
         var finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(15)));
         finished.ShouldBeSameAs(call, "the tool call did not return after the confirmation timed out");
@@ -296,7 +298,7 @@ public class ElicitationTests : IDisposable
                 // failure being guarded against here.
                 ct.ThrowIfCancellationRequested();
                 captured = previewOnly;
-                return Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly });
+                return Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly, ChangedFiles = { "Fixture.cs" } });
             });
 
         var neverAnswers = new TaskCompletionSource<ElicitResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -333,7 +335,7 @@ public class ElicitationTests : IDisposable
             await Task.WhenAny(elicited.Task, Task.Delay(TimeSpan.FromSeconds(15)));
             await Task.Delay(ConfirmTimeoutMs * 3);
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
-        });
+        }, TestContext.Current.CancellationToken);
 
         async Task<CallToolResult> CallApplyFixesAsync() =>
             await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
@@ -378,7 +380,7 @@ public class ElicitationTests : IDisposable
             ["project"] = "TestProject",
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // The gate is off, so the client is never asked — its decline never happens and the write
         // stands. Note the client here DOES advertise elicitation support: this proves the option
@@ -407,7 +409,7 @@ public class ElicitationTests : IDisposable
             .Invokes((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 captured = previewOnly)
             .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -420,7 +422,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         captured.ShouldBe(true);
     }
@@ -439,7 +441,7 @@ public class ElicitationTests : IDisposable
             .Invokes((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 captured = previewOnly)
             .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -453,7 +455,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeFalse();
         captured.ShouldBe(false);
@@ -472,7 +474,7 @@ public class ElicitationTests : IDisposable
             .Invokes((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
                 captured = previewOnly)
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -485,7 +487,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         captured.ShouldBe(true);
 
@@ -540,7 +542,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeFalse("a refused edit must never reach the human confirmation");
         writeAttempted.ShouldBeFalse("a refused edit must never reach the write pass");
@@ -574,6 +576,7 @@ public class ElicitationTests : IDisposable
                 {
                     PreviewOnly = previewOnly,
                     Applied = !previewOnly,
+                    ChangedFiles = { "src/Foo.cs" },
                     Verification = new VerificationVerdict { Compiles = true, ScopeComplete = true }
                 }));
 
@@ -592,7 +595,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeTrue("a clean edit still needs the human confirmation");
         writeAttempted.ShouldBeTrue();
@@ -629,7 +632,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         calls.ShouldBe(1);
 
@@ -646,7 +649,7 @@ public class ElicitationTests : IDisposable
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .Invokes(() => Interlocked.Increment(ref calls))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -658,9 +661,101 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureProject,
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Change_Less_Write_Does_Not_Elicit()
+    {
+        // The root of #162: WasRefused reads the compiler's verdict, not the changed-file list, so
+        // a phase-1 response that produced no changes at all was not a "refusal" and fell straight
+        // through to the confirmation prompt — asking a human to approve a write that was never
+        // going to happen. The gate must return phase 1's response before eliciting whenever it
+        // carries no changes.
+        var elicited = false;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse
+                {
+                    PreviewOnly = previewOnly,
+                    Notes = { "No changes were produced by the edit." }
+                }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
+            editService: edit);
+
+        var result = await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureProject,
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "replace",
+            ["newSource"] = "public int Bar { get; set; }",
+            ["previewOnly"] = false,
+        }, cancellationToken: TestContext.Current.CancellationToken);
+
+        elicited.ShouldBeFalse("a write that changes nothing has nothing for a human to approve");
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("data").GetProperty("previewOnly").GetBoolean().ShouldBeTrue();
+        payload.GetProperty("data").GetProperty("notes").EnumerateArray()
+            .Select(n => n.GetString()).ShouldContain(s => s!.Contains("No changes were produced"));
+    }
+
+    [Fact]
+    public async Task A_Write_With_Changes_Still_Elicits_And_Writes()
+    {
+        // The mirror negative: a response that DOES carry changes must still go through the human
+        // gate exactly as before — HasChanges narrows what gets asked about, it does not remove
+        // the ask.
+        var elicited = false;
+        var writeAttempted = false;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+            {
+                if (!previewOnly)
+                {
+                    writeAttempted = true;
+                }
+            })
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse
+                {
+                    PreviewOnly = previewOnly,
+                    Applied = !previewOnly,
+                    ChangedFiles = { "src/Foo.cs" }
+                }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) =>
+            {
+                elicited = true;
+                return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" });
+            },
+            editService: edit);
+
+        var result = await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureProject,
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "replace",
+            ["newSource"] = "public int Bar { get; set; }",
+            ["previewOnly"] = false,
+        }, cancellationToken: TestContext.Current.CancellationToken);
+
+        elicited.ShouldBeTrue("a write that carries real changes still needs a human's approval");
+        writeAttempted.ShouldBeTrue();
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("data").GetProperty("applied").GetBoolean().ShouldBeTrue();
     }
 
     [Fact]
@@ -697,7 +792,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["newName"] = "Baz",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         progressPhases.ShouldBe(1);
     }
@@ -722,7 +817,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureRoot,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
         message.ShouldContain(_fixtureProject);
@@ -805,7 +900,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -851,7 +946,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -895,7 +990,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.RenameSymbolAsync(
                 A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -937,7 +1032,7 @@ public class ElicitationTests : IDisposable
             .Invokes((string project, List<string> _, bool _, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 projectSeenByService = project)
             .ReturnsLazily((string _, List<string> _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new ApplyFixesResponse { PreviewOnly = previewOnly, ChangedFiles = { "Fixture.cs" } }));
 
         await using var host = await StartHostAsync(
             codeFix,
@@ -950,7 +1045,7 @@ public class ElicitationTests : IDisposable
             ["project"] = _fixtureRoot,
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
         projectSeenByService.ShouldBe(TargetFromPrompt(message));
@@ -995,7 +1090,7 @@ public class ElicitationTests : IDisposable
                 ["project"] = relative,
                 ["ids"] = new[] { "RCS1213" },
                 ["previewOnly"] = false,
-            });
+            }, cancellationToken: TestContext.Current.CancellationToken);
 
             message.ShouldNotBeNull();
             ShouldNameARealProject(message);
@@ -1003,7 +1098,9 @@ public class ElicitationTests : IDisposable
         }
         finally
         {
-            try { Directory.Delete(directory, true); } catch { /* ignored */ }
+            try
+            { Directory.Delete(directory, true); }
+            catch { /* ignored */ }
         }
     }
 
@@ -1028,7 +1125,7 @@ public class ElicitationTests : IDisposable
         {
             ["project"] = "TestProject",
             ["ids"] = new[] { "RCS1213" },
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         // Nobody was asked. On its own that is the weaker half: the factory could still have been
         // invoked and its result thrown away.
@@ -1058,11 +1155,11 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
         A.CallTo(() => edit.RenameSymbolAsync(
                 A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             FakeCodeFixCapturingPreviewOnly(_ => { }),
@@ -1078,19 +1175,19 @@ public class ElicitationTests : IDisposable
         {
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
         {
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
         await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
         {
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         messages.Count.ShouldBe(
             3,
@@ -1123,7 +1220,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -1136,7 +1233,7 @@ public class ElicitationTests : IDisposable
             ["symbol"] = "Foo.Bar",
             ["operation"] = "delete",
             ["previewOnly"] = false,
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
         ShouldNameARealProject(message);
@@ -1171,11 +1268,11 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
         A.CallTo(() => edit.RenameSymbolAsync(
                 A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             FakeCodeFixCapturingPreviewOnly(_ => { }),
@@ -1202,7 +1299,7 @@ public class ElicitationTests : IDisposable
                 break;
         }
 
-        var result = await host.Client.CallToolAsync(tool, arguments);
+        var result = await host.Client.CallToolAsync(tool, arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         elicited.ShouldBeFalse("a target that cannot be resolved must not reach a human as a question");
 
@@ -1275,7 +1372,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -1308,7 +1405,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.RenameSymbolAsync(
                 A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
-                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -1343,7 +1440,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
@@ -1390,7 +1487,7 @@ public class ElicitationTests : IDisposable
         A.CallTo(() => edit.EditMemberAsync(
                 A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
             .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
-                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
 
         await using var host = await StartHostAsync(
             A.Fake<ICodeFixService>(),
