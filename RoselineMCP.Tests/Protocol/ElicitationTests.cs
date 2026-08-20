@@ -589,6 +589,107 @@ public class ElicitationTests : IDisposable
     }
 
     [Fact]
+    public async Task A_Write_Nobody_Can_Be_Asked_About_Runs_The_Operation_Once()
+    {
+        // The verified-write flow runs the operation twice when a human sits between verification
+        // and the write. With the operator switch off there is no human, no prompt to keep a
+        // refusal away from, and the service verifies and refuses on its own — so a second pass
+        // would be pure duplicated work on exactly the unattended hosts (CI, headless agents) that
+        // switch exists for.
+        var calls = 0;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .Invokes(() => Interlocked.Increment(ref calls))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, Applied = !previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
+            options => options.ConfirmDestructiveWrites = false,
+            editService: edit);
+
+        var result = await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureProject,
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "delete",
+            ["previewOnly"] = false,
+        });
+
+        calls.ShouldBe(1);
+
+        var payload = JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+        payload.GetProperty("data").GetProperty("applied").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task A_Preview_Runs_The_Operation_Once()
+    {
+        var calls = 0;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .Invokes(() => Interlocked.Increment(ref calls))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
+            editService: edit);
+
+        await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureProject,
+            ["symbol"] = "Foo.Bar",
+            ["operation"] = "delete",
+        });
+
+        calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Reports_Progress_For_Exactly_One_Phase()
+    {
+        // MCP requires progress values to increase strictly per notification, and the confirmed
+        // write path runs the rename twice. Replaying the sink would emit 1,2,3,1,2,3 — a sequence
+        // a validating client drops or errors on. Exactly one phase may report.
+        var progressPhases = 0;
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._,
+                A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .Invokes((string _, string _, string _, bool _, bool _, int _,
+                      IProgress<ProgressNotificationValue>? progress, CancellationToken _) =>
+            {
+                if (progress is not null)
+                {
+                    Interlocked.Increment(ref progressPhases);
+                }
+            })
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _,
+                            IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, Applied = !previewOnly }));
+
+        await using var host = await StartHostAsync(
+            A.Fake<ICodeFixService>(),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
+            editService: edit);
+
+        await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
+        {
+            ["project"] = _fixtureProject,
+            ["symbol"] = "Foo.Bar",
+            ["newName"] = "Baz",
+            ["previewOnly"] = false,
+        });
+
+        progressPhases.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Write_Confirmation_Names_The_Resolved_Project_Path()
     {
         // The caller passes the DIRECTORY holding the fixture project — one of the aliases

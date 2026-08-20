@@ -74,7 +74,7 @@ public static class EditMemberTool
                 allowIntroducedErrors,
                 project,
                 target => $"Write the '{operation}' of member '{symbol}' in '{target}' to disk?",
-                (target, phasePreviewOnly, token) => editService.EditMemberAsync(
+                (target, phasePreviewOnly, _, token) => editService.EditMemberAsync(
                     target, symbol, operation, newSource, phasePreviewOnly, allowIntroducedErrors, max, token),
                 budget,
                 invocation.Logger,

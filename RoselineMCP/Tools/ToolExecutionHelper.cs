@@ -233,17 +233,12 @@ internal static class ToolExecutionHelper
         // (RoselineMCP:ConfirmDestructiveWrites) — either way the explicit previewOnly: false
         // opt-in stands. Note this suppresses the elicitation entirely rather than auto-accepting
         // one, so a client that would decline is never given the chance to.
-        if (server is null || options?.Value.ConfirmDestructiveWrites == false)
-        {
-            return (WriteConfirmation.Proceed, null);
-        }
-
-        // A client that never negotiated elicitation cannot be asked, so the explicit opt-in stands
-        // — the same answer the catch-all below has always produced when ElicitAsync threw for this
-        // reason. Deciding it from the negotiated capability instead of from an exception is what
-        // keeps the target from being resolved for a prompt that has nowhere to go: this is the
-        // common shape of "no human is reachable", not the rare one.
-        if (server.ClientCapabilities?.Elicitation is null)
+        // A client that never negotiated elicitation cannot be asked either, so the explicit opt-in
+        // stands — the same answer the catch-all below has always produced when ElicitAsync threw
+        // for this reason. Deciding it from the negotiated capability instead of from an exception
+        // is what keeps the target from being resolved for a prompt that has nowhere to go: this is
+        // the common shape of "no human is reachable", not the rare one.
+        if (!CanAskHuman(server, options))
         {
             return (WriteConfirmation.Proceed, null);
         }
@@ -334,6 +329,22 @@ internal static class ToolExecutionHelper
         _ => throw new ArgumentOutOfRangeException(
             nameof(confirmation), confirmation, "No note exists for this write-confirmation outcome."),
     };
+
+    /// <summary>
+    /// Whether a confirmation prompt can reach a human at all — no server, the operator switch off
+    /// (<c>RoselineMCP:ConfirmDestructiveWrites</c>), or a client that never negotiated elicitation.
+    /// </summary>
+    /// <remarks>
+    /// It lives here, beside the gate that acts on it, and both callers share this one expression.
+    /// <see cref="ConfirmDestructiveWriteAsync"/> uses it to decide whether to ask;
+    /// <see cref="RunVerifiedWriteAsync{T}"/> uses it to decide whether the two-phase flow is worth
+    /// running at all. A second, hand-maintained copy of these conditions is precisely how the three
+    /// write tools' prompts drifted apart before the gate was centralized.
+    /// </remarks>
+    private static bool CanAskHuman(McpServer? server, IOptions<RoselineMcpOptions>? options) =>
+        server is not null
+        && options?.Value.ConfirmDestructiveWrites != false
+        && server.ClientCapabilities?.Elicitation is not null;
 
     /// <summary>
     /// The concrete <c>.sln</c>/<c>.csproj</c> path a write will land on — an absolute path, whether
@@ -480,7 +491,11 @@ internal static class ToolExecutionHelper
     /// <param name="allowIntroducedErrors">When true, the compile gate reports but does not refuse.</param>
     /// <param name="project">The caller's project argument, passed through to phase 1.</param>
     /// <param name="describeWrite">Builds the confirmation sentence around the already-resolved target.</param>
-    /// <param name="execute">Runs the underlying service call for one phase: (project, previewOnly, token).</param>
+    /// <param name="execute">
+    /// Runs the underlying service call for one phase: (project, previewOnly, reportProgress, token).
+    /// <c>reportProgress</c> is true for exactly one phase per call, so a tool that emits MCP
+    /// progress notifications never replays the sequence.
+    /// </param>
     /// <param name="budget">The caller's per-phase analysis budget, so its catch block can still tell a timeout from a cancellation.</param>
     /// <param name="logger">Logger for the gate's own diagnostics.</param>
     /// <param name="cancellationToken">The request token — the only clock over the human round-trip.</param>
@@ -491,16 +506,28 @@ internal static class ToolExecutionHelper
         bool allowIntroducedErrors,
         string? project,
         Func<string, string> describeWrite,
-        Func<string?, bool, CancellationToken, Task<T>> execute,
+        Func<string?, bool, bool, CancellationToken, Task<T>> execute,
         AnalysisBudget budget,
         ILogger? logger,
         CancellationToken cancellationToken)
         where T : IWriteToolResponse
     {
-        // PHASE 1 — build the candidate, diff it, and put it to the compiler. Never writes.
-        var result = await execute(project, true, budget.Start());
+        // When nobody can be asked — a preview, the operator switch off, or a client that cannot
+        // elicit — there is no prompt to keep a refusal away from, and the service verifies and
+        // refuses on its own regardless. Running phase 1 anyway would execute the whole operation
+        // twice for no benefit, which on an unattended host (CI, headless agents) is the common
+        // path, not the rare one.
+        if (previewOnly || !CanAskHuman(server, options))
+        {
+            return await execute(project, previewOnly, true, budget.Start());
+        }
 
-        if (previewOnly || WasRefused(result, allowIntroducedErrors))
+        // PHASE 1 — build the candidate, diff it, and put it to the compiler. Never writes.
+        // It carries the progress notifications: it is the long half, and it runs *before* the human
+        // is asked, which is when a caller most wants to see something happening.
+        var result = await execute(project, true, true, budget.Start());
+
+        if (WasRefused(result, allowIntroducedErrors))
         {
             return result;
         }
@@ -527,7 +554,11 @@ internal static class ToolExecutionHelper
 
         // PHASE 2 — the approved write, on a fresh budget, against the path the human was actually
         // shown (or the caller's own argument when nobody was asked, since nothing was resolved).
-        return await execute(writeTarget ?? project, false, budget.Start());
+        //
+        // Progress is deliberately NOT reported again: MCP requires progress values to increase
+        // strictly per notification, and phase 2 repeats the same operation from the same starting
+        // values — a client validating the sequence would drop or error on the replay.
+        return await execute(writeTarget ?? project, false, false, budget.Start());
     }
 
     /// <summary>

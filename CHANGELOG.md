@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this fast enough to run after every edit), and it reports on whatever is on disk regardless of who
   edited it — so it serves agents that never call RoselineMCP's write tools. Parameters:
   `project?`, `max?` (default 20). Measured on a warm workspace right after a real on-disk edit:
-  **428 ms** (1 project) / **623 ms** (4 projects), against a 30–90 s build. See `BENCHMARKS.md`.
+  **413 ms** (1 project) / **625 ms** (4 projects), against a 30–90 s build. See `BENCHMARKS.md`.
   (#133)
 - **`verification`** on every write tool's response — the compiler's verdict: `compiles`,
   `introduced`, `resolved`, `preexisting`, `omitted`, `scope`, `scopeComplete`, `notes`. Every

@@ -591,8 +591,13 @@ static string? RunDotnetBuild(string projectDirectory)
         };
         using var process = Process.Start(psi);
         if (process is null) return null;
+
+        // Both pipes must be drained concurrently. Reading stdout to completion first lets a child
+        // that fills the stderr buffer block on the write, stop producing stdout, and deadlock the
+        // pair — unlikely for `dotnet build`, but the fix costs one line.
+        var stderr = process.StandardError.ReadToEndAsync();
         var stdout = process.StandardOutput.ReadToEnd();
-        process.StandardError.ReadToEnd();
+        stderr.GetAwaiter().GetResult();
         process.WaitForExit();
         return stdout;
     }

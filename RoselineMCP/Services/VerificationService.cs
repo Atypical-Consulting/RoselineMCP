@@ -65,27 +65,47 @@ public class VerificationService : IVerificationService, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         var scope = ComputeScope(baseline, candidate);
+        var notes = new List<string>();
+
+        // A bare .csproj was loaded with no containing solution, so the workspace holds no dependents
+        // to compile — a public-signature change is safe *within* this project and may break every
+        // consumer of it. Saying so is the difference between a partial gate and a false green: the
+        // write still proceeds, but the caller knows what was checked.
         var scopeComplete = candidate.FilePath is not null;
+        if (!scopeComplete)
+        {
+            notes.Add(
+                "Scope is incomplete: no containing solution was loaded, so projects that depend on "
+                + "this one were not compiled. Pass the .sln path as `project` to verify them too.");
+        }
+
+        // A file can back documents in more than one project — a multi-targeted project loads as one
+        // Roslyn project per TFM over the same paths, and a linked <Compile Include="../Shared.cs" />
+        // does the same across projects. The candidate only changes the ONE DocumentId that was
+        // edited, but the write changes the file for every project that includes it. The sibling
+        // legs therefore keep their pre-edit text, never enter the scope, and an edit that breaks
+        // the `#if NET8_0` half would come back `introduced: []` with `compiles: true`.
+        //
+        // That is the exact false green scopeComplete exists to prevent, so it must say so here too.
+        var unseen = ProjectsSharingChangedFiles(baseline, candidate, scope);
+        if (unseen.Count > 0)
+        {
+            scopeComplete = false;
+            notes.Add(
+                "Scope is incomplete: a changed file also belongs to "
+                + string.Join(", ", unseen.OrderBy(n => n, StringComparer.Ordinal))
+                + " (multi-targeting or a linked file), which the write will change but this "
+                + "verification did not compile.");
+        }
+
         var verdict = new VerificationVerdict
         {
             Scope = scope.Select(id => candidate.GetProject(id)?.Name ?? id.ToString())
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList(),
-            ScopeComplete = scopeComplete
+            ScopeComplete = scopeComplete,
+            Notes = notes.Count > 0 ? notes : null
         };
-
-        if (!scopeComplete)
-        {
-            // A bare .csproj was loaded with no containing solution, so the workspace holds no
-            // dependents to compile — a public-signature change is safe *within* this project and
-            // may break every consumer of it. Saying so is the difference between a partial gate
-            // and a false green: the write still proceeds, but the caller knows what was checked.
-            verdict.Notes =
-            [
-                "Scope is incomplete: no containing solution was loaded, so projects that depend on "
-                + "this one were not compiled. Pass the .sln path as `project` to verify them too."
-            ];
-        }
 
         var candidateErrors = await CollectErrorsAsync(candidate, scope, cancellationToken);
         verdict.Compiles = candidateErrors.Count == 0;
@@ -200,6 +220,48 @@ public class VerificationService : IVerificationService, IDisposable
     }
 
     /// <summary>
+    /// Names the projects that hold a document backed by one of the changed <em>files</em> but are
+    /// not in the compiled scope — the multi-targeting / linked-file case. Empty in absolute mode,
+    /// which has no changed set.
+    /// </summary>
+    private static IReadOnlyCollection<string> ProjectsSharingChangedFiles(
+        Solution? baseline,
+        Solution candidate,
+        IReadOnlyList<ProjectId> scope)
+    {
+        if (baseline is null)
+        {
+            return [];
+        }
+
+        var inScope = scope.ToHashSet();
+        var unseen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var projectChange in candidate.GetChanges(baseline).GetProjectChanges())
+        {
+            foreach (var documentId in projectChange.GetChangedDocuments())
+            {
+                var filePath = candidate.GetDocument(documentId)?.FilePath;
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    continue;
+                }
+
+                // Roslyn indexes documents by path, so this is a lookup rather than a scan.
+                foreach (var sharedId in candidate.GetDocumentIdsWithFilePath(filePath))
+                {
+                    if (!inScope.Contains(sharedId.ProjectId))
+                    {
+                        unseen.Add(candidate.GetProject(sharedId.ProjectId)?.Name ?? sharedId.ProjectId.ToString());
+                    }
+                }
+            }
+        }
+
+        return unseen;
+    }
+
+    /// <summary>
     /// Compiles every project in scope and projects its compiler <b>errors</b> (warnings are not a
     /// build gate) into the wire model.
     /// </summary>
@@ -245,8 +307,17 @@ public class VerificationService : IVerificationService, IDisposable
             return await ComputeErrorsAsync(project, baseDirectory, cancellationToken);
         }
 
-        // The path, not the ProjectId: CachingProjectLoader mints fresh ProjectId GUIDs every time it
-        // reloads after a write, so an id-keyed cache would miss on exactly the calls it exists for.
+        // What this cache does and does not buy, measured rather than assumed (2026-08-20, Roslyn
+        // 5.6.0): across a *reload* of the same project, the file path is stable but the ProjectId,
+        // the dependent version AND the dependent semantic version all change. So an entry cached
+        // before a reload can never be hit after one — with either key. Path-keying is therefore not
+        // "the key that survives reloads"; it is simply the stable half of a key whose version half
+        // is what actually decides, and it keeps two different projects from colliding.
+        //
+        // The hit this cache is really for is a *repeat verification against the same warm
+        // workspace* — the default previewOnly flow, where the baseline is re-verified on every edit
+        // while only the candidate changes. Once a write invalidates the workspace the entry misses,
+        // and that is correct: the baseline genuinely changed.
         //
         // Both versions, not just the semantic one: the dependent *semantic* version tracks
         // consumable declarations, so a body-only edit leaves it untouched — and a body-only edit is
@@ -385,7 +456,17 @@ public class VerificationService : IVerificationService, IDisposable
             HashCode.Combine(PathComparer.GetHashCode(obj.FilePath), obj.SemanticVersion, obj.Version);
     }
 
-    /// <summary>Releases the cache gate. The cached values themselves hold no unmanaged resources.</summary>
+    /// <summary>
+    /// Marks the service disposed and drops the cached values. The <see cref="SemaphoreSlim"/> is
+    /// deliberately <b>not</b> disposed.
+    /// </summary>
+    /// <remarks>
+    /// Disposing it would race a tool call already inside <c>WaitAsync</c> at host shutdown, which
+    /// surfaces as an <see cref="ObjectDisposedException"/> thrown from the wait itself — classified
+    /// as an InternalError rather than the clean cancellation it actually is. A
+    /// <see cref="SemaphoreSlim"/> whose <c>AvailableWaitHandle</c> is never touched holds no
+    /// unmanaged resource, so leaving it to the GC costs nothing and removes the race outright.
+    /// </remarks>
     public void Dispose()
     {
         if (_disposed)
@@ -395,7 +476,6 @@ public class VerificationService : IVerificationService, IDisposable
 
         _disposed = true;
         _cache.Clear();
-        _gate.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -443,12 +523,16 @@ public class VerificationService : IVerificationService, IDisposable
             .ThenBy(d => d.Id, StringComparer.Ordinal)
             .ToList();
 
-        if (max <= 0 || ordered.Count <= max)
+        // Clamped, never unbounded: `max: 0` is a natural way to ask for "just the verdict", and
+        // reading it as "every diagnostic" would hand back exactly the thousands-of-binding-errors
+        // blow-up this cap exists to prevent. Matches CodeNavigationService, which clamps the same way.
+        var effectiveMax = Math.Max(1, max);
+        if (ordered.Count <= effectiveMax)
         {
             return ordered;
         }
 
-        omitted = ordered.Count - max;
-        return ordered.GetRange(0, max);
+        omitted = ordered.Count - effectiveMax;
+        return ordered.GetRange(0, effectiveMax);
     }
 }

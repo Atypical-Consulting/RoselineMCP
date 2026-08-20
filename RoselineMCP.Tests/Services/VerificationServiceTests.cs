@@ -1,5 +1,6 @@
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
@@ -329,5 +330,90 @@ public class VerificationServiceTests
         verdict.Compiles.ShouldBe(true);
         verdict.ScopeComplete.ShouldBeFalse();
         verdict.Notes.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task A_File_Shared_By_A_Project_Outside_The_Scope_Reports_An_Incomplete_Scope()
+    {
+        // A multi-targeted project loads as one Roslyn project per TFM over the same file paths, and
+        // a linked <Compile Include="../Shared.cs" /> does the same across projects. The candidate
+        // changes ONE DocumentId; the write changes the file for every project that includes it.
+        // Without this check the sibling keeps its pre-edit text, never enters the scope, and an edit
+        // that breaks it comes back introduced:[] / compiles:true / scopeComplete:true — a false
+        // green presented as full coverage, which is the one thing this field exists to prevent.
+        const string shared = "public class Shared { public int Value() => 1; }";
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
+        var sharedPath = Path.Combine(baseDirectory, "Shared.cs");
+
+        var workspace = new AdhocWorkspace();
+        var solution = workspace.AddSolution(SolutionInfo.Create(
+            SolutionId.CreateNewId(),
+            VersionStamp.Create(),
+            filePath: Path.Combine(baseDirectory, "Multi.sln")));
+
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+            .Split(Path.PathSeparator).Where(path => path.Length > 0)
+            .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path)).ToList();
+
+        var ids = new List<ProjectId>();
+        foreach (var tfm in new[] { "net8.0", "net10.0" })
+        {
+            var projectId = ProjectId.CreateNewId();
+            ids.Add(projectId);
+            solution = solution.AddProject(ProjectInfo.Create(
+                projectId, VersionStamp.Create(), $"Multi({tfm})", "Multi",
+                LanguageNames.CSharp,
+                filePath: Path.Combine(baseDirectory, "Multi.csproj"),
+                metadataReferences: references,
+                compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
+            solution = solution.AddDocument(
+                DocumentId.CreateNewId(projectId), "Shared.cs", SourceText.From(shared), filePath: sharedPath);
+        }
+
+        using var _ = workspace;
+        var baseline = solution;
+
+        // Edit only the first leg's document — exactly what CodeEditService does.
+        var firstLegDocument = baseline.GetProject(ids[0])!.Documents.Single();
+        var candidate = baseline.WithDocumentText(
+            firstLegDocument.Id, SourceText.From("public class Shared { public int Value() => 2; }"));
+
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+
+        verdict.Scope.ShouldBe(["Multi(net8.0)"]);
+        verdict.ScopeComplete.ShouldBeFalse();
+        verdict.Notes.ShouldNotBeNull();
+        verdict.Notes.ShouldContain(n => n.Contains("Multi(net10.0)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_Change_Whose_Files_Are_Not_Shared_Keeps_A_Complete_Scope()
+    {
+        // The guard must not fire on the ordinary case, or scopeComplete becomes noise nobody reads.
+        var (workspace, anchor) = CreateChain();
+        using var _ = workspace;
+        var baseline = anchor.Solution;
+        var candidate = WithChangedDocument(baseline, "Core", "Thing.cs",
+            "public class Thing { public int Value() => 3; }");
+
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+
+        verdict.ScopeComplete.ShouldBeTrue();
+        verdict.Notes.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Max_Of_Zero_Clamps_Instead_Of_Returning_Everything()
+    {
+        // `max: 0` reads as "just the verdict"; treating it as unbounded would hand back exactly the
+        // blow-up the cap exists to prevent.
+        var body = string.Join(" ", Enumerable.Range(0, 6).Select(i => $"public int M{i}() => Missing{i}.Thing();"));
+        var (workspace, project) = AdhocProjectBuilder.Create("Many", [("Many.cs", $"public class Many {{ {body} }}")]);
+        using var _ = workspace;
+
+        var verdict = await CreateService().VerifyAsync(null, project.Solution, max: 0, cancellationToken: TestContext.Current.CancellationToken);
+
+        verdict.Errors!.Count.ShouldBe(1);
+        verdict.Omitted.ShouldBe(5);
     }
 }

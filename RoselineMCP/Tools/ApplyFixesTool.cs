@@ -71,8 +71,9 @@ public static class ApplyFixesTool
                 allowIntroducedErrors,
                 project,
                 target => $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{target}' and write the changes to disk?",
-                (target, phasePreviewOnly, token) => codeFixService.ApplyFixesAsync(
-                    target, ids.ToList(), phasePreviewOnly, allowIntroducedErrors, max, progress, token),
+                (target, phasePreviewOnly, reportProgress, token) => codeFixService.ApplyFixesAsync(
+                    target, ids.ToList(), phasePreviewOnly, allowIntroducedErrors, max,
+                    reportProgress ? progress : null, token),
                 budget,
                 invocation.Logger,
                 cancellationToken);

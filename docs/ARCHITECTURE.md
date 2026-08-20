@@ -394,9 +394,14 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
 5. **Verification baseline (`VerificationService`)**: per-project compiler-error sets, cached under
    a `SemaphoreSlim` with a small LRU bound (16 entries). Three properties of the key matter, each
    for a reason that was measured rather than assumed:
-   - Keyed by the project's **file path**, not its `ProjectId`: `CachingProjectLoader` mints fresh
-     `ProjectId` GUIDs every time it reloads after a write, so an id-keyed cache would miss on
-     exactly the calls it exists for.
+   - Keyed by the project's **file path** rather than its `ProjectId` — but not, as an earlier draft
+     of this section claimed, because that makes entries survive a reload. Measured 2026-08-20
+     against Roslyn 5.6.0: across a reload of the same project the path is stable while the
+     `ProjectId` **and both version stamps** change, so an entry cached before a reload can never be
+     hit after one, with either key. The path is simply the stable half of a key whose version half
+     is what actually decides, and it keeps two projects from colliding. The hit this cache is really
+     for is a repeat verification against the *same warm workspace* — the default `previewOnly` flow,
+     where the baseline is re-verified on every edit while only the candidate changes.
    - Keyed by **both** `GetDependentSemanticVersionAsync()` and `GetDependentVersionAsync()`. The
      *semantic* version tracks consumable declarations and is blind to a method-body edit — and a
      body edit is precisely how a write introduces a compiler error. Keying on it alone would serve

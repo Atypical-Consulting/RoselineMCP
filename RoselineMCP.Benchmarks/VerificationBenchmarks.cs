@@ -196,12 +196,26 @@ public class CheckCompilationAfterEditBenchmarks
         try { Directory.Delete(_tempRoot, recursive: true); } catch { /* best-effort cleanup */ }
     }
 
-    /// <summary>Rewrites one source file so both the workspace and the verification cache miss.</summary>
+    /// <summary>
+    /// Rewrites one source file so both the workspace and the verification cache miss.
+    /// </summary>
+    /// <remarks>
+    /// Rebuilt from a template rather than patched with <c>string.Replace</c>: a replace of the
+    /// original body matches on the first iteration only, after which every later iteration rewrote
+    /// byte-identical content and the benchmark silently stopped measuring "after an edit".
+    /// </remarks>
     private void EditOneFile(BenchmarkSolutionFixture.FixtureSolution fixture)
     {
         var path = Path.Combine(Path.GetDirectoryName(fixture.FirstProjectPath)!, "Class000.cs");
-        var text = File.ReadAllText(path);
-        File.WriteAllText(path, text.Replace("Value * 2;", $"Value * 2 + {_edits++ % 7} - {_edits % 7};"));
+        var n = _edits++;
+        File.WriteAllText(path,
+            "using System;\n"
+            + "\npublic class Class000\n{\n"
+            + $"    public int Value {{ get; set; }} = {n % 5};\n"
+            + "\n    public void Report()\n    {\n"
+            + $"        int unused = {n % 3};\n"
+            + "        Console.WriteLine(Value);\n    }\n"
+            + $"\n    public int DoubleValue() => Value * 2 + {n % 7};\n}}\n");
     }
 
     private async Task<VerificationVerdict> CheckAsync(string solutionPath)

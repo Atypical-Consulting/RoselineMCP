@@ -109,10 +109,10 @@ Measured 2026-08-20 (same machine, .NET SDK 10.0.400, BenchmarkDotNet v0.15.8).
 | State | Small (1 project, 5 files) | Medium (4 projects, 40 files) |
 |---|---:|---:|
 | **Cold** — first call of a session (median; mean/StdDev 833±593 ms and 952±500 ms) | 610 ms | 751 ms |
-| **After an on-disk edit** — the real edit loop | 428 ms | 623 ms |
+| **After an on-disk edit** — the real edit loop | 413 ms | 625 ms |
 | **Repeat call, nothing changed** — pure cache hit | 32 µs | 108 µs |
 
-**Target: warm < 1 s. Met** — 428 ms / 623 ms after a real edit, which is the number that matters.
+**Target: warm < 1 s. Met** — 413 ms / 625 ms after a real edit, which is the number that matters.
 The 32–108 µs row is honest but answers a question nobody asks: an agent calls this tool *because*
 it just edited a file, and that edit invalidates the workspace. Do not quote it as the headline.
 
