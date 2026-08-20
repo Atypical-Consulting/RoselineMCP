@@ -77,11 +77,32 @@ public class ReleaseWorkflowTests
     {
         var workflowDirectory = RepoPath(".github/workflows");
 
-        foreach (var file in Directory.GetFiles(workflowDirectory, "*.yml"))
+        // "*.y*ml", not "*.yml": GitHub Actions treats .yaml identically, so a .yaml workflow would
+        // otherwise slip past the guard entirely — leaving the suite green while a publishing
+        // workflow silently never fires.
+        foreach (var file in Directory.EnumerateFiles(workflowDirectory, "*.y*ml"))
         {
             WithoutComments(TriggerSection(File.ReadAllText(file)))
                 .ShouldNotContain("tags:", Case.Sensitive, $"{Path.GetFileName(file)} triggers from a tag push, which a GITHUB_TOKEN-created tag never fires.");
         }
+    }
+
+    /// <summary>
+    /// A job-level <c>permissions:</c> block <b>replaces</b> the workflow-level one rather than
+    /// adding to it, so the <c>publish</c> job must restate every scope it needs. Dispatching
+    /// <c>deploy-docs.yml</c> needs <c>actions: write</c>; without it the final step 403s — after
+    /// the tag, the Release, the NuGet push and the asset upload have all succeeded — and since
+    /// <c>publish-registry</c> and <c>docker</c> both depend on this job, neither would ever run.
+    /// Every release would reach NuGet and stop there, and a re-run would hit the same 403.
+    /// </summary>
+    [Fact]
+    public void PublishJob_Should_Request_ActionsWrite_To_Dispatch_The_Docs_Rebuild()
+    {
+        var workflow = WithoutComments(ReadRepoFile(ReleaseWorkflowPath));
+
+        // Only meaningful while the job actually dispatches a workflow; assert the pairing.
+        workflow.ShouldContain("gh workflow run deploy-docs.yml");
+        workflow.ShouldContain("actions: write");
     }
 
     /// <summary>

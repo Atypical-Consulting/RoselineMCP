@@ -383,7 +383,12 @@ are derived from the Conventional Commits on `dev`. Full detail in `PUBLISH.md`.
    title *is* the commit release-please parses: the type selects the version bump (`feat:` → minor,
    `fix:` → patch, `!`/`BREAKING CHANGE` → major) and the changelog section. A bare title produces
    no release entry.
-2. **release-please opens or updates a release PR** (`chore(main): release X.Y.Z`) on every push to
+   ⚠️ **On a single-commit PR the commit message wins over the PR title** — the repo's squash title
+   setting is `COMMIT_OR_PR_TITLE`, which only uses the PR title when there is more than one commit.
+   Give the commit a conventional message too. Merge and rebase merging are also still enabled, so
+   the squash premise is a convention, not a mechanism.
+2. **release-please opens or updates a release PR** (`chore(dev): release X.Y.Z` — the scope is the
+   target branch, not `main`) on every push to
    `dev`, carrying the version bump, the regenerated `CHANGELOG.md`, and the three JSON manifest
    version fields (`.mcp/server.json` ×2, `mcpb/manifest.json` — see `release-please-config.json`).
 3. **Review the release PR.** Check the version it chose, and expand any generated changelog entry

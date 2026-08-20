@@ -72,7 +72,7 @@
 ## Conflict hot-spots (merge-with-main resolutions)
 | File | Why it collides | Resolution |
 |------|-----------------|------------|
-| `CHANGELOG.md` | every change appends under `## [Unreleased]` | **union** — keep both bullets |
+| `CHANGELOG.md` | release-please rewrites it in the release PR; feature branches must **not** touch it | take the branch that regenerated it — **never** re-add an `## [Unreleased]` section |
 | `.mcp/server.json` (`version`, `packages[0].version`) | bumped at release prep | take the **higher** |
 | `mcpb/manifest.json` (`version`, `tools[]`) | version bumped at release; `tools[]` grows per tool | version → **higher**; `tools[]` → **union** |
 | `README.md`, `CLAUDE.md`, `docs/`, `SECURITY.md` | the doc-alignment rule makes parallel features touch the same docs | **union** |
@@ -86,7 +86,10 @@
 ## Architecture grain / invariants (shape implementation plans to these)
 - **Doc alignment is a hard gate** (`CLAUDE.md`): a code change is not done until every mirroring
   surface is updated in the *same* change — `docs/API.md`, `CLAUDE.md`, `README.md`,
-  `website/src/data/tools.ts` + `website/src/pages/tools.astro`, `mcpb/manifest.json`, `CHANGELOG.md`.
+  `website/src/data/tools.ts` + `website/src/pages/tools.astro`, `mcpb/manifest.json`.
+  **`CHANGELOG.md` is NOT on that list any more**: release-please generates it from Conventional
+  Commits, so the PR *title* is the changelog entry. Do not hand-edit it, and do not reintroduce an
+  `## [Unreleased]` section — `CLAUDE.md` § Releasing a New Version bans it.
 - **Read-only by default:** the navigation/diagnostics/patch tools never touch disk; the three write
   tools (`ApplyFixes`, `EditMember`, `RenameSymbol`) require an explicit `previewOnly: false`.
 - **Typed envelope:** every tool returns `ToolResult<T>` (`{ ok, data, error }`) with

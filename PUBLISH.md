@@ -43,9 +43,25 @@ where a `release:` trigger would not.
 1. Land your work on `dev` with **Conventional Commit** PR titles (`feat:`, `fix:`, `docs:`, …) —
    the repo squash-merges, so the PR title becomes the commit release-please parses. The type
    selects both the version bump and the changelog section.
-2. release-please opens (or updates) a release PR titled `chore(main): release X.Y.Z`. Review it —
+
+   > ⚠️ **On a single-commit PR the commit message wins, not the PR title.** The repository's squash
+   > title setting is `COMMIT_OR_PR_TITLE`, which uses the PR title only when the PR has more than
+   > one commit. A one-commit PR titled `feat: add X` whose commit says `wip` lands on `dev` as
+   > `wip` — no version bump, no changelog entry, and nothing fails. Give the *commit* a
+   > conventional message too, or add a second commit. Merge and rebase merging are also still
+   > enabled on this repository, so the squash premise is a convention, not a mechanism.
+2. release-please opens (or updates) a release PR titled `chore(dev): release X.Y.Z` — the scope is
+   the target branch, which is `dev` here, not `main`. Review it —
    the version it chose and the generated `CHANGELOG.md` entries. **Generated entries are one-line
-   commit subjects; expand any that lose something that mattered.** It is an ordinary PR.
+   commit subjects; expand any that lose something that mattered.** It is an ordinary PR to edit
+   and merge.
+
+   > It will show **zero checks**, and that is expected: the release PR is opened by
+   > `GITHUB_TOKEN`, so `ci.yml`'s `pull_request` trigger does not fire on it — the same GitHub rule
+   > that moved publishing into this workflow. It touches only `CHANGELOG.md` and the manifest JSON,
+   > and the `publish` job re-runs the full test suite before anything ships. ⚠️ If required status
+   > checks are ever enabled on `dev`, the release PR becomes unmergeable and the release path
+   > deadlocks — grant it an exception before turning them on.
 3. Merge it. That is the release: the same run tags, creates the Release, and publishes to NuGet,
    the MCP Registry, Docker Hub and GHCR.
 4. Watch the **release-please** run in the

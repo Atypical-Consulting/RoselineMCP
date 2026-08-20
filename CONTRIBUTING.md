@@ -103,6 +103,10 @@ dotnet test
    version *and* which changelog section the change appears under. A title without a type produces
    no changelog entry at all.
 
+   ⚠️ **If your PR has exactly one commit, that commit's message is used instead of the PR title**
+   (the repo's squash setting is `COMMIT_OR_PR_TITLE`). So write the *commit* conventionally too —
+   a lone `wip` commit under a `feat: …` PR title lands on `dev` as `wip`, and nothing fails.
+
    | Type | Version bump | Changelog section |
    |------|--------------|-------------------|
    | `feat:` | minor | Added |

@@ -67,9 +67,16 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # A job-level permissions block REPLACES the workflow-level one rather than adding to it, so
+    # every scope this job needs must be restated here — including `actions: write`, without which
+    # the final `gh workflow run` step 403s. That failure would land after the tag, the Release, the
+    # NuGet push and the asset upload had all succeeded, and because publish-registry and docker
+    # both `needs: publish`, neither would ever run: every release would reach NuGet and stop there.
+    # Pinned by ReleaseWorkflowTests.
     permissions:
       contents: write # upload assets to the release release-please created
       id-token: write # request the GitHub OIDC token for NuGet Trusted Publishing
+      actions: write  # dispatch deploy-docs.yml at the end of this job
     # Job-level so the login step's `user:` input can read it. Deliberately NOT used as a skip
     # condition — see the login step.
     env:
@@ -173,7 +180,7 @@ jobs:
         id: nuget-login
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
-          user: ${{ secrets.NUGET_USER }}
+          user: ${{ env.NUGET_USER }}
 
       - name: Push to NuGet.org
         run: |
