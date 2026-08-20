@@ -72,11 +72,64 @@ public class VerificationService : IVerificationService
             return verdict;
         }
 
-        // Delta mode arrives in the next task; until then an absolute verdict over the scope is the
-        // honest answer for a caller that supplied a baseline.
-        verdict.Errors = Truncate(candidateErrors, max, out var absoluteOmitted);
-        verdict.Omitted = absoluteOmitted;
+        var baselineErrors = await CollectErrorsAsync(baseline, scope, cancellationToken);
+        var (introduced, resolved) = Delta(baselineErrors, candidateErrors);
+
+        verdict.Introduced = Truncate(introduced, max, out var introducedOmitted);
+        verdict.Resolved = Truncate(resolved, max, out var resolvedOmitted);
+        verdict.Omitted = introducedOmitted + resolvedOmitted;
+        verdict.Preexisting = candidateErrors.Count - introduced.Count;
         return verdict;
+    }
+
+    /// <summary>
+    /// The position-insensitive matching key: project, file, diagnostic id, message. Line and column
+    /// are deliberately excluded — they are retained in the payload but must never decide identity.
+    /// A pre-existing <c>CS0103</c> at line 80 that a three-line edit above pushes to line 83 is the
+    /// same error; a key that carried its position would call it introduced <em>and</em> the original
+    /// resolved, and refuse a write for a break the edit never made.
+    /// </summary>
+    private static (string Project, string File, string Id, string Message) KeyOf(DiagnosticDetail detail) =>
+        (detail.Project, detail.File, detail.Id, detail.Message);
+
+    /// <summary>
+    /// A <b>multiset</b> difference over <see cref="KeyOf"/>: an edit that genuinely adds a second
+    /// identical error in the same file must report one introduced error, which plain set semantics
+    /// would silently swallow.
+    /// </summary>
+    private static (List<DiagnosticDetail> Introduced, List<DiagnosticDetail> Resolved) Delta(
+        List<DiagnosticDetail> baselineErrors,
+        List<DiagnosticDetail> candidateErrors)
+    {
+        var unmatched = new Dictionary<(string, string, string, string), List<DiagnosticDetail>>();
+        foreach (var error in baselineErrors)
+        {
+            var key = KeyOf(error);
+            if (!unmatched.TryGetValue(key, out var bucket))
+            {
+                bucket = [];
+                unmatched[key] = bucket;
+            }
+
+            bucket.Add(error);
+        }
+
+        var introduced = new List<DiagnosticDetail>();
+        foreach (var error in candidateErrors)
+        {
+            if (unmatched.TryGetValue(KeyOf(error), out var bucket) && bucket.Count > 0)
+            {
+                // Matched against a baseline occurrence: pre-existing, not the caller's doing.
+                bucket.RemoveAt(bucket.Count - 1);
+            }
+            else
+            {
+                introduced.Add(error);
+            }
+        }
+
+        var resolved = unmatched.Values.SelectMany(bucket => bucket).ToList();
+        return (introduced, resolved);
     }
 
     /// <summary>
