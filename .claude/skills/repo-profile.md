@@ -99,8 +99,10 @@
   env prefix `ROSELINE_`; no reload-on-change watchers.
 - **`WorkspaceCache = false` does not save memory** — measured 2026-07-25 (+26% resident, ~45× second-call
   latency). Do not re-propose idle-release without reading `docs/ARCHITECTURE.md` § Memory Management.
-- **Release is tag-driven:** never `dotnet nuget push` or create a GitHub Release by hand — the
-  `publish-nuget.yml` workflow owns both. See `CLAUDE.md` § Releasing a New Version.
+- **Release is release-PR-driven:** never `dotnet nuget push`, push a `vX.Y.Z` tag, or create a
+  GitHub Release by hand — `release-please.yml` owns all three, and a hand-pushed tag now triggers
+  nothing (the publishing jobs gate on `release_created`, not on a tag). See `CLAUDE.md` §
+  Releasing a New Version.
 
 ## Worktree home
 - `.claude/worktrees/` — **verified ignored** once the `.gitignore` rule below is in place.
