@@ -1,0 +1,320 @@
+name: release-please
+
+# Conventional-Commits-driven releases. On every push to `dev`, release-please keeps a release PR
+# up to date (rewriting CHANGELOG.md, .release-please-manifest.json, and the three JSON manifest
+# version fields listed in release-please-config.json). Merging that PR tags vX.Y.Z and creates the
+# GitHub Release; the `release_created` output then gates the publish + docker jobs in THIS same run.
+#
+# Publishing lives here rather than in a tag-triggered workflow, and it has to: release-please
+# creates the tag with GITHUB_TOKEN, and GitHub deliberately does not fire `on: push: tags` (or
+# `on: release`) for events created by that token. The tag-triggered publish-nuget.yml and
+# docker-publish.yml this replaced would therefore never have run again — silently, with no failed
+# run to notice. That is also why the docs rebuild at the end of `publish` uses `gh workflow run`:
+# workflow_dispatch and repository_dispatch are the documented exceptions to that same rule.
+#
+# The package version still comes from MinVer, which reads the tag — see release-please-config.json
+# for why no file records a <Version> element.
+
+on:
+  push:
+    branches: [dev]
+  # Manual re-run, for when the push-triggered run failed or was missed. NOT an unconditional
+  # dry-run: with no merged release PR waiting, release_created stays false and every publishing
+  # job below skips. But if a release PR was already merged and its own run did not complete, a
+  # dispatch will legitimately finish the job — tag, Release and publish. That is the intended
+  # recovery path.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  # Required to create and apply the `autorelease: pending` label. release-please finds a merged
+  # release PR *solely* by that label, and this repo has no `autorelease:*` label yet, so it must
+  # create one (POST /repos/{o}/{r}/labels — an Issues-scoped endpoint). Without this the release
+  # PR is opened and can be merged, but is never recognised afterwards: no tag, no Release,
+  # `release_created` stays false, every job below skips, and nothing publishes — with no failed
+  # step. Pinned by ReleaseWorkflowTests.
+  issues: write
+
+# Serialize release-please runs. The action pushes a release-PR branch and, on merge, creates the
+# tag and the GitHub Release; two overlapping runs could race on the tag/manifest. Never cancel an
+# in-progress run — cancelling mid-tag can leave the tag/manifest half-applied.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    # Backstop so a wedged step can't run to the 6-hour default.
+    timeout-minutes: 15
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        id: release
+        with:
+          target-branch: dev
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Packs and publishes the tool for the release the job above just tagged. Every step is ported
+  # from the deleted publish-nuget.yml; the differences are called out where they occur.
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # upload assets to the release release-please created
+      id-token: write # request the GitHub OIDC token for NuGet Trusted Publishing
+    # Job-level so the login step's `user:` input can read it. Deliberately NOT used as a skip
+    # condition — see the login step.
+    env:
+      NUGET_USER: ${{ secrets.NUGET_USER }}
+    steps:
+      # `ref` and `fetch-depth: 0` are BOTH required. The tree must be the released commit (it
+      # carries release-please's manifest bumps), and MinVer derives the version from the git tag,
+      # so without the tag checked out and the full history fetched it resolves no tag and the tool
+      # would pack as 0.0.0-alpha.0.N — which nuget.org delists but never deletes.
+      # Pinned by ReleaseWorkflowTests.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+
+      # The repo has no packages.lock.json, so setup-dotnet's `cache: true` (which requires
+      # lock files) cannot be used - cache the global NuGet package folder directly instead.
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # release-please already rewrote these three fields in the release PR (see
+      # release-please-config.json's extra-files). Re-stamping them here is belt-and-braces: it
+      # costs nothing, and it is what the packed-manifest assertion below actually gates on.
+      - name: Stamp MCP manifest and MCPB bundle to the release version
+        run: |
+          v="${{ needs.release-please.outputs.version }}"
+          jq --arg v "$v" '.version = $v | .packages[0].version = $v' \
+            .mcp/server.json > .mcp/server.json.tmp
+          mv .mcp/server.json.tmp .mcp/server.json
+          jq --arg v "$v" '.version = $v' mcpb/manifest.json > mcpb/manifest.tmp
+          mv mcpb/manifest.tmp mcpb/manifest.json
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        run: dotnet test --no-build -c Release
+
+      - name: Pack
+        run: |
+          dotnet pack RoselineMCP/RoselineMCP.csproj \
+            -c Release \
+            --no-build \
+            -p:MinVerVersionOverride=${{ needs.release-please.outputs.version }} \
+            -o ./nupkg
+
+      # Assert the artifact is actually correct BEFORE it leaves the building. A green
+      # `dotnet pack` only means the command exited 0 - it does not prove the McpServer package
+      # contains its manifest or that the manifest version matches the release. Shipping a package
+      # with a missing/stale `.mcp/server.json` is exactly what sent `dnx` clients an ancient
+      # 1.0.0. Fail loudly here rather than discover it from a user weeks later.
+      - name: Verify packaged MCP manifest
+        run: |
+          want="${{ needs.release-please.outputs.version }}"
+          pkg="$(ls ./nupkg/*.nupkg | head -1)"
+          echo "Inspecting $pkg (expecting manifest version $want)"
+          manifest="$(unzip -p "$pkg" .mcp/server.json 2>/dev/null || true)"
+          if [ -z "$manifest" ]; then
+            echo "::error::.mcp/server.json is missing from $pkg - the McpServer package would ship without its manifest, so dnx clients cannot resolve it correctly."
+            exit 1
+          fi
+          got_top="$(echo "$manifest" | jq -r '.version')"
+          got_pkg="$(echo "$manifest" | jq -r '.packages[0].version')"
+          echo "manifest .version=$got_top  .packages[0].version=$got_pkg"
+          if [ "$got_top" != "$want" ] || [ "$got_pkg" != "$want" ]; then
+            echo "::error::Packaged manifest version mismatch (expected $want, got .version=$got_top .packages[0].version=$got_pkg). It would tell dnx clients to fetch the wrong version."
+            exit 1
+          fi
+          echo "Manifest OK: version $want is embedded and consistent."
+
+      # Trusted Publishing: exchanges the OIDC token (needs `id-token: write` above) for a NuGet key
+      # valid ~1 hour, so no long-lived secret is stored. Requires a Trusted Publishing policy on
+      # nuget.org naming this repository and THIS workflow file (release-please.yml — it named
+      # publish-nuget.yml until this change), plus the NUGET_USER secret (the nuget.org profile name).
+      #
+      # Deliberately NOT gated on `env.NUGET_USER != ''`, and this is load-bearing: that guard and
+      # `release_created` fail in opposite directions. release_created == false means nothing was
+      # meant to publish, so skipping is correct. A missing NUGET_USER means a release WAS meant to
+      # publish and could not — and skipping there reports this run green on a version whose tag,
+      # changelog and GitHub Release already exist. Silently released-but-unpublished is the worst
+      # outcome for a path exercised a handful of times a year, so a missing secret must fail here.
+      # ⛔ Do not "simplify" a NUGET_USER guard in — pinned by
+      # ReleaseWorkflowTests.NuGetLogin_Should_Not_Be_Gated_On_The_NuGetUser_Secret.
+      - name: NuGet login (OIDC -> short-lived key)
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet.org
+        run: |
+          dotnet nuget push ./nupkg/*.nupkg \
+            --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      # Build the MCPB bundle (one-click install for Claude Desktop and other MCPB-aware clients).
+      # It just wraps the `dnx RoselineMCP` launch, so the bundle is the stamped manifest only.
+      # `mcpb pack` validates the manifest as it builds - a bad manifest fails the release here.
+      - name: Build MCPB bundle
+        run: npx -y @anthropic-ai/mcpb pack mcpb RoselineMCP.mcpb
+
+      # release-please already created the Release (with notes from CHANGELOG.md), so this only
+      # attaches the assets — the old workflow's awk note-extraction and `gh release create` are
+      # gone. --clobber keeps a re-run idempotent.
+      - name: Attach packages to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            ./nupkg/*.nupkg RoselineMCP.mcpb --clobber
+
+      # The /releases page is generated from the GitHub Releases API at build time, so it must be
+      # rebuilt after a release. A `workflow_run` on this workflow would fire on EVERY push to dev
+      # (bypassing deploy-docs.yml's paths filter); workflow_dispatch is a documented exception to
+      # the GITHUB_TOKEN no-trigger rule, so this fires and does so only on a real release.
+      - name: Refresh the docs site (/releases page)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-docs.yml --ref dev
+
+  # Publish the manifest to the official MCP Registry (registry.modelcontextprotocol.io) so the
+  # server is discoverable by any client/aggregator that reads the registry. Kept as its own job,
+  # exactly as in the workflow this replaced: the registry fetches the package from NuGet to verify
+  # ownership (an `mcp-name:` marker in the packed README), so it must poll for indexing — up to 20
+  # minutes — and holding the `docker` job behind that poll would delay the image for no reason.
+  publish-registry:
+    needs: [release-please, publish]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write   # OIDC token for `mcp-publisher login github-oidc` (proves the io.github.atypical-consulting namespace)
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Stamp MCP manifest to the release version
+        run: |
+          jq --arg v "${{ needs.release-please.outputs.version }}" \
+            '.version = $v | .packages[0].version = $v' \
+            .mcp/server.json > .mcp/server.json.tmp
+          mv .mcp/server.json.tmp .mcp/server.json
+
+      # The registry pulls the .nupkg from NuGet to read the README ownership marker. NuGet runs a
+      # validation pass before a new version is downloadable, so poll until it is (or the publish
+      # would fail with "package not found").
+      - name: Wait for NuGet to index the version
+        run: |
+          want="${{ needs.release-please.outputs.version }}"
+          url="https://api.nuget.org/v3-flatcontainer/roselinemcp/${want}/roselinemcp.${want}.nupkg"
+          echo "Waiting for $url to be downloadable…"
+          for i in $(seq 1 40); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
+            if [ "$code" = "200" ]; then echo "Available after ~$((i*30))s."; exit 0; fi
+            echo "attempt $i: HTTP $code — waiting 30s"; sleep 30
+          done
+          echo "::error::NuGet package $want was not downloadable after 20 min; registry ownership validation would fail."
+          exit 1
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to MCP Registry (GitHub OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish .mcp/server.json
+
+  # Multi-arch container image to Docker Hub and GHCR. Ported from the deleted docker-publish.yml,
+  # whose own `test` job is dropped: the `publish` job above already ran `dotnet test -c Release`,
+  # and this job now depends on it. That dependency is a deliberate behavior change — the two used
+  # to publish in parallel, so a failed NuGet push still shipped an image. Gating the image on a
+  # successful package publish is the lockstep PUBLISH.md already asks for.
+  docker:
+    needs: [release-please, publish]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `type=semver` is gone with the tag trigger: it parses the version out of a tag ref, and a
+      # `push: branches` event has none. The release version comes from release-please instead.
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            docker.io/phmatray/roseline-mcp
+            ghcr.io/atypical-consulting/roseline-mcp
+          tags: |
+            type=raw,value=${{ needs.release-please.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
