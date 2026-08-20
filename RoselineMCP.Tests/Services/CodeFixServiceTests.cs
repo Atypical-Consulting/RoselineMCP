@@ -1,7 +1,9 @@
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Services;
+using Microsoft.CodeAnalysis;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 using Shouldly;
 
 namespace RoselineMCP.Tests.Services;
@@ -13,6 +15,7 @@ public class CodeFixServiceTests
     private readonly ICodeFixProviderFactory _codeFixProviderFactory;
     private readonly IDiffService _diffService;
     private readonly IProjectLoader _projectLoader;
+    private readonly IVerificationService _verificationService;
     private readonly CodeFixService _sut;
 
     public CodeFixServiceTests()
@@ -22,7 +25,10 @@ public class CodeFixServiceTests
         _codeFixProviderFactory = A.Fake<ICodeFixProviderFactory>();
         _diffService = A.Fake<IDiffService>();
         _projectLoader = A.Fake<IProjectLoader>();
-        _sut = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _projectLoader);
+        _verificationService = new VerificationService(
+            A.Fake<ILogger<VerificationService>>(), DiagnosticComputationService.CompilerOnly);
+        _sut = new CodeFixService(
+            _logger, _analyzerService, _codeFixProviderFactory, _diffService, _projectLoader, _verificationService);
     }
 
     public class ApplyFixesAsyncTests : CodeFixServiceTests
@@ -88,7 +94,8 @@ public class CodeFixServiceTests
         public void Should_Handle_Missing_Assemblies_Gracefully()
         {
             // The service should not throw even if some assemblies are not found
-            var service = new CodeFixService(_logger, _analyzerService, _codeFixProviderFactory, _diffService, _projectLoader);
+            var service = new CodeFixService(
+                _logger, _analyzerService, _codeFixProviderFactory, _diffService, _projectLoader, _verificationService);
             service.ShouldNotBeNull();
         }
     }

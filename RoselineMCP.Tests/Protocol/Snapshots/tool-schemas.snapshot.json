@@ -50,12 +50,22 @@
   },
   "apply_fixes": {
     "properties": {
+      "allowIntroducedErrors": {
+        "default": false,
+        "description": "If false (the default), fixes whose result introduces compiler errors are refused and nothing is written: the response carries the patch and the introduced errors with applied=false. Set true to write them anyway.",
+        "type": "boolean"
+      },
       "ids": {
         "description": "List of diagnostic IDs to fix (e.g., [\u0027RCS1213\u0027, \u0027SA1101\u0027])",
         "items": {
           "type": "string"
         },
         "type": "array"
+      },
+      "max": {
+        "default": 20,
+        "description": "Maximum diagnostics returned in each verification list (default 20); the remainder are counted in verification.omitted.",
+        "type": "integer"
       },
       "previewOnly": {
         "default": true,

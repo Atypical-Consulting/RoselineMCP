@@ -44,7 +44,7 @@ public class AnalyzerDiagnosticsEndToEndTests : IDisposable
             A.Fake<ILogger<SolutionAnalyzerService>>(), msBuildService, filterService, projectLoader, computation);
         _codeFixService = new CodeFixService(
             A.Fake<ILogger<CodeFixService>>(), _analyzerService, factory,
-            new DiffService(), projectLoader, computation);
+            new DiffService(), projectLoader, TestVerification.New(), computation);
     }
 
     public void Dispose()
@@ -145,7 +145,7 @@ public class AnalyzerDiagnosticsEndToEndTests : IDisposable
         var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
         var codeFixService = new CodeFixService(
             A.Fake<ILogger<CodeFixService>>(), _analyzerService, factory,
-            new DiffService(), projectLoader, compilerOnlyComputation);
+            new DiffService(), projectLoader, TestVerification.New(), compilerOnlyComputation);
 
         var csprojPath = CreateProject("AnalyzersOff.csproj", ("Conditional.cs", SourceWithRcs1104));
         var sourcePath = Path.Combine(Path.GetDirectoryName(csprojPath)!, "Conditional.cs");

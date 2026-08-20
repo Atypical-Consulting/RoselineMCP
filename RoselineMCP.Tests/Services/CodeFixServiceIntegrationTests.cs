@@ -37,7 +37,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         var diffService = new DiffService();
         var projectLoader = new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), msBuildService);
 
-        _sut = new CodeFixService(logger, analyzerService, codeFixProviderFactory, diffService, projectLoader);
+        _sut = new CodeFixService(logger, analyzerService, codeFixProviderFactory, diffService, projectLoader, TestVerification.New());
     }
 
     public void Dispose()

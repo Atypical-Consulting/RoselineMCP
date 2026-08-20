@@ -21,6 +21,7 @@ public class CodeFixService : ICodeFixService
     private readonly IDiffService _diffService;
     private readonly IProjectLoader _projectLoader;
     private readonly IDiagnosticComputationService _diagnosticComputation;
+    private readonly IVerificationService _verificationService;
 
     /// <summary>
     /// Initializes a new instance of the CodeFixService.
@@ -30,6 +31,9 @@ public class CodeFixService : ICodeFixService
     /// <param name="codeFixProviderFactory">Factory for creating code fix providers.</param>
     /// <param name="diffService">Service for generating diffs.</param>
     /// <param name="projectLoader">Loader used to resolve/load the target project.</param>
+    /// <param name="verificationService">Compiles the fixed solution in memory and reports what the
+    /// fixes did to the compiler's verdict, so a fix that breaks the build is refused before any
+    /// file is written.</param>
     /// <param name="diagnosticComputation">Computes compiler + analyzer diagnostics per project,
     /// so analyzer-driven diagnostics (e.g. Roslynator RCS*) are visible to the fixers. When
     /// omitted, falls back to compiler-only diagnostics (production DI always supplies the
@@ -40,6 +44,7 @@ public class CodeFixService : ICodeFixService
         ICodeFixProviderFactory codeFixProviderFactory,
         IDiffService diffService,
         IProjectLoader projectLoader,
+        IVerificationService verificationService,
         IDiagnosticComputationService? diagnosticComputation = null)
     {
         _logger = logger;
@@ -47,6 +52,7 @@ public class CodeFixService : ICodeFixService
         _codeFixProviderFactory = codeFixProviderFactory;
         _diffService = diffService;
         _projectLoader = projectLoader;
+        _verificationService = verificationService;
         _diagnosticComputation = diagnosticComputation ?? DiagnosticComputationService.CompilerOnly;
     }
 
@@ -56,6 +62,8 @@ public class CodeFixService : ICodeFixService
         string? project,
         List<string> ids,
         bool previewOnly = true,
+        bool allowIntroducedErrors = false,
+        int max = 20,
         IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -212,6 +220,29 @@ public class CodeFixService : ICodeFixService
                 response.Patch = patchBuilder.ToString();
             }
 
+            // The compiler's verdict on the fixed solution, before anything reaches disk. A code fix
+            // is generated code the caller never wrote, so this is the one assurance worth checking
+            // rather than trusting — and it runs ahead of the tool's write confirmation, so a human
+            // is never asked to approve a fix that is about to be refused.
+            if (changedDocuments.Any())
+            {
+                var verdict = await _verificationService.VerifyAsync(
+                    originalSolution, currentSolution, max, cancellationToken);
+                response.Verification = verdict;
+
+                if (verdict.Introduced is { Count: > 0 } introduced && !allowIntroducedErrors)
+                {
+                    _logger.LogInformation(
+                        "Refused {Count} fix(es): they introduce {Errors} compiler error(s)",
+                        fixCount, introduced.Count);
+                    var omitted = verdict.Omitted > 0 ? $" (+{verdict.Omitted} more not shown)" : string.Empty;
+                    response.Notes.Add(
+                        $"Refused: these fixes introduce {introduced.Count} compiler error(s){omitted} — nothing was "
+                        + "written. Fix the change, or pass allowIntroducedErrors: true to write it anyway.");
+                    return response;
+                }
+            }
+
             // Apply changes if not preview only
             if (!previewOnly && changedDocuments.Any())
             {
@@ -233,6 +264,7 @@ public class CodeFixService : ICodeFixService
                     }
                 }
 
+                response.Applied = true;
                 response.Notes.Add($"Applied {fixCount} fixes to {changedDocuments.Count} files");
             }
             else if (previewOnly)

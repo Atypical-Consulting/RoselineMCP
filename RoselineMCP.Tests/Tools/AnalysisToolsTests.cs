@@ -271,9 +271,11 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<bool>._,
+                A<int>._,
                 A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
-                .Invokes((string _, List<string> _, bool previewOnly, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                .Invokes((string _, List<string> _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 {
                     capturedPreviewOnly = previewOnly;
                 })
@@ -307,6 +309,8 @@ public class AnalysisToolsTests
                 A<string>._,
                 A<List<string>>._,
                 A<bool>._,
+                A<bool>._,
+                A<int>._,
                 A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
                 .Returns(Task.FromResult(expectedResponse));
@@ -339,9 +343,11 @@ public class AnalysisToolsTests
                 project,
                 A<List<string>>._,
                 previewOnly,
+                A<bool>._,
+                A<int>._,
                 A<IProgress<ProgressNotificationValue>?>._,
                 A<CancellationToken>._))
-                .Invokes((string _, List<string> i, bool _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                .Invokes((string _, List<string> i, bool _, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
                 {
                     capturedIds = i;
                 })

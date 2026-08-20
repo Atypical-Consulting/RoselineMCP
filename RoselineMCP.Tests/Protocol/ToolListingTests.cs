@@ -71,7 +71,8 @@ public class ToolListingTests : McpProtocolTestBase
         // 'project' is now optional (auto-discovered from the working directory, same as the
         // navigation tools); only 'ids' remains required.
         GetRequired(tool).ShouldBe(["ids"]);
-        GetPropertyNames(tool).ShouldBe(["project", "ids", "previewOnly"], ignoreOrder: true);
+        GetPropertyNames(tool).ShouldBe(
+            ["project", "ids", "previewOnly", "allowIntroducedErrors", "max"], ignoreOrder: true);
     }
 
     [Fact]
