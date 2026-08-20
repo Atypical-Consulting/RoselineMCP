@@ -1023,7 +1023,7 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
 |--------|---------|------------------|
 | `ValidationError` | Caller-supplied input was missing, malformed, or otherwise invalid | Unrecognized `severity` string; `ApplyFixes` called with an empty `ids` array |
 | `NotFoundError` | The requested solution, project, or file could not be located | `FileNotFoundException`, `DirectoryNotFoundException` |
-| `AnalysisError` | Failure while analyzing, building, or fetching the target | MSBuild workspace load failure, Git clone failure/timeout |
+| `AnalysisError` | Failure while analyzing, building, or fetching the target | MSBuild workspace load failure, Git clone failure/timeout, permission denied — a read-only source file the write tools cannot open, or a directory the server cannot read |
 | `CancelledError` | The caller's own cancellation token was triggered before completion | Client disconnects/cancels mid-call |
 | `TimeoutError` | The call exceeded the configured wall-clock timeout | `RoselineMCP:DefaultTimeout` elapsed (120,000 ms by default; 0 disables it) |
 | `InternalError` | Unexpected, unclassified failure | Any exception not mapped to the categories above |
