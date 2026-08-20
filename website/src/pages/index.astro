@@ -20,6 +20,18 @@ const dnx = `{
     }
   }
 }`;
+const guardHook = `{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "roseline-mcp guard", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}`;
 const groupBlurb: Record<string, string> = {
   'Code navigation': 'Read-only. Retrieve structure instead of source.',
   'Code editing': 'Write a member-level diff, not a whole-file rewrite. Preview by default.',
@@ -233,6 +245,42 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     </div>
   </section>
 
+  <!-- ─────────────── COMPILE GUARD ─────────────── -->
+  <section id="guard" class="guard">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Compile guard <span class="tab-tag">opt-in</span></span>
+        <h2>The compiler’s opinion, after every write.</h2>
+        <p>RoselineMCP’s write tools already refuse an edit that breaks the build. But an agent that
+          reaches for plain <code>Edit</code> never gets that verdict. The guard runs as a
+          <code>PostToolUse</code> hook, so the compiler judges every write — whichever tool made it.</p>
+      </div>
+
+      <div class="codeblock" id="guard-hook">
+        <div class="cb-head"><span>.claude/settings.json — or run <code>roseline-mcp guard --print-hook</code></span></div>
+        <button class="copy" data-copy-target="#guard-hook pre"><span class="copy-label">Copy</span></button>
+        <pre><code>{guardHook}</code></pre>
+      </div>
+
+      <ul class="glist">
+        <li><strong>Silence is the normal outcome.</strong> Nothing broke, nothing is said — no output,
+          no tokens.</li>
+        <li><strong>It never blames the branch you landed on.</strong> Only errors <em>this</em> edit
+          introduced are reported; pre-existing ones stay the branch’s problem.</li>
+        <li><strong>It reports; it cannot block.</strong> <code>PostToolUse</code> fires after the write
+          and carries no blocking decision — what it changes is that the agent finds out in the same
+          turn instead of three turns later.</li>
+        <li><strong>It fails quiet.</strong> Server off, slow, or the file isn’t C#? Exit 0, silent. A
+          guard that can’t inform must not be able to interrupt.</li>
+      </ul>
+
+      <p class="muted small">Off by default — set <code>ROSELINE_RoselineMCP__Guard=true</code>. It opens
+        a local, per-user socket; read
+        <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/SECURITY.md#known-risk-the-compile-guard-endpoint">SECURITY.md</a>
+        before enabling it on a shared machine.</p>
+    </div>
+  </section>
+
   <!-- ─────────────── TOOLS ─────────────── -->
   <section class="tools">
     <div class="wrap">
@@ -260,6 +308,15 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
   </section>
 
   <style>
+    /* COMPILE GUARD */
+    .guard { background: var(--surface); }
+    .guard .codeblock { max-width: 62ch; }
+    .glist { list-style: none; padding: 0; margin: 1.6rem 0 1rem; display: grid; gap: .75rem;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 26ch), 1fr)); }
+    .glist li { padding: .8rem 1rem; border-radius: 11px; background: var(--bg); border: 1px solid var(--line);
+      font-size: .88rem; color: var(--ink-2); line-height: 1.55; }
+    .glist strong { color: var(--ink); }
+
     /* HERO */
     .hero { padding-top: 3.4rem; padding-bottom: 3.4rem; }
     .hero-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 3rem; align-items: center; }

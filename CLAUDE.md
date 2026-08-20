@@ -87,6 +87,15 @@ The application uses a dependency injection-based service architecture with clea
   write-confirmation elicitation, so a human is never asked to approve a write that is about to be
   refused; the ordering lives once in `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three
   tools call
+- **Compile guard (opt-in, `RoselineMCP:Guard`)**: the same verdict, applied to **every** file
+  write rather than only RoselineMCP's own. `GuardEndpoint` (an `IHostedService`, registered only
+  when the switch is on) serves a local Unix-domain socket; the `roseline-mcp guard` verb
+  (`Guard/GuardClient.cs`) is the `PostToolUse` hook client that queries it and exits `2` with the
+  report on stderr, or `0` and silent. `GuardService` keeps a per-solution Roslyn `Solution`
+  snapshot and edits it **forward** from disk — it never reloads to build a baseline, because two
+  independent loads share no lineage and `GetChanges` then reports every pre-existing error as
+  introduced (measured: `introduced: 1, preexisting: 0` on two loads of identical broken code).
+  It reports; it cannot block — `PostToolUse` has no blocking decision
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
   payload nested under `data` on success, error details under `error` on failure — and sets
@@ -338,9 +347,10 @@ The application supports environment-specific configuration through:
 
 Configuration is read once at startup; no reload-on-change file watchers are registered.
 
-The `RoselineMCP` section carries six operator switches — `DefaultTimeout`,
-`EnableDiagnosticLogging`, `WorkspaceCache`, `RunAnalyzers`, `ConfirmDestructiveWrites` and
-`ConfirmDestructiveWritesTimeout`. The last two govern the write-confirmation elicitation. Leave
+The `RoselineMCP` section carries nine operator switches — `DefaultTimeout`,
+`EnableDiagnosticLogging`, `WorkspaceCache`, `RunAnalyzers`, `ConfirmDestructiveWrites`,
+`ConfirmDestructiveWritesTimeout`, `Guard`, `GuardEndpoint` and `GuardTimeout`. The
+`ConfirmDestructiveWrites*` pair governs the write-confirmation elicitation. Leave
 `ConfirmDestructiveWrites` `true` (the default) for interactive installs; set
 `ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false` on unattended hosts (CI, headless agents)
 whose client can elicit but has no human to answer. `ConfirmDestructiveWritesTimeout` (default
@@ -348,6 +358,13 @@ whose client can elicit but has no human to answer. `ConfirmDestructiveWritesTim
 with a note instead of writing, so an unanswered confirmation can no longer block a tool call
 forever. It is deliberately a separate clock from `DefaultTimeout` — that is an analysis budget,
 and human think-time must not be charged against it. `0` or less restores the unbounded wait.
+
+The `Guard*` trio governs the **compile guard** (see Architecture). `Guard` is `false` by default;
+setting it `true` makes the server open a local, per-user endpoint (`0600`) that the
+`roseline-mcp guard` hook client queries. `GuardEndpoint` overrides the derived socket path.
+`GuardTimeout` (default `10000`) bounds how long the *client* waits before giving up **silently** —
+a third distinct clock, for the same reason as the one above: it bounds a hook the agent harness
+will itself kill, not an analysis.
 
 Logging levels adjust automatically:
 - **Development**: Debug level for RoselineMCP namespace

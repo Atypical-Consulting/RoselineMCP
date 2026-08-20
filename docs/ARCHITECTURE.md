@@ -218,6 +218,24 @@ Location: `Services/` and `Interfaces/`
 - Supports side-by-side and inline diffs
 - Handles large file comparisons
 
+**GuardService / GuardEndpoint / GuardReportFormatter** *(opt-in — `RoselineMCP:Guard`)*
+- `GuardService` answers "did the write that just happened break the build?" — a **delta**, never an
+  absolute verdict, so an already-red branch is never blamed on the agent
+- It keeps a Roslyn `Solution` snapshot per resolved path and advances it from disk with
+  `WithDocumentText`, resynchronising every tracked document whose size or mtime moved. It does
+  **not** reload to build a baseline: two independent loads share no lineage, so
+  `candidate.GetChanges(baseline)` matches nothing and reports every pre-existing error as
+  introduced (measured: `introduced: 1, preexisting: 0` on two loads of identical broken code).
+  Adding or removing a file is structural, cannot be expressed as a text edit, and resets the
+  baseline instead of producing a bogus delta
+- `GuardEndpoint` is an `IHostedService` — registered only when the switch is on — serving one
+  request per connection over a local Unix domain socket (`0600`)
+- `GuardReportFormatter` renders the verdict, or `null` meaning *say nothing*; the flag and the text
+  can never disagree because the flag is derived from the text
+- The client half is the `roseline-mcp guard` verb in `Guard/`, intercepted in `Program.cs` before
+  any host is built — building the MCP host would claim stdio, which for a hook belongs to the
+  harness
+
 ### 4. Model Layer
 
 Location: `Models/`
@@ -437,6 +455,12 @@ increases, as MCP requires (the project named in each message follows completion
   or host shutdown
 - `ApplyFixes` re-fetches the project's compilation after every individual fix is applied, so
   later fixes see up-to-date source text/positions
+- **The compile guard adds no second workspace.** `GuardService` runs inside the server process and
+  reuses the workspace this process already holds. That is a direct consequence of the measurements
+  below: a separate guard daemon would carry its own ~78 MB runtime baseline *plus* its own copy of
+  the solution, and disposing either one returns nothing to the OS. The guard keeps only a Roslyn
+  `Solution` snapshot per resolved path — an immutable value that shares its underlying syntax and
+  metadata with the workspace's own — and advances it with `WithDocumentText` instead of reloading
 
 #### Measured memory profile (2026-07-25)
 

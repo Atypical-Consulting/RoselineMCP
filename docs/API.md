@@ -22,6 +22,7 @@ Complete API reference for RoselineMCP tools and services.
   - [EditMember](#editmember)
   - [RenameSymbol](#renamesymbol)
 - [Tool Annotations](#tool-annotations)
+- [Compile Guard](#compile-guard)
 - [Service Interfaces](#service-interfaces)
 - [Models](#models)
 - [Error Handling](#error-handling)
@@ -926,6 +927,80 @@ express "destructive only for a specific parameter value" — see the doc commen
 These hints are per-tool metadata, not a guarantee about any individual call's outcome. See the
 README's [Tool Compatibility Policy](../README.md#tool-compatibility-policy) for the stability
 guarantees around tool names, parameters, and response shapes that sit underneath them.
+
+## Compile Guard
+
+The compile guard is **not an MCP tool** — it is a second entry point onto the same verification
+engine `check_compilation` uses, reached by the agent harness rather than by the model. Nothing in
+`tools/list` changes when it is enabled.
+
+Enable with `RoselineMCP:Guard=true` (default `false`). See
+[SECURITY.md](../SECURITY.md#known-risk-the-compile-guard-endpoint) first.
+
+### The `guard` verb
+
+```
+roseline-mcp guard                # reads a PostToolUse hook envelope on stdin
+roseline-mcp guard --print-hook   # prints the settings.json block, exit 0
+```
+
+**Input** — the subset of the harness's `PostToolUse` envelope that is read; every other field is
+ignored, and an absent one takes the silent path rather than raising:
+
+```json
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Edit",
+  "cwd": "/the/agent/working/directory",
+  "tool_input": { "file_path": "/abs/path/Widget.cs" }
+}
+```
+
+> `cwd` is read for diagnostics only. Resolution anchors on `tool_input.file_path`, because the
+> agent's working directory is not the server's — the divergence `resolvedPath` exists to expose.
+
+**Exit-code contract.** `stdout` is never written: the harness parses it as the hook's JSON result.
+
+| Exit | Meaning | stderr |
+|---|---|---|
+| `0` | say nothing | empty |
+| `2` | the edit introduced compiler errors | the rendered report |
+
+Every one of these takes exit `0`: a `hook_event_name` other than `PostToolUse`; a missing, relative
+or non-`.cs` `file_path`; malformed input; no server listening; a server that does not answer within
+`GuardTimeout`; a malformed reply; a verdict with nothing introduced — including on an already-red
+branch, whose pre-existing errors are never attributed to the caller.
+
+### The endpoint wire protocol
+
+One newline-delimited JSON request, one newline-delimited JSON response, per connection, over a Unix
+domain socket at `GuardEndpoint` (default `${TMPDIR}/rg-<user>.sock`, mode `0600`).
+
+**Request**
+
+```json
+{ "filePath": "/abs/path/Widget.cs" }
+```
+
+**Response**
+
+```json
+{
+  "silent": false,
+  "report": "RoselineMCP compile guard — this edit introduced 2 compiler errors:\n  …",
+  "resolvedPath": "/abs/path/App.sln"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `silent` | `bool` | `true` means say nothing; `report` is then absent |
+| `report` | `string?` | the rendered introduced-errors text, capped at 8,000 characters |
+| `resolvedPath` | `string?` | the `.sln`/`.csproj` the verdict is about, when one was resolved |
+
+The server answers `{"silent": true}` to anything it cannot confidently act on — malformed JSON, a
+blank or relative `filePath`, a file under no project — rather than returning an error envelope. The
+guard's contract is that anything other than a real verdict means silence.
 
 ## Service Interfaces
 
