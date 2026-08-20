@@ -1,0 +1,111 @@
+# repo-setup.yml — the GitHub configuration the ai-migration-kit lifecycle skills assume.
+#
+# This is RoselineMCP's own copy, which `repo-setup.sh` prefers over the kit's shipped default, so
+# the taxonomy below survives a kit upgrade. Regenerate the drift report with:
+#
+#   bash <kit>/skills/setup-repo/scripts/repo-setup.sh plan     # read-only, exits 1 on drift
+#   bash <kit>/skills/setup-repo/scripts/repo-setup.sh apply    # converges it
+#
+# `apply` is additive: a live label absent from this file is reported and LEFT ALONE. Only
+# `--prune` deletes, and `pruneKeep` below shields the labels our bots own.
+
+labels:
+  # ---------------------------------------------------------------- type: what kind of work it is
+  # GitHub's own defaults. `create-issue` derives the PR title's Conventional-Commits type from
+  # them (bug -> fix, enhancement -> feat).
+  - name: "bug"
+    color: "d73a4a"
+    description: "Something isn't working"
+  - name: "enhancement"
+    color: "a2eeef"
+    description: "New feature or request"
+  - name: "documentation"
+    color: "0075ca"
+    description: "Improvements or additions to documentation"
+
+  # Both issue forms declare `labels: [..., "triage"]`, but the label did not exist — GitHub drops
+  # an unknown label silently when a form is submitted, so every issue filed through a form was
+  # missing it and nothing ever reported the gap. Declared here so the forms work as written.
+  - name: "triage"
+    color: "ededed"
+    description: "Filed through an issue form, not yet triaged — assign priority/effort/area"
+
+  # ------------------------------------------------------- priority: which tier to pull from next
+  - name: "priority: high"
+    color: "b60205"
+    description: "Pull this before the other tiers"
+  - name: "priority: medium"
+    color: "d93f0b"
+    description: "The default tier — worth doing, not urgent"
+  - name: "priority: low"
+    color: "fbca04"
+    description: "Do it when the queue is otherwise empty"
+
+  # ------------------------------------------------------------------- effort: how big the job is
+  # DECLARATION ORDER IS THE TIER ORDER — auto-dev's survey ranks an issue by an effort label's
+  # POSITION in this list, not by parsing its text. Keep them smallest-to-largest.
+  - name: "effort: small"
+    color: "c2e0c6"
+    description: "One task, one test cycle"
+  - name: "effort: medium"
+    color: "bfd4f2"
+    description: "A handful of tasks inside one layer"
+  - name: "effort: large"
+    color: "5319e7"
+    description: "Cross-layer or phased — expect several commits"
+
+  # ------------------------------------------------------------------ area: which part of the code
+  # The axis auto-dev reads to give each parallel worker a NON-overlapping area, so these are drawn
+  # from RoselineMCP's actual layout rather than from generic web-app names. They mirror the layer
+  # split in CLAUDE.md § Architecture and the scopes this repo's Conventional Commits already use
+  # (tools, verify/loader -> services, config, tests, ci, docs).
+  #
+  # NOT the same axis as the `Area` dropdown in .github/ISSUE_TEMPLATE/feature_request.yml, and do
+  # not try to reconcile them. That dropdown is contributor-facing ("New MCP tool", "Existing MCP
+  # tool", "Analyzer / code-fix coverage", …) — it records what a reporter is asking for. These
+  # labels partition the CODE so two auto-dev workers never edit the same files, which the dropdown
+  # cannot do: "New MCP tool" and "Existing MCP tool" both land in Tools/ plus Services/.
+  - name: "area: tools"
+    color: "c5def5"
+    description: "The MCP tool layer — RoselineMCP/Tools/, tool contracts and response envelopes"
+  - name: "area: services"
+    color: "c5def5"
+    description: "Analysis, edit, fix and verification services — RoselineMCP/{Services,Interfaces,Models}/"
+  - name: "area: config"
+    color: "c5def5"
+    description: "Options binding and operator switches — RoselineMCP/Configuration/, appsettings, ROSELINE_ vars"
+  - name: "area: tests"
+    color: "c5def5"
+    description: "RoselineMCP.Tests/ plus the Benchmarks and TokenBenchmark projects"
+  - name: "area: ci"
+    color: "c5def5"
+    description: "Workflows, release-please, packaging — .github/workflows/, .mcp/, mcpb/, Dockerfile"
+  - name: "area: docs"
+    color: "c5def5"
+    description: "README, CLAUDE.md and docs/ — the surfaces the documentation-alignment rule covers"
+  - name: "area: website"
+    color: "c5def5"
+    description: "The Astro documentation site under website/"
+
+# Labels `--prune` must never delete, as shell globs: a TOOL owns these, so they look undeclared
+# because no human declares them, and deleting one breaks the automation that reads it. Both are
+# live in this repo today — release-please's `autorelease: pending` and Renovate's `dependencies`.
+pruneKeep:
+  - "autorelease: *"   # release-please's housekeeping — never applied by hand, never deleted
+  - "dependencies"     # Renovate labels its own PRs with this
+
+# Issue forms copied into .github/ISSUE_TEMPLATE/ when absent. This repo's own forms already exist
+# and are reported !SKIP: a tuned form outranks the kit's default.
+issueTemplates:
+  - feature_request.yml
+  - bug_report.yml
+
+# Repository settings, applied with `gh api -X PATCH repos/{owner}/{repo}`.
+settings:
+  # Without it, every merge run from an implement-issue worktree leaks the remote branch.
+  delete_branch_on_merge: true
+  # Squash-only: a linear dev whose every subject ends in (#N), which is what release-please parses
+  # and what PUBLISH.md's release process assumes.
+  allow_squash_merge: true
+  allow_merge_commit: false
+  allow_rebase_merge: false

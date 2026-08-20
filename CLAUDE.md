@@ -421,8 +421,10 @@ are derived from the Conventional Commits on `dev`. Full detail in `PUBLISH.md`.
    no release entry.
    ⚠️ **On a single-commit PR the commit message wins over the PR title** — the repo's squash title
    setting is `COMMIT_OR_PR_TITLE`, which only uses the PR title when there is more than one commit.
-   Give the commit a conventional message too. Merge and rebase merging are also still enabled, so
-   the squash premise is a convention, not a mechanism.
+   Give the commit a conventional message too. Squash is now the *only* merge method enabled on the
+   repository (`.github/repo-setup.yml`), so the squash premise is a mechanism rather than a
+   convention — but that setting only guarantees the *squash*, never that the resulting subject is
+   conventional, which is what the single-commit caveat above is about.
 2. **release-please opens or updates a release PR** (`chore(dev): release X.Y.Z` — the scope is the
    target branch, not `main`) on every push to
    `dev`, carrying the version bump, the regenerated `CHANGELOG.md`, and the three JSON manifest

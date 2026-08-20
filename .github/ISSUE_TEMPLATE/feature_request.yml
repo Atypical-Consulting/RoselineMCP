@@ -39,7 +39,9 @@ body:
       description: Which part of RoselineMCP does this affect?
       options:
         - New MCP tool
-        - Existing MCP tool (AnalyzeSolution / ListDiagnostics / ApplyFixes / CreatePatch)
+        - Code navigation (search_symbols, get_symbol_info, find_references, find_implementations, get_call_graph, get_type_hierarchy, get_symbol_at_position)
+        - Code editing (edit_member, rename_symbol)
+        - Diagnostics & fixes (analyze_solution, list_diagnostics, apply_fixes, check_compilation, create_patch)
         - Analyzer / code-fix coverage (Roslyn / Roslynator)
         - Packaging / distribution (NuGet tool, Docker)
         - Documentation
