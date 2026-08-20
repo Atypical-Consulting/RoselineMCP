@@ -550,26 +550,47 @@ public class ElicitationTests : IDisposable
         // relative one would reach the prompt exactly as typed. A human cannot evaluate
         // '..\\src\\Acme.csproj' without knowing the server's working directory — which is the one
         // fact the prompt exists to expose, and the reason docs/API.md promises an absolute path.
-        var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), _fixtureProject);
-        relative.ShouldNotBe(_fixtureProject, "the fixture must be reachable by a genuinely relative path");
-
-        string? message = null;
-        var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
-
-        await using var host = await StartHostAsync(
-            codeFix,
-            (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
-
-        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        //
+        // This fixture lives UNDER the working directory rather than in _fixtureRoot, because a
+        // relative path has to be expressible at all: on a Windows CI runner the system temp
+        // directory sits on a different volume from the checkout (C:\ vs D:\), and
+        // Path.GetRelativePath then returns its input unchanged — there is no relative form across
+        // drives, so the case being tested would silently not be exercised.
+        var directory = Path.Combine(Directory.GetCurrentDirectory(), $"RoselineRelative_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
         {
-            ["project"] = relative,
-            ["ids"] = new[] { "RCS1213" },
-            ["previewOnly"] = false,
-        });
+            var csproj = Path.Combine(directory, "Relative.csproj");
+            await File.WriteAllTextAsync(
+                csproj,
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>",
+                TestContext.Current.CancellationToken);
 
-        message.ShouldNotBeNull();
-        ShouldNameARealProject(message);
-        TargetFromPrompt(message).ShouldBe(_fixtureProject);
+            var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), csproj);
+            Path.IsPathRooted(relative).ShouldBeFalse("the argument under test must be a relative path");
+
+            string? message = null;
+            var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+            await using var host = await StartHostAsync(
+                codeFix,
+                (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+            await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+            {
+                ["project"] = relative,
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            });
+
+            message.ShouldNotBeNull();
+            ShouldNameARealProject(message);
+            TargetFromPrompt(message).ShouldBe(csproj);
+        }
+        finally
+        {
+            try { Directory.Delete(directory, true); } catch { /* ignored */ }
+        }
     }
 
     [Fact]
