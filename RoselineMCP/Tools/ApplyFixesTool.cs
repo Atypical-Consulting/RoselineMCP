@@ -80,9 +80,15 @@ public static class ApplyFixesTool
                 options,
                 previewOnly,
                 project,
-                target => target.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
-                    ? $"Apply code fixes for {ids.Length} diagnostic ID(s) to the primary project of '{target}' and write the changes to disk?"
-                    : $"Apply code fixes for {ids.Length} diagnostic ID(s) to '{target}' and write the changes to disk?",
+                target =>
+                {
+                    // Only the qualifier varies. Spelling the sentence out twice is how the three
+                    // tools' prompts diverged before ResolveWriteModeAsync centralized them.
+                    var scope = target.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+                        ? "the primary project of "
+                        : string.Empty;
+                    return $"Apply code fixes for {ids.Length} diagnostic ID(s) to {scope}'{target}' and write the changes to disk?";
+                },
                 invocation.Logger,
                 cancellationToken);
 

@@ -422,6 +422,63 @@ public class CodeFixServiceIntegrationTests : IDisposable
 
             result.ResolvedPath.ShouldBe(slnPath);
         }
+
+        /// <summary>
+        /// The claim the <c>apply_fixes</c> confirmation prompt makes when it names a solution — that
+        /// fixes land on the solution's <em>primary project</em> and not on the solution — asserted
+        /// against a real workspace rather than against the wording. The prompt is built from a path
+        /// alone, before anything is loaded, so nothing in the elicitation tests can reach
+        /// <c>SelectPrimaryProject</c>; without this, widening <c>CodeFixService</c> to fix every
+        /// project would leave the sentence understating the write with every test still green.
+        /// </summary>
+        /// <remarks>
+        /// The solution is named <c>App.sln</c> deliberately: <c>SelectPrimaryProject</c> prefers the
+        /// C# project whose file name matches the solution's, so the anchor is <c>App</c> by rule
+        /// rather than by MSBuildWorkspace's enumeration order — which is exactly the arbitrariness
+        /// (<c>csharpProjects[0]</c>) this test must not depend on to stay deterministic.
+        /// </remarks>
+        [Fact]
+        public async Task ApplyFixes_On_A_Solution_Fixes_Only_Its_Primary_Project()
+        {
+            CreateProject("App.csproj",
+                ("Program.cs", """
+                 class Program
+                 {
+                     static void Main()
+                     {
+                         int unusedInApp = 1;
+                         System.Console.WriteLine("hi");
+                     }
+                 }
+                 """));
+            var libCsproj = CreateProject("Lib.csproj",
+                ("Thing.cs", """
+                 public class Thing
+                 {
+                     public static void Go()
+                     {
+                         int unusedInLib = 2;
+                         System.Console.WriteLine("go");
+                     }
+                 }
+                 """));
+            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
+
+            // The anchor was fixed...
+            result.Project.ShouldBe("App");
+            result.ResolvedPath.ShouldBe(slnPath);
+            result.ChangedFiles.ShouldContain(f => f.EndsWith("Program.cs", StringComparison.Ordinal));
+
+            // ...and the sibling project's identical diagnostic was not, on disk. Asserting the file
+            // rather than ChangedFiles is what makes this about the write and not the report.
+            var libSource = await File.ReadAllTextAsync(
+                Path.Combine(Path.GetDirectoryName(libCsproj)!, "Thing.cs"),
+                TestContext.Current.CancellationToken);
+            libSource.ShouldContain("unusedInLib");
+            result.ChangedFiles.ShouldNotContain(f => f.EndsWith("Thing.cs", StringComparison.Ordinal));
+        }
     }
 
     public class MultiDocumentTests : CodeFixServiceIntegrationTests

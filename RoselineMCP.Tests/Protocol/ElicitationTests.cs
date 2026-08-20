@@ -531,16 +531,24 @@ public class ElicitationTests : IDisposable
             codeFix,
             (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
 
-        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
-        {
-            ["project"] = _fixtureSolution,
-            ["ids"] = new[] { "RCS1213" },
-            ["previewOnly"] = false,
-        });
+        await host.Client.CallToolAsync(
+            "apply_fixes",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureSolution,
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
         message.ShouldContain("primary project of");
         message.ShouldContain(_fixtureSolution);
+
+        // The scope qualifier must not cost the absolute-path guarantee the other prompt shapes
+        // have: ResolveTargetPath returns an existing .sln argument verbatim, so normalization is
+        // the only thing making a relative one readable, and this is the branch that pins it.
+        ShouldNameARealProject(message);
     }
 
     [Fact]
@@ -558,12 +566,15 @@ public class ElicitationTests : IDisposable
             (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
 
         // The directory alias resolves to the fixture .csproj — see ResolveProjectPath.
-        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
-        {
-            ["project"] = _fixtureRoot,
-            ["ids"] = new[] { "RCS1213" },
-            ["previewOnly"] = false,
-        });
+        await host.Client.CallToolAsync(
+            "apply_fixes",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _fixtureRoot,
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldBe($"Apply code fixes for 1 diagnostic ID(s) to '{_fixtureProject}' and write the changes to disk?");
         message.ShouldNotContain("primary project of");

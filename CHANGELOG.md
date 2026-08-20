@@ -31,8 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were left untouched, and nothing in the prompt revealed which one would be picked. A `.csproj`
   target is already exactly the scope that gets written, so its wording is unchanged. Nothing is
   resolved or loaded that was not resolved before: only the sentence changed, so no tool's
-  parameters, response shape or annotations move. `EditMember` and `RenameSymbol` are solution-wide
-  Roslyn operations and keep naming the solution, which for them is accurate. (#149)
+  parameters, response shape or annotations move. `EditMember` and `RenameSymbol` keep naming the
+  resolved target without a qualifier. (#149)
 - **The write-confirmation prompt now names the project it will actually write to.** The gate exists
   to tell a human what is about to be modified so they can refuse, and in the two most common shapes
   it could not. With `project` omitted — the *documented default*, since auto-discovery is the

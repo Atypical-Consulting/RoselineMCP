@@ -123,6 +123,16 @@ returns its error envelope without eliciting, since asking someone to approve a
 write that cannot be targeted spends their attention on a call that was going
 to fail regardless.
 
+**Naming the target is not the same as naming the scope**, and for `ApplyFixes`
+the two differ: it is a project-scoped tool whose resolved target may be a
+solution, so when the prompt names a `.sln` it says *the primary project of* it
+— the single project the fixes actually land in. Approving that prompt does not
+authorise a solution-wide rewrite, and the projects that are skipped are not
+reported anywhere in the response. `RenameSymbol` is solution-wide and
+`EditMember` rewrites the one file declaring the member; both name the resolved
+target with no qualifier, so a prompt from either is not a statement about how
+many files are about to change.
+
 **An unanswered confirmation declines, it does not proceed.** A client that
 accepts the elicitation request and then never answers used to block the tool
 call indefinitely: `RoselineMCP:DefaultTimeout` is an analysis budget and does
