@@ -273,6 +273,42 @@ the navigation tools, `apply_fixes` and `analyze_solution` (see *Analyzer execut
 execution* above). It does **not** run diagnostic analyzers — it is compiler-only — so it is a
 strictly *narrower* surface than `list_diagnostics`, not a new one.
 
+## Known Risk: The Compile Guard Endpoint
+
+The compile guard (`RoselineMCP:Guard`, **off by default**) makes the server listen on a local
+socket so the `roseline-mcp guard` hook client can ask it about a file. That is a new surface, and
+it is the only one in RoselineMCP that accepts input from something other than its MCP client.
+
+**What an attacker gets by reaching it.** One request carries one absolute file path, and the server
+resolves the owning `.csproj`/`.sln` and loads it. Loading a project is a **design-time MSBuild
+evaluation** — the same code-execution risk documented under *MSBuild Design-Time Evaluation* above,
+and source generators referenced by that project run as part of building the compilation. So a local
+process that can write to the socket can make this server evaluate build logic of its choosing,
+anywhere on the filesystem the server user can read. The reply leaks compiler error text for that
+solution.
+
+**What constrains it.**
+
+- **Off unless enabled.** With `Guard=false` nothing binds and no socket file is created. This is
+  not a "refuses connections" state; there is nothing to connect to.
+- **Local only.** A Unix domain socket, never a TCP port. Nothing is reachable off the machine.
+- **Per-user, mode `0600`.** The derived path is `${TMPDIR}/rg-<user>.sock` and the file is chmod'ed
+  owner-only immediately after bind, so another account on the same machine cannot open it. On
+  Windows the socket file inherits the containing directory's ACL instead — the mode bit is a Unix
+  mechanism and there is no equivalent applied there.
+- **One shape of request.** A single JSON object with one string field. Anything else — malformed
+  JSON, a missing field, a relative path — is answered with `{"silent": true}`.
+
+**What does *not* constrain it.** There is no allow-list of roots: the guard will resolve any
+absolute path whose directory tree contains a `.csproj`, exactly like `project` on every other tool
+(*No dedicated path-traversal sanitization*, above). If you set `TMPDIR` to a shared directory, or
+point `GuardEndpoint` at a world-writable path, you have removed the per-user isolation yourself.
+
+**Recommendation.** Enable it on a workstation where you already trust the repositories you open.
+Leave it off on multi-tenant or shared-account machines, and off wherever RoselineMCP analyses
+untrusted code — there, the isolation advice in *MSBuild Design-Time Evaluation* is the mitigation,
+and the guard widens what can trigger that evaluation.
+
 ## Known Risk: Git Clone SSRF Mitigation Is Not TOCTOU-Proof
 
 When `AnalyzeSolution` is given an `http(s)://` `pathOrGit` URL, RoselineMCP

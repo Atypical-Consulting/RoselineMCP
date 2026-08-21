@@ -27,6 +27,31 @@ public interface IProjectLoader
     /// <param name="cancellationToken">Token used to cancel the load.</param>
     /// <returns>A handle exposing the loaded <see cref="Solution"/> and the primary <see cref="Project"/>.</returns>
     Task<LoadedProject> LoadAsync(string? project, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads the solution (or lone project) that <b>owns a given file</b>, anchoring resolution on
+    /// that file's absolute path rather than on the process working directory.
+    /// </summary>
+    /// <param name="absoluteFilePath">
+    /// Absolute path of a file on disk. The nearest <c>.csproj</c> at or above it is located, and
+    /// the containing solution is preferred exactly as in <see cref="LoadAsync"/>.
+    /// </param>
+    /// <param name="cancellationToken">Token used to cancel the load.</param>
+    /// <returns>
+    /// A handle for the owning solution/project, or <see langword="null"/> when the file belongs to
+    /// no project at all. "Nothing to load" is an ordinary answer here, not a failure: the compile
+    /// guard fires after every write, including writes nowhere near a C# solution.
+    /// </returns>
+    /// <remarks>
+    /// This exists because the server's working directory is fixed at spawn and is <em>not</em> the
+    /// agent's — they diverge whenever work happens in a git worktree, and two checkouts of the same
+    /// repository are otherwise reported identically. Anchoring on the edited file is what keeps the
+    /// guard's verdict about the tree the agent actually wrote to.
+    /// </remarks>
+    /// <exception cref="System.ArgumentException">
+    /// <paramref name="absoluteFilePath"/> is blank or not rooted.
+    /// </exception>
+    Task<LoadedProject?> LoadForFileAsync(string absoluteFilePath, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

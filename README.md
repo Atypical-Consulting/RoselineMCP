@@ -47,6 +47,7 @@
 - [Tool Compatibility Policy](#tool-compatibility-policy)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
+- [Compile guard](#compile-guard)
 - [Security](#security)
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
@@ -95,6 +96,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 - [x] **Surgical code edits** -- replace/add/delete a member or rename a symbol solution-wide, emitting a unified diff instead of a whole-file rewrite. Preview by default.
 - [x] **Comprehensive analysis & auto-fix** -- diagnostics across a solution (Roslyn + Roslynator) with automated fixes and reviewable patches.
 - [x] **Read-only by default** -- the seven navigation tools and the diagnostics/patch tools never touch disk; the three write tools require an explicit `previewOnly: false`.
+- [x] **Compile guard (opt-in)** -- a `PostToolUse` hook that puts the compiler's verdict behind **every** file write, not just RoselineMCP's own -- see [Compile guard](#compile-guard) below.
 - [x] **Works with your client** -- Claude Desktop, VS Code (Copilot / MCP), Cursor. Install via `dnx`, NuGet global tool, or Docker.
 - [x] **Honest, reproducible benchmark** -- run it against your own solution: `dotnet run --project RoselineMCP.TokenBenchmark -c Release`.
 
@@ -817,6 +819,45 @@ RoselineMCP/
   concurrently, to keep MSBuild workspace state consistent
 - **Result Capping** -- `maxDiagnostics`/`max` bound how many diagnostics are returned per call,
   independent of how many were found
+
+## Compile guard
+
+The compile gate behind `EditMember`/`RenameSymbol`/`ApplyFixes` only fires on writes made **through
+those tools**. The compile guard puts the same verdict behind every file write in a C# solution —
+`Edit`, `Write`, `MultiEdit`, whatever your agent reached for — by running as a `PostToolUse` hook
+that asks the already-running server for a verdict over a local socket.
+
+**It reports; it cannot block.** `PostToolUse` fires *after* the tool has written, and the hook
+contract carries no blocking decision. What the guard does is surface the introduced compiler errors
+to the agent inside the same turn, so the next thing it does is repair them instead of building on
+top of them. Preventing the write is not on offer — see
+[the issue](https://github.com/Atypical-Consulting/RoselineMCP/issues/168) for why the alternative
+that *can* block was rejected.
+
+Turn it on (it is **off** by default), then install the hook:
+
+```bash
+# 1. the server opens the local guard endpoint
+export ROSELINE_RoselineMCP__Guard=true
+
+# 2. print the settings.json block and paste it into .claude/settings.json
+roseline-mcp guard --print-hook
+```
+
+What it does on each write:
+
+| Situation | Result |
+|---|---|
+| The edit introduced compiler errors | the errors, in the agent's turn (exit `2`, stderr) |
+| The edit introduced nothing | **silence** — exit `0`, no output, no tokens |
+| The branch was already red | **silence** — pre-existing errors are not the agent's doing |
+| Not a `.cs` file, or no owning project | **silence** |
+| Server not running, or slow to answer | **silence** — a guard that cannot inform must not interrupt |
+
+Compiler diagnostics only, and scoped to the changed project plus its dependents, so it is fast
+enough to sit in an inner loop. It adds a local IPC endpoint: read
+[SECURITY.md](SECURITY.md#known-risk-the-compile-guard-endpoint) before enabling it on a shared
+machine.
 
 ## Security
 

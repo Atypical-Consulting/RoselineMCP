@@ -114,6 +114,29 @@ failing. Nothing below is a result.
 > **Status: not yet run.** The protocol is pre-registered here; the results table is deliberately
 > empty. Do not cite anything from this section as a measurement.
 
+> **Update (compile guard, #168) — this changes what the treatment arm *is*, not what counts as
+> success.** As written below, the treatment assumes the agent routes its writes through
+> RoselineMCP's write tools, since that is the only place the gate used to fire. This document's own
+> central finding says that assumption does not hold: *"An MCP that isn't invoked delivers nothing"*
+> — with the server merely available the agent made **0** RoselineMCP calls and used `Read`. Write-tool
+> adoption has never been measured, but it runs on the same mechanism. So the treatment arm risked
+> measuring a gate that mostly never fired.
+>
+> The compile guard (`RoselineMCP:Guard=true`, plus the `PostToolUse` hook) applies the verdict after
+> **every** file write regardless of which tool made it, which is what lets the treatment arm be run
+> in realistic mode rather than a forced one. Two consequences for whoever runs this:
+>
+> - **Enable the guard in the treatment arm and leave it off in the control.** That keeps the single
+>   variable "does the agent get told", which is what the criterion above is about.
+> - **The guard reports, it does not block.** `PostToolUse` carries no blocking decision, so the
+>   mechanism under test is feedback-in-the-same-turn, not prevention. The named risk below — that a
+>   gate can *raise* turns-to-green by interrupting a state the agent would have repaired on its own —
+>   applies unchanged, and arguably more sharply, since the guard fires more often than the write gate
+>   ever did.
+>
+> **The falsification criterion above is untouched, deliberately.** It was written before the data
+> and it stays that way; nothing here relaxes it, and nothing here is a result.
+
 ### Falsification criterion — written first
 
 The bet is that refusing writes which introduce compiler errors makes an agent *finish in a working

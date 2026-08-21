@@ -307,6 +307,14 @@ public class CachingProjectLoaderTests : IDisposable
             return Task.FromResult(new LoadedProject(
                 workspace, solution, solution.GetProject(projectId)!, resolvedPath: _resolvedPathOverride));
         }
+
+        /// <summary>
+        /// Never exercised here: the decorator resolves the owning project itself and then calls its
+        /// own <c>LoadAsync</c>, precisely so a file-anchored load shares the cache. Reaching this
+        /// would mean that routing had been changed to bypass the cache.
+        /// </summary>
+        public Task<LoadedProject?> LoadForFileAsync(string absoluteFilePath, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The caching decorator must not delegate LoadForFileAsync to the inner loader.");
     }
 
     /// <summary>
