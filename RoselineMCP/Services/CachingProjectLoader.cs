@@ -103,7 +103,8 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
                 {
                     entry.LastAccess = ++_accessCounter;
                     _logger.LogDebug("Workspace cache hit for {Target}", key);
-                    return new LoadedProject(entry.Workspace, entry.Solution, entry.Project, ownsWorkspace: false);
+                    return new LoadedProject(
+                        entry.Workspace, entry.Solution, entry.Project, ownsWorkspace: false, resolvedPath: entry.ResolvedPath);
                 }
 
                 _logger.LogInformation("Workspace cache invalidated for {Target} — files changed on disk; reloading", key);
@@ -115,14 +116,19 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution);
 
             EvictLeastRecentlyUsedIfFull();
-            _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, fingerprint)
+            _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, fingerprint)
             {
                 LastAccess = ++_accessCounter,
             };
 
             // The cache now owns the workspace; hand the caller a non-owning handle so its
-            // (existing) `using` disposal doesn't tear down the shared workspace.
-            return new LoadedProject(loaded.Workspace, loaded.Solution, loaded.Project, ownsWorkspace: false);
+            // (existing) `using` disposal doesn't tear down the shared workspace. Pass the
+            // resolved path through explicitly too — `loaded.ResolvedPath` already applied
+            // ProjectLoader's own fallback, and re-wrapping without it would let the generic
+            // Solution.FilePath ?? Project.FilePath fallback silently override a precise value
+            // (e.g. a .csproj not listed in its ancestor .sln, reported as that .sln instead).
+            return new LoadedProject(
+                loaded.Workspace, loaded.Solution, loaded.Project, ownsWorkspace: false, resolvedPath: loaded.ResolvedPath);
         }
         finally
         {
@@ -174,14 +180,16 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
         public Workspace Workspace { get; }
         public Solution Solution { get; }
         public Project Project { get; }
+        public string ResolvedPath { get; }
         public WorkspaceFingerprint Fingerprint { get; }
         public long LastAccess { get; set; }
 
-        public CacheEntry(Workspace workspace, Solution solution, Project project, WorkspaceFingerprint fingerprint)
+        public CacheEntry(Workspace workspace, Solution solution, Project project, string resolvedPath, WorkspaceFingerprint fingerprint)
         {
             Workspace = workspace;
             Solution = solution;
             Project = project;
+            ResolvedPath = resolvedPath;
             Fingerprint = fingerprint;
         }
     }
