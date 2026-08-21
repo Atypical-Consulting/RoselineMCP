@@ -558,4 +558,44 @@ public class ProjectLoaderTests : IDisposable
 
         loaded.ResolvedPath.ShouldBe(csprojPath);
     }
+
+    /// <summary>
+    /// An explicit resolved path — the file the loader actually opened — wins over both
+    /// <c>Solution.FilePath</c> and <c>Project.FilePath</c>, since only the caller that took the
+    /// branch (the loader) knows which one really answered.
+    /// </summary>
+    [Fact]
+    public void LoadedProject_ReportsTheExplicitResolvedPath_WhenSupplied()
+    {
+        var slnPath = Path.Combine(_baseDir, "Repo.sln");
+        var csprojPath = Path.Combine(_baseDir, "Scratch", "Scratch.csproj");
+        using var workspace = new AdhocWorkspace();
+        workspace.AddSolution(SolutionInfo.Create(
+            SolutionId.CreateNewId(), VersionStamp.Create(), filePath: slnPath));
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "Scratch", "Scratch",
+            LanguageNames.CSharp, filePath: csprojPath));
+
+        using var loaded = new LoadedProject(
+            workspace, project.Solution, project, ownsWorkspace: false, resolvedPath: csprojPath);
+
+        loaded.ResolvedPath.ShouldBe(csprojPath);
+    }
+
+    /// <summary>
+    /// With no explicit resolved path and no file path anywhere in the loaded solution/project
+    /// (a fully in-memory handle), <see cref="LoadedProject.ResolvedPath"/> falls back to empty —
+    /// unchanged behavior for tests that construct handles this way.
+    /// </summary>
+    [Fact]
+    public void LoadedProject_ResolvedPath_IsEmpty_ForPathlessInMemorySolution()
+    {
+        using var workspace = new AdhocWorkspace();
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "InMemory", "InMemory", LanguageNames.CSharp));
+
+        using var loaded = new LoadedProject(workspace, project.Solution, project, ownsWorkspace: false);
+
+        loaded.ResolvedPath.ShouldBe(string.Empty);
+    }
 }
