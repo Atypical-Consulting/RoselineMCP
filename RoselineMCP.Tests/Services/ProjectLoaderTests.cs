@@ -320,6 +320,88 @@ public class ProjectLoaderTests : IDisposable
     }
 
     /// <summary>
+    /// Writes two minimal SDK-style projects sharing one hand-written <c>.sln</c>: <c>Main</c> is
+    /// listed in it, <c>Scratch</c> is on disk but NOT listed — the exact layout from the
+    /// <c>resolvedPath</c> bug (issue #151), where <c>FindProjectInSolution</c> misses the anchor
+    /// and <c>LoadAsync</c> falls through to <c>OpenProjectAsync</c> on the already-open workspace.
+    /// </summary>
+    private (string SlnPath, string MainCsprojPath, string ScratchCsprojPath) CreateRealSolutionWithUnlistedProject()
+    {
+        var mainDir = Path.Combine(_baseDir, "Main");
+        Directory.CreateDirectory(mainDir);
+        var mainCsprojPath = Path.Combine(mainDir, "Main.csproj");
+        File.WriteAllText(mainCsprojPath, MinimalCsprojXml);
+        File.WriteAllText(Path.Combine(mainDir, "MainWidget.cs"), "namespace Main { public class MainWidget { } }");
+
+        var scratchDir = Path.Combine(_baseDir, "Scratch");
+        Directory.CreateDirectory(scratchDir);
+        var scratchCsprojPath = Path.Combine(scratchDir, "Scratch.csproj");
+        File.WriteAllText(scratchCsprojPath, MinimalCsprojXml);
+        File.WriteAllText(Path.Combine(scratchDir, "ScratchWidget.cs"), "namespace Scratch { public class ScratchWidget { } }");
+
+        var slnPath = Path.Combine(_baseDir, "Repo.sln");
+        File.WriteAllText(slnPath,
+            """
+            Microsoft Visual Studio Solution File, Format Version 12.00
+            # Visual Studio Version 17
+            VisualStudioVersion = 17.0.31903.59
+            MinimumVisualStudioVersion = 10.0.40219.1
+            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Main", "Main\Main.csproj", "{22222222-2222-2222-2222-222222222222}"
+            EndProject
+            Global
+            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+            		Debug|Any CPU = Debug|Any CPU
+            		Release|Any CPU = Release|Any CPU
+            	EndGlobalSection
+            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.Build.0 = Debug|Any CPU
+            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.ActiveCfg = Release|Any CPU
+            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.Build.0 = Release|Any CPU
+            	EndGlobalSection
+            EndGlobal
+            """);
+
+        return (slnPath, mainCsprojPath, scratchCsprojPath);
+    }
+
+    /// <summary>
+    /// Regression for #151: a <c>.csproj</c> not listed in its nearest ancestor <c>.sln</c> is
+    /// opened standalone, and <c>resolvedPath</c> must report THAT file — not the <c>.sln</c>,
+    /// which never contributed it.
+    /// </summary>
+    [Fact]
+#pragma warning disable xUnit1051 // TestContext.Current not needed here
+    public async Task LoadAsync_ReportsTheCsproj_WhenItIsNotListedInTheAncestorSln()
+    {
+        var (_, _, scratchCsprojPath) = CreateRealSolutionWithUnlistedProject();
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(scratchCsprojPath);
+
+        loaded.Project.Name.ShouldBe("Scratch");
+        loaded.ResolvedPath.ShouldBe(scratchCsprojPath);
+    }
+
+    /// <summary>Companion to the regression above: a project genuinely listed in the <c>.sln</c> still reports it.</summary>
+    [Fact]
+    public async Task LoadAsync_ReportsTheSln_WhenTheProjectIsListedInIt()
+    {
+        var (slnPath, mainCsprojPath, _) = CreateRealSolutionWithUnlistedProject();
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(mainCsprojPath);
+
+        loaded.Project.Name.ShouldBe("Main");
+        loaded.ResolvedPath.ShouldBe(slnPath);
+    }
+#pragma warning restore xUnit1051
+
+    /// <summary>
     /// <see cref="LoadedProject.ResolvedPath"/> reports the <c>.sln</c> when the solution has a file
     /// path — the field that tells two checkouts of the same repository apart.
     /// </summary>

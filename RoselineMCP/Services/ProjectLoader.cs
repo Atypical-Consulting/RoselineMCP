@@ -41,6 +41,7 @@ public class ProjectLoader : IProjectLoader
         try
         {
             Project? primary;
+            string resolvedPath;
 
             if (targetPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
             {
@@ -48,26 +49,37 @@ public class ProjectLoader : IProjectLoader
                 var solution = await workspace.OpenSolutionAsync(targetPath, cancellationToken: cancellationToken);
                 primary = SelectPrimaryProject(solution, targetPath)
                     ?? throw new FileNotFoundException($"No C# project found in solution: {targetPath}");
+                resolvedPath = targetPath;
             }
             else
             {
                 primary = null;
+                resolvedPath = targetPath;
                 var solutionPath = FindSolutionFile(targetPath);
                 if (solutionPath != null)
                 {
                     _logger.LogInformation("Loading solution for navigation: {Path}", solutionPath);
                     var solution = await workspace.OpenSolutionAsync(solutionPath, cancellationToken: cancellationToken);
                     primary = FindProjectInSolution(solution, targetPath, project);
+                    if (primary != null)
+                    {
+                        resolvedPath = solutionPath;
+                    }
                 }
 
                 if (primary == null)
                 {
+                    // Not listed in the ancestor .sln (or none exists): opened standalone, grafted
+                    // onto whatever workspace.CurrentSolution already is. resolvedPath stays
+                    // targetPath — the .csproj that actually answered, not the .sln it was
+                    // grafted onto, which LoadedProject.ResolvedPath's own fallback expression
+                    // cannot tell apart from "the solution answered" (see #151).
                     _logger.LogInformation("Loading project for navigation: {Path}", targetPath);
                     primary = await workspace.OpenProjectAsync(targetPath, cancellationToken: cancellationToken);
                 }
             }
 
-            return new LoadedProject(workspace, primary.Solution, primary);
+            return new LoadedProject(workspace, primary.Solution, primary, resolvedPath: resolvedPath);
         }
         catch
         {
