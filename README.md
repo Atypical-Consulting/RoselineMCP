@@ -406,7 +406,9 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > git worktree (e.g. `.claude/worktrees/<name>`), which sits below the discovery walk's reach, so an
 > omitted `project` resolves the **main checkout** instead. Every tool that takes an optional
 > `project` — the seven navigation tools, both edit tools, `listDiagnostics` and `applyFixes` —
-> reports `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered. Check it, and pass
+> reports `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered — the `.sln` when the
+> solution was loaded and contains the project, otherwise the `.csproj` that was opened directly
+> (e.g. a project not listed in its nearest ancestor `.sln`). Check it, and pass
 > an absolute path as `project` to target a specific checkout. (`analyzeSolution` is the exception:
 > its `pathOrGit` is required, so it auto-discovers nothing.)
 >

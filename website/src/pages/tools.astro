@@ -30,8 +30,10 @@ const groupBlurb: Record<string, string> = {
           an omitted <code>project</code> resolves the <strong>main checkout</strong> instead. Two
           checkouts of one repo are otherwise indistinguishable in a response, so every tool with an
           optional <code>project</code> returns <code>resolvedPath</code> — the absolute
-          <code>.sln</code>/<code>.csproj</code> that actually answered. Pass an absolute path as
-          <code>project</code> to target a specific checkout.
+          <code>.sln</code>/<code>.csproj</code> that actually answered: the <code>.sln</code> when the
+          solution was loaded and contains the project, otherwise the <code>.csproj</code> that was
+          opened directly (e.g. a project not listed in its nearest ancestor <code>.sln</code>). Pass
+          an absolute path as <code>project</code> to target a specific checkout.
           (<code>analyze_solution</code> is the exception — its <code>pathOrGit</code> is required,
           so it auto-discovers nothing.)</p>
       </div>

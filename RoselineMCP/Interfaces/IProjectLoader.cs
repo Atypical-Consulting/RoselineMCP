@@ -40,6 +40,7 @@ public interface IProjectLoader
 public sealed class LoadedProject : IDisposable
 {
     private readonly bool _ownsWorkspace;
+    private readonly string? _resolvedPath;
 
     /// <summary>The workspace the project/solution was loaded into.</summary>
     public Workspace Workspace { get; }
@@ -51,13 +52,15 @@ public sealed class LoadedProject : IDisposable
     public Project Project { get; }
 
     /// <summary>
-    /// The absolute path that was actually resolved and loaded — the <c>.sln</c> when the solution
-    /// has one, otherwise the primary project's <c>.csproj</c>. This is the only thing that
-    /// distinguishes two checkouts of the same repository (a git worktree from its main checkout),
-    /// which are otherwise reported identically: same project name, same solution-root-relative
-    /// file paths. Empty for in-memory solutions that have no path.
+    /// The absolute path that was actually resolved and loaded — the file the loader opened to
+    /// answer the call. This is the only thing that distinguishes two checkouts of the same
+    /// repository (a git worktree from its main checkout), which are otherwise reported
+    /// identically: same project name, same solution-root-relative file paths. Reports the value
+    /// the loader supplied when it knows which file answered; otherwise falls back to
+    /// <c>Solution.FilePath ?? Project.FilePath ?? string.Empty</c> — the only signal available for
+    /// handles built without that knowledge (e.g. in-memory <c>AdhocWorkspace</c> handles in tests).
     /// </summary>
-    public string ResolvedPath => Solution.FilePath ?? Project.FilePath ?? string.Empty;
+    public string ResolvedPath => _resolvedPath ?? Solution.FilePath ?? Project.FilePath ?? string.Empty;
 
     /// <summary>Initializes a new <see cref="LoadedProject"/>.</summary>
     /// <param name="workspace">The workspace the project/solution was loaded into.</param>
@@ -68,12 +71,21 @@ public sealed class LoadedProject : IDisposable
     /// <see langword="true"/> (the pre-caching behavior); the workspace cache passes
     /// <see langword="false"/> so shared workspaces survive handle disposal.
     /// </param>
-    public LoadedProject(Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true)
+    /// <param name="resolvedPath">
+    /// The file the loader actually opened, when the caller knows it precisely — e.g. a
+    /// <c>.csproj</c> that was opened standalone because it isn't listed in its nearest ancestor
+    /// <c>.sln</c>, a case <see cref="ResolvedPath"/>'s fallback expression cannot distinguish from
+    /// "the solution answered" once Roslyn has grafted the project onto it. <see langword="null"/>
+    /// (the default) defers to that fallback.
+    /// </param>
+    public LoadedProject(
+        Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true, string? resolvedPath = null)
     {
         Workspace = workspace;
         Solution = solution;
         Project = project;
         _ownsWorkspace = ownsWorkspace;
+        _resolvedPath = resolvedPath;
     }
 
     /// <summary>Disposes the underlying workspace when this handle owns it; otherwise a no-op.</summary>
