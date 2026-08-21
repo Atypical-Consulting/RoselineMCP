@@ -408,9 +408,16 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > git worktree (e.g. `.claude/worktrees/<name>`), which sits below the discovery walk's reach, so an
 > omitted `project` resolves the **main checkout** instead. Every tool that takes an optional
 > `project` — the seven navigation tools, both edit tools, `listDiagnostics` and `applyFixes` —
-> reports `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered. Check it, and pass
+> reports `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered — the `.sln` when the
+> solution was loaded and contains the project, otherwise the `.csproj` that was opened directly
+> (e.g. a project not listed in its nearest ancestor `.sln`). Check it, and pass
 > an absolute path as `project` to target a specific checkout. (`analyzeSolution` is the exception:
 > its `pathOrGit` is required, so it auto-discovers nothing.)
+>
+> **Failures report it too**, which is where you will usually meet this: the wrong checkout answers
+> `NotFoundError: Symbol not found: 'X'` rather than a plausible-looking success. The failure
+> envelope's `error.resolvedPath` names the checkout that was searched, and is omitted entirely when
+> the call failed before resolving anything. See [docs/API.md](docs/API.md#which-checkout-answered).
 
 > **Tool names on the wire are `snake_case`.** The section headings below use friendly
 > PascalCase/`camelCase` for readability, but the actual MCP tool names returned by `tools/list`

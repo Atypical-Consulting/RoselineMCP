@@ -320,6 +320,122 @@ public class ProjectLoaderTests : IDisposable
     }
 
     /// <summary>
+    /// Writes two minimal SDK-style projects sharing one hand-written <c>.sln</c>: <c>Main</c> is
+    /// listed in it, <c>Scratch</c> is on disk but NOT listed — the exact layout from the
+    /// <c>resolvedPath</c> bug (issue #151), where <c>FindProjectInSolution</c> misses the anchor
+    /// and <c>LoadAsync</c> falls through to <c>OpenProjectAsync</c> on the already-open workspace.
+    /// </summary>
+    private (string SlnPath, string MainCsprojPath, string ScratchCsprojPath) CreateRealSolutionWithUnlistedProject()
+    {
+        var mainDir = Path.Combine(_baseDir, "Main");
+        Directory.CreateDirectory(mainDir);
+        var mainCsprojPath = Path.Combine(mainDir, "Main.csproj");
+        File.WriteAllText(mainCsprojPath, MinimalCsprojXml);
+        File.WriteAllText(Path.Combine(mainDir, "MainWidget.cs"), "namespace Main { public class MainWidget { } }");
+
+        var scratchDir = Path.Combine(_baseDir, "Scratch");
+        Directory.CreateDirectory(scratchDir);
+        var scratchCsprojPath = Path.Combine(scratchDir, "Scratch.csproj");
+        File.WriteAllText(scratchCsprojPath, MinimalCsprojXml);
+        File.WriteAllText(Path.Combine(scratchDir, "ScratchWidget.cs"), "namespace Scratch { public class ScratchWidget { } }");
+
+        var slnPath = Path.Combine(_baseDir, "Repo.sln");
+        File.WriteAllText(slnPath,
+            """
+            Microsoft Visual Studio Solution File, Format Version 12.00
+            # Visual Studio Version 17
+            VisualStudioVersion = 17.0.31903.59
+            MinimumVisualStudioVersion = 10.0.40219.1
+            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Main", "Main\Main.csproj", "{22222222-2222-2222-2222-222222222222}"
+            EndProject
+            Global
+            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+            		Debug|Any CPU = Debug|Any CPU
+            		Release|Any CPU = Release|Any CPU
+            	EndGlobalSection
+            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.Build.0 = Debug|Any CPU
+            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.ActiveCfg = Release|Any CPU
+            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.Build.0 = Release|Any CPU
+            	EndGlobalSection
+            EndGlobal
+            """);
+
+        return (slnPath, mainCsprojPath, scratchCsprojPath);
+    }
+
+    /// <summary>Writes a minimal SDK-style project with no <c>.sln</c> anywhere in its ancestry.</summary>
+    private string CreateStandaloneProject(string name = "Standalone")
+    {
+        var projectDir = Path.Combine(_baseDir, name);
+        Directory.CreateDirectory(projectDir);
+        var csprojPath = Path.Combine(projectDir, $"{name}.csproj");
+        File.WriteAllText(csprojPath, MinimalCsprojXml);
+        File.WriteAllText(Path.Combine(projectDir, "Widget.cs"), $"namespace {name} {{ public class Widget {{ }} }}");
+        return csprojPath;
+    }
+
+    /// <summary>
+    /// Regression for #151: a <c>.csproj</c> not listed in its nearest ancestor <c>.sln</c> is
+    /// opened standalone, and <c>resolvedPath</c> must report THAT file — not the <c>.sln</c>,
+    /// which never contributed it.
+    /// </summary>
+    [Fact]
+#pragma warning disable xUnit1051 // TestContext.Current not needed here
+    public async Task LoadAsync_ReportsTheCsproj_WhenItIsNotListedInTheAncestorSln()
+    {
+        var (_, _, scratchCsprojPath) = CreateRealSolutionWithUnlistedProject();
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(scratchCsprojPath);
+
+        loaded.Project.Name.ShouldBe("Scratch");
+        loaded.ResolvedPath.ShouldBe(scratchCsprojPath);
+    }
+
+    /// <summary>Companion to the regression above: a project genuinely listed in the <c>.sln</c> still reports it.</summary>
+    [Fact]
+    public async Task LoadAsync_ReportsTheSln_WhenTheProjectIsListedInIt()
+    {
+        var (slnPath, mainCsprojPath, _) = CreateRealSolutionWithUnlistedProject();
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(mainCsprojPath);
+
+        loaded.Project.Name.ShouldBe("Main");
+        loaded.ResolvedPath.ShouldBe(slnPath);
+    }
+
+    /// <summary>
+    /// Regression: <c>ResolveProjectPath</c>'s direct-<c>.csproj</c> branch returns the caller's
+    /// argument verbatim (no <c>Path.GetFullPath</c>), so a relative <c>project</c> argument must
+    /// not leak into <c>ResolvedPath</c> — the documented contract is an absolute path, which the
+    /// pre-#151 <c>Solution.FilePath</c>/<c>Project.FilePath</c> fallback always got for free from
+    /// MSBuildWorkspace's internal normalization, regardless of the raw string passed in.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_ResolvedPath_IsAlwaysAbsolute_EvenForARelativeCsprojArgument()
+    {
+        var csprojPath = CreateStandaloneProject();
+        var relativePath = Path.GetRelativePath(Directory.GetCurrentDirectory(), csprojPath);
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(relativePath);
+
+        Path.IsPathRooted(loaded.ResolvedPath).ShouldBeTrue();
+        loaded.ResolvedPath.ShouldBe(Path.GetFullPath(csprojPath));
+    }
+#pragma warning restore xUnit1051
+
+    /// <summary>
     /// <see cref="LoadedProject.ResolvedPath"/> reports the <c>.sln</c> when the solution has a file
     /// path — the field that tells two checkouts of the same repository apart.
     /// </summary>
@@ -557,5 +673,45 @@ public class ProjectLoaderTests : IDisposable
         using var loaded = new LoadedProject(workspace, project.Solution, project, ownsWorkspace: false);
 
         loaded.ResolvedPath.ShouldBe(csprojPath);
+    }
+
+    /// <summary>
+    /// An explicit resolved path — the file the loader actually opened — wins over both
+    /// <c>Solution.FilePath</c> and <c>Project.FilePath</c>, since only the caller that took the
+    /// branch (the loader) knows which one really answered.
+    /// </summary>
+    [Fact]
+    public void LoadedProject_ReportsTheExplicitResolvedPath_WhenSupplied()
+    {
+        var slnPath = Path.Combine(_baseDir, "Repo.sln");
+        var csprojPath = Path.Combine(_baseDir, "Scratch", "Scratch.csproj");
+        using var workspace = new AdhocWorkspace();
+        workspace.AddSolution(SolutionInfo.Create(
+            SolutionId.CreateNewId(), VersionStamp.Create(), filePath: slnPath));
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "Scratch", "Scratch",
+            LanguageNames.CSharp, filePath: csprojPath));
+
+        using var loaded = new LoadedProject(
+            workspace, project.Solution, project, ownsWorkspace: false, resolvedPath: csprojPath);
+
+        loaded.ResolvedPath.ShouldBe(csprojPath);
+    }
+
+    /// <summary>
+    /// With no explicit resolved path and no file path anywhere in the loaded solution/project
+    /// (a fully in-memory handle), <see cref="LoadedProject.ResolvedPath"/> falls back to empty —
+    /// unchanged behavior for tests that construct handles this way.
+    /// </summary>
+    [Fact]
+    public void LoadedProject_ResolvedPath_IsEmpty_ForPathlessInMemorySolution()
+    {
+        using var workspace = new AdhocWorkspace();
+        var project = workspace.AddProject(ProjectInfo.Create(
+            ProjectId.CreateNewId(), VersionStamp.Create(), "InMemory", "InMemory", LanguageNames.CSharp));
+
+        using var loaded = new LoadedProject(workspace, project.Solution, project, ownsWorkspace: false);
+
+        loaded.ResolvedPath.ShouldBe(string.Empty);
     }
 }

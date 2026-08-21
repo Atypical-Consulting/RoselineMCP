@@ -51,10 +51,10 @@ public static class CreatePatchTool
             invocation.MarkSuccess();
             return ToolResult<CreatePatchResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<CreatePatchResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<CreatePatchResponse>(cancellationToken, timeoutSource, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {

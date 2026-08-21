@@ -85,36 +85,46 @@ public class CodeNavigationService : ICodeNavigationService
         }
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var kindFilter = NormalizeKinds(kinds);
-
-        var symbols = file != null
-            ? await OutlineFileAsync(loaded.Solution, loaded.Project, file, query, cancellationToken)
-            : await SearchSolutionAsync(loaded.Solution, loaded.Project, query!, cancellationToken);
-
-        var filtered = symbols.Where(s => MatchesKinds(s, kindFilter)).ToList();
-
-        var ordered = filtered
-            .OrderBy(s => SymbolResolver.LocationOf(s).Line ?? int.MaxValue)
-            .ThenBy(s => s.ToDisplayString(SymbolResolver.FullNameFormat), StringComparer.Ordinal)
-            .ToList();
-
-        // A single-file outline shares one file and puts accessibility inside each signature, so it
-        // returns a lean per-symbol projection; a solution-wide search spans files and needs the
-        // full summary (file + fully-qualified name).
-        Func<ISymbol, SymbolSummary> toSummary = file != null ? LeanOutlineSummary : SymbolResolver.ToSummary;
-        var capped = ordered.Take(Math.Max(1, max)).Select(toSummary).ToList();
-        RelativizePaths(capped, BaseDirOf(loaded));
-
-        return new SymbolSearchResponse
+        try
         {
-            Project = loaded.Project.Name,
-            ResolvedPath = loaded.ResolvedPath,
-            Query = query,
-            File = file,
-            TotalFound = ordered.Count,
-            Truncated = ordered.Count > capped.Count,
-            Symbols = capped
-        };
+            var kindFilter = NormalizeKinds(kinds);
+
+            var symbols = file != null
+                ? await OutlineFileAsync(loaded.Solution, loaded.Project, file, query, cancellationToken)
+                : await SearchSolutionAsync(loaded.Solution, loaded.Project, query!, cancellationToken);
+
+            var filtered = symbols.Where(s => MatchesKinds(s, kindFilter)).ToList();
+
+            var ordered = filtered
+                .OrderBy(s => SymbolResolver.LocationOf(s).Line ?? int.MaxValue)
+                .ThenBy(s => s.ToDisplayString(SymbolResolver.FullNameFormat), StringComparer.Ordinal)
+                .ToList();
+
+            // A single-file outline shares one file and puts accessibility inside each signature, so it
+            // returns a lean per-symbol projection; a solution-wide search spans files and needs the
+            // full summary (file + fully-qualified name).
+            Func<ISymbol, SymbolSummary> toSummary = file != null ? LeanOutlineSummary : SymbolResolver.ToSummary;
+            var capped = ordered.Take(Math.Max(1, max)).Select(toSummary).ToList();
+            RelativizePaths(capped, BaseDirOf(loaded));
+
+            return new SymbolSearchResponse
+            {
+                Project = loaded.Project.Name,
+                ResolvedPath = loaded.ResolvedPath,
+                Query = query,
+                File = file,
+                TotalFound = ordered.Count,
+                Truncated = ordered.Count > capped.Count,
+                Symbols = capped
+            };
+        }
+        catch (Exception ex)
+        {
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
+        }
     }
 
     /// <summary>
@@ -206,53 +216,63 @@ public class CodeNavigationService : ICodeNavigationService
         CancellationToken cancellationToken = default)
     {
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
-
-        var (file, line) = SymbolResolver.LocationOf(resolved);
-
-        // Optional collections are left null when empty so they're omitted from the JSON instead of
-        // costing tokens as "[]" on every member response.
-        var modifiers = SymbolResolver.ModifiersOf(resolved);
-
-        var response = new SymbolInfoResponse
+        try
         {
-            ResolvedPath = loaded.ResolvedPath,
-            Name = resolved.Name,
-            FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
-            Kind = SymbolResolver.KindOf(resolved),
-            Modifiers = modifiers.Count > 0 ? modifiers : null,
-            Signature = resolved.ToDisplayString(SymbolResolver.SignatureFormat),
-            Documentation = ExtractSummary(resolved.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
-            DefinitionFile = SymbolResolver.Relativize(file, BaseDirOf(loaded)),
-            DefinitionLine = line
-        };
+            var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
 
-        if (resolved is INamedTypeSymbol namedType)
-        {
-            var baseTypes = new List<string>();
-            for (var baseType = namedType.BaseType; baseType != null && baseType.SpecialType != SpecialType.System_Object; baseType = baseType.BaseType)
+            var (file, line) = SymbolResolver.LocationOf(resolved);
+
+            // Optional collections are left null when empty so they're omitted from the JSON instead of
+            // costing tokens as "[]" on every member response.
+            var modifiers = SymbolResolver.ModifiersOf(resolved);
+
+            var response = new SymbolInfoResponse
             {
-                baseTypes.Add(baseType.ToDisplayString(SymbolResolver.FullNameFormat));
+                ResolvedPath = loaded.ResolvedPath,
+                Name = resolved.Name,
+                FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
+                Kind = SymbolResolver.KindOf(resolved),
+                Modifiers = modifiers.Count > 0 ? modifiers : null,
+                Signature = resolved.ToDisplayString(SymbolResolver.SignatureFormat),
+                Documentation = ExtractSummary(resolved.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
+                DefinitionFile = SymbolResolver.Relativize(file, BaseDirOf(loaded)),
+                DefinitionLine = line
+            };
+
+            if (resolved is INamedTypeSymbol namedType)
+            {
+                var baseTypes = new List<string>();
+                for (var baseType = namedType.BaseType; baseType != null && baseType.SpecialType != SpecialType.System_Object; baseType = baseType.BaseType)
+                {
+                    baseTypes.Add(baseType.ToDisplayString(SymbolResolver.FullNameFormat));
+                }
+
+                var interfaces = namedType.Interfaces
+                    .Select(i => i.ToDisplayString(SymbolResolver.FullNameFormat))
+                    .ToList();
+
+                response.BaseTypes = baseTypes.Count > 0 ? baseTypes : null;
+                response.Interfaces = interfaces.Count > 0 ? interfaces : null;
             }
 
-            var interfaces = namedType.Interfaces
-                .Select(i => i.ToDisplayString(SymbolResolver.FullNameFormat))
-                .ToList();
-
-            response.BaseTypes = baseTypes.Count > 0 ? baseTypes : null;
-            response.Interfaces = interfaces.Count > 0 ? interfaces : null;
-        }
-
-        if (includeSource)
-        {
-            var syntaxRef = resolved.DeclaringSyntaxReferences.FirstOrDefault();
-            if (syntaxRef != null)
+            if (includeSource)
             {
-                response.Source = (await syntaxRef.GetSyntaxAsync(cancellationToken)).ToString();
+                var syntaxRef = resolved.DeclaringSyntaxReferences.FirstOrDefault();
+                if (syntaxRef != null)
+                {
+                    response.Source = (await syntaxRef.GetSyntaxAsync(cancellationToken)).ToString();
+                }
             }
-        }
 
-        return response;
+            return response;
+        }
+        catch (Exception ex)
+        {
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -279,59 +299,69 @@ public class CodeNavigationService : ICodeNavigationService
         }
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-
-        var document = FindDocument(loaded.Solution, loaded.Project, file)
-            ?? throw new KeyNotFoundException($"File not found in the loaded solution: {file}");
-
-        var text = await document.GetTextAsync(cancellationToken);
-        if (line > text.Lines.Count)
+        try
         {
-            throw new ArgumentException(
-                $"Line {line} is out of range for '{file}' — the file has {text.Lines.Count} lines.");
+
+            var document = FindDocument(loaded.Solution, loaded.Project, file)
+                ?? throw new KeyNotFoundException($"File not found in the loaded solution: {file}");
+
+            var text = await document.GetTextAsync(cancellationToken);
+            if (line > text.Lines.Count)
+            {
+                throw new ArgumentException(
+                    $"Line {line} is out of range for '{file}' — the file has {text.Lines.Count} lines.");
+            }
+
+            var textLine = text.Lines[line - 1];
+            if (column.HasValue && column.Value - 1 > textLine.Span.Length)
+            {
+                throw new ArgumentException(
+                    $"Column {column} is out of range for '{file}:{line}' — the line is {textLine.Span.Length} characters long.");
+            }
+
+            var model = await document.GetSemanticModelAsync(cancellationToken);
+            var root = await document.GetSyntaxRootAsync(cancellationToken);
+
+            ISymbol? symbol = null;
+            if (model != null && root != null)
+            {
+                symbol = column.HasValue
+                    ? await ResolveAtPositionAsync(document, model, root, textLine.Start + column.Value - 1, cancellationToken)
+                    : await ResolveOnLineAsync(document, model, root, textLine, cancellationToken);
+            }
+
+            if (symbol == null)
+            {
+                throw new KeyNotFoundException(
+                    $"No symbol found at {file}:{line}" + (column.HasValue ? $":{column}" : string.Empty) +
+                    ". Use search_symbols with this file to outline its symbols.");
+            }
+
+            var (definitionFile, definitionLine) = SymbolResolver.LocationOf(symbol);
+
+            return new SymbolAtPositionResponse
+            {
+                ResolvedPath = loaded.ResolvedPath,
+                Name = symbol.Name,
+                FullName = symbol.ToDisplayString(SymbolResolver.FullNameFormat),
+                Kind = SymbolResolver.KindOf(symbol),
+                Signature = symbol.ToDisplayString(SymbolResolver.SignatureFormat),
+                // Simple (unqualified) container name, mirroring the file-outline convention — the
+                // fully-qualified container is already the prefix of FullName.
+                ContainingType = symbol.ContainingType?.Name,
+                IsDeclaration = IsDeclaredOnLine(symbol, document, line),
+                Documentation = ExtractSummary(symbol.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
+                DefinitionFile = SymbolResolver.Relativize(definitionFile, BaseDirOf(loaded)),
+                DefinitionLine = definitionLine
+            };
         }
-
-        var textLine = text.Lines[line - 1];
-        if (column.HasValue && column.Value - 1 > textLine.Span.Length)
+        catch (Exception ex)
         {
-            throw new ArgumentException(
-                $"Column {column} is out of range for '{file}:{line}' — the line is {textLine.Span.Length} characters long.");
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
         }
-
-        var model = await document.GetSemanticModelAsync(cancellationToken);
-        var root = await document.GetSyntaxRootAsync(cancellationToken);
-
-        ISymbol? symbol = null;
-        if (model != null && root != null)
-        {
-            symbol = column.HasValue
-                ? await ResolveAtPositionAsync(document, model, root, textLine.Start + column.Value - 1, cancellationToken)
-                : await ResolveOnLineAsync(document, model, root, textLine, cancellationToken);
-        }
-
-        if (symbol == null)
-        {
-            throw new KeyNotFoundException(
-                $"No symbol found at {file}:{line}" + (column.HasValue ? $":{column}" : string.Empty) +
-                ". Use search_symbols with this file to outline its symbols.");
-        }
-
-        var (definitionFile, definitionLine) = SymbolResolver.LocationOf(symbol);
-
-        return new SymbolAtPositionResponse
-        {
-            ResolvedPath = loaded.ResolvedPath,
-            Name = symbol.Name,
-            FullName = symbol.ToDisplayString(SymbolResolver.FullNameFormat),
-            Kind = SymbolResolver.KindOf(symbol),
-            Signature = symbol.ToDisplayString(SymbolResolver.SignatureFormat),
-            // Simple (unqualified) container name, mirroring the file-outline convention — the
-            // fully-qualified container is already the prefix of FullName.
-            ContainingType = symbol.ContainingType?.Name,
-            IsDeclaration = IsDeclaredOnLine(symbol, document, line),
-            Documentation = ExtractSummary(symbol.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
-            DefinitionFile = SymbolResolver.Relativize(definitionFile, BaseDirOf(loaded)),
-            DefinitionLine = definitionLine
-        };
     }
 
     /// <summary>
@@ -446,41 +476,51 @@ public class CodeNavigationService : ICodeNavigationService
         CancellationToken cancellationToken = default)
     {
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
-
-        var referenced = await SymbolFinder.FindReferencesAsync(resolved, loaded.Solution, cancellationToken);
-
-        var locations = new List<Location>();
-        foreach (var reference in referenced)
+        try
         {
-            if (includeDefinition)
+            var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
+
+            var referenced = await SymbolFinder.FindReferencesAsync(resolved, loaded.Solution, cancellationToken);
+
+            var locations = new List<Location>();
+            foreach (var reference in referenced)
             {
-                locations.AddRange(reference.Definition.Locations.Where(l => l.IsInSource));
+                if (includeDefinition)
+                {
+                    locations.AddRange(reference.Definition.Locations.Where(l => l.IsInSource));
+                }
+
+                locations.AddRange(reference.Locations
+                    .Where(l => !l.IsImplicit && l.Location.IsInSource)
+                    .Select(l => l.Location));
             }
 
-            locations.AddRange(reference.Locations
-                .Where(l => !l.IsImplicit && l.Location.IsInSource)
-                .Select(l => l.Location));
+            var ordered = locations
+                .Select(ToReferenceLocation)
+                .OrderBy(r => r.File, StringComparer.Ordinal)
+                .ThenBy(r => r.Line)
+                .ToList();
+
+            var capped = ordered.Take(Math.Max(1, max)).ToList();
+            RelativizePaths(capped, BaseDirOf(loaded));
+
+            return new ReferencesResponse
+            {
+                ResolvedPath = loaded.ResolvedPath,
+                Symbol = resolved.Name,
+                FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
+                TotalReferences = ordered.Count,
+                Truncated = ordered.Count > capped.Count,
+                References = capped
+            };
         }
-
-        var ordered = locations
-            .Select(ToReferenceLocation)
-            .OrderBy(r => r.File, StringComparer.Ordinal)
-            .ThenBy(r => r.Line)
-            .ToList();
-
-        var capped = ordered.Take(Math.Max(1, max)).ToList();
-        RelativizePaths(capped, BaseDirOf(loaded));
-
-        return new ReferencesResponse
+        catch (Exception ex)
         {
-            ResolvedPath = loaded.ResolvedPath,
-            Symbol = resolved.Name,
-            FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
-            TotalReferences = ordered.Count,
-            Truncated = ordered.Count > capped.Count,
-            References = capped
-        };
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
+        }
     }
 
     private static ReferenceLocation ToReferenceLocation(Location location)
@@ -513,53 +553,63 @@ public class CodeNavigationService : ICodeNavigationService
         CancellationToken cancellationToken = default)
     {
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
-        var solution = loaded.Solution;
-
-        var results = new List<ISymbol>();
-
-        if (resolved is INamedTypeSymbol type)
+        try
         {
-            if (type.TypeKind == TypeKind.Interface)
+            var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, symbol, cancellationToken);
+            var solution = loaded.Solution;
+
+            var results = new List<ISymbol>();
+
+            if (resolved is INamedTypeSymbol type)
             {
-                results.AddRange(await SymbolFinder.FindImplementationsAsync(type, solution, transitive: true, projects: null, cancellationToken));
-                results.AddRange(await SymbolFinder.FindDerivedInterfacesAsync(type, solution, transitive: true, projects: null, cancellationToken));
+                if (type.TypeKind == TypeKind.Interface)
+                {
+                    results.AddRange(await SymbolFinder.FindImplementationsAsync(type, solution, transitive: true, projects: null, cancellationToken));
+                    results.AddRange(await SymbolFinder.FindDerivedInterfacesAsync(type, solution, transitive: true, projects: null, cancellationToken));
+                }
+                else
+                {
+                    results.AddRange(await SymbolFinder.FindDerivedClassesAsync(type, solution, transitive: true, projects: null, cancellationToken));
+                }
+            }
+            else if (resolved is IMethodSymbol or IPropertySymbol or IEventSymbol)
+            {
+                results.AddRange(await SymbolFinder.FindImplementationsAsync(resolved, solution, projects: null, cancellationToken));
+                results.AddRange(await SymbolFinder.FindOverridesAsync(resolved, solution, projects: null, cancellationToken));
             }
             else
             {
-                results.AddRange(await SymbolFinder.FindDerivedClassesAsync(type, solution, transitive: true, projects: null, cancellationToken));
+                throw new ArgumentException(
+                    $"find_implementations expects an interface, class, or member symbol, but '{symbol}' is a {SymbolResolver.KindOf(resolved)}.");
             }
-        }
-        else if (resolved is IMethodSymbol or IPropertySymbol or IEventSymbol)
-        {
-            results.AddRange(await SymbolFinder.FindImplementationsAsync(resolved, solution, projects: null, cancellationToken));
-            results.AddRange(await SymbolFinder.FindOverridesAsync(resolved, solution, projects: null, cancellationToken));
-        }
-        else
-        {
-            throw new ArgumentException(
-                $"find_implementations expects an interface, class, or member symbol, but '{symbol}' is a {SymbolResolver.KindOf(resolved)}.");
-        }
 
-        var ordered = results
-            .Distinct(SymbolEqualityComparer.Default)
-            .Cast<ISymbol>()
-            .OrderBy(s => s.ToDisplayString(SymbolResolver.FullNameFormat), StringComparer.Ordinal)
-            .ToList();
+            var ordered = results
+                .Distinct(SymbolEqualityComparer.Default)
+                .Cast<ISymbol>()
+                .OrderBy(s => s.ToDisplayString(SymbolResolver.FullNameFormat), StringComparer.Ordinal)
+                .ToList();
 
-        var capped = ordered.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
-        RelativizePaths(capped, BaseDirOf(loaded));
+            var capped = ordered.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
+            RelativizePaths(capped, BaseDirOf(loaded));
 
-        return new ImplementationsResponse
+            return new ImplementationsResponse
+            {
+                ResolvedPath = loaded.ResolvedPath,
+                Symbol = resolved.Name,
+                FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
+                Kind = SymbolResolver.KindOf(resolved),
+                TotalFound = ordered.Count,
+                Truncated = ordered.Count > capped.Count,
+                Implementations = capped
+            };
+        }
+        catch (Exception ex)
         {
-            ResolvedPath = loaded.ResolvedPath,
-            Symbol = resolved.Name,
-            FullName = resolved.ToDisplayString(SymbolResolver.FullNameFormat),
-            Kind = SymbolResolver.KindOf(resolved),
-            TotalFound = ordered.Count,
-            Truncated = ordered.Count > capped.Count,
-            Implementations = capped
-        };
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -575,45 +625,55 @@ public class CodeNavigationService : ICodeNavigationService
         var boundedDepth = Math.Clamp(depth <= 0 ? 1 : depth, 1, MaxCallGraphDepth);
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, method, cancellationToken);
-
-        if (resolved is not IMethodSymbol methodSymbol)
+        try
         {
-            throw new ArgumentException(
-                $"get_call_graph expects a method, but '{method}' is a {SymbolResolver.KindOf(resolved)}.");
+            var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, method, cancellationToken);
+
+            if (resolved is not IMethodSymbol methodSymbol)
+            {
+                throw new ArgumentException(
+                    $"get_call_graph expects a method, but '{method}' is a {SymbolResolver.KindOf(resolved)}.");
+            }
+
+            var response = new CallGraphResponse
+            {
+                ResolvedPath = loaded.ResolvedPath,
+                Method = methodSymbol.Name,
+                // Parameter-qualified (with simple parameter-type names) to match the node keys used for
+                // cycle detection below.
+                FullName = SymbolResolver.CallNodeName(methodSymbol),
+                Direction = normalizedDirection,
+                Depth = boundedDepth
+            };
+
+            var budget = new Counter { Remaining = Math.Max(1, max) };
+
+            if (normalizedDirection is "callers" or "both")
+            {
+                response.Callers = await BuildCallersAsync(methodSymbol, loaded.Solution, boundedDepth,
+                    new HashSet<string> { response.FullName }, budget, cancellationToken);
+            }
+
+            if (normalizedDirection is "callees" or "both")
+            {
+                budget.Remaining = Math.Max(1, max);
+                response.Callees = await BuildCalleesAsync(methodSymbol, loaded.Solution, boundedDepth,
+                    new HashSet<string> { response.FullName }, budget, cancellationToken);
+            }
+
+            var baseDir = BaseDirOf(loaded);
+            RelativizePaths(response.Callers, baseDir);
+            RelativizePaths(response.Callees, baseDir);
+
+            return response;
         }
-
-        var response = new CallGraphResponse
+        catch (Exception ex)
         {
-            ResolvedPath = loaded.ResolvedPath,
-            Method = methodSymbol.Name,
-            // Parameter-qualified (with simple parameter-type names) to match the node keys used for
-            // cycle detection below.
-            FullName = SymbolResolver.CallNodeName(methodSymbol),
-            Direction = normalizedDirection,
-            Depth = boundedDepth
-        };
-
-        var budget = new Counter { Remaining = Math.Max(1, max) };
-
-        if (normalizedDirection is "callers" or "both")
-        {
-            response.Callers = await BuildCallersAsync(methodSymbol, loaded.Solution, boundedDepth,
-                new HashSet<string> { response.FullName }, budget, cancellationToken);
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
         }
-
-        if (normalizedDirection is "callees" or "both")
-        {
-            budget.Remaining = Math.Max(1, max);
-            response.Callees = await BuildCalleesAsync(methodSymbol, loaded.Solution, boundedDepth,
-                new HashSet<string> { response.FullName }, budget, cancellationToken);
-        }
-
-        var baseDir = BaseDirOf(loaded);
-        RelativizePaths(response.Callers, baseDir);
-        RelativizePaths(response.Callees, baseDir);
-
-        return response;
     }
 
     private async Task<List<CallGraphNode>> BuildCallersAsync(
@@ -748,66 +808,76 @@ public class CodeNavigationService : ICodeNavigationService
         var normalizedDirection = NormalizeDirection(direction, "base", "derived", "both", defaultValue: "both");
 
         using var loaded = await _projectLoader.LoadAsync(project, cancellationToken);
-        var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, type, cancellationToken);
-
-        if (resolved is not INamedTypeSymbol namedType)
+        try
         {
-            throw new ArgumentException(
-                $"get_type_hierarchy expects a type, but '{type}' is a {SymbolResolver.KindOf(resolved)}.");
-        }
+            var resolved = await SymbolResolver.ResolveOrThrowAsync(loaded.Solution, loaded.Project, type, cancellationToken);
 
-        var response = new TypeHierarchyResponse
-        {
-            ResolvedPath = loaded.ResolvedPath,
-            Type = namedType.Name,
-            FullName = namedType.ToDisplayString(SymbolResolver.FullNameFormat),
-            Direction = normalizedDirection
-        };
-
-        if (normalizedDirection is "base" or "both")
-        {
-            var baseTypes = new List<SymbolSummary>();
-            for (var baseType = namedType.BaseType; baseType != null && baseType.SpecialType != SpecialType.System_Object; baseType = baseType.BaseType)
+            if (resolved is not INamedTypeSymbol namedType)
             {
-                baseTypes.Add(SymbolResolver.ToSummary(baseType));
+                throw new ArgumentException(
+                    $"get_type_hierarchy expects a type, but '{type}' is a {SymbolResolver.KindOf(resolved)}.");
             }
 
-            response.BaseTypes = baseTypes;
-            response.Interfaces = namedType.AllInterfaces
-                .Select(SymbolResolver.ToSummary)
-                .ToList();
-        }
+            var response = new TypeHierarchyResponse
+            {
+                ResolvedPath = loaded.ResolvedPath,
+                Type = namedType.Name,
+                FullName = namedType.ToDisplayString(SymbolResolver.FullNameFormat),
+                Direction = normalizedDirection
+            };
 
-        if (normalizedDirection is "derived" or "both")
+            if (normalizedDirection is "base" or "both")
+            {
+                var baseTypes = new List<SymbolSummary>();
+                for (var baseType = namedType.BaseType; baseType != null && baseType.SpecialType != SpecialType.System_Object; baseType = baseType.BaseType)
+                {
+                    baseTypes.Add(SymbolResolver.ToSummary(baseType));
+                }
+
+                response.BaseTypes = baseTypes;
+                response.Interfaces = namedType.AllInterfaces
+                    .Select(SymbolResolver.ToSummary)
+                    .ToList();
+            }
+
+            if (normalizedDirection is "derived" or "both")
+            {
+                var derived = new List<ISymbol>();
+                if (namedType.TypeKind == TypeKind.Interface)
+                {
+                    derived.AddRange(await SymbolFinder.FindImplementationsAsync(namedType, loaded.Solution, transitive: true, projects: null, cancellationToken));
+                    derived.AddRange(await SymbolFinder.FindDerivedInterfacesAsync(namedType, loaded.Solution, transitive: true, projects: null, cancellationToken));
+                }
+                else
+                {
+                    derived.AddRange(await SymbolFinder.FindDerivedClassesAsync(namedType, loaded.Solution, transitive: true, projects: null, cancellationToken));
+                }
+
+                var orderedDerived = derived
+                    .Distinct(SymbolEqualityComparer.Default)
+                    .Cast<ISymbol>()
+                    .OrderBy(s => s.ToDisplayString(SymbolResolver.FullNameFormat), StringComparer.Ordinal)
+                    .ToList();
+
+                var cappedDerived = orderedDerived.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
+                response.DerivedTypes = cappedDerived;
+                response.DerivedTypesTruncated = orderedDerived.Count > cappedDerived.Count;
+            }
+
+            var baseDir = BaseDirOf(loaded);
+            RelativizePaths(response.BaseTypes, baseDir);
+            RelativizePaths(response.Interfaces, baseDir);
+            RelativizePaths(response.DerivedTypes, baseDir);
+
+            return response;
+        }
+        catch (Exception ex)
         {
-            var derived = new List<ISymbol>();
-            if (namedType.TypeKind == TypeKind.Interface)
-            {
-                derived.AddRange(await SymbolFinder.FindImplementationsAsync(namedType, loaded.Solution, transitive: true, projects: null, cancellationToken));
-                derived.AddRange(await SymbolFinder.FindDerivedInterfacesAsync(namedType, loaded.Solution, transitive: true, projects: null, cancellationToken));
-            }
-            else
-            {
-                derived.AddRange(await SymbolFinder.FindDerivedClassesAsync(namedType, loaded.Solution, transitive: true, projects: null, cancellationToken));
-            }
-
-            var orderedDerived = derived
-                .Distinct(SymbolEqualityComparer.Default)
-                .Cast<ISymbol>()
-                .OrderBy(s => s.ToDisplayString(SymbolResolver.FullNameFormat), StringComparer.Ordinal)
-                .ToList();
-
-            var cappedDerived = orderedDerived.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
-            response.DerivedTypes = cappedDerived;
-            response.DerivedTypesTruncated = orderedDerived.Count > cappedDerived.Count;
+            // Name the checkout that answered, so the failure envelope can tell
+            // "the symbol is not here" apart from "you asked the wrong checkout".
+            ResolvedPathStamp.Stamp(ex, loaded);
+            throw;
         }
-
-        var baseDir = BaseDirOf(loaded);
-        RelativizePaths(response.BaseTypes, baseDir);
-        RelativizePaths(response.Interfaces, baseDir);
-        RelativizePaths(response.DerivedTypes, baseDir);
-
-        return response;
     }
 
     /// <summary>

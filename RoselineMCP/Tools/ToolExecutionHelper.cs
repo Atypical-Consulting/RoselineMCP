@@ -620,12 +620,28 @@ internal static class ToolExecutionHelper
     /// (see <see cref="ToolInvocation.CorrelationId"/>) is echoed back so a user reporting the
     /// failure can supply one ID that ties back to full server-side logs.
     /// </summary>
+    /// <param name="requestToken">The caller's own token, used to tell a cancel from a timeout.</param>
+    /// <param name="timeoutSource">The wall-clock budget in force, or <see langword="null"/> if none had started.</param>
+    /// <param name="options">Supplies <c>DefaultTimeout</c> for the timeout message.</param>
+    /// <param name="correlationId">Ties this response to the server-side log entry.</param>
+    /// <param name="cancellation">
+    /// The <see cref="OperationCanceledException"/> that ended the call, when the tool has one in
+    /// hand. A cancellation that lands <em>after</em> the project was loaded carries the same
+    /// <see cref="ResolvedPathStamp"/> as any other in-flight exception, and a timeout is precisely
+    /// the case where "which checkout answered?" matters most — being pointed at an unexpectedly
+    /// large checkout is a leading cause of one. <see langword="null"/> (the default) means no
+    /// exception is available, which yields an absent path.
+    /// </param>
     public static ToolResult<T> Cancellation<T>(
         CancellationToken requestToken,
         CancellationTokenSource? timeoutSource,
         IOptions<RoselineMcpOptions>? options,
-        string correlationId)
+        string correlationId,
+        Exception? cancellation = null)
     {
+        // Absent when the cancellation arrived before anything was resolved; never "".
+        var resolvedPath = ResolvedPathStamp.Read(cancellation);
+
         // A null source means the wall-clock budget had not started yet — the call was still in
         // the write confirmation — so a cancellation there can only be the caller's own.
         if (!requestToken.IsCancellationRequested && timeoutSource?.IsCancellationRequested == true)
@@ -635,7 +651,8 @@ internal static class ToolExecutionHelper
             {
                 Type = ToolErrorTypes.Timeout,
                 Message = $"Operation timed out after {timeoutMs}ms",
-                CorrelationId = correlationId
+                CorrelationId = correlationId,
+                ResolvedPath = resolvedPath
             });
         }
 
@@ -643,7 +660,8 @@ internal static class ToolExecutionHelper
         {
             Type = ToolErrorTypes.Cancelled,
             Message = "Operation was cancelled",
-            CorrelationId = correlationId
+            CorrelationId = correlationId,
+            ResolvedPath = resolvedPath
         });
     }
 
@@ -656,6 +674,20 @@ internal static class ToolExecutionHelper
     /// <paramref name="correlationId"/> (see <see cref="ToolInvocation.CorrelationId"/>) is echoed
     /// back so a user reporting the failure can supply one ID that ties back to full server-side logs.
     /// </summary>
+    /// <remarks>
+    /// <c>ToolError.ResolvedPath</c> is always absent here, and unlike <see cref="Cancellation{T}"/>
+    /// that is structural rather than a default: this overload builds an envelope for a failure
+    /// detected at the tool boundary *before* the service is invoked, so no exception exists to read
+    /// a stamp from and no project has been resolved to name. Absent is the accurate answer, not a
+    /// gap — it says "no project was ever resolved", which is exactly what happened.
+    /// <para>
+    /// Note this is not the same as "no <c>ValidationError</c> ever carries a path". An
+    /// <see cref="ArgumentException"/> thrown by a service *after* it loaded — <c>get_call_graph</c>
+    /// handed a type rather than a method — classifies as <c>ValidationError</c> through
+    /// <see cref="Error{T}"/> and does carry the stamp. The distinction is where the failure was
+    /// detected, not which type it was classified as.
+    /// </para>
+    /// </remarks>
     public static ToolResult<T> ValidationError<T>(string message, string correlationId, string? hint = null) =>
         ToolResult<T>.Failure(new ToolError
         {
@@ -698,7 +730,12 @@ internal static class ToolExecutionHelper
         {
             Type = type,
             Message = message,
-            CorrelationId = correlationId
+            CorrelationId = correlationId,
+            // Stamped by the service that was holding the loaded project when this threw; null when
+            // the failure happened before anything was resolved, which must stay *absent* on the
+            // wire rather than "". Surfaced even for InternalError: the message is scrubbed, the
+            // path is not secret — the same absolute path rides every success response.
+            ResolvedPath = ResolvedPathStamp.Read(ex)
         });
     }
 

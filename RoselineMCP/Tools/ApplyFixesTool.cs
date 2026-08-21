@@ -85,10 +85,10 @@ public static class ApplyFixesTool
             invocation.MarkSuccess();
             return ToolResult<ApplyFixesResponse>.Success(result);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException cancellation)
         {
             invocation.MarkFailure("cancelled");
-            return ToolExecutionHelper.Cancellation<ApplyFixesResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId);
+            return ToolExecutionHelper.Cancellation<ApplyFixesResponse>(cancellationToken, budget.Current, options, invocation.CorrelationId, cancellation);
         }
         catch (Exception ex)
         {

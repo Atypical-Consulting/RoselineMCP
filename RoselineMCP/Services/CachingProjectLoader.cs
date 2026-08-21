@@ -118,7 +118,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
                 {
                     entry.LastAccess = ++_accessCounter;
                     _logger.LogDebug("Workspace cache hit for {Target}", key);
-                    return new LoadedProject(entry.Workspace, entry.Solution, entry.Project, ownsWorkspace: false);
+                    return WrapShared(entry.Workspace, entry.Solution, entry.Project, entry.ResolvedPath);
                 }
 
                 _logger.LogInformation("Workspace cache invalidated for {Target} — files changed on disk; reloading", key);
@@ -130,20 +130,29 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution);
 
             EvictLeastRecentlyUsedIfFull();
-            _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, fingerprint)
+            _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, fingerprint)
             {
                 LastAccess = ++_accessCounter,
             };
 
             // The cache now owns the workspace; hand the caller a non-owning handle so its
             // (existing) `using` disposal doesn't tear down the shared workspace.
-            return new LoadedProject(loaded.Workspace, loaded.Solution, loaded.Project, ownsWorkspace: false);
+            return WrapShared(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath);
         }
         finally
         {
             _gate.Release();
         }
     }
+
+    /// <summary>
+    /// Wraps a shared, cache-owned workspace in a non-owning handle. Used by both the cache-hit and
+    /// cache-miss returns so the <c>ownsWorkspace: false</c> invariant and the <paramref
+    /// name="resolvedPath"/> pass-through are held in one place — dropping either at a hand-copied
+    /// call site is the exact class of oversight issue #151 was about.
+    /// </summary>
+    private static LoadedProject WrapShared(Workspace workspace, Solution solution, Project project, string resolvedPath) =>
+        new(workspace, solution, project, ownsWorkspace: false, resolvedPath: resolvedPath);
 
     /// <summary>Evicts (and disposes) least-recently-used entries until an insert fits the bound.</summary>
     private void EvictLeastRecentlyUsedIfFull()
@@ -189,14 +198,16 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
         public Workspace Workspace { get; }
         public Solution Solution { get; }
         public Project Project { get; }
+        public string ResolvedPath { get; }
         public WorkspaceFingerprint Fingerprint { get; }
         public long LastAccess { get; set; }
 
-        public CacheEntry(Workspace workspace, Solution solution, Project project, WorkspaceFingerprint fingerprint)
+        public CacheEntry(Workspace workspace, Solution solution, Project project, string resolvedPath, WorkspaceFingerprint fingerprint)
         {
             Workspace = workspace;
             Solution = solution;
             Project = project;
+            ResolvedPath = resolvedPath;
             Fingerprint = fingerprint;
         }
     }

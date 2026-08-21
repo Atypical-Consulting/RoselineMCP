@@ -76,6 +76,24 @@ public class CachingProjectLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task Cached_Load_Reports_The_Same_ResolvedPath_As_The_Cold_Load()
+    {
+        CreateProjectOnDisk("Scratch");
+        var slnPath = Path.Combine(_root, "Repo.sln");
+        var csprojPath = Path.Combine(_root, "Scratch", "Scratch.csproj");
+        var inner = new FakeInnerLoader(_root, solutionFilePath: slnPath, resolvedPathOverride: csprojPath);
+        using var loader = CreateLoader(inner);
+
+        using var first = await loader.LoadAsync("Scratch", Ct);
+        using var second = await loader.LoadAsync("Scratch", Ct);
+
+        inner.LoadCount.ShouldBe(1);
+        first.ResolvedPath.ShouldBe(csprojPath);
+        second.ResolvedPath.ShouldBe(
+            csprojPath, "the cached (second) call must report the same resolvedPath as the cold load, not the derived .sln fallback");
+    }
+
+    [Fact]
     public async Task Aliases_Resolving_To_The_Same_Target_Share_One_Cache_Entry()
     {
         CreateProjectOnDisk("App");
@@ -244,8 +262,15 @@ public class CachingProjectLoaderTests : IDisposable
     private sealed class FakeInnerLoader : IProjectLoader
     {
         private readonly string _root;
+        private readonly string? _solutionFilePath;
+        private readonly string? _resolvedPathOverride;
 
-        public FakeInnerLoader(string root) => _root = root;
+        public FakeInnerLoader(string root, string? solutionFilePath = null, string? resolvedPathOverride = null)
+        {
+            _root = root;
+            _solutionFilePath = solutionFilePath;
+            _resolvedPathOverride = resolvedPathOverride;
+        }
 
         public int LoadCount { get; private set; }
 
@@ -274,10 +299,13 @@ public class CachingProjectLoaderTests : IDisposable
             var projectInfo = ProjectInfo.Create(
                 projectId, VersionStamp.Create(), name, name, LanguageNames.CSharp,
                 filePath: csprojPath, documents: documents);
-            var solution = workspace.AddSolutionWithProject(projectInfo);
+            var solutionInfo = SolutionInfo.Create(
+                SolutionId.CreateNewId(), VersionStamp.Create(), _solutionFilePath, projects: [projectInfo]);
+            var solution = workspace.AddSolution(solutionInfo);
 
             Workspaces.Add(workspace);
-            return Task.FromResult(new LoadedProject(workspace, solution, solution.GetProject(projectId)!));
+            return Task.FromResult(new LoadedProject(
+                workspace, solution, solution.GetProject(projectId)!, resolvedPath: _resolvedPathOverride));
         }
 
         /// <summary>
@@ -302,10 +330,9 @@ public class CachingProjectLoaderTests : IDisposable
 
         public bool Disposed { get; private set; }
 
-        public Solution AddSolutionWithProject(ProjectInfo projectInfo)
+        public Solution AddSolution(SolutionInfo solutionInfo)
         {
-            OnSolutionAdded(SolutionInfo.Create(
-                SolutionId.CreateNewId(), VersionStamp.Create(), projects: [projectInfo]));
+            OnSolutionAdded(solutionInfo);
             return CurrentSolution;
         }
 
