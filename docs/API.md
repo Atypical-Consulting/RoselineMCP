@@ -48,7 +48,9 @@ All tools are exposed via the Model Context Protocol and return JSON responses.
   ```
 
   `resolvedPath` is **optional**, and its absence is meaningful: it names the absolute
-  `.sln`/`.csproj` that answered the call, and is **omitted entirely — never `""` — when the failure
+  `.sln`/`.csproj` that answered the call — the `.sln` when the solution was loaded and contains
+  the project, otherwise the `.csproj` that was opened directly (e.g. a project not listed in its
+  nearest ancestor `.sln`) — and is **omitted entirely — never `""` — when the failure
   happened before any project was resolved**. "Never resolved" and "resolved to nothing" are
   different claims, so they are never conflated on the wire.
 
@@ -1325,6 +1327,11 @@ identically: same project name, same solution-root-relative file paths. When `pr
 RoselineMCP auto-discovers from **the server process's** working directory, which is not the
 agent's; a worktree under `.claude/worktrees/<name>` sits below the discovery walk's reach, so the
 main checkout answers instead.
+
+`resolvedPath` names the file actually opened, not just "the checkout": it is the `.sln` when the
+project's solution was loaded and lists it, and the `.csproj` when the project was opened directly
+— including when a `.csproj` exists on disk but is not listed in its nearest ancestor `.sln`, in
+which case the `.sln` never contributed the loaded project and reporting it would be wrong.
 
 On the success path that mismatch surfaces as a `resolvedPath` you did not expect. On the failure
 path it surfaces as `NotFoundError: Symbol not found: 'X'` — and without this field there is nothing

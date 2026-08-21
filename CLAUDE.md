@@ -92,7 +92,9 @@ The application uses a dependency injection-based service architecture with clea
   payload nested under `data` on success, error details under `error` on failure — and sets
   `UseStructuredContent = true` so the SDK also advertises an `outputSchema` and emits structured content.
   `error` carries `{ type, message, hint?, correlationId, resolvedPath? }`. `resolvedPath` names the
-  absolute `.sln`/`.csproj` that answered, mirroring the success responses; it is **omitted — never
+  absolute `.sln`/`.csproj` that answered, mirroring the success responses — the `.sln` when the
+  project's solution was loaded and lists it, otherwise the `.csproj` opened directly (e.g. a
+  project absent from its nearest ancestor `.sln`); it is **omitted — never
   `""` — when the failure happened before any project was resolved** (a bad argument rejected at the
   tool boundary, a load that itself failed), because "never resolved" is a different claim from
   "resolved to nothing". What decides presence is **when** the failure happened, not its `type`: an
@@ -211,7 +213,9 @@ whenever work happens in a git worktree (`.claude/worktrees/<name>`), which sits
 walk's reach, so an omitted `project` silently resolves the **main checkout**. Two checkouts of the
 same repo are otherwise reported identically (same project name, same relative paths), so every
 response from a tool with an optional `project` — tools 2, 3, 5–13 and 14 — carries **`resolvedPath`**,
-the absolute `.sln`/`.csproj` that actually answered. Pass an absolute path as `project` to target a
+the absolute `.sln`/`.csproj` that actually answered — the `.sln` when the solution was loaded and
+contains the project, otherwise the `.csproj` that was opened directly (e.g. a project not listed in
+its nearest ancestor `.sln`). Pass an absolute path as `project` to target a
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
 
