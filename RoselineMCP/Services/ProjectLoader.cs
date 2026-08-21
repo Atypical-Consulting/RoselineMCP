@@ -79,7 +79,13 @@ public class ProjectLoader : IProjectLoader
                 }
             }
 
-            return new LoadedProject(workspace, primary.Solution, primary, resolvedPath: resolvedPath);
+            // ResolveProjectPath's direct-.csproj and directory branches return the caller's
+            // argument (or a Directory.GetFiles result derived from it) verbatim, so a relative
+            // `project` argument can leave resolvedPath relative too — unlike the pre-#151
+            // Solution.FilePath/Project.FilePath fallback, which MSBuildWorkspace always
+            // normalizes internally. Normalize here so the documented "absolute path" contract on
+            // LoadedProject.ResolvedPath holds regardless of how the caller spelled `project`.
+            return new LoadedProject(workspace, primary.Solution, primary, resolvedPath: Path.GetFullPath(resolvedPath));
         }
         catch
         {

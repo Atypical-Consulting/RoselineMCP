@@ -322,9 +322,6 @@ public class CachingProjectLoaderTests : IDisposable
 
         public bool Disposed { get; private set; }
 
-        public Solution AddSolutionWithProject(ProjectInfo projectInfo) =>
-            AddSolution(SolutionInfo.Create(SolutionId.CreateNewId(), VersionStamp.Create(), projects: [projectInfo]));
-
         public Solution AddSolution(SolutionInfo solutionInfo)
         {
             OnSolutionAdded(solutionInfo);

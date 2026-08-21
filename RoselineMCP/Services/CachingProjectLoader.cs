@@ -103,8 +103,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
                 {
                     entry.LastAccess = ++_accessCounter;
                     _logger.LogDebug("Workspace cache hit for {Target}", key);
-                    return new LoadedProject(
-                        entry.Workspace, entry.Solution, entry.Project, ownsWorkspace: false, resolvedPath: entry.ResolvedPath);
+                    return WrapShared(entry.Workspace, entry.Solution, entry.Project, entry.ResolvedPath);
                 }
 
                 _logger.LogInformation("Workspace cache invalidated for {Target} — files changed on disk; reloading", key);
@@ -122,19 +121,23 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             };
 
             // The cache now owns the workspace; hand the caller a non-owning handle so its
-            // (existing) `using` disposal doesn't tear down the shared workspace. Pass the
-            // resolved path through explicitly too — `loaded.ResolvedPath` already applied
-            // ProjectLoader's own fallback, and re-wrapping without it would let the generic
-            // Solution.FilePath ?? Project.FilePath fallback silently override a precise value
-            // (e.g. a .csproj not listed in its ancestor .sln, reported as that .sln instead).
-            return new LoadedProject(
-                loaded.Workspace, loaded.Solution, loaded.Project, ownsWorkspace: false, resolvedPath: loaded.ResolvedPath);
+            // (existing) `using` disposal doesn't tear down the shared workspace.
+            return WrapShared(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath);
         }
         finally
         {
             _gate.Release();
         }
     }
+
+    /// <summary>
+    /// Wraps a shared, cache-owned workspace in a non-owning handle. Used by both the cache-hit and
+    /// cache-miss returns so the <c>ownsWorkspace: false</c> invariant and the <paramref
+    /// name="resolvedPath"/> pass-through are held in one place — dropping either at a hand-copied
+    /// call site is the exact class of oversight issue #151 was about.
+    /// </summary>
+    private static LoadedProject WrapShared(Workspace workspace, Solution solution, Project project, string resolvedPath) =>
+        new(workspace, solution, project, ownsWorkspace: false, resolvedPath: resolvedPath);
 
     /// <summary>Evicts (and disposes) least-recently-used entries until an insert fits the bound.</summary>
     private void EvictLeastRecentlyUsedIfFull()

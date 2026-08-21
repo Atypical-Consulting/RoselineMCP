@@ -365,6 +365,17 @@ public class ProjectLoaderTests : IDisposable
         return (slnPath, mainCsprojPath, scratchCsprojPath);
     }
 
+    /// <summary>Writes a minimal SDK-style project with no <c>.sln</c> anywhere in its ancestry.</summary>
+    private string CreateStandaloneProject(string name = "Standalone")
+    {
+        var projectDir = Path.Combine(_baseDir, name);
+        Directory.CreateDirectory(projectDir);
+        var csprojPath = Path.Combine(projectDir, $"{name}.csproj");
+        File.WriteAllText(csprojPath, MinimalCsprojXml);
+        File.WriteAllText(Path.Combine(projectDir, "Widget.cs"), $"namespace {name} {{ public class Widget {{ }} }}");
+        return csprojPath;
+    }
+
     /// <summary>
     /// Regression for #151: a <c>.csproj</c> not listed in its nearest ancestor <c>.sln</c> is
     /// opened standalone, and <c>resolvedPath</c> must report THAT file — not the <c>.sln</c>,
@@ -398,6 +409,29 @@ public class ProjectLoaderTests : IDisposable
 
         loaded.Project.Name.ShouldBe("Main");
         loaded.ResolvedPath.ShouldBe(slnPath);
+    }
+
+    /// <summary>
+    /// Regression: <c>ResolveProjectPath</c>'s direct-<c>.csproj</c> branch returns the caller's
+    /// argument verbatim (no <c>Path.GetFullPath</c>), so a relative <c>project</c> argument must
+    /// not leak into <c>ResolvedPath</c> — the documented contract is an absolute path, which the
+    /// pre-#151 <c>Solution.FilePath</c>/<c>Project.FilePath</c> fallback always got for free from
+    /// MSBuildWorkspace's internal normalization, regardless of the raw string passed in.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_ResolvedPath_IsAlwaysAbsolute_EvenForARelativeCsprojArgument()
+    {
+        var csprojPath = CreateStandaloneProject();
+        var relativePath = Path.GetRelativePath(Directory.GetCurrentDirectory(), csprojPath);
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(relativePath);
+
+        Path.IsPathRooted(loaded.ResolvedPath).ShouldBeTrue();
+        loaded.ResolvedPath.ShouldBe(Path.GetFullPath(csprojPath));
     }
 #pragma warning restore xUnit1051
 
