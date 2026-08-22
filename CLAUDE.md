@@ -190,8 +190,13 @@ Gets detailed diagnostics for specific projects with statistics. Loads via `IPro
 ### 3. ApplyFixes
 Applies automated code fixes for specified diagnostic IDs. Loads via `IProjectLoader`, so
 `project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
+**Project-scoped**: a `.sln` target fixes its primary project only — the scope is enforced on the
+write path (changed documents are collected from, and written from, the anchor project alone — a
+linked file is written from the anchor's copy regardless of project order) and reported in
+`notes[]` (which project was fixed, which of the solution's were skipped, and any linked file whose
+write reaches a sibling), on every path including preview.
 - **Parameters**: ids[], project (optional), previewOnly, allowIntroducedErrors, max
-- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `applied`, `verification`
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`
 
 ### 14. CheckCompilation
 Answers "does this compile right now, and what broke" against on-disk state — the replacement for a

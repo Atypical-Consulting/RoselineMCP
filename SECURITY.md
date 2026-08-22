@@ -168,8 +168,15 @@ below.
 the two differ: it is a project-scoped tool whose resolved target may be a
 solution, so when the prompt names a `.sln` it says *the primary project of* it
 — the single project the fixes actually land in. Approving that prompt does not
-authorise a solution-wide rewrite, and the projects that are skipped are not
-reported anywhere in the response. `EditMember` is narrower still, and its prompt
+authorise a solution-wide rewrite, and the sentence is not the only thing holding
+that line: the service collects and writes the anchor project's documents alone
+(a `FixAllProvider` is third-party code, so the collector is filtered rather than
+trusted), and the response names the skipped projects in `notes[]` on every
+call — including the preview, non-eliciting and `ConfirmDestructiveWrites = false`
+paths that never show a prompt. The one write that reaches past the anchor is a
+linked file (`<Compile Include="..\Shared\Config.cs" Link="Config.cs"/>`): it is
+the anchor's own document and is written as such, but it is one file on disk, so
+the response says which other projects compile it. `EditMember` is narrower still, and its prompt
 says so outright — *exactly one file is rewritten* — rather than letting the
 target stand in for the scope. Note what that sentence deliberately does **not**
 claim. It does not say the file is *in* the named target: a `.csproj` does not

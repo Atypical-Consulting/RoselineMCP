@@ -85,9 +85,9 @@ export const tools: Tool[] = [
   },
   {
     name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true, verifies: true,
-    summary: 'Apply automated code fixes for diagnostic IDs. Preview by default, and refused if the fixes would not compile.',
+    summary: 'Apply automated code fixes for diagnostic IDs to one project — a .sln target fixes its primary project and names the ones it skipped. Preview by default, and refused if the fixes would not compile.',
     params: 'ids, project?, previewOnly?, allowIntroducedErrors?, max?',
-    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[], previewOnly, applied, verification?',
+    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[] (scope: fixed/skipped projects, linked files; per-ID status), previewOnly, applied, verification?',
   },
   {
     name: 'check_compilation', title: 'Check Compilation', group: 'Diagnostics & fixes', kind: 'diagnostics',
