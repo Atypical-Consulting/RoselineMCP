@@ -345,9 +345,16 @@ applyFixes({
 **Returns:** project name, `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded),
 `fixedCount`, `fixersApplied` (diagnostic IDs actually fixed), `changedFiles`
 (solution-root-relative, forward slashes — the same path base as the navigation tools), a unified
-diff `patch`, `notes` (skipped/failed IDs and status messages), `previewOnly` echoing back what the
-caller asked for, `applied` (whether anything actually reached disk), and `verification` — the
-compiler's verdict on the fixed code.
+diff `patch`, `notes` (the scope — which project was fixed and which of the solution's projects were
+not analyzed, plus any linked file whose write reaches a sibling — and skipped/failed IDs and status
+messages), `previewOnly` echoing back what the caller asked for, `applied` (whether anything
+actually reached disk), and `verification` — the compiler's verdict on the fixed code.
+
+A `.sln` target fixes **one** project — its primary project — and that scope is enforced on the
+write path, not only announced by the confirmation prompt: only the anchor project's documents are
+verified and written, and a caller who never sees a prompt (preview, a non-eliciting client, an
+unattended host) still reads which projects were skipped in `notes`. Pass a `.csproj` to fix a
+specific project — then nothing is reported as skipped, since that is what was asked for.
 
 ### 14. CheckCompilation
 

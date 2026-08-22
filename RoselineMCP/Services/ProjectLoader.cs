@@ -85,7 +85,12 @@ public class ProjectLoader : IProjectLoader
             // Solution.FilePath/Project.FilePath fallback, which MSBuildWorkspace always
             // normalizes internally. Normalize here so the documented "absolute path" contract on
             // LoadedProject.ResolvedPath holds regardless of how the caller spelled `project`.
-            return new LoadedProject(workspace, primary.Solution, primary, resolvedPath: Path.GetFullPath(resolvedPath));
+            return new LoadedProject(
+                workspace, primary.Solution, primary,
+                resolvedPath: Path.GetFullPath(resolvedPath),
+                // What the caller named (the .sln, or the .csproj before its ancestor .sln was
+                // opened) — distinct from resolvedPath, which is what answered. See LoadedProject.TargetPath.
+                targetPath: Path.GetFullPath(targetPath));
         }
         catch
         {

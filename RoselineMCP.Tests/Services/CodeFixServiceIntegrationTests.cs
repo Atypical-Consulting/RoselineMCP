@@ -63,13 +63,32 @@ public class CodeFixServiceIntegrationTests : IDisposable
     /// Each project gets its own subdirectory so that SDK-style implicit compile globbing
     /// (`**/*.cs`) never pulls files from a sibling project created in the same test.
     /// </summary>
-    private string CreateProject(string projectFileName, params (string FileName, string Content)[] files)
+    private string CreateProject(string projectFileName, params (string FileName, string Content)[] files) =>
+        CreateProject(projectFileName, linkedFiles: [], files);
+
+    /// <summary>
+    /// Same as <see cref="CreateProject(string, ValueTuple{string, string}[])"/>, plus one
+    /// <c>&lt;Compile Include="..\{path}" Link="{name}" /&gt;</c> item per entry of
+    /// <paramref name="linkedFiles"/> — each a path relative to <c>_testDirectory</c>, i.e. a file
+    /// that lives <em>outside</em> the project's own directory and is compiled by every project that
+    /// links it. A linked file is one file on disk shared by several projects, which is what makes
+    /// it the probe for whether a fix scoped to one project can change what a sibling compiles.
+    /// </summary>
+    private string CreateProject(string projectFileName, IReadOnlyList<string> linkedFiles, params (string FileName, string Content)[] files)
     {
         var projectDir = Path.Combine(_testDirectory, Path.GetFileNameWithoutExtension(projectFileName));
         Directory.CreateDirectory(projectDir);
 
+        var csproj = MinimalCsprojXml;
+        if (linkedFiles.Count > 0)
+        {
+            var items = string.Join("\n", linkedFiles.Select(path =>
+                $"    <Compile Include=\"..\\{path.Replace('/', '\\')}\" Link=\"{Path.GetFileName(path)}\" />"));
+            csproj = csproj.Replace("</Project>", $"  <ItemGroup>\n{items}\n  </ItemGroup>\n</Project>");
+        }
+
         var csprojPath = Path.Combine(projectDir, projectFileName);
-        File.WriteAllText(csprojPath, MinimalCsprojXml);
+        File.WriteAllText(csprojPath, csproj);
 
         foreach (var (fileName, content) in files)
         {
@@ -77,6 +96,46 @@ public class CodeFixServiceIntegrationTests : IDisposable
         }
 
         return csprojPath;
+    }
+
+    /// <summary>Writes a file at <paramref name="relativePath"/> under <c>_testDirectory</c>, outside any project directory, and returns its absolute path.</summary>
+    private string CreateSharedFile(string relativePath, string content)
+    {
+        var path = Path.Combine(_testDirectory, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    /// <summary>Writes a hand-rolled .sln in <c>_testDirectory</c> referencing the given (already created) projects.</summary>
+    private string CreateSolutionFile(string solutionFileName, params string[] projectNames)
+    {
+        var guids = projectNames
+            .Select((name, i) => (Name: name, Guid: $"{{1111111{i + 1}-1111-1111-1111-111111111111}}"))
+            .ToList();
+        var entries = string.Join("\n", guids.Select(p =>
+            $"Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{p.Name}\", \"{p.Name}\\{p.Name}.csproj\", \"{p.Guid}\"\nEndProject"));
+        var configs = string.Join("\n", guids.Select(p =>
+            $"\t\t{p.Guid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{p.Guid}.Debug|Any CPU.Build.0 = Debug|Any CPU"));
+
+        var slnPath = Path.Combine(_testDirectory, solutionFileName);
+        File.WriteAllText(slnPath,
+            $"""
+             Microsoft Visual Studio Solution File, Format Version 12.00
+             # Visual Studio Version 17
+             VisualStudioVersion = 17.0.31903.59
+             MinimumVisualStudioVersion = 10.0.40219.1
+             {entries}
+             Global
+             	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+             		Debug|Any CPU = Debug|Any CPU
+             	EndGlobalSection
+             	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+             {configs}
+             	EndGlobalSection
+             EndGlobal
+             """);
+        return slnPath;
     }
 
     public class SingleDiagnosticTests : CodeFixServiceIntegrationTests
@@ -335,37 +394,6 @@ public class CodeFixServiceIntegrationTests : IDisposable
     /// </summary>
     public class SolutionRootRelativePathTests : CodeFixServiceIntegrationTests
     {
-        /// <summary>Writes a hand-rolled .sln in <c>_testDirectory</c> referencing the given (already created) projects.</summary>
-        private string CreateSolutionFile(string solutionFileName, params string[] projectNames)
-        {
-            var guids = projectNames
-                .Select((name, i) => (Name: name, Guid: $"{{1111111{i + 1}-1111-1111-1111-111111111111}}"))
-                .ToList();
-            var entries = string.Join("\n", guids.Select(p =>
-                $"Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{p.Name}\", \"{p.Name}\\{p.Name}.csproj\", \"{p.Guid}\"\nEndProject"));
-            var configs = string.Join("\n", guids.Select(p =>
-                $"\t\t{p.Guid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{p.Guid}.Debug|Any CPU.Build.0 = Debug|Any CPU"));
-
-            var slnPath = Path.Combine(_testDirectory, solutionFileName);
-            File.WriteAllText(slnPath,
-                $"""
-                 Microsoft Visual Studio Solution File, Format Version 12.00
-                 # Visual Studio Version 17
-                 VisualStudioVersion = 17.0.31903.59
-                 MinimumVisualStudioVersion = 10.0.40219.1
-                 {entries}
-                 Global
-                 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-                 		Debug|Any CPU = Debug|Any CPU
-                 	EndGlobalSection
-                 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-                 {configs}
-                 	EndGlobalSection
-                 EndGlobal
-                 """);
-            return slnPath;
-        }
-
         [Fact]
         public async Task ChangedFiles_And_Patch_Headers_Are_Solution_Root_Relative()
         {
@@ -478,6 +506,182 @@ public class CodeFixServiceIntegrationTests : IDisposable
                 TestContext.Current.CancellationToken);
             libSource.ShouldContain("unusedInLib");
             result.ChangedFiles.ShouldNotContain(f => f.EndsWith("Thing.cs", StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>
+    /// <c>apply_fixes</c> fixes <em>one</em> project of a solution — the anchor
+    /// <c>SelectPrimaryProject</c> picks — and the confirmation prompt says so. These tests are
+    /// about that scope as an invariant of the service rather than a sentence in a prompt: what
+    /// the write loop is allowed to touch, and what the response says about the projects it left
+    /// alone (#156).
+    /// </summary>
+    public class ProjectScopeTests : CodeFixServiceIntegrationTests
+    {
+        private const string UnusedLocalInApp = """
+            class Program
+            {
+                static void Main()
+                {
+                    int unusedInApp = 1;
+                    System.Console.WriteLine("hi");
+                }
+            }
+            """;
+
+        private const string UnusedLocalInLib = """
+            public class Thing
+            {
+                public static void Go()
+                {
+                    int unusedInLib = 2;
+                    System.Console.WriteLine("go");
+                }
+            }
+            """;
+
+        private const string UnusedLocalInShared = """
+            public static class Config
+            {
+                public static void Init()
+                {
+                    int unusedInShared = 3;
+                    System.Console.WriteLine("init");
+                }
+            }
+            """;
+
+        /// <summary>
+        /// Every source <c>.cs</c> under <c>_testDirectory</c> (forward-slash relative path → content),
+        /// skipping the <c>obj/</c> the design-time build generates.
+        /// </summary>
+        private Dictionary<string, string> SnapshotSources() =>
+            Directory.EnumerateFiles(_testDirectory, "*.cs", SearchOption.AllDirectories)
+                .Select(p => (Path: Path.GetRelativePath(_testDirectory, p).Replace('\\', '/'), Full: p))
+                .Where(f => !f.Path.Contains("/obj/", StringComparison.Ordinal) && !f.Path.Contains("/bin/", StringComparison.Ordinal))
+                .ToDictionary(f => f.Path, f => File.ReadAllText(f.Full));
+
+        /// <summary>
+        /// A file linked into two projects (<c>&lt;Compile Include="..\Shared\Config.cs" Link="Config.cs" /&gt;</c>)
+        /// is one file on disk: fixing it as the anchor's document changes what the sibling compiles
+        /// too. This pins exactly which files a solution-targeted run writes when such a file carries
+        /// the diagnostic — the anchor's own file and the shared file, and never the sibling's own —
+        /// and that the response says the shared file's write reaches a project the call did not name.
+        /// </summary>
+        /// <remarks>
+        /// <c>App.sln</c> is named after the anchor so <c>SelectPrimaryProject</c> picks <c>App</c> by rule,
+        /// not by enumeration order. The solution order is the theory's axis because a linked file
+        /// is two Roslyn documents with one path and only the anchor's copy carries the fix: a
+        /// lookup that resolved "the document at this path" across every project landed on the
+        /// sibling's untouched copy whenever the sibling enumerated first, and wrote that back —
+        /// measured before the fix as <c>written == ["App/Program.cs"]</c> for the <c>Lib, App</c> order.
+        /// </remarks>
+        [Theory]
+        [InlineData("App", "Lib")]
+        [InlineData("Lib", "App")]
+        public async Task ApplyFixes_Writes_A_File_Linked_Into_Two_Projects_And_Nothing_Of_The_Siblings_Own(
+            string firstInSolution, string secondInSolution)
+        {
+            CreateSharedFile("Shared/Config.cs", UnusedLocalInShared);
+            CreateProject("App.csproj", linkedFiles: ["Shared/Config.cs"], ("Program.cs", UnusedLocalInApp));
+            CreateProject("Lib.csproj", linkedFiles: ["Shared/Config.cs"], ("Thing.cs", UnusedLocalInLib));
+            var slnPath = CreateSolutionFile("App.sln", firstInSolution, secondInSolution);
+            var before = SnapshotSources();
+
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
+
+            result.Project.ShouldBe("App");
+            result.Applied.ShouldBeTrue();
+
+            // The exact set of files whose on-disk content changed — the write, not the report.
+            var after = SnapshotSources();
+            var written = after.Where(kv => before[kv.Key] != kv.Value).Select(kv => kv.Key).Order().ToList();
+            written.ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
+
+            after["App/Program.cs"].ShouldNotContain("unusedInApp");
+            after["Shared/Config.cs"].ShouldNotContain("unusedInShared");
+            after["Lib/Thing.cs"].ShouldContain("unusedInLib");
+
+            // The report agrees with the write, and counts the shared file once.
+            result.FixedCount.ShouldBe(2);
+            result.ChangedFiles.Order().ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
+
+            // ...and says that the shared file's write reaches a project the call did not name.
+            result.Notes.ShouldContain(n => n.Contains("Shared/Config.cs") && n.Contains("Lib") && n.Contains("linked"));
+        }
+
+        /// <summary>
+        /// The single-project scope travels in the response, not only in the confirmation prompt —
+        /// which <c>previewOnly: true</c> (the default), a client without elicitation, and
+        /// <c>ConfirmDestructiveWrites = false</c> (the documented CI setting) all skip. A caller
+        /// that fixed one project of three must be able to tell "the others were clean" from "the
+        /// others were never looked at".
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ApplyFixes_On_A_Multi_Project_Solution_Names_The_Fixed_Project_And_The_Skipped_Ones(bool previewOnly)
+        {
+            CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
+            CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
+            CreateProject("Other.csproj", ("Widget.cs", "public class Widget { }"));
+            var slnPath = CreateSolutionFile("App.sln", "App", "Lib", "Other");
+
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly);
+
+            result.Project.ShouldBe("App");
+            var scopeNote = result.Notes.Where(n => n.Contains("not analyzed or fixed")).ShouldHaveSingleItem();
+            scopeNote.ShouldContain("'App'");
+            scopeNote.ShouldContain("Lib");
+            scopeNote.ShouldContain("Other");
+            scopeNote.ShouldContain("2 other project");
+            scopeNote.ShouldContain("App.sln");
+        }
+
+        /// <summary>A bare <c>.csproj</c> target has no siblings to skip, so no scope note — it would be noise.</summary>
+        [Fact]
+        public async Task ApplyFixes_On_A_Csproj_Target_Emits_No_Skipped_Project_Note()
+        {
+            var csprojPath = CreateProject("Alone.csproj", ("Program.cs", UnusedLocalInApp));
+
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
+
+            result.FixedCount.ShouldBe(1);
+            result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
+        }
+
+        /// <summary>
+        /// The caller named <c>App.csproj</c>; the loader opened <c>App.sln</c> to answer (so
+        /// <c>resolvedPath</c> is the solution). The siblings were not analyzed, but that is what the
+        /// caller asked for — the note keys on what was named, not on what answered, so it does not
+        /// tell them to pass the <c>.csproj</c> they just passed.
+        /// </summary>
+        [Fact]
+        public async Task ApplyFixes_On_A_Csproj_Listed_In_A_Solution_Emits_No_Skipped_Project_Note()
+        {
+            var appCsproj = CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
+            CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
+            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+
+            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
+
+            result.FixedCount.ShouldBe(1);
+            result.ResolvedPath.ShouldBe(slnPath);
+            result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
+        }
+
+        /// <summary>A single-project solution has no siblings to skip either — "0 other projects" is noise.</summary>
+        [Fact]
+        public async Task ApplyFixes_On_A_Single_Project_Solution_Emits_No_Skipped_Project_Note()
+        {
+            CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
+            var slnPath = CreateSolutionFile("App.sln", "App");
+
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: true);
+
+            result.FixedCount.ShouldBe(1);
+            result.ResolvedPath.ShouldBe(slnPath);
+            result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
         }
     }
 

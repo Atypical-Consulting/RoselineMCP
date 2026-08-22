@@ -87,6 +87,19 @@ public sealed class LoadedProject : IDisposable
     /// </summary>
     public string ResolvedPath => _resolvedPath ?? Solution.FilePath ?? Project.FilePath ?? string.Empty;
 
+    /// <summary>
+    /// The absolute <c>.sln</c> or <c>.csproj</c> the caller's <c>project</c> reference resolved
+    /// to <em>before</em> the loader opened anything — what the caller named, as opposed to
+    /// <see cref="ResolvedPath"/>, which is what answered. The two differ for a <c>.csproj</c>
+    /// listed in an ancestor <c>.sln</c>: the loader opens the solution (so <see cref="ResolvedPath"/>
+    /// is the <c>.sln</c>) but the caller chose one project, and a tool that reports "the other
+    /// projects were skipped" must not say so to a caller who asked for exactly that. Falls back to
+    /// <see cref="ResolvedPath"/> for handles built without that knowledge.
+    /// </summary>
+    public string TargetPath => _targetPath ?? ResolvedPath;
+
+    private readonly string? _targetPath;
+
     /// <summary>Initializes a new <see cref="LoadedProject"/>.</summary>
     /// <param name="workspace">The workspace the project/solution was loaded into.</param>
     /// <param name="solution">The loaded solution snapshot.</param>
@@ -103,14 +116,20 @@ public sealed class LoadedProject : IDisposable
     /// "the solution answered" once Roslyn has grafted the project onto it. <see langword="null"/>
     /// (the default) defers to that fallback.
     /// </param>
+    /// <param name="targetPath">
+    /// The <c>.sln</c> or <c>.csproj</c> the caller's reference resolved to, when the loader knows
+    /// it — see <see cref="TargetPath"/>. <see langword="null"/> (the default) defers to
+    /// <see cref="ResolvedPath"/>.
+    /// </param>
     public LoadedProject(
-        Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true, string? resolvedPath = null)
+        Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true, string? resolvedPath = null, string? targetPath = null)
     {
         Workspace = workspace;
         Solution = solution;
         Project = project;
         _ownsWorkspace = ownsWorkspace;
         _resolvedPath = resolvedPath;
+        _targetPath = targetPath;
     }
 
     /// <summary>Disposes the underlying workspace when this handle owns it; otherwise a no-op.</summary>

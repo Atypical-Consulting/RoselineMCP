@@ -190,6 +190,14 @@ documents, not about who *sees* the change: a file linked into several projects
 (`<Compile Include="..\Shared\Config.cs" Link="Config.cs"/>`) is one file on disk, so fixing it in
 the anchor project changes what every project linking it compiles.
 
+The prompt is where a human *hears* that scope; it is not where the scope *lives*. The service
+enforces it on the write path whether or not a prompt was shown, and the response reports it in
+`notes[]` on every call — the skipped projects by name, and any linked file whose write reaches a
+sibling — so a `previewOnly: true` caller, a client that never negotiated elicitation, and an
+unattended host running with `ConfirmDestructiveWrites = false` all learn the same thing the
+prompt says. The guarantee the prompt describes therefore does not depend on the prompt being
+shown; see [ApplyFixes](#applyfixes) for the exact wording.
+
 The other two write tools are not described by the sentence above, and they differ from each other.
 [`EditMember`](#editmember) has the narrowest scope of the three: it resolves one declaration and
 rewrites **exactly one file**. Its prompt says that outright rather than letting the target stand in
@@ -424,12 +432,46 @@ the [Write Confirmation](#write-confirmation) gate.
 **A `.sln` target fixes one project, not the solution.** Unlike the navigation tools, whose search
 spans every project in the loaded solution, `ApplyFixes` acts on a single project: the anchor
 `ProjectLoader` selects (the C# project whose file name matches the `.sln`, otherwise the first C#
-project Roslyn enumerated). Diagnostics in the solution's other projects are neither fixed nor
-reported as skipped, so `changedFiles` being short is not evidence they were clean. The `project`
-field of the response names the one that was fixed, and `resolvedPath` names the target it was
-chosen from. Pass an explicit `.csproj` to fix a specific project. (The confirmation prompt says the
-same thing, but it is only shown on a `previewOnly: false` call to an eliciting client — see
-[Write Confirmation](#write-confirmation).)
+project Roslyn enumerated). Diagnostics in the solution's other projects are not analyzed or fixed,
+so `changedFiles` being short is not evidence they were clean. The `project` field of the response
+names the one that was fixed, and `resolvedPath` names the target it was chosen from. Pass an
+explicit `.csproj` to fix a specific project.
+
+That scope is **enforced, and reported** — not merely announced by the confirmation prompt, which
+is only shown on a `previewOnly: false` call to an eliciting client with
+`RoselineMCP:ConfirmDestructiveWrites` left on (see [Write Confirmation](#write-confirmation)):
+
+- **Enforced.** After every fix — batch or per-occurrence — the service rebuilds its working
+  solution from the *previous* one plus only the anchor project's changed (and added) documents,
+  and carries those documents by id. A `FixAllProvider` is third-party code and nothing stops one
+  from editing a sibling project; whatever it did outside the anchor is dropped there, so the
+  solution the compiler verifies and the set of files the write loop touches are the same thing by
+  construction — not a write list filtered after the fact while verification compiles a solution
+  that still carries the sibling edits. A fix whose edit leaves the anchor unchanged (it edited only
+  a sibling, or nets out to the original text) counts as not applied. Carrying *ids* rather than
+  paths matters for a **linked file** (`<Compile Include="..\Shared\Config.cs" Link="Config.cs"/>`):
+  one path backs one Roslyn document per project that links it, and only the anchor's copy carries
+  the fix. Resolving the path across every project picked whichever project enumerated first — a
+  sibling, depending on solution order — so the fix was counted in `fixedCount` and the sibling's
+  untouched text was written back. It is now written from the anchor's copy whatever the order.
+- **Reported.** When the caller's target was a **solution** — a `.sln` path, or an auto-discovered
+  one — and it holds other C# projects, `notes[]` carries a scope entry on every path out of the
+  call (preview, refused, declined, written) of the form `Fixed project 'Acme.Core' only; 2 other
+  projects in 'Acme.sln' (Acme.Api, Acme.Tests) were not analyzed or fixed. Pass a project's .csproj
+  as 'project' to fix it.` Projects are counted per `.csproj`, so a multi-targeted sibling is one
+  skipped project, not one per TFM. No such note when the caller *named* a project — a `.csproj`
+  path or an exact project name — even though the loader opens its ancestor `.sln` to answer (and
+  `resolvedPath` is that `.sln`): the siblings were not analyzed, but that is what was asked for,
+  and telling that caller to pass the `.csproj` they just passed is worse than silence. Nor for a
+  single-project solution (there is nothing skipped to name). Written linked files add one entry per
+  set of sharing projects — `'Shared/Config.cs' is a linked file also compiled by Acme.Api: writing
+  changes what those projects compile too, though only 'Acme.Core' was analyzed.` — because the
+  write is in scope and its effect on the sibling is not. (When such a sibling is not compiled by
+  the verification — it is outside the changed-plus-dependents scope unless it references the
+  anchor — `verification.scopeComplete` is `false` as well, with the matching note under
+  `verification.notes`.)
+
+These entries are additive to `notes[]`; no existing field changes meaning.
 
 #### Request
 
@@ -458,7 +500,7 @@ same thing, but it is only shown on a `previewOnly: false` call to an eliciting 
   fixersApplied: string[];   // Diagnostic IDs that were successfully fixed at least once
   changedFiles: string[];    // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln) of files that were modified
   patch: string;             // Unified diff across all changed files (headers use the same relative paths)
-  notes: string[];           // Per-ID status messages: skipped (no provider/no diagnostics), errors, or "applied N fixes to M files" / "Preview mode - no changes were saved to disk"
+  notes: string[];           // Scope entries (which project was fixed, which were skipped; linked files written) + per-ID status messages: skipped (no provider/no diagnostics), errors, or "applied N fixes to M files" / "Preview mode - no changes were saved to disk"
   previewOnly: boolean;      // Echoes back whether the caller asked for a preview
   applied: boolean;          // True only when previewOnly was false, there were changes, and verification did not refuse
   verification?: object;     // The compiler's verdict — see Compile Verification
