@@ -99,4 +99,77 @@ public class CodeFixServiceTests
             service.ShouldNotBeNull();
         }
     }
+
+    /// <summary>
+    /// The skipped-projects note (#156) on shapes an MSBuild fixture cannot build without a restore
+    /// — a multi-targeted sibling — and on the one distinction the loader has to carry for it:
+    /// what the caller <em>named</em> (<see cref="LoadedProject.TargetPath"/>) versus what answered.
+    /// </summary>
+    public class ProjectScopeNoteTests : CodeFixServiceTests
+    {
+        private static readonly string BaseDirectory =
+            Path.Combine(Path.GetTempPath(), "roseline-tests", Guid.NewGuid().ToString("n"));
+
+        /// <summary>
+        /// <c>App.sln</c> holding <c>App</c> (the anchor) and <c>Lib</c> multi-targeting two TFMs — which
+        /// Roslyn loads as two projects, <c>Lib(net8.0)</c> and <c>Lib(net10.0)</c>, over one <c>.csproj</c>.
+        /// </summary>
+        private static (AdhocWorkspace Workspace, Project Anchor, string SolutionPath) CreateSolutionWithMultiTargetedSibling()
+        {
+            var workspace = new AdhocWorkspace();
+            var solutionPath = Path.Combine(BaseDirectory, "App.sln");
+            var solution = workspace.AddSolution(SolutionInfo.Create(
+                SolutionId.CreateNewId(), VersionStamp.Create(), filePath: solutionPath));
+
+            var appId = ProjectId.CreateNewId();
+            solution = solution.AddProject(ProjectInfo.Create(
+                appId, VersionStamp.Create(), "App", "App", LanguageNames.CSharp,
+                filePath: Path.Combine(BaseDirectory, "App", "App.csproj")));
+
+            foreach (var tfm in new[] { "net8.0", "net10.0" })
+            {
+                solution = solution.AddProject(ProjectInfo.Create(
+                    ProjectId.CreateNewId(), VersionStamp.Create(), $"Lib({tfm})", "Lib", LanguageNames.CSharp,
+                    filePath: Path.Combine(BaseDirectory, "Lib", "Lib.csproj")));
+            }
+
+            return (workspace, solution.GetProject(appId)!, solutionPath);
+        }
+
+        private void LoaderReturns(AdhocWorkspace workspace, Project anchor, string targetPath) =>
+            A.CallTo(() => _projectLoader.LoadAsync(A<string>._, A<CancellationToken>._))
+                .ReturnsLazily(() => Task.FromResult(new LoadedProject(workspace, anchor.Solution, anchor, targetPath: targetPath)));
+
+        [Fact]
+        public async Task A_Multi_Targeted_Sibling_Is_One_Skipped_Project_Not_One_Per_TFM()
+        {
+            var (workspace, anchor, solutionPath) = CreateSolutionWithMultiTargetedSibling();
+            using var _ = workspace;
+            LoaderReturns(workspace, anchor, targetPath: solutionPath);
+
+            var result = await _sut.ApplyFixesAsync(solutionPath, ["CS0219"], previewOnly: true);
+
+            var note = result.Notes.Where(n => n.Contains("not analyzed or fixed")).ShouldHaveSingleItem();
+            note.ShouldContain("1 other project in 'App.sln' (Lib)");
+            note.ShouldNotContain("net8.0");
+        }
+
+        /// <summary>
+        /// The caller named <c>App.csproj</c>; the loader opened its ancestor <c>App.sln</c> to answer.
+        /// Telling that caller "the other projects were skipped — pass a .csproj" would be telling
+        /// them to do what they just did, so the note keys on what was named, not on what answered.
+        /// </summary>
+        [Fact]
+        public async Task A_Named_Csproj_Gets_No_Skipped_Project_Note_Even_When_Its_Solution_Answered()
+        {
+            var (workspace, anchor, _) = CreateSolutionWithMultiTargetedSibling();
+            using var __ = workspace;
+            LoaderReturns(workspace, anchor, targetPath: anchor.FilePath!);
+
+            var result = await _sut.ApplyFixesAsync(anchor.FilePath, ["CS0219"], previewOnly: true);
+
+            result.ResolvedPath.ShouldEndWith("App.sln");
+            result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
+        }
+    }
 }

@@ -441,24 +441,35 @@ That scope is **enforced, and reported** — not merely announced by the confirm
 is only shown on a `previewOnly: false` call to an eliciting client with
 `RoselineMCP:ConfirmDestructiveWrites` left on (see [Write Confirmation](#write-confirmation)):
 
-- **Enforced.** The service collects changed documents from the anchor project alone — a
-  `FixAllProvider` is third-party code and the collector, not the prompt, is where paths become disk
-  writes — and every path-to-document lookup (format, diff, write) resolves to the *anchor's*
-  document. The second half matters for a **linked file**
-  (`<Compile Include="..\Shared\Config.cs" Link="Config.cs"/>`): one path backs one Roslyn document
-  per project that links it, and only the anchor's copy carries the fix. Resolving the path across
-  every project picked whichever project enumerated first — a sibling, depending on solution order —
-  so the fix was counted in `fixedCount` and the sibling's untouched text was written back. It is
-  now written from the anchor's copy whatever the order.
-- **Reported.** Whenever the loaded solution holds other C# projects, `notes[]` carries a scope
-  entry on every path out of the call — preview, refused, declined, written — of the form
-  `Fixed project 'Acme.Core' only; 2 other projects in 'Acme.sln' (Acme.Api, Acme.Tests) were not
-  analyzed or fixed. Pass a project's .csproj as 'project' to fix it.` A bare `.csproj` target and a
-  single-project solution emit no such note (there is nothing skipped to name). A written linked
-  file adds its own entry — `'Shared/Config.cs' is a linked file also compiled by Acme.Api: writing
-  it changes what those projects compile too, though only 'Acme.Core' was analyzed.` — because the
-  write is in scope and its effect on the sibling is not. (`verification.scopeComplete` is `false`
-  in that case too, with the matching note under `verification.notes`.)
+- **Enforced.** After every fix — batch or per-occurrence — the service rebuilds its working
+  solution from the *previous* one plus only the anchor project's changed (and added) documents,
+  and carries those documents by id. A `FixAllProvider` is third-party code and nothing stops one
+  from editing a sibling project; whatever it did outside the anchor is dropped there, so the
+  solution the compiler verifies and the set of files the write loop touches are the same thing by
+  construction — not a write list filtered after the fact while verification compiles a solution
+  that still carries the sibling edits. A fix whose edit leaves the anchor unchanged (it edited only
+  a sibling, or nets out to the original text) counts as not applied. Carrying *ids* rather than
+  paths matters for a **linked file** (`<Compile Include="..\Shared\Config.cs" Link="Config.cs"/>`):
+  one path backs one Roslyn document per project that links it, and only the anchor's copy carries
+  the fix. Resolving the path across every project picked whichever project enumerated first — a
+  sibling, depending on solution order — so the fix was counted in `fixedCount` and the sibling's
+  untouched text was written back. It is now written from the anchor's copy whatever the order.
+- **Reported.** When the caller's target was a **solution** — a `.sln` path, or an auto-discovered
+  one — and it holds other C# projects, `notes[]` carries a scope entry on every path out of the
+  call (preview, refused, declined, written) of the form `Fixed project 'Acme.Core' only; 2 other
+  projects in 'Acme.sln' (Acme.Api, Acme.Tests) were not analyzed or fixed. Pass a project's .csproj
+  as 'project' to fix it.` Projects are counted per `.csproj`, so a multi-targeted sibling is one
+  skipped project, not one per TFM. No such note when the caller *named* a project — a `.csproj`
+  path or an exact project name — even though the loader opens its ancestor `.sln` to answer (and
+  `resolvedPath` is that `.sln`): the siblings were not analyzed, but that is what was asked for,
+  and telling that caller to pass the `.csproj` they just passed is worse than silence. Nor for a
+  single-project solution (there is nothing skipped to name). Written linked files add one entry per
+  set of sharing projects — `'Shared/Config.cs' is a linked file also compiled by Acme.Api: writing
+  changes what those projects compile too, though only 'Acme.Core' was analyzed.` — because the
+  write is in scope and its effect on the sibling is not. (When such a sibling is not compiled by
+  the verification — it is outside the changed-plus-dependents scope unless it references the
+  anchor — `verification.scopeComplete` is `false` as well, with the matching note under
+  `verification.notes`.)
 
 These entries are additive to `notes[]`; no existing field changes meaning.
 

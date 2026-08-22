@@ -352,8 +352,9 @@ actually reached disk), and `verification` — the compiler's verdict on the fix
 
 A `.sln` target fixes **one** project — its primary project — and that scope is enforced on the
 write path, not only announced by the confirmation prompt: only the anchor project's documents are
-written, and a caller who never sees a prompt (preview, a non-eliciting client, an unattended host)
-still reads which projects were skipped in `notes`. Pass a `.csproj` to fix a specific project.
+verified and written, and a caller who never sees a prompt (preview, a non-eliciting client, an
+unattended host) still reads which projects were skipped in `notes`. Pass a `.csproj` to fix a
+specific project — then nothing is reported as skipped, since that is what was asked for.
 
 ### 14. CheckCompilation
 

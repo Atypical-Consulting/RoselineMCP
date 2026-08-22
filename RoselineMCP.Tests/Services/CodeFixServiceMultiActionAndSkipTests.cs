@@ -251,7 +251,13 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
 
             var result = await sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
-            result.FixedCount.ShouldBe(1, "the fixer DID run and register a change to the solution");
+            // The fixer ran, but its edit left the solution identical — so nothing was fixed, and
+            // since #156 the count comes from the anchor project's solution delta rather than from
+            // "a code action produced an operation": a fix that changes nothing in the anchor is not
+            // applied, the same rule that stops a fix editing only a sibling project from being
+            // counted while nothing is written.
+            result.FixedCount.ShouldBe(0, "an edit that nets out to the original text fixed nothing");
+            result.Notes.ShouldContain(n => n.Contains("No code fix could be applied for CS0219"));
             result.ChangedFiles.ShouldBeEmpty("nothing textually changed, so nothing should count as changed");
             result.Patch.ShouldBeNullOrWhiteSpace();
             result.HasChanges.ShouldBeFalse();

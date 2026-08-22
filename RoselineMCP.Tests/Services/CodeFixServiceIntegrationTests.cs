@@ -565,19 +565,27 @@ public class CodeFixServiceIntegrationTests : IDisposable
         /// A file linked into two projects (<c>&lt;Compile Include="..\Shared\Config.cs" Link="Config.cs" /&gt;</c>)
         /// is one file on disk: fixing it as the anchor's document changes what the sibling compiles
         /// too. This pins exactly which files a solution-targeted run writes when such a file carries
-        /// the diagnostic — the anchor's own file and the shared file, and never the sibling's own.
+        /// the diagnostic — the anchor's own file and the shared file, and never the sibling's own —
+        /// and that the response says the shared file's write reaches a project the call did not name.
         /// </summary>
         /// <remarks>
         /// <c>App.sln</c> is named after the anchor so <c>SelectPrimaryProject</c> picks <c>App</c> by rule,
-        /// not by enumeration order.
+        /// not by enumeration order. The solution order is the theory's axis because a linked file
+        /// is two Roslyn documents with one path and only the anchor's copy carries the fix: a
+        /// lookup that resolved "the document at this path" across every project landed on the
+        /// sibling's untouched copy whenever the sibling enumerated first, and wrote that back —
+        /// measured before the fix as <c>written == ["App/Program.cs"]</c> for the <c>Lib, App</c> order.
         /// </remarks>
-        [Fact]
-        public async Task ApplyFixes_Writes_A_File_Linked_Into_Two_Projects_And_Nothing_Of_The_Siblings_Own()
+        [Theory]
+        [InlineData("App", "Lib")]
+        [InlineData("Lib", "App")]
+        public async Task ApplyFixes_Writes_A_File_Linked_Into_Two_Projects_And_Nothing_Of_The_Siblings_Own(
+            string firstInSolution, string secondInSolution)
         {
             CreateSharedFile("Shared/Config.cs", UnusedLocalInShared);
             CreateProject("App.csproj", linkedFiles: ["Shared/Config.cs"], ("Program.cs", UnusedLocalInApp));
             CreateProject("Lib.csproj", linkedFiles: ["Shared/Config.cs"], ("Thing.cs", UnusedLocalInLib));
-            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+            var slnPath = CreateSolutionFile("App.sln", firstInSolution, secondInSolution);
             var before = SnapshotSources();
 
             var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
@@ -599,37 +607,6 @@ public class CodeFixServiceIntegrationTests : IDisposable
             result.ChangedFiles.Order().ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
 
             // ...and says that the shared file's write reaches a project the call did not name.
-            result.Notes.ShouldContain(n => n.Contains("Shared/Config.cs") && n.Contains("Lib") && n.Contains("linked"));
-        }
-
-        /// <summary>
-        /// Same fixture, sibling listed <em>first</em> in the solution. A linked file is two Roslyn
-        /// documents with one path, and only the anchor's copy is fixed — so a lookup that finds
-        /// "the document at this path" across every project can land on the sibling's untouched
-        /// copy depending on project order. The outcome must not depend on that order.
-        /// </summary>
-        [Fact]
-        public async Task ApplyFixes_Writes_The_Linked_File_Regardless_Of_Project_Order()
-        {
-            CreateSharedFile("Shared/Config.cs", UnusedLocalInShared);
-            CreateProject("App.csproj", linkedFiles: ["Shared/Config.cs"], ("Program.cs", UnusedLocalInApp));
-            CreateProject("Lib.csproj", linkedFiles: ["Shared/Config.cs"], ("Thing.cs", UnusedLocalInLib));
-            var slnPath = CreateSolutionFile("App.sln", "Lib", "App");
-            var before = SnapshotSources();
-
-            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
-
-            result.Project.ShouldBe("App");
-            result.Applied.ShouldBeTrue();
-
-            var after = SnapshotSources();
-            var written = after.Where(kv => before[kv.Key] != kv.Value).Select(kv => kv.Key).Order().ToList();
-            written.ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
-            after["Shared/Config.cs"].ShouldNotContain("unusedInShared");
-            after["Lib/Thing.cs"].ShouldContain("unusedInLib");
-
-            result.FixedCount.ShouldBe(2);
-            result.ChangedFiles.Order().ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
             result.Notes.ShouldContain(n => n.Contains("Shared/Config.cs") && n.Contains("Lib") && n.Contains("linked"));
         }
 
@@ -670,6 +647,26 @@ public class CodeFixServiceIntegrationTests : IDisposable
             var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
 
             result.FixedCount.ShouldBe(1);
+            result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
+        }
+
+        /// <summary>
+        /// The caller named <c>App.csproj</c>; the loader opened <c>App.sln</c> to answer (so
+        /// <c>resolvedPath</c> is the solution). The siblings were not analyzed, but that is what the
+        /// caller asked for — the note keys on what was named, not on what answered, so it does not
+        /// tell them to pass the <c>.csproj</c> they just passed.
+        /// </summary>
+        [Fact]
+        public async Task ApplyFixes_On_A_Csproj_Listed_In_A_Solution_Emits_No_Skipped_Project_Note()
+        {
+            var appCsproj = CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
+            CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
+            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+
+            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
+
+            result.FixedCount.ShouldBe(1);
+            result.ResolvedPath.ShouldBe(slnPath);
             result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
         }
 

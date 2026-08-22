@@ -96,7 +96,7 @@ public class CodeFixService : ICodeFixService
                 // here. The confirmation prompt names the scope too, but previewOnly (the default), a
                 // client without elicitation, and ConfirmDestructiveWrites = false all skip the prompt —
                 // and a short changedFiles is not evidence that the other projects were clean (#156).
-                var skippedNote = DescribeSkippedProjects(loaded.Solution, msProject);
+                var skippedNote = DescribeSkippedProjects(loaded, msProject);
                 if (skippedNote is not null)
                 {
                     response.Notes.Add(skippedNote);
@@ -116,9 +116,12 @@ public class CodeFixService : ICodeFixService
                     originalTexts[document.FilePath!] = text.ToString();
                 }
 
-                // Apply fixes for each diagnostic ID
+                // Apply fixes for each diagnostic ID. changedDocuments holds the ANCHOR project's
+                // document ids — never paths. A linked file is one path backing one document per
+                // project that links it, so a path cannot say which copy carries the fix; the id can
+                // (#156). Both collectors below fill it from the solution delta, anchor-only.
                 var appliedFixes = new HashSet<string>();
-                var changedDocuments = new HashSet<string>();
+                var changedDocuments = new HashSet<DocumentId>();
                 var currentSolution = originalSolution;
                 var fixCount = 0;
 
@@ -176,15 +179,14 @@ public class CodeFixService : ICodeFixService
                 response.FixersApplied = appliedFixes.ToList();
                 response.FixedCount = fixCount;
 
-                // Format the changed documents. Every lookup from here on resolves a path to the
-                // ANCHOR project's document (see AnchorDocument) — the fix lives on that copy alone.
+                // Format the changed documents
                 if (changedDocuments.Any())
                 {
                     _logger.LogInformation("Formatting {Count} changed documents", changedDocuments.Count);
 
-                    foreach (var filePath in changedDocuments)
+                    foreach (var documentId in changedDocuments)
                     {
-                        var document = AnchorDocument(currentSolution, msProject.Id, filePath);
+                        var document = currentSolution.GetDocument(documentId);
 
                         if (document != null)
                         {
@@ -199,48 +201,62 @@ public class CodeFixService : ICodeFixService
                 {
                     var patchBuilder = new StringBuilder();
 
-                    foreach (var filePath in changedDocuments.OrderBy(f => f))
+                    // A linked file is the anchor's document AND a sibling's: writing it is in scope,
+                    // its effect on the sibling is not. Collected per file here, said once per
+                    // sibling set below, so a fix across a linked Shared/ folder reads as one note.
+                    var linkedFiles = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+                    foreach (var newDocument in ChangedDocumentsByPath(currentSolution, changedDocuments))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
+                        var filePath = newDocument.FilePath!;
                         var relativePath = SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
 
-                        var newDocument = AnchorDocument(currentSolution, msProject.Id, filePath);
+                        var newText = await newDocument.GetTextAsync(cancellationToken);
+                        var oldText = originalTexts.GetValueOrDefault(filePath, "");
 
-                        if (newDocument != null)
+                        var diff = _diffService.GenerateUnifiedDiff(
+                            oldText,
+                            newText.ToString(),
+                            $"a/{relativePath}",
+                            $"b/{relativePath}");
+
+                        // Roslyn's changed-document set is a "this document object was touched"
+                        // signal, not a content-equality check — a fixer whose edit nets out to the
+                        // original text (or is undone by the formatting pass above) still shows up
+                        // in changedDocuments. Only count it as changed once there is a real, non-blank
+                        // diff, so HasChanges agrees with what ApplyFixes actually has to write.
+                        if (!string.IsNullOrWhiteSpace(diff))
                         {
-                            var newText = await newDocument.GetTextAsync(cancellationToken);
-                            var oldText = originalTexts.GetValueOrDefault(filePath, "");
+                            patchBuilder.AppendLine(diff);
+                            response.ChangedFiles.Add(relativePath);
 
-                            var diff = _diffService.GenerateUnifiedDiff(
-                                oldText,
-                                newText.ToString(),
-                                $"a/{relativePath}",
-                                $"b/{relativePath}");
-
-                            // Roslyn's changed-document set is a "this document object was touched"
-                            // signal, not a content-equality check — a fixer whose edit nets out to the
-                            // original text (or is undone by the formatting pass above) still shows up
-                            // in changedDocuments. Only count it as changed once there is a real, non-blank
-                            // diff, so HasChanges agrees with what ApplyFixes actually has to write.
-                            if (!string.IsNullOrWhiteSpace(diff))
+                            var sharers = OtherProjectNames(
+                                currentSolution.GetDocumentIdsWithFilePath(filePath).Select(id => currentSolution.GetProject(id.ProjectId)),
+                                msProject);
+                            if (sharers.Count > 0)
                             {
-                                patchBuilder.AppendLine(diff);
-                                response.ChangedFiles.Add(relativePath);
-
-                                // A linked file is the anchor's document AND a sibling's: writing it
-                                // is in scope, its effect on the sibling is not, so say so rather than
-                                // let the sibling change silently under a prompt that named one project.
-                                var linkedNote = DescribeLinkedFile(currentSolution, msProject, filePath, relativePath);
-                                if (linkedNote is not null)
+                                var key = string.Join(", ", sharers);
+                                if (!linkedFiles.TryGetValue(key, out var files))
                                 {
-                                    response.Notes.Add(linkedNote);
+                                    linkedFiles[key] = files = [];
                                 }
+
+                                files.Add(relativePath);
                             }
                         }
                     }
 
                     response.Patch = patchBuilder.ToString();
+
+                    foreach (var (sharers, files) in linkedFiles.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+                    {
+                        var plural = files.Count == 1 ? "is a linked file" : "are linked files";
+                        response.Notes.Add(
+                            $"{string.Join(", ", files.Select(f => $"'{f}'"))} {plural} also compiled by {sharers}: "
+                            + $"writing changes what those projects compile too, though only '{ProjectDisplayName(msProject)}' was analyzed.");
+                    }
                 }
 
                 // The compiler's verdict on the fixed solution, before anything reaches disk. A code fix
@@ -271,18 +287,13 @@ public class CodeFixService : ICodeFixService
                 {
                     _logger.LogInformation("Applying changes to {Count} files", changedDocuments.Count);
 
-                    foreach (var filePath in changedDocuments)
+                    foreach (var document in ChangedDocumentsByPath(currentSolution, changedDocuments))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        var document = AnchorDocument(currentSolution, msProject.Id, filePath);
-
-                        if (document != null)
-                        {
-                            var text = await document.GetTextAsync(cancellationToken);
-                            // Write with the file's original encoding (BOM included) — see SourceTextWriter.
-                            await SourceTextWriter.WriteAsync(filePath, text, cancellationToken);
-                        }
+                        var text = await document.GetTextAsync(cancellationToken);
+                        // Write with the file's original encoding (BOM included) — see SourceTextWriter.
+                        await SourceTextWriter.WriteAsync(document.FilePath!, text, cancellationToken);
                     }
 
                     response.Applied = true;
@@ -339,7 +350,7 @@ public class CodeFixService : ICodeFixService
         ProjectId projectId,
         string diagnosticId,
         CodeFixProvider provider,
-        HashSet<string> changedDocuments,
+        HashSet<DocumentId> changedDocuments,
         CancellationToken cancellationToken)
     {
         var initialDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken);
@@ -424,7 +435,7 @@ public class CodeFixService : ICodeFixService
         CodeFixProvider provider,
         FixAllProvider fixAllProvider,
         List<Diagnostic> diagnostics,
-        HashSet<string> changedDocuments,
+        HashSet<DocumentId> changedDocuments,
         CancellationToken cancellationToken)
     {
         var project = solution.GetProject(projectId);
@@ -493,116 +504,132 @@ public class CodeFixService : ICodeFixService
             return (solution, 0);
         }
 
-        // Collect ONLY the anchor project's changed documents. The FixAllContext above is scoped to
-        // the project, but a FixAllProvider is third-party code and nothing stops one from touching
-        // documents elsewhere in the solution. Every path collected here is written verbatim by the
-        // caller, so an unfiltered collection would re-widen — at the point paths become disk
-        // writes — the single-project scope the tool's confirmation prompt narrows to (#156).
-        foreach (var projectChanges in newSolution.GetChanges(solution).GetProjectChanges()
-                     .Where(pc => pc.ProjectId == projectId))
-        {
-            foreach (var documentId in projectChanges.GetChangedDocuments())
-            {
-                var changedDocument = newSolution.GetDocument(documentId);
-                if (changedDocument?.FilePath != null)
-                {
-                    changedDocuments.Add(changedDocument.FilePath);
-                }
-            }
-        }
+        // Keep ONLY the anchor project's changes. The FixAllContext above is scoped to the project,
+        // but a FixAllProvider is third-party code and nothing stops one from touching documents
+        // elsewhere in the solution. What comes back here is both what gets verified and what gets
+        // written, so the two must be the same set: rebuilding from `solution` plus the anchor's
+        // changed documents makes that true by construction, instead of filtering the write list
+        // while verifying a solution that still carries the sibling edits (#156).
+        var (scopedSolution, changedIds) = await KeepAnchorChangesAsync(solution, newSolution, projectId, cancellationToken);
+        changedDocuments.UnionWith(changedIds);
+        newSolution = scopedSolution;
 
         _logger.LogDebug("Applied FixAll for {Id}: {Count} occurrence(s) fixed in one pass", diagnosticId, fixedCount);
         return (newSolution, fixedCount);
     }
 
     /// <summary>
-    /// The anchor project's document backed by <paramref name="filePath"/> in
-    /// <paramref name="solution"/>, or <c>null</c> when the project has none there.
+    /// <paramref name="before"/> plus only the <paramref name="anchor"/> project's document changes
+    /// from <paramref name="after"/> — the solution every later step works from, and the ids of the
+    /// documents it differs in. Defined once, for both the batch and the per-occurrence path, from
+    /// the solution delta rather than from whichever document a fix was registered on.
     /// </summary>
     /// <remarks>
-    /// A linked file (<c>&lt;Compile Include="..\Shared\Config.cs" Link="Config.cs" /&gt;</c>) is one
-    /// path backing one <see cref="Document"/> per project that links it, and a fix applied in the
-    /// anchor project changes the anchor's copy alone. Resolving the path across every project
-    /// (<c>solution.Projects.SelectMany(p => p.Documents).FirstOrDefault(...)</c>) therefore returns
-    /// whichever project enumerates first — and when that is a sibling, its untouched copy is what
-    /// gets formatted, diffed and written back, so the fix is counted in <c>fixedCount</c> and never
-    /// reaches disk. Measured in #156 on a two-project solution listing the sibling first. Every
-    /// path-to-document lookup in <see cref="ApplyFixesAsync"/> goes through here so the answer
-    /// cannot depend on project order.
+    /// Changed documents are carried over as text; documents a fix <em>added</em> to the anchor are
+    /// carried over too, when they have a path to be written to. Anything a fixer did outside the
+    /// anchor is dropped here — and because the returned solution is what the compiler verifies and
+    /// what the write loop reads, "verified" and "written" cannot disagree about it.
     /// </remarks>
-    private static Document? AnchorDocument(Solution solution, ProjectId anchor, string filePath)
+    private static async Task<(Solution Solution, List<DocumentId> Changed)> KeepAnchorChangesAsync(
+        Solution before,
+        Solution after,
+        ProjectId anchor,
+        CancellationToken cancellationToken)
     {
-        // Roslyn indexes documents by path, so this is a lookup rather than a scan.
-        var documentId = solution.GetDocumentIdsWithFilePath(filePath)
-            .FirstOrDefault(id => id.ProjectId == anchor);
-        return documentId is null ? null : solution.GetDocument(documentId);
+        var result = before;
+        var changed = new List<DocumentId>();
+
+        foreach (var projectChanges in after.GetChanges(before).GetProjectChanges()
+                     .Where(pc => pc.ProjectId == anchor))
+        {
+            foreach (var documentId in projectChanges.GetChangedDocuments())
+            {
+                var document = after.GetDocument(documentId);
+                if (document?.FilePath is null)
+                {
+                    continue;
+                }
+
+                result = result.WithDocumentText(documentId, await document.GetTextAsync(cancellationToken));
+                changed.Add(documentId);
+            }
+
+            foreach (var documentId in projectChanges.GetAddedDocuments())
+            {
+                var document = after.GetDocument(documentId);
+                if (document?.FilePath is null)
+                {
+                    continue;
+                }
+
+                result = result.AddDocument(
+                    documentId, document.Name, await document.GetTextAsync(cancellationToken), document.Folders, document.FilePath);
+                changed.Add(documentId);
+            }
+        }
+
+        return (result, changed);
     }
+
+    /// <summary>
+    /// The documents behind <paramref name="changedDocuments"/> in <paramref name="solution"/>, in
+    /// file-path order — the one iteration order the patch and the write loop share.
+    /// </summary>
+    private static IEnumerable<Document> ChangedDocumentsByPath(Solution solution, IEnumerable<DocumentId> changedDocuments) =>
+        changedDocuments
+            .Select(solution.GetDocument)
+            .Where(d => d?.FilePath is not null)
+            .Select(d => d!)
+            .OrderBy(d => d.FilePath, StringComparer.Ordinal);
 
     /// <summary>
     /// The scope note for a run anchored on <paramref name="anchor"/>: which project was fixed and
     /// which other C# projects of the loaded solution were not analyzed or fixed. <c>null</c> when
-    /// there is nothing to report — no solution was loaded (a bare <c>.csproj</c>), or the solution
-    /// holds no other project — because "0 other projects" is noise.
+    /// there is nothing to say — the caller named a project (a <c>.csproj</c> path or name, even
+    /// one whose ancestor <c>.sln</c> was opened to answer), no solution was loaded, or the solution
+    /// holds no other project — because "0 other projects" is noise, and telling a caller who asked
+    /// for one project to pass its <c>.csproj</c> is worse than noise.
     /// </summary>
-    /// <remarks>
-    /// Other target-framework legs of the anchor (a multi-targeted project loads as one Roslyn
-    /// project per TFM over the same <c>.csproj</c>) are not "other projects": the write covers them.
-    /// Counted from the solution already in hand — no extra load.
-    /// </remarks>
-    private static string? DescribeSkippedProjects(Solution solution, Project anchor)
+    private static string? DescribeSkippedProjects(LoadedProject loaded, Project anchor)
     {
-        if (solution.FilePath is null)
+        if (!loaded.TargetPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        var skipped = solution.Projects
-            .Where(p => p.Id != anchor.Id
-                        && p.Language == LanguageNames.CSharp
-                        && !string.Equals(p.FilePath, anchor.FilePath, StringComparison.Ordinal))
-            .Select(p => p.Name)
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(n => n, StringComparer.Ordinal)
-            .ToList();
-
+        var skipped = OtherProjectNames(loaded.Solution.Projects, anchor);
         if (skipped.Count == 0)
         {
             return null;
         }
 
-        var solutionName = Path.GetFileName(solution.FilePath);
+        var solutionName = Path.GetFileName(loaded.TargetPath);
         var plural = skipped.Count == 1 ? "project" : "projects";
-        return $"Fixed project '{anchor.Name}' only; {skipped.Count} other {plural} in '{solutionName}' "
+        return $"Fixed project '{ProjectDisplayName(anchor)}' only; {skipped.Count} other {plural} in '{solutionName}' "
                + $"({string.Join(", ", skipped)}) were not analyzed or fixed. "
                + "Pass a project's .csproj as 'project' to fix it.";
     }
 
     /// <summary>
-    /// The note for a changed file that is also compiled by projects other than
-    /// <paramref name="anchor"/> — a linked <c>&lt;Compile Include="..\Shared\X.cs" Link="X.cs" /&gt;</c>.
-    /// <c>null</c> when the file belongs to the anchor alone (its other TFM legs included).
+    /// The C# projects among <paramref name="projects"/> that are not <paramref name="anchor"/>'s
+    /// <c>.csproj</c>, named once each and sorted. Keyed on the project <em>file</em>, not the
+    /// Roslyn project: a multi-targeted project loads as one Roslyn project per TFM
+    /// (<c>Lib(net8.0)</c>, <c>Lib(net10.0)</c>) over one <c>.csproj</c>, and that is one project
+    /// to skip, or to share a linked file with — and the anchor's own other legs are not "other
+    /// projects" at all, since the write covers them.
     /// </summary>
-    private static string? DescribeLinkedFile(Solution solution, Project anchor, string filePath, string relativePath)
-    {
-        var sharers = solution.GetDocumentIdsWithFilePath(filePath)
-            .Select(id => solution.GetProject(id.ProjectId))
-            .Where(p => p is not null
-                        && p.Id != anchor.Id
+    private static List<string> OtherProjectNames(IEnumerable<Project?> projects, Project anchor) =>
+        projects
+            .Where(p => p is { Language: LanguageNames.CSharp, FilePath: not null }
                         && !string.Equals(p.FilePath, anchor.FilePath, StringComparison.Ordinal))
-            .Select(p => p!.Name)
+            .Select(p => ProjectDisplayName(p!))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
-        if (sharers.Count == 0)
-        {
-            return null;
-        }
-
-        return $"'{relativePath}' is a linked file also compiled by {string.Join(", ", sharers)}: "
-               + "writing it changes what those projects compile too, though only "
-               + $"'{anchor.Name}' was analyzed.";
-    }
+    /// <summary>The project's <c>.csproj</c> file name, so every TFM leg of one project reads as that project.</summary>
+    private static string ProjectDisplayName(Project project) =>
+        project.FilePath is null ? project.Name : Path.GetFileNameWithoutExtension(project.FilePath);
 
     /// <summary>
     /// Serves the diagnostics (compiler and analyzer alike) already computed for the project
@@ -656,7 +683,7 @@ public class CodeFixService : ICodeFixService
         ProjectId projectId,
         string diagnosticId,
         CodeFixProvider provider,
-        HashSet<string> changedDocuments,
+        HashSet<DocumentId> changedDocuments,
         int remainingCount,
         CancellationToken cancellationToken)
     {
@@ -733,11 +760,19 @@ public class CodeFixService : ICodeFixService
                 continue;
             }
 
-            solution = operation.ChangedSolution;
-            // `document` came from the anchor project's own Documents, so this collector is scoped
-            // by construction — the counterpart of the explicit ProjectId filter in
-            // TryApplyFixAllAsync. Keep it that way: the path recorded here is what gets written.
-            changedDocuments.Add(document.FilePath!);
+            // Same collector as the FixAll path: the solution delta, anchor project only — NOT the
+            // document the fix was registered on, which misses every other document a
+            // multi-document fix edits or adds (and a fix that edited only a sibling would be
+            // counted as applied while writing nothing).
+            var (scopedSolution, changedIds) = await KeepAnchorChangesAsync(solution, operation.ChangedSolution, projectId, cancellationToken);
+            if (changedIds.Count == 0)
+            {
+                unfixableLocations.Add(locationKey);
+                continue;
+            }
+
+            solution = scopedSolution;
+            changedDocuments.UnionWith(changedIds);
             fixedCount++;
 
             _logger.LogDebug("Applied fix for {Id} in {File}", diagnosticId, document.Name);
