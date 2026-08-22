@@ -597,6 +597,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
             // The report agrees with the write, and counts the shared file once.
             result.FixedCount.ShouldBe(2);
             result.ChangedFiles.Order().ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
+
+            // ...and says that the shared file's write reaches a project the call did not name.
+            result.Notes.ShouldContain(n => n.Contains("Shared/Config.cs") && n.Contains("Lib") && n.Contains("linked"));
         }
 
         /// <summary>
@@ -627,6 +630,61 @@ public class CodeFixServiceIntegrationTests : IDisposable
 
             result.FixedCount.ShouldBe(2);
             result.ChangedFiles.Order().ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
+            result.Notes.ShouldContain(n => n.Contains("Shared/Config.cs") && n.Contains("Lib") && n.Contains("linked"));
+        }
+
+        /// <summary>
+        /// The single-project scope travels in the response, not only in the confirmation prompt —
+        /// which <c>previewOnly: true</c> (the default), a client without elicitation, and
+        /// <c>ConfirmDestructiveWrites = false</c> (the documented CI setting) all skip. A caller
+        /// that fixed one project of three must be able to tell "the others were clean" from "the
+        /// others were never looked at".
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ApplyFixes_On_A_Multi_Project_Solution_Names_The_Fixed_Project_And_The_Skipped_Ones(bool previewOnly)
+        {
+            CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
+            CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
+            CreateProject("Other.csproj", ("Widget.cs", "public class Widget { }"));
+            var slnPath = CreateSolutionFile("App.sln", "App", "Lib", "Other");
+
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly);
+
+            result.Project.ShouldBe("App");
+            var scopeNote = result.Notes.Where(n => n.Contains("not analyzed or fixed")).ShouldHaveSingleItem();
+            scopeNote.ShouldContain("'App'");
+            scopeNote.ShouldContain("Lib");
+            scopeNote.ShouldContain("Other");
+            scopeNote.ShouldContain("2 other project");
+            scopeNote.ShouldContain("App.sln");
+        }
+
+        /// <summary>A bare <c>.csproj</c> target has no siblings to skip, so no scope note — it would be noise.</summary>
+        [Fact]
+        public async Task ApplyFixes_On_A_Csproj_Target_Emits_No_Skipped_Project_Note()
+        {
+            var csprojPath = CreateProject("Alone.csproj", ("Program.cs", UnusedLocalInApp));
+
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
+
+            result.FixedCount.ShouldBe(1);
+            result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
+        }
+
+        /// <summary>A single-project solution has no siblings to skip either — "0 other projects" is noise.</summary>
+        [Fact]
+        public async Task ApplyFixes_On_A_Single_Project_Solution_Emits_No_Skipped_Project_Note()
+        {
+            CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
+            var slnPath = CreateSolutionFile("App.sln", "App");
+
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: true);
+
+            result.FixedCount.ShouldBe(1);
+            result.ResolvedPath.ShouldBe(slnPath);
+            result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
         }
     }
 

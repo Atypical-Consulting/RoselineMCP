@@ -92,6 +92,16 @@ public class CodeFixService : ICodeFixService
                 response.Project = msProject.Name;
                 response.ResolvedPath = loaded.ResolvedPath;
 
+                // Say which project this call fixes and which it leaves alone, on every path out of
+                // here. The confirmation prompt names the scope too, but previewOnly (the default), a
+                // client without elicitation, and ConfirmDestructiveWrites = false all skip the prompt —
+                // and a short changedFiles is not evidence that the other projects were clean (#156).
+                var skippedNote = DescribeSkippedProjects(loaded.Solution, msProject);
+                if (skippedNote is not null)
+                {
+                    response.Notes.Add(skippedNote);
+                }
+
                 // Emitted paths are solution-root-relative (falling back to the project directory when
                 // no .sln was loaded), matching the navigation and edit tools.
                 var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? msProject.FilePath);
@@ -217,6 +227,15 @@ public class CodeFixService : ICodeFixService
                             {
                                 patchBuilder.AppendLine(diff);
                                 response.ChangedFiles.Add(relativePath);
+
+                                // A linked file is the anchor's document AND a sibling's: writing it
+                                // is in scope, its effect on the sibling is not, so say so rather than
+                                // let the sibling change silently under a prompt that named one project.
+                                var linkedNote = DescribeLinkedFile(currentSolution, msProject, filePath, relativePath);
+                                if (linkedNote is not null)
+                                {
+                                    response.Notes.Add(linkedNote);
+                                }
                             }
                         }
                     }
@@ -517,6 +536,72 @@ public class CodeFixService : ICodeFixService
         var documentId = solution.GetDocumentIdsWithFilePath(filePath)
             .FirstOrDefault(id => id.ProjectId == anchor);
         return documentId is null ? null : solution.GetDocument(documentId);
+    }
+
+    /// <summary>
+    /// The scope note for a run anchored on <paramref name="anchor"/>: which project was fixed and
+    /// which other C# projects of the loaded solution were not analyzed or fixed. <c>null</c> when
+    /// there is nothing to report — no solution was loaded (a bare <c>.csproj</c>), or the solution
+    /// holds no other project — because "0 other projects" is noise.
+    /// </summary>
+    /// <remarks>
+    /// Other target-framework legs of the anchor (a multi-targeted project loads as one Roslyn
+    /// project per TFM over the same <c>.csproj</c>) are not "other projects": the write covers them.
+    /// Counted from the solution already in hand — no extra load.
+    /// </remarks>
+    private static string? DescribeSkippedProjects(Solution solution, Project anchor)
+    {
+        if (solution.FilePath is null)
+        {
+            return null;
+        }
+
+        var skipped = solution.Projects
+            .Where(p => p.Id != anchor.Id
+                        && p.Language == LanguageNames.CSharp
+                        && !string.Equals(p.FilePath, anchor.FilePath, StringComparison.Ordinal))
+            .Select(p => p.Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        if (skipped.Count == 0)
+        {
+            return null;
+        }
+
+        var solutionName = Path.GetFileName(solution.FilePath);
+        var plural = skipped.Count == 1 ? "project" : "projects";
+        return $"Fixed project '{anchor.Name}' only; {skipped.Count} other {plural} in '{solutionName}' "
+               + $"({string.Join(", ", skipped)}) were not analyzed or fixed. "
+               + "Pass a project's .csproj as 'project' to fix it.";
+    }
+
+    /// <summary>
+    /// The note for a changed file that is also compiled by projects other than
+    /// <paramref name="anchor"/> — a linked <c>&lt;Compile Include="..\Shared\X.cs" Link="X.cs" /&gt;</c>.
+    /// <c>null</c> when the file belongs to the anchor alone (its other TFM legs included).
+    /// </summary>
+    private static string? DescribeLinkedFile(Solution solution, Project anchor, string filePath, string relativePath)
+    {
+        var sharers = solution.GetDocumentIdsWithFilePath(filePath)
+            .Select(id => solution.GetProject(id.ProjectId))
+            .Where(p => p is not null
+                        && p.Id != anchor.Id
+                        && !string.Equals(p.FilePath, anchor.FilePath, StringComparison.Ordinal))
+            .Select(p => p!.Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        if (sharers.Count == 0)
+        {
+            return null;
+        }
+
+        return $"'{relativePath}' is a linked file also compiled by {string.Join(", ", sharers)}: "
+               + "writing it changes what those projects compile too, though only "
+               + $"'{anchor.Name}' was analyzed.";
     }
 
     /// <summary>
