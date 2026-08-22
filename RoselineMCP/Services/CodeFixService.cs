@@ -166,16 +166,15 @@ public class CodeFixService : ICodeFixService
                 response.FixersApplied = appliedFixes.ToList();
                 response.FixedCount = fixCount;
 
-                // Format the changed documents
+                // Format the changed documents. Every lookup from here on resolves a path to the
+                // ANCHOR project's document (see AnchorDocument) — the fix lives on that copy alone.
                 if (changedDocuments.Any())
                 {
                     _logger.LogInformation("Formatting {Count} changed documents", changedDocuments.Count);
 
                     foreach (var filePath in changedDocuments)
                     {
-                        var document = currentSolution.Projects
-                            .SelectMany(p => p.Documents)
-                            .FirstOrDefault(d => d.FilePath == filePath);
+                        var document = AnchorDocument(currentSolution, msProject.Id, filePath);
 
                         if (document != null)
                         {
@@ -196,9 +195,7 @@ public class CodeFixService : ICodeFixService
 
                         var relativePath = SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
 
-                        var newDocument = currentSolution.Projects
-                            .SelectMany(p => p.Documents)
-                            .FirstOrDefault(d => d.FilePath == filePath);
+                        var newDocument = AnchorDocument(currentSolution, msProject.Id, filePath);
 
                         if (newDocument != null)
                         {
@@ -259,9 +256,7 @@ public class CodeFixService : ICodeFixService
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        var document = currentSolution.Projects
-                            .SelectMany(p => p.Documents)
-                            .FirstOrDefault(d => d.FilePath == filePath);
+                        var document = AnchorDocument(currentSolution, msProject.Id, filePath);
 
                         if (document != null)
                         {
@@ -479,7 +474,13 @@ public class CodeFixService : ICodeFixService
             return (solution, 0);
         }
 
-        foreach (var projectChanges in newSolution.GetChanges(solution).GetProjectChanges())
+        // Collect ONLY the anchor project's changed documents. The FixAllContext above is scoped to
+        // the project, but a FixAllProvider is third-party code and nothing stops one from touching
+        // documents elsewhere in the solution. Every path collected here is written verbatim by the
+        // caller, so an unfiltered collection would re-widen — at the point paths become disk
+        // writes — the single-project scope the tool's confirmation prompt narrows to (#156).
+        foreach (var projectChanges in newSolution.GetChanges(solution).GetProjectChanges()
+                     .Where(pc => pc.ProjectId == projectId))
         {
             foreach (var documentId in projectChanges.GetChangedDocuments())
             {
@@ -493,6 +494,29 @@ public class CodeFixService : ICodeFixService
 
         _logger.LogDebug("Applied FixAll for {Id}: {Count} occurrence(s) fixed in one pass", diagnosticId, fixedCount);
         return (newSolution, fixedCount);
+    }
+
+    /// <summary>
+    /// The anchor project's document backed by <paramref name="filePath"/> in
+    /// <paramref name="solution"/>, or <c>null</c> when the project has none there.
+    /// </summary>
+    /// <remarks>
+    /// A linked file (<c>&lt;Compile Include="..\Shared\Config.cs" Link="Config.cs" /&gt;</c>) is one
+    /// path backing one <see cref="Document"/> per project that links it, and a fix applied in the
+    /// anchor project changes the anchor's copy alone. Resolving the path across every project
+    /// (<c>solution.Projects.SelectMany(p => p.Documents).FirstOrDefault(...)</c>) therefore returns
+    /// whichever project enumerates first — and when that is a sibling, its untouched copy is what
+    /// gets formatted, diffed and written back, so the fix is counted in <c>fixedCount</c> and never
+    /// reaches disk. Measured in #156 on a two-project solution listing the sibling first. Every
+    /// path-to-document lookup in <see cref="ApplyFixesAsync"/> goes through here so the answer
+    /// cannot depend on project order.
+    /// </remarks>
+    private static Document? AnchorDocument(Solution solution, ProjectId anchor, string filePath)
+    {
+        // Roslyn indexes documents by path, so this is a lookup rather than a scan.
+        var documentId = solution.GetDocumentIdsWithFilePath(filePath)
+            .FirstOrDefault(id => id.ProjectId == anchor);
+        return documentId is null ? null : solution.GetDocument(documentId);
     }
 
     /// <summary>
@@ -625,6 +649,9 @@ public class CodeFixService : ICodeFixService
             }
 
             solution = operation.ChangedSolution;
+            // `document` came from the anchor project's own Documents, so this collector is scoped
+            // by construction — the counterpart of the explicit ProjectId filter in
+            // TryApplyFixAllAsync. Keep it that way: the path recorded here is what gets written.
             changedDocuments.Add(document.FilePath!);
             fixedCount++;
 

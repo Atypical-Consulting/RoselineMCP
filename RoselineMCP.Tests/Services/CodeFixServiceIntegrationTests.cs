@@ -598,6 +598,36 @@ public class CodeFixServiceIntegrationTests : IDisposable
             result.FixedCount.ShouldBe(2);
             result.ChangedFiles.Order().ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
         }
+
+        /// <summary>
+        /// Same fixture, sibling listed <em>first</em> in the solution. A linked file is two Roslyn
+        /// documents with one path, and only the anchor's copy is fixed — so a lookup that finds
+        /// "the document at this path" across every project can land on the sibling's untouched
+        /// copy depending on project order. The outcome must not depend on that order.
+        /// </summary>
+        [Fact]
+        public async Task ApplyFixes_Writes_The_Linked_File_Regardless_Of_Project_Order()
+        {
+            CreateSharedFile("Shared/Config.cs", UnusedLocalInShared);
+            CreateProject("App.csproj", linkedFiles: ["Shared/Config.cs"], ("Program.cs", UnusedLocalInApp));
+            CreateProject("Lib.csproj", linkedFiles: ["Shared/Config.cs"], ("Thing.cs", UnusedLocalInLib));
+            var slnPath = CreateSolutionFile("App.sln", "Lib", "App");
+            var before = SnapshotSources();
+
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
+
+            result.Project.ShouldBe("App");
+            result.Applied.ShouldBeTrue();
+
+            var after = SnapshotSources();
+            var written = after.Where(kv => before[kv.Key] != kv.Value).Select(kv => kv.Key).Order().ToList();
+            written.ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
+            after["Shared/Config.cs"].ShouldNotContain("unusedInShared");
+            after["Lib/Thing.cs"].ShouldContain("unusedInLib");
+
+            result.FixedCount.ShouldBe(2);
+            result.ChangedFiles.Order().ShouldBe(["App/Program.cs", "Shared/Config.cs"]);
+        }
     }
 
     public class MultiDocumentTests : CodeFixServiceIntegrationTests
