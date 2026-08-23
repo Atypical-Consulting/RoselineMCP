@@ -80,6 +80,17 @@ public class ApplyFixesResponse : IWriteToolResponse
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public VerificationVerdict? Verification { get; set; }
 
+    /// <summary>
+    /// Which of the project's analyzer references could not contribute to the diagnostics this
+    /// call looked for, and why. Omitted when every consulted reference contributed; present, with
+    /// zero references consulted, when the analyzer pass did not run. Absent too when no
+    /// diagnostics pass ran at all (no requested ID had a fixer). Without it, "no diagnostics found
+    /// for X" could mean the analyzer that reports X never loaded.
+    /// </summary>
+    [JsonPropertyName("analyzerLoad")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AnalyzerLoadReport? AnalyzerLoad { get; set; }
+
     /// <inheritdoc />
     [JsonIgnore]
     public bool HasChanges => ChangedFiles.Count > 0;

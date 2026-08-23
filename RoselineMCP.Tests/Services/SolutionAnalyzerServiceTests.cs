@@ -218,8 +218,9 @@ public class SolutionAnalyzerServiceTests
 
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "AnalyzeProjectsAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
-            return await (Task<(List<DiagnosticDetail>, DiagnosticSummary)>)
+            var (diagnostics, summary, _) = await (Task<(List<DiagnosticDetail>, DiagnosticSummary, AnalyzerLoadReport)>)
                 method.Invoke(_aggregationSut, new object?[] { solution, context, progress, 0, CancellationToken.None })!;
+            return (diagnostics, summary);
         }
 
         [Fact]

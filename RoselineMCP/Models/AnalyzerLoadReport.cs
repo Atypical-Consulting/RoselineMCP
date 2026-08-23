@@ -52,6 +52,52 @@ public class AnalyzerLoadReport
     /// </summary>
     [JsonPropertyName("notes")]
     public List<AnalyzerLoadNote> Notes { get; set; } = [];
+
+    /// <summary>
+    /// Whether this report belongs on a response: it names a reference that contributed nothing,
+    /// or no reference was consulted at all (the analyzer pass is off, or the project carries
+    /// none) — the case a caller must be able to tell from "every reference contributed".
+    /// <see langword="false"/> is the clean case, and the block is then omitted from the wire.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasSomethingToReport => Notes.Count > 0 || ReferencesConsulted == 0;
+
+    /// <summary>
+    /// The report to put on a response: <paramref name="report"/> itself when it has something to
+    /// report, otherwise <see langword="null"/> so the clean case stays silent on the wire.
+    /// </summary>
+    /// <param name="report">The report produced by the diagnostics pass.</param>
+    public static AnalyzerLoadReport? ForResponse(AnalyzerLoadReport report) =>
+        report.HasSomethingToReport ? report : null;
+
+    /// <summary>
+    /// Combines the per-project reports of a multi-project analysis (<c>analyze_solution</c>) into
+    /// one: the counters are summed over the analyzed projects — so they count reference
+    /// <em>consultations</em>, not distinct references — and the notes are deduplicated by
+    /// reference and reason, since the same reference (the SDK's own analyzer set, say) recurs in
+    /// every project and need only be named once.
+    /// </summary>
+    /// <param name="reports">The per-project reports, in any order.</param>
+    public static AnalyzerLoadReport Merge(IEnumerable<AnalyzerLoadReport> reports)
+    {
+        var merged = new AnalyzerLoadReport();
+        var seen = new HashSet<(string Reference, string Reason, string? ErrorCode)>();
+        foreach (var report in reports)
+        {
+            merged.ReferencesConsulted += report.ReferencesConsulted;
+            merged.ReferencesContributing += report.ReferencesContributing;
+            merged.AnalyzersLoaded += report.AnalyzersLoaded;
+            foreach (var note in report.Notes)
+            {
+                if (seen.Add((note.Reference, note.Reason, note.ErrorCode)))
+                {
+                    merged.Notes.Add(note);
+                }
+            }
+        }
+
+        return merged;
+    }
 }
 
 /// <summary>
