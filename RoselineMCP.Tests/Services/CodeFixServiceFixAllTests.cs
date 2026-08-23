@@ -164,7 +164,7 @@ public class CodeFixServiceFixAllTests : IDisposable
 
             var provider = new RemoveDiagnosticLineCodeFixProvider();
             var factory = A.Fake<ICodeFixProviderFactory>();
-            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219")).Returns(provider);
+            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219", A<Project?>._)).Returns(provider);
 
             var sut = CreateSut(factory);
 
@@ -223,7 +223,7 @@ public class CodeFixServiceFixAllTests : IDisposable
 
             var provider = new RemoveDiagnosticLineCodeFixProvider(fixableFileNameFragment: "BFixable");
             var factory = A.Fake<ICodeFixProviderFactory>();
-            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219")).Returns(provider);
+            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219", A<Project?>._)).Returns(provider);
 
             var sut = CreateSut(factory);
 

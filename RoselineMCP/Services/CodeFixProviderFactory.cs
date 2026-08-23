@@ -1,18 +1,49 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
+using System.Collections.Frozen;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace RoselineMCP.Services;
 
 /// <summary>
 /// Factory for creating and managing code fix providers.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Two layers (see <see cref="ICodeFixProviderFactory"/>). The process-wide map is built once, in
+/// the constructor, from the Roslyn built-ins and the bundled analyzer catalog — the factory is a
+/// singleton with no per-project state, which is why the original design could not reach a target
+/// project's own fixers. The project overlay closes that gap without touching the map: for each
+/// <see cref="AnalyzerFileReference"/> of a project, the <see cref="CodeFixProvider"/> types of its
+/// assembly are reflected once and cached per reference object (a
+/// <see cref="ConditionalWeakTable{TKey,TValue}"/>, so the cache lives exactly as long as the
+/// workspace that holds the reference).
+/// </para>
+/// <para>
+/// The overlay loads each assembly through the reference's <b>own</b>
+/// <see cref="IAnalyzerAssemblyLoader"/> — the loader the diagnostics pass already used to run that
+/// reference's analyzers — so it adds no assembly to the process that the analyzer pass does not
+/// already load and execute; it instantiates additional <em>types</em> from assemblies that are
+/// already resident. <c>SECURITY.md</c> records this as a decision, not an accident.
+/// </para>
+/// <para>
+/// Lookup order is process-wide map first, overlay second: an ID both can fix resolves to the
+/// bundled provider, so behaviour cannot regress for an already-fixable ID.
+/// </para>
+/// </remarks>
 public class CodeFixProviderFactory : ICodeFixProviderFactory
 {
+    private static readonly FrozenDictionary<string, Type> NoProviders =
+        FrozenDictionary<string, Type>.Empty;
+
     private readonly ILogger<CodeFixProviderFactory> _logger;
     private readonly IAnalyzerCatalog? _analyzerCatalog;
     private readonly Dictionary<string, Type> _providers = new();
+    private readonly ConditionalWeakTable<AnalyzerReference, FrozenDictionary<string, Type>> _overlays = new();
     private bool _providersLoaded;
 
     /// <summary>
@@ -32,28 +63,53 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     }
 
     /// <inheritdoc/>
-    public CodeFixProvider? GetProviderForDiagnostic(string diagnosticId)
+    public CodeFixProvider? GetProviderForDiagnostic(string diagnosticId) =>
+        GetProviderForDiagnostic(diagnosticId, project: null);
+
+    /// <inheritdoc/>
+    public CodeFixProvider? GetProviderForDiagnostic(string diagnosticId, Project? project)
     {
-        if (!_providers.TryGetValue(diagnosticId, out var providerType))
+        ArgumentNullException.ThrowIfNull(diagnosticId);
+
+        if (_providers.TryGetValue(diagnosticId, out var providerType))
+        {
+            return Instantiate(providerType, diagnosticId);
+        }
+
+        if (project is null)
         {
             return null;
         }
 
-        try
+        foreach (var reference in project.AnalyzerReferences)
         {
-            return Activator.CreateInstance(providerType) as CodeFixProvider;
+            if (OverlayFor(reference).TryGetValue(diagnosticId, out providerType))
+            {
+                return Instantiate(providerType, diagnosticId);
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create code fix provider for {DiagnosticId}", diagnosticId);
-            return null;
-        }
+
+        return null;
     }
 
     /// <inheritdoc/>
-    public IEnumerable<string> GetFixableDiagnosticIds()
+    public IEnumerable<string> GetFixableDiagnosticIds() => GetFixableDiagnosticIds(project: null);
+
+    /// <inheritdoc/>
+    public IEnumerable<string> GetFixableDiagnosticIds(Project? project)
     {
-        return _providers.Keys;
+        if (project is null)
+        {
+            return _providers.Keys;
+        }
+
+        var ids = new HashSet<string>(_providers.Keys, StringComparer.Ordinal);
+        foreach (var reference in project.AnalyzerReferences)
+        {
+            ids.UnionWith(OverlayFor(reference).Keys);
+        }
+
+        return ids;
     }
 
     /// <inheritdoc/>
@@ -76,6 +132,19 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load code fix providers");
+        }
+    }
+
+    private CodeFixProvider? Instantiate(Type providerType, string diagnosticId)
+    {
+        try
+        {
+            return Activator.CreateInstance(providerType) as CodeFixProvider;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create code fix provider for {DiagnosticId}", diagnosticId);
+            return null;
         }
     }
 
@@ -116,12 +185,9 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     {
         try
         {
-            var types = assembly.GetTypes()
-                .Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(CodeFixProvider)));
-
-            foreach (var type in types)
+            foreach (var type in ProviderTypes(assembly))
             {
-                RegisterProvider(type);
+                RegisterProvider(_providers, type);
             }
         }
         catch (Exception ex)
@@ -131,7 +197,27 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         }
     }
 
-    private void RegisterProvider(Type type)
+    /// <summary>
+    /// The concrete <see cref="CodeFixProvider"/> types of <paramref name="assembly"/>. An assembly
+    /// some of whose types cannot be loaded (a dependency bound to a newer Roslyn, say) still yields
+    /// the types that can: the same "degrade, never fail" rule the analyzer pass follows.
+    /// </summary>
+    private static IEnumerable<Type> ProviderTypes(Assembly assembly)
+    {
+        Type?[] types;
+        try
+        {
+            types = assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            types = ex.Types;
+        }
+
+        return types.Where(t => t is { IsAbstract: false } && t.IsSubclassOf(typeof(CodeFixProvider)))!;
+    }
+
+    private void RegisterProvider(IDictionary<string, Type> map, Type type)
     {
         try
         {
@@ -140,9 +226,9 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
             {
                 foreach (var id in instance.FixableDiagnosticIds)
                 {
-                    if (!_providers.ContainsKey(id))
+                    if (!map.ContainsKey(id))
                     {
-                        _providers[id] = type;
+                        map[id] = type;
                         _logger.LogDebug("Registered code fix provider for {DiagnosticId}: {Provider}",
                             id, type.Name);
                     }
@@ -153,6 +239,47 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         {
             _logger.LogDebug("Could not instantiate code fix provider {Type}: {Message}",
                 type.Name, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// The providers carried by one analyzer reference, reflected once per reference object.
+    /// </summary>
+    private FrozenDictionary<string, Type> OverlayFor(AnalyzerReference reference) =>
+        _overlays.GetValue(reference, BuildOverlay);
+
+    private FrozenDictionary<string, Type> BuildOverlay(AnalyzerReference reference)
+    {
+        // Only a file reference has an assembly to reflect over, and only through its own loader:
+        // an in-memory reference (AnalyzerImageReference) carries analyzer instances, not fixers.
+        if (reference is not AnalyzerFileReference { FullPath: { } path } fileReference)
+        {
+            return NoProviders;
+        }
+
+        try
+        {
+            var assembly = fileReference.AssemblyLoader.LoadFromPath(path);
+            var map = new Dictionary<string, Type>(StringComparer.Ordinal);
+            foreach (var type in ProviderTypes(assembly))
+            {
+                RegisterProvider(map, type);
+            }
+
+            if (map.Count > 0)
+            {
+                _logger.LogDebug("Registered {Count} fixable ID(s) from project reference {Reference}",
+                    map.Count, reference.Display);
+            }
+
+            return map.ToFrozenDictionary(StringComparer.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            // The same rule as the analyzer pass: one unreadable reference never fails the lookup.
+            _logger.LogDebug("Could not load code fix providers from project reference {Reference}: {Message}",
+                reference.Display, ex.Message);
+            return NoProviders;
         }
     }
 }

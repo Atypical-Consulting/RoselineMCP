@@ -104,4 +104,14 @@ public class DiagnosticFilterService : IDiagnosticFilterService
         // an ID whose provider assembly failed to load).
         return _codeFixProviderFactory.GetFixableDiagnosticIds().Contains(id);
     }
+
+    /// <inheritdoc/>
+    public bool IsFixableDiagnostic(string id, Project? project)
+    {
+        // Same source of truth, plus — when a project is given — the providers its own analyzer
+        // references carry (the 19 IDs of #183 that the process-wide map can never reach).
+        return project is null
+            ? IsFixableDiagnostic(id)
+            : _codeFixProviderFactory.GetFixableDiagnosticIds(project).Contains(id);
+    }
 }

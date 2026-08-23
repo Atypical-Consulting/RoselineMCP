@@ -365,7 +365,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 }
 
                 var (allDiagnostics, analyzerLoad) = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
-                var stats = CollectDiagnosticStatistics(allDiagnostics);
+                var stats = CollectDiagnosticStatistics(allDiagnostics, msProject);
                 var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
 
                 return new ListDiagnosticsResponse
@@ -421,7 +421,12 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         return (diagnostics, computed.AnalyzerLoad);
     }
 
-    private (DiagnosticStats Stats, List<string> FixableIds) CollectDiagnosticStatistics(List<Diagnostic> diagnostics)
+    /// <summary>
+    /// Per-ID and per-severity counts, plus the IDs a fixer exists for — process-wide or carried by
+    /// <paramref name="project"/>'s own analyzer references (<see langword="null"/> consults the
+    /// process-wide providers only).
+    /// </summary>
+    private (DiagnosticStats Stats, List<string> FixableIds) CollectDiagnosticStatistics(List<Diagnostic> diagnostics, Project? project)
     {
         var byId = new Dictionary<string, int>();
         var bySeverity = new Dictionary<string, int>();
@@ -431,7 +436,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             UpdateIdStatistics(byId, diagnostic.Id);
             UpdateSeverityStatistics(bySeverity, diagnostic.Severity);
-            CheckFixability(fixableIds, diagnostic.Id);
+            CheckFixability(fixableIds, diagnostic.Id, project);
         }
 
         var stats = new DiagnosticStats
@@ -462,9 +467,9 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         bySeverity[severityStr]++;
     }
 
-    private void CheckFixability(HashSet<string> fixableIds, string diagnosticId)
+    private void CheckFixability(HashSet<string> fixableIds, string diagnosticId, Project? project)
     {
-        if (_filterService.IsFixableDiagnostic(diagnosticId))
+        if (_filterService.IsFixableDiagnostic(diagnosticId, project))
         {
             fixableIds.Add(diagnosticId);
         }

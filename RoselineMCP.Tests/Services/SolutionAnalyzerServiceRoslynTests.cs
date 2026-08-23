@@ -448,7 +448,7 @@ public class SolutionAnalyzerServiceRoslynTests
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "CollectDiagnosticStatistics",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            var resultObj = method.Invoke(_sut, new object[] { diagnostics })!;
+            var resultObj = method.Invoke(_sut, new object?[] { diagnostics, null })!;
 
             // Assert — result is a ValueTuple
             resultObj.ShouldNotBeNull();
@@ -473,7 +473,7 @@ public class SolutionAnalyzerServiceRoslynTests
             var method = typeof(SolutionAnalyzerService).GetMethod(
                 "CollectDiagnosticStatistics",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
-            var resultObj = method.Invoke(_sut, new object[] { diagnostics })!;
+            var resultObj = method.Invoke(_sut, new object?[] { diagnostics, null })!;
 
             // Assert
             var resultType = resultObj.GetType();

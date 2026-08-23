@@ -140,8 +140,9 @@ public class CodeFixService : ICodeFixService
                     });
                     _logger.LogInformation("Attempting to fix diagnostic: {Id}", diagnosticId);
 
-                    // Find code fix provider for this diagnostic
-                    var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId);
+                    // Find code fix provider for this diagnostic — process-wide first, then the
+                    // providers the project's own analyzer references carry.
+                    var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId, msProject);
                     if (provider == null)
                     {
                         response.Notes.Add($"No code fix provider found for {diagnosticId}");

@@ -112,7 +112,7 @@ public class CodeFixServiceVerificationTests : IDisposable
     private static CodeFixService CreateSut(IVerificationService verification)
     {
         var factory = A.Fake<ICodeFixProviderFactory>();
-        A.CallTo(() => factory.GetProviderForDiagnostic("CS0219")).Returns(new RemoveUnusedLocalFixProvider());
+        A.CallTo(() => factory.GetProviderForDiagnostic("CS0219", A<Project?>._)).Returns(new RemoveUnusedLocalFixProvider());
         var msBuildService = new MSBuildService(A.Fake<ILogger<MSBuildService>>());
         return new CodeFixService(
             A.Fake<ILogger<CodeFixService>>(),
