@@ -299,6 +299,16 @@ surface alongside CS* ones. Set `RoselineMCP:RunAnalyzers` to `false` for compil
 diagnostics (faster; the pre-analyzer behavior). This applies equally to `ListDiagnostics` and to
 the diagnostics `ApplyFixes` sees.
 
+**Degraded coverage is named, never silent.** Roslyn reports an analyzer reference it cannot load
+— an analyzer built against a newer `Microsoft.CodeAnalysis` than the server's, the .NET SDK's own
+NetAnalyzers being the universal case — by returning *zero analyzers*, not by throwing. All three
+diagnostics responses therefore carry an [`analyzerLoad`](#analyzerloadreport) block naming every
+reference that contributed nothing and why; it is **omitted** when every consulted reference
+contributed, so an absent block means "nothing to report" and a present one always says something
+(including `referencesConsulted: 0` when the analyzer pass is off). Without it a reference that
+failed to load was indistinguishable from one with no C# analyzers, and the response silently
+shrank.
+
 `pathOrGit` accepts a local `.sln` file, a directory containing one, or an `http(s)://` Git URL.
 A Git URL is shallow-cloned (`git clone --depth 1`, optionally with `--branch`) into a temporary
 directory that is deleted once analysis finishes; no other URL scheme (`ssh://`, `git://`,
@@ -344,6 +354,8 @@ top selection by severity, so a later project's errors always outrank an earlier
     severity: string;           // "error" | "warning" | "info" | "hidden"
     message: string;            // Diagnostic message
   }>;
+  analyzerLoad?: AnalyzerLoadReport; // Omitted when every analyzer reference contributed; merged across
+                                     // the analyzed projects (counters summed, each reference named once)
 }
 ```
 
@@ -383,7 +395,13 @@ exact-name project selection. Like `AnalyzeSolution`, reports compiler **and** a
 **Returns:** the project name, `totalDiagnostics` (the count *before* `max` is applied), the
 capped `diagnostics` list, `stats` grouped by ID and by severity, and `suggestedFixableIds` — the
 diagnostic IDs for which a code fix provider was actually discovered at runtime (the single source
-of truth for "fixable" is `ICodeFixProviderFactory`, not a hand-maintained list).
+of truth for "fixable" is `ICodeFixProviderFactory`, not a hand-maintained list). Fixers come from
+the Roslyn built-ins, the bundled Roslynator catalog, **and the target project's own analyzer
+references** — so an ID whose fixer ships inside a package the project references (the SDK's
+`SYSLIB1045` regex-generator fixer, the Roslyn-API `RS*` fixers, …) is fixable too. When the same ID
+is fixable by both, the bundled provider wins. `analyzerLoad` (see
+[`AnalyzeSolution`](#analyzesolution)) names every analyzer reference that contributed nothing;
+omitted when every reference contributed.
 
 ```typescript
 {
@@ -403,7 +421,8 @@ of truth for "fixable" is `ICodeFixProviderFactory`, not a hand-maintained list)
     byId: Record<string, number>;     // Count by diagnostic ID
     bySeverity: Record<string, number>; // Count by severity
   };
-  suggestedFixableIds: string[];      // IDs with available fixes
+  suggestedFixableIds: string[];      // IDs with available fixes (built-in, bundled, or project-referenced)
+  analyzerLoad?: AnalyzerLoadReport;  // Omitted when every analyzer reference contributed
 }
 ```
 
@@ -473,6 +492,14 @@ is only shown on a `previewOnly: false` call to an eliciting client with
 
 These entries are additive to `notes[]`; no existing field changes meaning.
 
+**Fixers come from three places**, consulted in order: the Roslyn built-ins, the bundled
+Roslynator catalog, and the providers carried by the target project's **own analyzer references**
+— the same assemblies whose analyzers the diagnostics pass already runs. An ID fixable by both a
+bundled provider and a project-referenced one resolves to the bundled provider, so nothing that
+was fixable before changes behaviour. The response's `analyzerLoad` block names any analyzer
+reference that contributed nothing, so `No diagnostics found for X` can be told apart from "the
+analyzer that reports X never loaded".
+
 #### Request
 
 ```typescript
@@ -504,6 +531,7 @@ These entries are additive to `notes[]`; no existing field changes meaning.
   previewOnly: boolean;      // Echoes back whether the caller asked for a preview
   applied: boolean;          // True only when previewOnly was false, there were changes, and verification did not refuse
   verification?: object;     // The compiler's verdict — see Compile Verification
+  analyzerLoad?: AnalyzerLoadReport; // From the first diagnostics pass; omitted when every analyzer reference contributed (or no pass ran)
 }
 ```
 
@@ -1157,6 +1185,25 @@ public interface IDiagnosticFilterService
     // Single source of truth: backed by ICodeFixProviderFactory.GetFixableDiagnosticIds(),
     // i.e. whatever Roslyn/Roslynator code fix providers were actually discovered at runtime.
     bool IsFixableDiagnostic(string id);
+    // Same, plus the providers carried by the project's own AnalyzerReferences (null = process-wide only).
+    bool IsFixableDiagnostic(string id, Project? project);
+}
+```
+
+### ICodeFixProviderFactory
+
+```csharp
+public interface ICodeFixProviderFactory
+{
+    // Process-wide map: Roslyn built-ins, then the bundled Roslynator catalog (first-wins per ID).
+    CodeFixProvider? GetProviderForDiagnostic(string diagnosticId);
+    IEnumerable<string> GetFixableDiagnosticIds();
+    // Process-wide map first, then the providers carried by the project's own AnalyzerReferences —
+    // reflected once per reference object through the reference's own IAnalyzerAssemblyLoader,
+    // so no assembly is loaded that the diagnostics pass does not already load. null = map only.
+    CodeFixProvider? GetProviderForDiagnostic(string diagnosticId, Project? project);
+    IEnumerable<string> GetFixableDiagnosticIds(Project? project);
+    void LoadProviders();
 }
 ```
 
@@ -1319,8 +1366,48 @@ public class ApplyFixesResponse
     public bool PreviewOnly { get; set; }              // JSON: "previewOnly"
     public bool Applied { get; set; }                  // JSON: "applied"
     public VerificationVerdict? Verification { get; set; }  // JSON: "verification"
+    public AnalyzerLoadReport? AnalyzerLoad { get; set; }   // JSON: "analyzerLoad", omitted when null
 }
 ```
+
+### AnalyzerLoadReport
+
+The `analyzerLoad` block of `ListDiagnostics`, `AnalyzeSolution` and `ApplyFixes`: what the
+analyzer pass could and could not load. **Omitted from the wire when every consulted reference
+contributed** — an absent block means "nothing to report", a present one always names something,
+or reports `referencesConsulted: 0` when the analyzer pass did not run (`RoselineMCP:RunAnalyzers
+= false`), so "off" stays distinguishable from "all fine". On `AnalyzeSolution` it is merged across
+the analyzed projects: the counters are summed (they count reference *consultations*) and each
+reference is named once.
+
+```csharp
+public class AnalyzerLoadReport
+{
+    public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when the analyzer pass is off
+    public int ReferencesContributing { get; set; }   // JSON: "referencesContributing" — yielded ≥ 1 analyzer
+    public int AnalyzersLoaded { get; set; }          // JSON: "analyzersLoaded" — distinct analyzers that ran (bundled + project)
+    public List<AnalyzerLoadNote> Notes { get; set; } // JSON: "notes" — one per reference that contributed nothing
+}
+
+public class AnalyzerLoadNote
+{
+    public string Reference { get; set; }   // JSON: "reference" — the reference's display name
+    public string Reason { get; set; }      // JSON: "reason" — "load-failure" | "no C# analyzers" | "exception"
+    public string? ErrorCode { get; set; }  // JSON: "errorCode" — Roslyn's FailureErrorCode for a load-failure
+                                            // (ReferencesNewerCompiler, UnableToLoadAnalyzer, UnableToCreateAnalyzer, …); omitted otherwise
+    public string? Message { get; set; }    // JSON: "message" — Roslyn's or the exception's message; omitted when there is none
+}
+```
+
+| `reason` | What happened | `errorCode` / `message` |
+|---|---|---|
+| `load-failure` | Roslyn raised `AnalyzerLoadFailed` — the assembly or one of its analyzer types could not be loaded. The universal case is an analyzer built against a **newer** `Microsoft.CodeAnalysis` than the server's (`ReferencesNewerCompiler`; the message names both versions). | present |
+| `no C# analyzers` | the reference loaded and declares no C# analyzer — a source-generator-only assembly, a code-fix-only assembly, an analyzer's support library. Accurate, not alarming. | omitted |
+| `exception` | `GetAnalyzers` itself threw | `message` only |
+
+A failure is remembered per reference object: Roslyn raises the event only on its first attempt
+and caches the empty answer, and the workspace cache hands the same references to every later
+call — so the second `ListDiagnostics` against a cached project still names the failure.
 
 ### VerificationVerdict
 
@@ -1556,9 +1643,14 @@ Diagnostics come from three sources, all surfaced through the same tools: the C#
 `RoselineMCP.dll` and executed via `CompilationWithAnalyzers`), and **the target project's own
 analyzer references** (whatever the analyzed repository has installed — StyleCop, custom rules,
 …). Fixability is always determined at runtime: `suggestedFixableIds` reflects the code fix
-providers actually discovered from the Roslyn built-ins and the bundled Roslynator fixer
-assemblies. Setting `RoselineMCP:RunAnalyzers` to `false` limits everything to compiler
-diagnostics.
+providers actually discovered from the Roslyn built-ins, the bundled Roslynator fixer
+assemblies, **and the target project's own analyzer references** — an ID whose fixer ships inside a
+package the project references is fixable too (e.g. the SDK's `SYSLIB1045` regex-generator fixer,
+or the `RS*` Roslyn-API fixers of `Microsoft.CodeAnalysis.Analyzers`), with the bundled provider
+winning when both carry one. Setting `RoselineMCP:RunAnalyzers` to `false` limits everything to
+compiler diagnostics. A reference that cannot be loaded (built against a newer Roslyn than the
+server's) contributes nothing — and is **named** in the response's `analyzerLoad` block rather
+than silently shrinking the diagnostic set.
 
 ### Roslyn (CS/BC)
 - CS0168: Variable declared but never used

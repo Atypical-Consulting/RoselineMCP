@@ -302,8 +302,10 @@ analyzeSolution({
 })
 ```
 
-**Returns:** solution file name, project count, a `diagnosticSummary` (counts by severity), and a
-`topDiagnostics` array with project/file/line/column/id/severity/message per diagnostic.
+**Returns:** solution file name, project count, a `diagnosticSummary` (counts by severity), a
+`topDiagnostics` array with project/file/line/column/id/severity/message per diagnostic, and
+`analyzerLoad` — present only when an analyzer reference contributed nothing (merged across the
+analyzed projects), naming it and why.
 
 ### 2. ListDiagnostics
 
@@ -323,8 +325,10 @@ listDiagnostics({
 
 **Returns:** project name, `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded),
 `totalDiagnostics` count, the filtered `diagnostics` list, `stats` (counts grouped by ID and by
-severity), and `suggestedFixableIds` — diagnostic IDs a code fix provider is actually registered
-for.
+severity), `suggestedFixableIds` — diagnostic IDs a code fix provider is actually registered for,
+whether it ships with Roslyn, in the bundled Roslynator catalog, or **inside one of the project's
+own analyzer references** — and `analyzerLoad`, which names every analyzer reference that
+contributed nothing (and why), present only when there is something to say.
 
 ### 3. ApplyFixes
 
@@ -348,7 +352,11 @@ applyFixes({
 diff `patch`, `notes` (the scope — which project was fixed and which of the solution's projects were
 not analyzed, plus any linked file whose write reaches a sibling — and skipped/failed IDs and status
 messages), `previewOnly` echoing back what the caller asked for, `applied` (whether anything
-actually reached disk), and `verification` — the compiler's verdict on the fixed code.
+actually reached disk), `verification` — the compiler's verdict on the fixed code — and
+`analyzerLoad` (present only when an analyzer reference contributed nothing, so "no diagnostics
+found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are looked
+up in the Roslyn built-ins, then the bundled Roslynator catalog, then the project's own analyzer
+references; the bundled provider wins for an ID both carry.
 
 A `.sln` target fixes **one** project — its primary project — and that scope is enforced on the
 write path, not only announced by the confirmation prompt: only the anchor project's documents are
@@ -631,11 +639,23 @@ it fast enough for an edit loop):
 - **Custom Analyzers** -- Any Roslyn-based analyzer referenced by your analyzed solution is
   loaded from the project's analyzer references and run alongside the bundled ones (there is no
   built-in StyleCop.Analyzers reference — add it to your analyzed solution if you want SA*
-  diagnostics; analyzer-reported rules are auto-fixable only when a matching fixer is loadable)
+  diagnostics). **Their code fixers are loaded too**: an analyzer-reported rule is auto-fixable
+  when a matching fixer ships with Roslyn, in the bundled catalog, or inside one of the project's
+  own analyzer references (the bundled one wins for an ID both carry).
+
+**What could not be loaded is named.** Roslyn reports an analyzer reference it cannot load — one
+built against a newer `Microsoft.CodeAnalysis` than RoselineMCP's, a corrupt file — by
+contributing *zero* analyzers, not by failing. The three diagnostics responses carry an
+`analyzerLoad` block (`referencesConsulted`, `referencesContributing`, `analyzersLoaded`, and a
+`notes[]` entry per reference that contributed nothing: its name, the reason — `load-failure`
+with Roslyn's `errorCode` and message, `no C# analyzers`, or `exception`). The block is omitted
+when every reference contributed, so a present one always says something; see
+[`docs/API.md`](docs/API.md#analyzerloadreport).
 
 Set `RoselineMCP:RunAnalyzers` to `false` for compiler-only diagnostics (faster on big
 solutions; see [Configuration](#configuration) and the analyzer-execution note in
-[`SECURITY.md`](SECURITY.md)).
+[`SECURITY.md`](SECURITY.md)). The block is then present with `referencesConsulted: 0`, so "off"
+stays distinguishable from "all fine".
 
 ## Examples
 
@@ -894,6 +914,11 @@ machine.
   [Supported Analyzers](#supported-analyzers)); an analyzer from an untrusted repository is
   arbitrary code. `RoselineMCP:RunAnalyzers = false` disables the **diagnostic analyzer** pass
   (bundled Roslynator included). See [`SECURITY.md`](SECURITY.md).
+- **Code-Fix Providers Come From Those Same References** -- `list_diagnostics` and `apply_fixes`
+  also load the `CodeFixProvider` types a project's own analyzer references carry. That adds no
+  assembly the analyzer pass does not already load (each is obtained through the reference's own
+  assembly loader), but it is a decision rather than an accident, and `RunAnalyzers = false` does
+  not govern it. Recorded in [`SECURITY.md`](SECURITY.md).
 - **Source Generators Run Regardless Of That Switch** -- generators ship through the same
   `AnalyzerReferences`, but run as part of building *any* compilation rather than as part of the
   diagnostics pass, so every semantic path executes them -- all navigation tools included. They

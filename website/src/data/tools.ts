@@ -75,19 +75,19 @@ export const tools: Tool[] = [
     name: 'analyze_solution', title: 'Analyze Solution', group: 'Diagnostics & fixes', kind: 'diagnostics', progress: true,
     summary: 'Analyze an entire C# solution for diagnostics, with filtering. Also accepts an http(s) Git URL (the one open-world tool).',
     params: 'pathOrGit, branch?, include?, exclude?, severity?, maxDiagnostics?',
-    returns: 'solution, projects, diagnosticSummary, topDiagnostics[]',
+    returns: 'solution, projects, diagnosticSummary, topDiagnostics[], analyzerLoad? (every analyzer reference that contributed nothing, and why — merged across projects; omitted when all contributed)',
   },
   {
     name: 'list_diagnostics', title: 'List Diagnostics', group: 'Diagnostics & fixes', kind: 'diagnostics',
-    summary: 'Detailed diagnostics for a project, with statistics and suggested fixable IDs.',
+    summary: 'Detailed diagnostics for a project, with statistics and suggested fixable IDs — fixers from Roslyn, the bundled catalog and the project’s own analyzer references.',
     params: 'project?, ids?, files?, max?',
-    returns: 'project, resolvedPath, totalDiagnostics, diagnostics[], stats, suggestedFixableIds[]',
+    returns: 'project, resolvedPath, totalDiagnostics, diagnostics[], stats, suggestedFixableIds[], analyzerLoad? (referencesConsulted, referencesContributing, analyzersLoaded, notes[] — omitted when every reference contributed)',
   },
   {
     name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true, verifies: true,
     summary: 'Apply automated code fixes for diagnostic IDs to one project — a .sln target fixes its primary project and names the ones it skipped. Preview by default, and refused if the fixes would not compile.',
     params: 'ids, project?, previewOnly?, allowIntroducedErrors?, max?',
-    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[] (scope: fixed/skipped projects, linked files; per-ID status), previewOnly, applied, verification?',
+    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[] (scope: fixed/skipped projects, linked files; per-ID status), previewOnly, applied, verification?, analyzerLoad? (omitted when every analyzer reference contributed)',
   },
   {
     name: 'check_compilation', title: 'Check Compilation', group: 'Diagnostics & fixes', kind: 'diagnostics',

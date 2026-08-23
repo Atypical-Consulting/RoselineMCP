@@ -53,6 +53,21 @@ const groupBlurb: Record<string, string> = {
           <code>previewOnly: false</code> as the only guard.</p>
       </div>
 
+      <div class="note" style="margin:1.6rem 0">
+        <p style="margin:0"><strong>Degraded coverage is named, never silent.</strong> Roslyn reports
+          an analyzer reference it cannot load — one built against a newer
+          <code>Microsoft.CodeAnalysis</code> than the server's, the .NET SDK's own analyzers being
+          the universal case — by contributing <em>zero</em> analyzers, not by failing. The three
+          diagnostics tools (<code>analyze_solution</code>, <code>list_diagnostics</code>,
+          <code>apply_fixes</code>) therefore return an <code>analyzerLoad</code> block naming every
+          reference that contributed nothing and why (<code>load-failure</code> with Roslyn's
+          <code>errorCode</code> and message, <code>no C# analyzers</code>, or <code>exception</code>).
+          It is <strong>omitted when every reference contributed</strong>, so a present block always
+          says something — including <code>referencesConsulted: 0</code> when analyzers are switched
+          off. Code fixers are looked up in the Roslyn built-ins, the bundled Roslynator catalog, and
+          the project's own analyzer references, in that order.</p>
+      </div>
+
       <div class="envelope">
         <div class="env-head"><h2>Response envelope</h2><span class="v-tag mono">v1.4.0</span></div>
         <p>Every tool returns a typed <code>ToolResult&lt;T&gt;</code>. The <strong>returns</strong> shown
