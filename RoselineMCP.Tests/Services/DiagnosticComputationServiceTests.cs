@@ -28,7 +28,9 @@ public class DiagnosticComputationServiceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_tempDirectory, recursive: true); } catch { /* best effort */ }
+        try
+        { Directory.Delete(_tempDirectory, recursive: true); }
+        catch { /* best effort */ }
     }
 
     private static IAnalyzerCatalog EmptyCatalog()

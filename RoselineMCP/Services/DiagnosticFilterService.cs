@@ -56,7 +56,7 @@ public class DiagnosticFilterService : IDiagnosticFilterService
             // If invalid severity provided, include all diagnostics
             return true;
         }
-        
+
         return diagnostic.Severity >= requestedSeverity;
     }
 
@@ -64,7 +64,9 @@ public class DiagnosticFilterService : IDiagnosticFilterService
     public bool FilterByIds(Diagnostic diagnostic, List<string>? ids)
     {
         if (ids == null || ids.Count == 0)
+        {
             return true;
+        }
 
         return ids.Contains(diagnostic.Id);
     }
@@ -73,11 +75,15 @@ public class DiagnosticFilterService : IDiagnosticFilterService
     public bool FilterByFiles(Diagnostic diagnostic, List<string>? files)
     {
         if (files == null || files.Count == 0)
+        {
             return true;
+        }
 
         var location = diagnostic.Location.GetLineSpan();
         if (location.Path == null)
+        {
             return false;
+        }
 
         return files.Any(f => location.Path.Contains(f, StringComparison.OrdinalIgnoreCase));
     }

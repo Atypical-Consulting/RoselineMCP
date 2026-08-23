@@ -1,11 +1,11 @@
+using System.Collections.Frozen;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
-using System.Collections.Frozen;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace RoselineMCP.Services;
 
@@ -115,7 +115,10 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     /// <inheritdoc/>
     public void LoadProviders()
     {
-        if (_providersLoaded) return;
+        if (_providersLoaded)
+        {
+            return;
+        }
 
         try
         {
@@ -221,8 +224,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     {
         try
         {
-            var instance = Activator.CreateInstance(type) as CodeFixProvider;
-            if (instance != null)
+            if (Activator.CreateInstance(type) is CodeFixProvider instance)
             {
                 foreach (var id in instance.FixableDiagnosticIds)
                 {

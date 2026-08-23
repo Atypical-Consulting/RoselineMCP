@@ -95,6 +95,74 @@ public class AnalyzerLoadReportTests
     }
 
     [Fact]
+    public void ForResponse_Should_Keep_A_Report_That_Names_Something_And_Drop_A_Clean_One()
+    {
+        // Arrange
+        var clean = new AnalyzerLoadReport { ReferencesConsulted = 3, ReferencesContributing = 3, AnalyzersLoaded = 9 };
+        var degraded = new AnalyzerLoadReport
+        {
+            ReferencesConsulted = 3,
+            ReferencesContributing = 2,
+            Notes = [new AnalyzerLoadNote { Reference = "X", Reason = AnalyzerLoadNote.LoadFailure }]
+        };
+        var off = new AnalyzerLoadReport();
+
+        // Act & Assert — clean stays silent; degraded and "off" (zero consulted) are reported,
+        // so a caller can tell "analyzers off" from "every reference contributed".
+        clean.HasSomethingToReport.ShouldBeFalse();
+        AnalyzerLoadReport.ForResponse(clean).ShouldBeNull();
+        AnalyzerLoadReport.ForResponse(degraded).ShouldBeSameAs(degraded);
+        off.HasSomethingToReport.ShouldBeTrue();
+        AnalyzerLoadReport.ForResponse(off).ShouldBeSameAs(off);
+    }
+
+    [Fact]
+    public void Merge_Should_Sum_Counters_And_Name_Each_Reference_Once()
+    {
+        // Arrange — two projects of one solution, both referencing the same silent assembly, and
+        // one of them a second, different one.
+        var shared = new AnalyzerLoadNote { Reference = "Shared.Generators", Reason = AnalyzerLoadNote.NoCSharpAnalyzers };
+        var first = new AnalyzerLoadReport
+        {
+            ReferencesConsulted = 4,
+            ReferencesContributing = 3,
+            AnalyzersLoaded = 10,
+            Notes = [shared]
+        };
+        var second = new AnalyzerLoadReport
+        {
+            ReferencesConsulted = 5,
+            ReferencesContributing = 3,
+            AnalyzersLoaded = 12,
+            Notes =
+            [
+                new AnalyzerLoadNote { Reference = "Shared.Generators", Reason = AnalyzerLoadNote.NoCSharpAnalyzers },
+                new AnalyzerLoadNote { Reference = "Future.Analyzers", Reason = AnalyzerLoadNote.LoadFailure, ErrorCode = "ReferencesNewerCompiler" }
+            ]
+        };
+
+        // Act
+        var merged = AnalyzerLoadReport.Merge([first, second]);
+
+        // Assert — counters count consultations; a reference is named once per (reference, reason).
+        merged.ReferencesConsulted.ShouldBe(9);
+        merged.ReferencesContributing.ShouldBe(6);
+        merged.AnalyzersLoaded.ShouldBe(22);
+        merged.Notes.Select(n => n.Reference).ShouldBe(["Shared.Generators", "Future.Analyzers"]);
+    }
+
+    [Fact]
+    public void Merge_Of_Nothing_Should_Be_An_Empty_Report()
+    {
+        // Act
+        var merged = AnalyzerLoadReport.Merge([]);
+
+        // Assert
+        merged.ReferencesConsulted.ShouldBe(0);
+        merged.Notes.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void DiagnosticComputationResult_Should_Carry_Diagnostics_And_Report()
     {
         // Arrange

@@ -56,7 +56,7 @@ public class CodeFixProviderFactoryTests
         public void Should_Handle_Null_Diagnostic_Id()
         {
             // Act & Assert
-            Should.Throw<ArgumentNullException>(() => 
+            Should.Throw<ArgumentNullException>(() =>
                 _factory.GetProviderForDiagnostic(null!));
         }
     }
