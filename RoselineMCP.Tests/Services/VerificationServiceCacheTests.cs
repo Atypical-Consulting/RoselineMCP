@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -27,7 +28,7 @@ public class VerificationServiceCacheTests
 
         public int Calls => Volatile.Read(ref _calls);
 
-        public Task<ImmutableArray<Diagnostic>> GetDiagnosticsAsync(
+        public Task<DiagnosticComputationResult> GetDiagnosticsAsync(
             Project project, Compilation compilation, CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _calls);

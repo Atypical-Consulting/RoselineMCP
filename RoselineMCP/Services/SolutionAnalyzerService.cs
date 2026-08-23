@@ -211,8 +211,8 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         // Deliberately no Take() here: the summary must count every diagnostic that passes the
         // filters. Capping to MaxDiagnostics happens per project in ProcessProjectDiagnostics,
         // after sorting, so no high-severity diagnostic is dropped in favor of a lower one.
-        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
-        return allDiagnostics
+        var computed = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        return computed.Diagnostics
             .Where(d => _filterService.ShouldIncludeDiagnostic(d, context.Severity))
             .ToList();
     }
@@ -400,8 +400,8 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         CancellationToken cancellationToken)
     {
         // Compiler + analyzer diagnostics (see IDiagnosticComputationService).
-        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
-        return allDiagnostics
+        var computed = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        return computed.Diagnostics
             .Where(d => !d.IsSuppressed)
             .Where(d => _filterService.FilterByIds(d, ids))
             .Where(d => _filterService.FilterByFiles(d, files))

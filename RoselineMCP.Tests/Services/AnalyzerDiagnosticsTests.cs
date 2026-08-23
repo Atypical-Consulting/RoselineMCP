@@ -145,7 +145,7 @@ public class AnalyzerDiagnosticsTests
             var service = CreateComputationService(CreateCatalog());
 
             // Act
-            var diagnostics = await service.GetDiagnosticsAsync(project, compilation);
+            var diagnostics = (await service.GetDiagnosticsAsync(project, compilation)).Diagnostics;
 
             // Assert
             var ids = diagnostics.Select(d => d.Id).ToHashSet();
@@ -163,7 +163,7 @@ public class AnalyzerDiagnosticsTests
             var service = CreateComputationService(CreateCatalog(), runAnalyzers: false);
 
             // Act
-            var diagnostics = await service.GetDiagnosticsAsync(project, compilation);
+            var diagnostics = (await service.GetDiagnosticsAsync(project, compilation)).Diagnostics;
 
             // Assert — RoselineMCP:RunAnalyzers=false restores the old, compiler-only behavior.
             diagnostics.ShouldAllBe(d => !d.Id.StartsWith("RCS"));
@@ -178,8 +178,8 @@ public class AnalyzerDiagnosticsTests
             var compilation = (await project.GetCompilationAsync())!;
 
             // Act
-            var diagnostics = await DiagnosticComputationService.CompilerOnly
-                .GetDiagnosticsAsync(project, compilation);
+            var diagnostics = (await DiagnosticComputationService.CompilerOnly
+                .GetDiagnosticsAsync(project, compilation)).Diagnostics;
 
             // Assert
             diagnostics.ShouldAllBe(d => !d.Id.StartsWith("RCS"));
@@ -202,7 +202,7 @@ public class AnalyzerDiagnosticsTests
             var service = CreateComputationService(emptyCatalog);
 
             // Act
-            var diagnostics = await service.GetDiagnosticsAsync(project, compilation);
+            var diagnostics = (await service.GetDiagnosticsAsync(project, compilation)).Diagnostics;
 
             // Assert
             diagnostics.ShouldContain(d => d.Id == ReportOnEveryClassAnalyzer.Id);
@@ -227,7 +227,7 @@ public class AnalyzerDiagnosticsTests
             var service = CreateComputationService(catalog);
 
             // Act
-            var diagnostics = await service.GetDiagnosticsAsync(project, compilation);
+            var diagnostics = (await service.GetDiagnosticsAsync(project, compilation)).Diagnostics;
 
             // Assert
             diagnostics.Count(d => d.Id == ReportOnEveryClassAnalyzer.Id).ShouldBe(1);
@@ -251,7 +251,7 @@ public class AnalyzerDiagnosticsTests
             var service = CreateComputationService(catalog);
 
             // Act — must not throw
-            var diagnostics = await service.GetDiagnosticsAsync(project, compilation);
+            var diagnostics = (await service.GetDiagnosticsAsync(project, compilation)).Diagnostics;
 
             // Assert — the healthy analyzer's diagnostic is still there.
             diagnostics.ShouldContain(d => d.Id == ReportOnEveryClassAnalyzer.Id);

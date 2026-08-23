@@ -410,8 +410,8 @@ public class CodeFixService : ICodeFixService
             return [];
         }
 
-        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
-        return allDiagnostics
+        var computed = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        return computed.Diagnostics
             .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
             .ToList();
     }
