@@ -436,7 +436,14 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             UpdateIdStatistics(byId, diagnostic.Id);
             UpdateSeverityStatistics(bySeverity, diagnostic.Severity);
-            CheckFixability(fixableIds, diagnostic.Id, project);
+        }
+
+        // Fixability is a property of the ID, not the occurrence: ask once per distinct ID (tens)
+        // rather than once per diagnostic (thousands on a legacy project) — the project-aware
+        // answer unions the process-wide map with every reference's overlay on each call.
+        foreach (var diagnosticId in byId.Keys)
+        {
+            CheckFixability(fixableIds, diagnosticId, project);
         }
 
         var stats = new DiagnosticStats

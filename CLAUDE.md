@@ -53,9 +53,15 @@ The application uses a dependency injection-based service architecture with clea
      throwing; the service subscribes to that event around each `GetAnalyzers` call and
      **remembers** a failure per reference object, because Roslyn raises it once and then serves
      the cached empty answer silently (the workspace cache hands the same references to every
-     later call). Reasons: `load-failure` (with Roslyn's `errorCode` — `ReferencesNewerCompiler`
-     names both versions), `no C# analyzers` (generator-only, fixer-only and support assemblies —
-     accurate, not alarming), `exception`
+     later call) under a per-reference lock (a solution's projects are analyzed in parallel).
+     Reasons: `load-failure` (with Roslyn's `errorCode` — `ReferencesNewerCompiler` names both
+     versions; a *partial* failure keeps the analyzers that loaded and is still named),
+     `no C# analyzers` (generator-only, fixer-only and support assemblies — accurate, not
+     alarming), `exception` (also the `(analyzer pass)` entry when the whole pass failed and the
+     response fell back to compiler diagnostics). `analyzersRan: false` is the off state.
+     `DescribeAnalyzerLoad(project)` yields the same report without a diagnostics pass — what
+     `ApplyFixes` uses when none of its IDs had a fixer, so "no fixer" and "the reference carrying
+     it never loaded" stay distinguishable
    - `VerificationService`: Compiles a candidate solution in memory and reports what the change did
      to the compiler's verdict — the gate behind the three write tools and the payload of
      `check_compilation`. Compiler-only by design (`DiagnosticComputationService.CompilerOnly`);
@@ -194,16 +200,16 @@ dotnet list package --outdated
 > `CompilationWithAnalyzers` (`DiagnosticComputationService`). `RoselineMCP:RunAnalyzers = false`
 > makes them compiler-only. All three carry an `analyzerLoad` block naming every analyzer
 > reference that contributed nothing and why (`referencesConsulted`, `referencesContributing`,
-> `analyzersLoaded`, `notes[] { reference, reason, errorCode?, message? }`) — **omitted when every
+> `analyzersLoaded`, `analyzersRan`, `notes[] { reference, reason, errorCode?, message? }`) — **omitted when every
 > consulted reference contributed**, so an absent block means "nothing to report" and a present
-> one always says something (`referencesConsulted: 0` when the pass is off). Degraded coverage is
+> one always says something (`analyzersRan: false` when the pass is off). Degraded coverage is
 > named, never silent.
 
 ### 1. AnalyzeSolution
 Analyzes entire C# solutions for diagnostics with filtering options.
 - **Parameters**: pathOrGit, branch, include, exclude, severity, maxDiagnostics
 - **Returns**: Solution summary, project counts, top diagnostics with location details,
-  `analyzerLoad` (merged across the analyzed projects: counters summed, each reference named once)
+  `analyzerLoad` (merged across the analyzed projects: reference counters summed, `analyzersLoaded` the largest per-project count, each reference named once)
 
 ### 2. ListDiagnostics  
 Gets detailed diagnostics for specific projects with statistics. Loads via `IProjectLoader`, so

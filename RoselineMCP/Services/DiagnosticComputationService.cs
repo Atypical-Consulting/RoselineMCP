@@ -57,6 +57,14 @@ public class DiagnosticComputationService : IDiagnosticComputationService
     private readonly ConditionalWeakTable<AnalyzerReference, AnalyzerLoadNote> _rememberedFailures = new();
 
     /// <summary>
+    /// One lock per file reference, so the observe-then-remember sequence in
+    /// <see cref="LoadAnalyzers"/> cannot interleave with a concurrent consultation of the same
+    /// reference (a solution's projects are analyzed in parallel, and the workspace cache shares
+    /// reference objects across tool calls).
+    /// </summary>
+    private readonly ConditionalWeakTable<AnalyzerReference, object> _referenceLocks = new();
+
+    /// <summary>
     /// A compiler-only computation (no analyzers). Used as the fallback when no
     /// <see cref="IDiagnosticComputationService"/> is injected — production DI always supplies
     /// the analyzer-aware implementation; tests that only care about compiler diagnostics get
@@ -127,13 +135,25 @@ public class DiagnosticComputationService : IDiagnosticComputationService
         catch (Exception ex)
         {
             // The analyzer pass as a whole failed (not just one analyzer) — degrade to
-            // compiler-only rather than failing the tool call.
+            // compiler-only rather than failing the tool call, and say so in the report: every
+            // reference loaded, yet every analyzer diagnostic is missing, and a report that only
+            // counted references would read as "all fine".
             _logger.LogWarning(ex,
                 "Analyzer execution failed for project {Project}; returning compiler diagnostics only",
                 project.Name);
+            report.Notes.Add(new AnalyzerLoadNote
+            {
+                Reference = AnalyzerLoadNote.AnalyzerPass,
+                Reason = AnalyzerLoadNote.Exception,
+                Message = $"the analyzer pass failed and every analyzer diagnostic was dropped: {ex.Message}"
+            });
             return new DiagnosticComputationResult { Diagnostics = compilerDiagnostics, AnalyzerLoad = report };
         }
     }
+
+    /// <inheritdoc/>
+    public AnalyzerLoadReport DescribeAnalyzerLoad(Project project) =>
+        _options.RunAnalyzers ? CollectAnalyzers(project).Report : new AnalyzerLoadReport();
 
     /// <summary>
     /// Bundled analyzers first, then the project's own analyzer references, deduplicated by
@@ -141,13 +161,15 @@ public class DiagnosticComputationService : IDiagnosticComputationService
     /// every RCS diagnostic reported twice. Every reference that yields nothing is named in the
     /// report: with Roslyn's load-failure diagnosis when it raised one, as
     /// <see cref="AnalyzerLoadNote.NoCSharpAnalyzers"/> when it loaded and simply declares none,
-    /// or as <see cref="AnalyzerLoadNote.Exception"/> when <c>GetAnalyzers</c> itself threw.
+    /// or as <see cref="AnalyzerLoadNote.Exception"/> when <c>GetAnalyzers</c> itself threw. A
+    /// reference that loaded only some of its analyzers keeps the ones it loaded <em>and</em> is
+    /// named, so a partial failure is neither dropped nor silent.
     /// </summary>
     private (ImmutableArray<DiagnosticAnalyzer> Analyzers, AnalyzerLoadReport Report) CollectAnalyzers(Project project)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var builder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
-        var report = new AnalyzerLoadReport { ReferencesConsulted = project.AnalyzerReferences.Count };
+        var report = new AnalyzerLoadReport { AnalyzersRan = true, ReferencesConsulted = project.AnalyzerReferences.Count };
 
         foreach (var analyzer in _analyzerCatalog.Analyzers)
         {
@@ -163,6 +185,10 @@ public class DiagnosticComputationService : IDiagnosticComputationService
             if (note is not null)
             {
                 report.Notes.Add(note);
+            }
+
+            if (projectAnalyzers.IsEmpty)
+            {
                 continue;
             }
 
@@ -183,15 +209,35 @@ public class DiagnosticComputationService : IDiagnosticComputationService
     /// <summary>
     /// Asks <paramref name="reference"/> for its C# analyzers with
     /// <see cref="AnalyzerFileReference.AnalyzerLoadFailed"/> observed for the duration of the
-    /// call. Returns the analyzers and a <see langword="null"/> <paramref name="note"/> when the
-    /// reference contributed; otherwise an empty array and the note that names why.
+    /// call. Returns whatever analyzers loaded (possibly none) and, in <paramref name="note"/>,
+    /// <see langword="null"/> when the reference contributed everything it carries — otherwise the
+    /// note that names what went wrong. A file reference is consulted under a per-reference lock:
+    /// Roslyn raises the failure event once and then serves its cached answer silently, so the
+    /// observation and its recording in <see cref="_rememberedFailures"/> must not interleave with
+    /// another consultation of the same reference (the workspace cache shares references across
+    /// calls, and a solution's projects are analyzed in parallel).
     /// </summary>
     private ImmutableArray<DiagnosticAnalyzer> LoadAnalyzers(AnalyzerReference reference, out AnalyzerLoadNote? note)
     {
-        var fileReference = reference as AnalyzerFileReference;
+        if (reference is not AnalyzerFileReference fileReference)
+        {
+            return LoadAnalyzersCore(reference, fileReference: null, out note);
+        }
+
+        lock (_referenceLocks.GetValue(reference, static _ => new object()))
+        {
+            return LoadAnalyzersCore(reference, fileReference, out note);
+        }
+    }
+
+    private ImmutableArray<DiagnosticAnalyzer> LoadAnalyzersCore(
+        AnalyzerReference reference, AnalyzerFileReference? fileReference, out AnalyzerLoadNote? note)
+    {
         AnalyzerLoadFailureEventArgs? failure = null;
+        var failures = 0;
         void OnLoadFailed(object? sender, AnalyzerLoadFailureEventArgs e)
         {
+            failures++;
             // The first failure is the representative one, except that ReferencesNewerCompiler —
             // raised after every type has failed — is the root cause and displaces it.
             if (failure is null || e.ErrorCode == AnalyzerLoadFailureEventArgs.FailureErrorCode.ReferencesNewerCompiler)
@@ -231,12 +277,23 @@ public class DiagnosticComputationService : IDiagnosticComputationService
 
         if (failure is not null)
         {
-            note = DescribeFailure(reference, failure);
+            // Observed on this call: remember it, because Roslyn will not say it again. What
+            // loaded is kept — a reference that lost one analyzer type out of forty still ran the
+            // other thirty-nine before this report existed, and must go on doing so.
+            note = DescribeFailure(reference, failure, failures, analyzers.Length);
             _rememberedFailures.AddOrUpdate(reference, note);
             _logger.LogWarning(
-                "Analyzer reference {Reference} could not be loaded ({ErrorCode}): {Message}",
+                "Analyzer reference {Reference} could not be fully loaded ({ErrorCode}): {Message}",
                 note.Reference, note.ErrorCode, note.Message);
-            return ImmutableArray<DiagnosticAnalyzer>.Empty;
+            return analyzers;
+        }
+
+        if (_rememberedFailures.TryGetValue(reference, out var remembered))
+        {
+            // Roslyn already told us, on an earlier call, what this reference could not load; it
+            // will not say so again.
+            note = remembered;
+            return analyzers;
         }
 
         if (!analyzers.IsEmpty)
@@ -245,30 +302,28 @@ public class DiagnosticComputationService : IDiagnosticComputationService
             return analyzers;
         }
 
-        if (_rememberedFailures.TryGetValue(reference, out var remembered))
-        {
-            // Roslyn already told us, on an earlier call, why this reference yields nothing; it
-            // will not say so again.
-            note = remembered;
-            return ImmutableArray<DiagnosticAnalyzer>.Empty;
-        }
-
         _logger.LogDebug("Analyzer reference {Reference} declares no C# analyzers", reference.Display);
         note = new AnalyzerLoadNote { Reference = reference.Display, Reason = AnalyzerLoadNote.NoCSharpAnalyzers };
         return ImmutableArray<DiagnosticAnalyzer>.Empty;
     }
 
-    private static AnalyzerLoadNote DescribeFailure(AnalyzerReference reference, AnalyzerLoadFailureEventArgs failure)
+    private static AnalyzerLoadNote DescribeFailure(
+        AnalyzerReference reference, AnalyzerLoadFailureEventArgs failure, int failures, int loaded)
     {
         var message = failure.Message;
         if (failure.ReferencedCompilerVersion is { } referenced)
         {
-            var loaded = typeof(Diagnostic).Assembly.GetName().Version;
-            message = $"{message} (references Microsoft.CodeAnalysis {referenced}; loaded in-process: {loaded})";
+            var inProcess = typeof(Diagnostic).Assembly.GetName().Version;
+            message = $"{message} (references Microsoft.CodeAnalysis {referenced}; loaded in-process: {inProcess})";
         }
         else if (failure.Exception is { } exception && !message.Contains(exception.Message, StringComparison.Ordinal))
         {
             message = $"{message}: {exception.Message}";
+        }
+
+        if (loaded > 0)
+        {
+            message = $"partial — {failures} analyzer type(s) could not be loaded, {loaded} loaded: {message}";
         }
 
         return new AnalyzerLoadNote
@@ -292,5 +347,7 @@ public class DiagnosticComputationService : IDiagnosticComputationService
                 Diagnostics = compilation.GetDiagnostics(cancellationToken)
             });
         }
+
+        public AnalyzerLoadReport DescribeAnalyzerLoad(Project project) => new();
     }
 }

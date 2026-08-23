@@ -26,4 +26,14 @@ public interface IDiagnosticComputationService
         Project project,
         Compilation compilation,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The analyzer-load report for <paramref name="project"/> <em>without</em> running a
+    /// diagnostics pass: which references can be loaded and which cannot. For a caller that
+    /// found nothing to analyze (an <c>apply_fixes</c> whose IDs have no fixer) and must still
+    /// tell "no fixer exists" apart from "the reference carrying it never loaded". Cheap after
+    /// the first call — Roslyn caches each reference's answer.
+    /// </summary>
+    /// <param name="project">The project whose analyzer references are consulted.</param>
+    AnalyzerLoadReport DescribeAnalyzerLoad(Project project);
 }

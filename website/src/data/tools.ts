@@ -81,7 +81,7 @@ export const tools: Tool[] = [
     name: 'list_diagnostics', title: 'List Diagnostics', group: 'Diagnostics & fixes', kind: 'diagnostics',
     summary: 'Detailed diagnostics for a project, with statistics and suggested fixable IDs — fixers from Roslyn, the bundled catalog and the project’s own analyzer references.',
     params: 'project?, ids?, files?, max?',
-    returns: 'project, resolvedPath, totalDiagnostics, diagnostics[], stats, suggestedFixableIds[], analyzerLoad? (referencesConsulted, referencesContributing, analyzersLoaded, notes[] — omitted when every reference contributed)',
+    returns: 'project, resolvedPath, totalDiagnostics, diagnostics[], stats, suggestedFixableIds[], analyzerLoad? (analyzersRan, referencesConsulted, referencesContributing, analyzersLoaded, notes[] — omitted when every reference contributed)',
   },
   {
     name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true, verifies: true,

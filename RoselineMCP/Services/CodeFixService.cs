@@ -180,7 +180,11 @@ public class CodeFixService : ICodeFixService
 
                 response.FixersApplied = appliedFixes.ToList();
                 response.FixedCount = fixCount;
-                response.AnalyzerLoad = analyzerLoad.Report is { } report ? AnalyzerLoadReport.ForResponse(report) : null;
+                // When no requested ID had a fixer, no diagnostics pass ran and nothing was captured —
+                // yet that is the headline case to explain: the reference carrying both the analyzer
+                // and its fixer may be the one that failed to load. Describe the load anyway.
+                response.AnalyzerLoad = AnalyzerLoadReport.ForResponse(
+                    analyzerLoad.Report ?? _diagnosticComputation.DescribeAnalyzerLoad(msProject));
 
                 // Format the changed documents
                 if (changedDocuments.Any())

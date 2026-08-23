@@ -646,7 +646,7 @@ it fast enough for an edit loop):
 **What could not be loaded is named.** Roslyn reports an analyzer reference it cannot load — one
 built against a newer `Microsoft.CodeAnalysis` than RoselineMCP's, a corrupt file — by
 contributing *zero* analyzers, not by failing. The three diagnostics responses carry an
-`analyzerLoad` block (`referencesConsulted`, `referencesContributing`, `analyzersLoaded`, and a
+`analyzerLoad` block (`analyzersRan`, `referencesConsulted`, `referencesContributing`, `analyzersLoaded`, and a
 `notes[]` entry per reference that contributed nothing: its name, the reason — `load-failure`
 with Roslyn's `errorCode` and message, `no C# analyzers`, or `exception`). The block is omitted
 when every reference contributed, so a present one always says something; see
@@ -654,7 +654,7 @@ when every reference contributed, so a present one always says something; see
 
 Set `RoselineMCP:RunAnalyzers` to `false` for compiler-only diagnostics (faster on big
 solutions; see [Configuration](#configuration) and the analyzer-execution note in
-[`SECURITY.md`](SECURITY.md)). The block is then present with `referencesConsulted: 0`, so "off"
+[`SECURITY.md`](SECURITY.md)). The block is then present with `analyzersRan: false`, so "off"
 stays distinguishable from "all fine".
 
 ## Examples

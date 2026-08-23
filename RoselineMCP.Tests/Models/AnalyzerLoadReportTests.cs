@@ -20,6 +20,7 @@ public class AnalyzerLoadReportTests
         // Arrange — one reference out of three contributed nothing.
         var report = new AnalyzerLoadReport
         {
+            AnalyzersRan = true,
             ReferencesConsulted = 3,
             ReferencesContributing = 2,
             AnalyzersLoaded = 41,
@@ -37,6 +38,7 @@ public class AnalyzerLoadReportTests
         var json = JsonNode.Parse(JsonSerializer.Serialize(report))!.AsObject();
 
         // Assert — the names are the contract (docs/API.md and the website mirror them).
+        json["analyzersRan"]!.GetValue<bool>().ShouldBeTrue();
         json["referencesConsulted"]!.GetValue<int>().ShouldBe(3);
         json["referencesContributing"]!.GetValue<int>().ShouldBe(2);
         json["analyzersLoaded"]!.GetValue<int>().ShouldBe(41);
@@ -87,7 +89,8 @@ public class AnalyzerLoadReportTests
         // Act
         var report = new AnalyzerLoadReport();
 
-        // Assert — a fresh report names nothing; the counters start at zero.
+        // Assert — a fresh report names nothing, the counters start at zero, and no pass ran.
+        report.AnalyzersRan.ShouldBeFalse();
         report.ReferencesConsulted.ShouldBe(0);
         report.ReferencesContributing.ShouldBe(0);
         report.AnalyzersLoaded.ShouldBe(0);
@@ -98,19 +101,23 @@ public class AnalyzerLoadReportTests
     public void ForResponse_Should_Keep_A_Report_That_Names_Something_And_Drop_A_Clean_One()
     {
         // Arrange
-        var clean = new AnalyzerLoadReport { ReferencesConsulted = 3, ReferencesContributing = 3, AnalyzersLoaded = 9 };
+        var clean = new AnalyzerLoadReport { AnalyzersRan = true, ReferencesConsulted = 3, ReferencesContributing = 3, AnalyzersLoaded = 9 };
+        var noReferences = new AnalyzerLoadReport { AnalyzersRan = true, AnalyzersLoaded = 300 };
         var degraded = new AnalyzerLoadReport
         {
+            AnalyzersRan = true,
             ReferencesConsulted = 3,
             ReferencesContributing = 2,
             Notes = [new AnalyzerLoadNote { Reference = "X", Reason = AnalyzerLoadNote.LoadFailure }]
         };
-        var off = new AnalyzerLoadReport();
+        var off = new AnalyzerLoadReport { AnalyzersRan = false };
 
-        // Act & Assert — clean stays silent; degraded and "off" (zero consulted) are reported,
-        // so a caller can tell "analyzers off" from "every reference contributed".
+        // Act & Assert — clean stays silent, and so does a project with no analyzer references
+        // whose bundled analyzers ran; degraded and "off" are reported, so a caller can tell
+        // "analyzers off" from "every reference contributed" by analyzersRan, not by a zero.
         clean.HasSomethingToReport.ShouldBeFalse();
         AnalyzerLoadReport.ForResponse(clean).ShouldBeNull();
+        AnalyzerLoadReport.ForResponse(noReferences).ShouldBeNull();
         AnalyzerLoadReport.ForResponse(degraded).ShouldBeSameAs(degraded);
         off.HasSomethingToReport.ShouldBeTrue();
         AnalyzerLoadReport.ForResponse(off).ShouldBeSameAs(off);
@@ -124,6 +131,7 @@ public class AnalyzerLoadReportTests
         var shared = new AnalyzerLoadNote { Reference = "Shared.Generators", Reason = AnalyzerLoadNote.NoCSharpAnalyzers };
         var first = new AnalyzerLoadReport
         {
+            AnalyzersRan = true,
             ReferencesConsulted = 4,
             ReferencesContributing = 3,
             AnalyzersLoaded = 10,
@@ -131,6 +139,7 @@ public class AnalyzerLoadReportTests
         };
         var second = new AnalyzerLoadReport
         {
+            AnalyzersRan = true,
             ReferencesConsulted = 5,
             ReferencesContributing = 3,
             AnalyzersLoaded = 12,
@@ -144,10 +153,13 @@ public class AnalyzerLoadReportTests
         // Act
         var merged = AnalyzerLoadReport.Merge([first, second]);
 
-        // Assert — counters count consultations; a reference is named once per (reference, reason).
+        // Assert — reference counters count consultations; analyzersLoaded is the largest
+        // per-project count (each project runs the whole bundled catalog, a sum would inflate it);
+        // a reference is named once per (reference, reason).
+        merged.AnalyzersRan.ShouldBeTrue();
         merged.ReferencesConsulted.ShouldBe(9);
         merged.ReferencesContributing.ShouldBe(6);
-        merged.AnalyzersLoaded.ShouldBe(22);
+        merged.AnalyzersLoaded.ShouldBe(12);
         merged.Notes.Select(n => n.Reference).ShouldBe(["Shared.Generators", "Future.Analyzers"]);
     }
 
@@ -157,7 +169,8 @@ public class AnalyzerLoadReportTests
         // Act
         var merged = AnalyzerLoadReport.Merge([]);
 
-        // Assert
+        // Assert — and nothing ran, which ForResponse reports rather than hides.
+        merged.AnalyzersRan.ShouldBeFalse();
         merged.ReferencesConsulted.ShouldBe(0);
         merged.Notes.ShouldBeEmpty();
     }

@@ -92,6 +92,7 @@ public class ListDiagnosticsToolTests
 
         // Assert
         var report = response.AnalyzerLoad.ShouldNotBeNull();
+        report.AnalyzersRan.ShouldBeFalse();
         report.ReferencesConsulted.ShouldBe(0);
         report.Notes.ShouldBeEmpty();
     }
@@ -147,6 +148,43 @@ public class ListDiagnosticsToolTests
         var report = response.AnalyzerLoad.ShouldNotBeNull();
         report.ReferencesConsulted.ShouldBe(1);
         report.Notes.ShouldHaveSingleItem().Reference.ShouldBe("Silent");
+    }
+
+    [Fact]
+    public async Task ApplyFixes_Should_Describe_AnalyzerLoad_Even_When_No_Requested_Id_Has_A_Fixer()
+    {
+        // Arrange — the headline #183 shape: the reference that carries both the analyzer and
+        // its fixer is the one that cannot be loaded, so no provider resolves, no diagnostics
+        // pass runs, and "No code fix provider found" would otherwise be the whole answer.
+        var garbage = Path.Combine(Path.GetTempPath(), $"roseline-{Guid.NewGuid():N}.dll");
+        File.WriteAllText(garbage, "not a PE image");
+        try
+        {
+            var (_, project) = AdhocProjectBuilder.Create("Unfixable", [("Widget.cs", "public class Widget { }")]);
+            project = project.AddAnalyzerReference(new AnalyzerFileReference(garbage, TestAnalyzerAssemblyLoader.Instance));
+            var loader = AdhocProjectBuilder.FakeLoaderFor((AdhocWorkspace)project.Solution.Workspace, project);
+            var catalog = A.Fake<Interfaces.IAnalyzerCatalog>();
+            A.CallTo(() => catalog.Analyzers).Returns(ImmutableArray<DiagnosticAnalyzer>.Empty);
+            var computation = new DiagnosticComputationService(
+                A.Fake<ILogger<DiagnosticComputationService>>(), Options.Create(new RoselineMcpOptions()), catalog);
+            var factory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
+            var fixer = new CodeFixService(
+                A.Fake<ILogger<CodeFixService>>(), A.Fake<Interfaces.ISolutionAnalyzerService>(), factory,
+                new DiffService(), loader, TestVerification.New(), computation);
+
+            // Act
+            var response = await fixer.ApplyFixesAsync("Unfixable", ["CA9999"], cancellationToken: TestContext.Current.CancellationToken);
+
+            // Assert — the note tells the caller why no fixer could exist.
+            response.Notes.ShouldContain(n => n.Contains("No code fix provider found for CA9999"));
+            var report = response.AnalyzerLoad.ShouldNotBeNull();
+            report.ReferencesConsulted.ShouldBe(1);
+            report.Notes.ShouldHaveSingleItem().Reason.ShouldBe(AnalyzerLoadNote.LoadFailure);
+        }
+        finally
+        {
+            File.Delete(garbage);
+        }
     }
 
     [Fact]

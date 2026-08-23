@@ -305,7 +305,7 @@ NetAnalyzers being the universal case — by returning *zero analyzers*, not by 
 diagnostics responses therefore carry an [`analyzerLoad`](#analyzerloadreport) block naming every
 reference that contributed nothing and why; it is **omitted** when every consulted reference
 contributed, so an absent block means "nothing to report" and a present one always says something
-(including `referencesConsulted: 0` when the analyzer pass is off). Without it a reference that
+(including `analyzersRan: false` when the analyzer pass is off). Without it a reference that
 failed to load was indistinguishable from one with no C# analyzers, and the response silently
 shrank.
 
@@ -355,7 +355,7 @@ top selection by severity, so a later project's errors always outrank an earlier
     message: string;            // Diagnostic message
   }>;
   analyzerLoad?: AnalyzerLoadReport; // Omitted when every analyzer reference contributed; merged across
-                                     // the analyzed projects (counters summed, each reference named once)
+                                     // the analyzed projects (reference counters summed, analyzersLoaded the largest, each reference named once)
 }
 ```
 
@@ -531,7 +531,7 @@ analyzer that reports X never loaded".
   previewOnly: boolean;      // Echoes back whether the caller asked for a preview
   applied: boolean;          // True only when previewOnly was false, there were changes, and verification did not refuse
   verification?: object;     // The compiler's verdict — see Compile Verification
-  analyzerLoad?: AnalyzerLoadReport; // From the first diagnostics pass; omitted when every analyzer reference contributed (or no pass ran)
+  analyzerLoad?: AnalyzerLoadReport; // From the first diagnostics pass — or described without one when no ID had a fixer; omitted when every analyzer reference contributed
 }
 ```
 
@@ -1375,18 +1375,22 @@ public class ApplyFixesResponse
 The `analyzerLoad` block of `ListDiagnostics`, `AnalyzeSolution` and `ApplyFixes`: what the
 analyzer pass could and could not load. **Omitted from the wire when every consulted reference
 contributed** — an absent block means "nothing to report", a present one always names something,
-or reports `referencesConsulted: 0` when the analyzer pass did not run (`RoselineMCP:RunAnalyzers
-= false`), so "off" stays distinguishable from "all fine". On `AnalyzeSolution` it is merged across
-the analyzed projects: the counters are summed (they count reference *consultations*) and each
-reference is named once.
+or reports `analyzersRan: false` when the analyzer pass did not run (`RoselineMCP:RunAnalyzers =
+false`), so "off" stays distinguishable from "all fine" — and from a project that simply carries no
+analyzer references, which is `analyzersRan: true, referencesConsulted: 0` and, being clean, is
+omitted. On `AnalyzeSolution` it is merged across the analyzed projects: the reference counters are
+summed (they count reference *consultations*), `analyzersLoaded` is the **largest** per-project
+count (each project runs the whole bundled catalog, so a sum would inflate it by the project
+count), `analyzersRan` is true if any project's pass ran, and each reference is named once.
 
 ```csharp
 public class AnalyzerLoadReport
 {
-    public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when the analyzer pass is off
-    public int ReferencesContributing { get; set; }   // JSON: "referencesContributing" — yielded ≥ 1 analyzer
-    public int AnalyzersLoaded { get; set; }          // JSON: "analyzersLoaded" — distinct analyzers that ran (bundled + project)
-    public List<AnalyzerLoadNote> Notes { get; set; } // JSON: "notes" — one per reference that contributed nothing
+    public bool AnalyzersRan { get; set; }            // JSON: "analyzersRan" — false when the analyzer pass did not run
+    public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when off, or when the project carries none
+    public int ReferencesContributing { get; set; }   // JSON: "referencesContributing" — yielded ≥ 1 analyzer (partial loads count)
+    public int AnalyzersLoaded { get; set; }          // JSON: "analyzersLoaded" — distinct analyzers that ran (bundled + project); max across projects
+    public List<AnalyzerLoadNote> Notes { get; set; } // JSON: "notes" — one per reference that contributed nothing or only partially
 }
 
 public class AnalyzerLoadNote
@@ -1401,9 +1405,9 @@ public class AnalyzerLoadNote
 
 | `reason` | What happened | `errorCode` / `message` |
 |---|---|---|
-| `load-failure` | Roslyn raised `AnalyzerLoadFailed` — the assembly or one of its analyzer types could not be loaded. The universal case is an analyzer built against a **newer** `Microsoft.CodeAnalysis` than the server's (`ReferencesNewerCompiler`; the message names both versions). | present |
+| `load-failure` | Roslyn raised `AnalyzerLoadFailed` — the assembly or one of its analyzer types could not be loaded. The universal case is an analyzer built against a **newer** `Microsoft.CodeAnalysis` than the server's (`ReferencesNewerCompiler`; the message names both versions). A reference that lost only *some* of its analyzer types keeps the rest running, counts as contributing, and is still named — its message starts with `partial —` and says how many loaded. | present |
 | `no C# analyzers` | the reference loaded and declares no C# analyzer — a source-generator-only assembly, a code-fix-only assembly, an analyzer's support library. Accurate, not alarming. | omitted |
-| `exception` | `GetAnalyzers` itself threw | `message` only |
+| `exception` | `GetAnalyzers` itself threw — or, for the one entry whose `reference` is `(analyzer pass)`, the analyzer pass as a whole failed after every reference loaded and the response fell back to compiler diagnostics: every analyzer diagnostic is missing, whatever the counters say. | `message` only |
 
 A failure is remembered per reference object: Roslyn raises the event only on its first attempt
 and caches the empty answer, and the workspace cache hands the same references to every later

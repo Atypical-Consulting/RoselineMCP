@@ -63,7 +63,7 @@ const groupBlurb: Record<string, string> = {
           reference that contributed nothing and why (<code>load-failure</code> with Roslyn's
           <code>errorCode</code> and message, <code>no C# analyzers</code>, or <code>exception</code>).
           It is <strong>omitted when every reference contributed</strong>, so a present block always
-          says something — including <code>referencesConsulted: 0</code> when analyzers are switched
+          says something — including <code>analyzersRan: false</code> when analyzers are switched
           off. Code fixers are looked up in the Roslyn built-ins, the bundled Roslynator catalog, and
           the project's own analyzer references, in that order.</p>
       </div>

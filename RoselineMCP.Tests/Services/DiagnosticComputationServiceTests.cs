@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -59,16 +58,7 @@ public class DiagnosticComputationServiceTests : IDisposable
         return (project, compilation);
     }
 
-    /// <summary>
-    /// The smallest possible <see cref="IAnalyzerAssemblyLoader"/>: what Roslyn asks of a host in
-    /// order to turn an <see cref="AnalyzerFileReference"/> into analyzer instances.
-    /// </summary>
-    private sealed class LoadFromLoader : IAnalyzerAssemblyLoader
-    {
-        public void AddDependencyLocation(string fullPath) { }
-
-        public Assembly LoadFromPath(string fullPath) => Assembly.LoadFrom(fullPath);
-    }
+    private static AnalyzerFileReference FileReference(string path) => new(path, TestAnalyzerAssemblyLoader.Instance);
 
     /// <summary>A file with a <c>.dll</c> extension that is not a PE image at all.</summary>
     private string WriteGarbageAssembly()
@@ -76,6 +66,24 @@ public class DiagnosticComputationServiceTests : IDisposable
         Directory.CreateDirectory(_tempDirectory);
         var path = Path.Combine(_tempDirectory, "NotAnAssembly.dll");
         File.WriteAllText(path, "this is not a PE image");
+        return path;
+    }
+
+    private static List<MetadataReference> TrustedReferences(bool includeRoslyn)
+    {
+        return ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+            .Split(Path.PathSeparator)
+            .Where(p => p.Length > 0 && (includeRoslyn || !Path.GetFileName(p).StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)))
+            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
+            .ToList();
+    }
+
+    private string Emit(CSharpCompilation compilation, string fileName)
+    {
+        Directory.CreateDirectory(_tempDirectory);
+        var path = Path.Combine(_tempDirectory, fileName);
+        var emit = compilation.Emit(path);
+        emit.Success.ShouldBeTrue(string.Join(Environment.NewLine, emit.Diagnostics));
         return path;
     }
 
@@ -88,14 +96,9 @@ public class DiagnosticComputationServiceTests : IDisposable
     /// </summary>
     private string WriteAnalyzerBuiltAgainstANewerCompiler()
     {
-        Directory.CreateDirectory(_tempDirectory);
         // The framework references only — the real Microsoft.CodeAnalysis.dll is in the trusted
         // set too, and it must not be visible: the stub below takes its name.
-        var trustedAssemblies = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
-            .Split(Path.PathSeparator)
-            .Where(p => p.Length > 0 && !Path.GetFileName(p).StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal))
-            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
-            .ToList();
+        var references = TrustedReferences(includeRoslyn: false);
 
         var stub = CSharpCompilation.Create(
             "Microsoft.CodeAnalysis",
@@ -112,7 +115,7 @@ public class DiagnosticComputationServiceTests : IDisposable
                     }
                 }
                 """)],
-            trustedAssemblies,
+            references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var analyzer = CSharpCompilation.Create(
@@ -123,13 +126,52 @@ public class DiagnosticComputationServiceTests : IDisposable
                 [DiagnosticAnalyzer("C#")]
                 public sealed class FutureAnalyzer : DiagnosticAnalyzer { }
                 """)],
-            [.. trustedAssemblies, stub.ToMetadataReference()],
+            [.. references, stub.ToMetadataReference()],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var path = Path.Combine(_tempDirectory, "FutureAnalyzers.dll");
-        var emit = analyzer.Emit(path);
-        emit.Success.ShouldBeTrue(string.Join(Environment.NewLine, emit.Diagnostics));
-        return path;
+        return Emit(analyzer, "FutureAnalyzers.dll");
+    }
+
+    /// <summary>
+    /// A real analyzer assembly (built against the in-process Roslyn) carrying two analyzers, one
+    /// of which cannot be constructed: Roslyn raises <c>UnableToCreateAnalyzer</c> for it and still
+    /// returns the other. The partial case — the one a naive "any failure means nothing loaded"
+    /// would turn into a regression.
+    /// </summary>
+    private string WritePartiallyLoadableAnalyzers()
+    {
+        var analyzer = CSharpCompilation.Create(
+            "PartialAnalyzers",
+            [CSharpSyntaxTree.ParseText("""
+                using System.Collections.Immutable;
+                using Microsoft.CodeAnalysis;
+                using Microsoft.CodeAnalysis.Diagnostics;
+
+                [DiagnosticAnalyzer("C#")]
+                public sealed class HealthyAnalyzer : DiagnosticAnalyzer
+                {
+                    private static readonly DiagnosticDescriptor Descriptor = new(
+                        "PART0001", "Healthy", "Healthy", "Testing", DiagnosticSeverity.Warning, isEnabledByDefault: true);
+                    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Descriptor);
+                    public override void Initialize(AnalysisContext context)
+                    {
+                        context.EnableConcurrentExecution();
+                        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+                    }
+                }
+
+                [DiagnosticAnalyzer("C#")]
+                public sealed class BrokenAnalyzer : DiagnosticAnalyzer
+                {
+                    static BrokenAnalyzer() { throw new System.InvalidOperationException("cannot be constructed"); }
+                    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray<DiagnosticDescriptor>.Empty;
+                    public override void Initialize(AnalysisContext context) { }
+                }
+                """)],
+            TrustedReferences(includeRoslyn: true),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        return Emit(analyzer, "PartialAnalyzers.dll");
     }
 
     /// <summary>An <see cref="AnalyzerReference"/> whose <c>GetAnalyzers</c> throws.</summary>
@@ -149,34 +191,41 @@ public class DiagnosticComputationServiceTests : IDisposable
     {
         // Arrange — this repository's own project, the way the tools load it. Some of its
         // references carry no C# analyzer (generator-only assemblies, fixer-only assemblies, an
-        // analyzer's support libraries), and the report must say which.
+        // analyzer's support libraries), and the report must say which — and any reference built
+        // against a newer Roslyn than ours must be named as a load failure, not as "none".
         using var loaded = await AnalyzerReferenceLoadTests.LoadRepositoryProjectAsync();
         var project = loaded.Project;
         var compilation = (await project.GetCompilationAsync(TestContext.Current.CancellationToken))!;
-        var silent = project.AnalyzerReferences
-            .Where(r => r.GetAnalyzers(LanguageNames.CSharp).IsEmpty)
-            .Select(r => r.Display)
-            .ToList();
-        silent.ShouldNotBeEmpty("the ground truth pinned by AnalyzerReferenceLoadTests");
-
         var service = CreateService(new AnalyzerCatalog(A.Fake<ILogger<AnalyzerCatalog>>()));
 
-        // Act
+        // Act — the service consults every reference FIRST: Roslyn raises AnalyzerLoadFailed only
+        // on the first consultation, so probing the references before the service would consume
+        // the very event this test pins.
         var result = await service.GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken);
+
+        // The ground truth, read after the fact (Roslyn caches each reference's answer).
+        var inProcess = typeof(Diagnostic).Assembly.GetName().Version!;
+        var expected = project.AnalyzerReferences
+            .Where(r => r.GetAnalyzers(LanguageNames.CSharp).IsEmpty)
+            .Select(r => (r.Display, Reason: r.FullPath is { } path
+                && AnalyzerReferenceLoadTests.ReadReferencedRoslynVersion(path) is { } binds && binds > inProcess
+                    ? AnalyzerLoadNote.LoadFailure
+                    : AnalyzerLoadNote.NoCSharpAnalyzers))
+            .ToList();
+        expected.ShouldNotBeEmpty("the ground truth pinned by AnalyzerReferenceLoadTests");
 
         // Assert
         var report = result.AnalyzerLoad;
+        report.AnalyzersRan.ShouldBeTrue();
         report.ReferencesConsulted.ShouldBe(project.AnalyzerReferences.Count);
-        report.ReferencesContributing.ShouldBeLessThan(report.ReferencesConsulted);
-        report.ReferencesContributing.ShouldBe(report.ReferencesConsulted - silent.Count);
+        report.ReferencesContributing.ShouldBe(report.ReferencesConsulted - expected.Count);
         report.AnalyzersLoaded.ShouldBeGreaterThan(0);
-        report.Notes.Select(n => n.Reference).ShouldBe(silent, ignoreOrder: true);
-        report.Notes.ShouldAllBe(n => n.Reason == AnalyzerLoadNote.NoCSharpAnalyzers || n.Reason == AnalyzerLoadNote.LoadFailure);
+        report.Notes.Select(n => (n.Reference, n.Reason)).ShouldBe(expected, ignoreOrder: true);
         result.Diagnostics.ShouldNotBeEmpty();
     }
 
     [Fact]
-    public async Task Should_Report_Zero_References_Consulted_When_RunAnalyzers_Is_Disabled()
+    public async Task Should_Report_That_Analyzers_Did_Not_Run_When_RunAnalyzers_Is_Disabled()
     {
         // Arrange — the project does carry a reference, but the pass is switched off.
         var (project, compilation) = await WidgetProjectAsync(
@@ -186,7 +235,8 @@ public class DiagnosticComputationServiceTests : IDisposable
         // Act
         var result = await service.GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken);
 
-        // Assert — "off" is distinguishable from "all fine": zero consulted, nothing named.
+        // Assert — "off" is distinguishable from "all fine": the pass did not run, nothing named.
+        result.AnalyzerLoad.AnalyzersRan.ShouldBeFalse();
         result.AnalyzerLoad.ReferencesConsulted.ShouldBe(0);
         result.AnalyzerLoad.ReferencesContributing.ShouldBe(0);
         result.AnalyzerLoad.AnalyzersLoaded.ShouldBe(0);
@@ -195,7 +245,7 @@ public class DiagnosticComputationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CompilerOnly_Should_Report_Zero_References_Consulted()
+    public async Task CompilerOnly_Should_Report_That_Analyzers_Did_Not_Run()
     {
         // Arrange
         var (project, compilation) = await WidgetProjectAsync(
@@ -206,8 +256,10 @@ public class DiagnosticComputationServiceTests : IDisposable
             .GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken);
 
         // Assert
+        result.AnalyzerLoad.AnalyzersRan.ShouldBeFalse();
         result.AnalyzerLoad.ReferencesConsulted.ShouldBe(0);
         result.AnalyzerLoad.Notes.ShouldBeEmpty();
+        DiagnosticComputationService.CompilerOnly.DescribeAnalyzerLoad(project).AnalyzersRan.ShouldBeFalse();
         result.Diagnostics.ShouldBe(compilation.GetDiagnostics(TestContext.Current.CancellationToken));
     }
 
@@ -236,7 +288,7 @@ public class DiagnosticComputationServiceTests : IDisposable
     public async Task Should_Record_Roslyns_Diagnosis_When_A_File_Reference_Cannot_Be_Loaded()
     {
         // Arrange — Roslyn does not throw here: it raises AnalyzerLoadFailed and returns nothing.
-        var reference = new AnalyzerFileReference(WriteGarbageAssembly(), new LoadFromLoader());
+        var reference = FileReference(WriteGarbageAssembly());
         var (project, compilation) = await WidgetProjectAsync(reference);
         var service = CreateService(EmptyCatalog());
 
@@ -257,7 +309,7 @@ public class DiagnosticComputationServiceTests : IDisposable
     {
         // Arrange — the exact mechanism of #183: the assembly loads, its analyzer types do not,
         // because they bind a Microsoft.CodeAnalysis newer than the one in-process.
-        var reference = new AnalyzerFileReference(WriteAnalyzerBuiltAgainstANewerCompiler(), new LoadFromLoader());
+        var reference = FileReference(WriteAnalyzerBuiltAgainstANewerCompiler());
         var (project, compilation) = await WidgetProjectAsync(reference);
         var service = CreateService(EmptyCatalog());
 
@@ -274,12 +326,42 @@ public class DiagnosticComputationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Should_Keep_The_Analyzers_That_Loaded_When_A_Reference_Loads_Only_Partially()
+    {
+        // Arrange — two analyzers in one assembly, one of which cannot be constructed. Before this
+        // report existed the healthy one ran; naming the failure must not stop it from running.
+        var reference = FileReference(WritePartiallyLoadableAnalyzers());
+        var (project, compilation) = await WidgetProjectAsync(reference);
+        var service = CreateService(EmptyCatalog());
+
+        // Act
+        var result = await service.GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken);
+
+        // Assert — the reference contributed, its healthy analyzer ran, and the failure is named
+        // as partial rather than total.
+        result.AnalyzerLoad.ReferencesContributing.ShouldBe(1);
+        result.AnalyzerLoad.AnalyzersLoaded.ShouldBe(1);
+        var note = result.AnalyzerLoad.Notes.ShouldHaveSingleItem();
+        note.Reference.ShouldBe("PartialAnalyzers");
+        note.Reason.ShouldBe(AnalyzerLoadNote.LoadFailure);
+        note.ErrorCode.ShouldBe(nameof(AnalyzerLoadFailureEventArgs.FailureErrorCode.UnableToCreateAnalyzer));
+        note.Message.ShouldNotBeNull();
+        note.Message.ShouldStartWith("partial");
+        note.Message.ShouldContain("1 loaded");
+
+        // And the same answer on a second consultation, when Roslyn no longer raises the event.
+        var second = await service.GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken);
+        second.AnalyzerLoad.ReferencesContributing.ShouldBe(1);
+        second.AnalyzerLoad.Notes.ShouldHaveSingleItem().Reason.ShouldBe(AnalyzerLoadNote.LoadFailure);
+    }
+
+    [Fact]
     public async Task Should_Remember_A_Load_Failure_When_The_Same_Reference_Is_Consulted_Again()
     {
         // Arrange — the workspace cache hands the same AnalyzerFileReference to every call, and
         // Roslyn raises AnalyzerLoadFailed only the first time it tries: a second pass would
         // otherwise see an empty array with no event and misreport "no C# analyzers".
-        var reference = new AnalyzerFileReference(WriteGarbageAssembly(), new LoadFromLoader());
+        var reference = FileReference(WriteGarbageAssembly());
         var (project, compilation) = await WidgetProjectAsync(reference);
         var service = CreateService(EmptyCatalog());
         await service.GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken);
@@ -291,6 +373,25 @@ public class DiagnosticComputationServiceTests : IDisposable
         var note = second.AnalyzerLoad.Notes.ShouldHaveSingleItem();
         note.Reason.ShouldBe(AnalyzerLoadNote.LoadFailure);
         note.ErrorCode.ShouldBe(nameof(AnalyzerLoadFailureEventArgs.FailureErrorCode.UnableToLoadAnalyzer));
+    }
+
+    [Fact]
+    public async Task Concurrent_Consultations_Of_One_Failing_Reference_Should_All_Name_The_Failure()
+    {
+        // Arrange — a solution's projects are analyzed in parallel and share reference objects;
+        // only one consultation can observe Roslyn's one-shot event, the others must inherit it.
+        var reference = FileReference(WriteGarbageAssembly());
+        var (project, compilation) = await WidgetProjectAsync(reference);
+        var service = CreateService(EmptyCatalog());
+
+        // Act
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(
+            () => service.GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken)));
+
+        // Assert
+        results.ShouldAllBe(r => r.AnalyzerLoad.Notes.Count == 1
+            && r.AnalyzerLoad.Notes[0].Reason == AnalyzerLoadNote.LoadFailure);
     }
 
     [Fact]
@@ -346,9 +447,32 @@ public class DiagnosticComputationServiceTests : IDisposable
         var result = await service.GetDiagnosticsAsync(project, compilation, TestContext.Current.CancellationToken);
 
         // Assert — nothing to name.
+        result.AnalyzerLoad.AnalyzersRan.ShouldBeTrue();
         result.AnalyzerLoad.ReferencesConsulted.ShouldBe(1);
         result.AnalyzerLoad.ReferencesContributing.ShouldBe(1);
         result.AnalyzerLoad.Notes.ShouldBeEmpty();
+        result.AnalyzerLoad.HasSomethingToReport.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task DescribeAnalyzerLoad_Should_Name_The_Silent_References_Without_A_Diagnostics_Pass()
+    {
+        // Arrange — what apply_fixes needs when none of its IDs had a fixer: the load report, and
+        // nothing else.
+        var reference = FileReference(WriteGarbageAssembly());
+        var (project, _) = await WidgetProjectAsync(
+            reference, new AnalyzerImageReference([new CountingAnalyzer()], display: "Healthy"));
+        var service = CreateService(EmptyCatalog());
+
+        // Act
+        var report = service.DescribeAnalyzerLoad(project);
+
+        // Assert
+        report.AnalyzersRan.ShouldBeTrue();
+        report.ReferencesConsulted.ShouldBe(2);
+        report.ReferencesContributing.ShouldBe(1);
+        report.Notes.ShouldHaveSingleItem().Reason.ShouldBe(AnalyzerLoadNote.LoadFailure);
+        CreateService(EmptyCatalog(), runAnalyzers: false).DescribeAnalyzerLoad(project).AnalyzersRan.ShouldBeFalse();
     }
 
     /// <summary>An analyzer that reports nothing — present only to be counted.</summary>

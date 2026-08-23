@@ -48,8 +48,8 @@ public class ListDiagnosticsResponse
     /// <summary>
     /// Which of the project's analyzer references could not contribute, and why. Omitted when every
     /// consulted reference contributed — an absent block means "nothing to report", a present one
-    /// always names something (or reports that no reference was consulted at all, when the analyzer
-    /// pass is off). Without it, an analyzer that failed to load silently shrank this response.
+    /// always names something (or reports <c>analyzersRan: false</c> when the analyzer pass is
+    /// off). Without it, an analyzer that failed to load silently shrank this response.
     /// </summary>
     [JsonPropertyName("analyzerLoad")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

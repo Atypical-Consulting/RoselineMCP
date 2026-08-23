@@ -233,7 +233,7 @@ public class CodeFixProviderFactoryTests
             {
                 var (_, project) = AdhocProjectBuilder.Create("Broken", [("W.cs", "public class W { }")]);
                 project = project
-                    .AddAnalyzerReference(new AnalyzerFileReference(garbage, new LoadFromLoader()))
+                    .AddAnalyzerReference(new AnalyzerFileReference(garbage, TestAnalyzerAssemblyLoader.Instance))
                     .AddAnalyzerReference(new AnalyzerImageReference(ImmutableArray<DiagnosticAnalyzer>.Empty, display: "InMemory"));
                 var factory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>());
 
@@ -249,13 +249,6 @@ public class CodeFixProviderFactoryTests
             {
                 File.Delete(garbage);
             }
-        }
-
-        private sealed class LoadFromLoader : IAnalyzerAssemblyLoader
-        {
-            public void AddDependencyLocation(string fullPath) { }
-
-            public System.Reflection.Assembly LoadFromPath(string fullPath) => System.Reflection.Assembly.LoadFrom(fullPath);
         }
     }
 }

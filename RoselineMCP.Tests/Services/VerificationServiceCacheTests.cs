@@ -34,6 +34,9 @@ public class VerificationServiceCacheTests
             Interlocked.Increment(ref _calls);
             return DiagnosticComputationService.CompilerOnly.GetDiagnosticsAsync(project, compilation, cancellationToken);
         }
+
+        public AnalyzerLoadReport DescribeAnalyzerLoad(Project project) =>
+            DiagnosticComputationService.CompilerOnly.DescribeAnalyzerLoad(project);
     }
 
     private static (VerificationService Service, CountingDiagnostics Counter) CreateService()

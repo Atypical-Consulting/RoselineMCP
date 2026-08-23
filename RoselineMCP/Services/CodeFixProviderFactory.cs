@@ -205,7 +205,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     /// some of whose types cannot be loaded (a dependency bound to a newer Roslyn, say) still yields
     /// the types that can: the same "degrade, never fail" rule the analyzer pass follows.
     /// </summary>
-    private static IEnumerable<Type> ProviderTypes(Assembly assembly)
+    private IEnumerable<Type> ProviderTypes(Assembly assembly)
     {
         Type?[] types;
         try
@@ -215,6 +215,10 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         catch (ReflectionTypeLoadException ex)
         {
             types = ex.Types;
+            _logger.LogWarning(
+                "{Count} type(s) of {Assembly} could not be loaded; scanning the rest for code fix providers: {Message}",
+                ex.LoaderExceptions.Length, assembly.GetName().Name,
+                ex.LoaderExceptions.FirstOrDefault()?.Message ?? ex.Message);
         }
 
         return types.Where(t => t is { IsAbstract: false } && t.IsSubclassOf(typeof(CodeFixProvider)))!;
@@ -278,8 +282,10 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         }
         catch (Exception ex)
         {
-            // The same rule as the analyzer pass: one unreadable reference never fails the lookup.
-            _logger.LogDebug("Could not load code fix providers from project reference {Reference}: {Message}",
+            // The same rule as the analyzer pass: one unreadable reference never fails the lookup —
+            // and the same visibility rule, at the level the bundled path uses: degraded fixer
+            // coverage is logged where an operator looks, never at Debug.
+            _logger.LogWarning("Could not load code fix providers from project reference {Reference}: {Message}",
                 reference.Display, ex.Message);
             return NoProviders;
         }
