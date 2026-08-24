@@ -647,9 +647,13 @@ nearest level first — the working directory itself wins when it has exactly on
 each parent directory (up to 3) in order, then immediate subdirectories — returning a
 `ValidationError` only when no candidate is found anywhere or a single level itself has multiple
 candidates (a solution in the working directory is never made ambiguous by one further up the
-tree, e.g. in a git worktree nested inside its main checkout). Local paths
+tree, e.g. in a git worktree nested inside its main checkout). AppleDouble shadow files
+(`._App.sln`, `._App.csproj` — what macOS leaves beside a file after an exFAT/SMB/zip round-trip)
+are never candidates, at any level or in the bare-name sweep. Local paths
 only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
-solution, the whole solution is loaded and symbol search/resolution spans **every project in it** —
+solution — the nearest ancestor `.sln` of the resolved `.csproj`; an ancestor directory holding
+more than one `.sln` is refused with the same ambiguity error rather than guessed at — the whole
+solution is loaded and symbol search/resolution spans **every project in it** —
 a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
 project) is still found — so cross-project references and renames are complete.
 `ListDiagnostics` and `ApplyFixes` resolve and load their `project` through this same mechanism, so
