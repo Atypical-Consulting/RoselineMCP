@@ -313,7 +313,7 @@ public class ProjectLoader : IProjectLoader
 
             if (candidates.Count > 1)
             {
-                throw new ArgumentException(BuildAmbiguityMessage(kind, candidates));
+                throw new ArgumentException(BuildAmbiguityMessage(kind, candidates, "near the working directory"));
             }
         }
 
@@ -428,10 +428,15 @@ public class ProjectLoader : IProjectLoader
         return found;
     }
 
-    private static string BuildAmbiguityMessage(string kind, IReadOnlyList<string> candidates)
+    /// <summary>
+    /// The one wording for "more than one candidate": <paramref name="where"/> says which scan
+    /// found them (auto-discovery looks near the working directory; the ancestor walk looks above a
+    /// resolved project), and the remedy is the same for both.
+    /// </summary>
+    private static string BuildAmbiguityMessage(string kind, IReadOnlyList<string> candidates, string where)
     {
         var list = string.Join(", ", candidates.Select(c => $"'{c}'"));
-        return $"Found multiple candidate {kind} files near the working directory: {list}. " +
+        return $"Found multiple candidate {kind} files {where}: {list}. " +
             "Pass an explicit 'project' — a project name, a directory, or a path to a .csproj or .sln file — to disambiguate.";
     }
 
@@ -510,7 +515,12 @@ public class ProjectLoader : IProjectLoader
     /// <summary>
     /// Walks from <paramref name="startPath"/> up through its ancestors looking for a <c>.sln</c>.
     /// An unreadable rung is skipped, not fatal: <see cref="Directory.GetParent(string)"/> needs no
-    /// read permission on the child it is leaving, so the climb continues past it.
+    /// read permission on the child it is leaving, so the climb continues past it. A rung holding
+    /// MORE than one solution is refused with the same <see cref="ArgumentException"/>
+    /// <see cref="FindNearest"/> raises: which of two solutions to open a project through is not a
+    /// guess this walk gets to make, and "whichever the OS listed first" — what <c>slnFiles[0]</c>
+    /// used to answer — is exactly that guess. Shadows are filtered by <see cref="IncidentalFiles"/>
+    /// before the count, so they neither win a rung nor make a real pair look like three.
     /// </summary>
     private static string? FindSolutionFile(string startPath)
     {
@@ -518,10 +528,16 @@ public class ProjectLoader : IProjectLoader
 
         while (!string.IsNullOrEmpty(directory))
         {
-            var slnFiles = Directory.GetFiles(directory, "*.sln", IncidentalScan);
-            if (slnFiles.Length > 0)
+            var candidates = IncidentalFiles(directory, "*.sln", IncidentalScan).ToList();
+            if (candidates.Count == 1)
             {
-                return slnFiles[0];
+                return candidates[0];
+            }
+
+            if (candidates.Count > 1)
+            {
+                throw new ArgumentException(
+                    BuildAmbiguityMessage("solution (.sln)", candidates, $"above '{startPath}'"));
             }
 
             directory = Directory.GetParent(directory)?.FullName;

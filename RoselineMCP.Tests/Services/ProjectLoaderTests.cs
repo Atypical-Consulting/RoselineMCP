@@ -730,6 +730,40 @@ public class ProjectLoaderTests : IDisposable
         FindSolutionFile(csproj).ShouldBe(sln);
     }
 
+    /// <summary>
+    /// The ancestor walk reads the same directories as auto-discovery and is filtered the same
+    /// way: an AppleDouble shadow beside the real solution is never the file handed to
+    /// <c>OpenSolutionAsync</c>. Dot-prefixed names often list first, so the shadow was exactly
+    /// what <c>slnFiles[0]</c> tended to return — a failure about a resource fork, on a call that
+    /// never asked about one.
+    /// </summary>
+    [Fact]
+    public void FindSolutionFile_IgnoresAnAppleDoubleShadow_BesideTheRealSolution()
+    {
+        var sln = Touch("App.sln");
+        Touch("._App.sln");
+        var csproj = Touch(Path.Combine("Src", "App.csproj"));
+
+        FindSolutionFile(csproj).ShouldBe(sln);
+    }
+
+    /// <summary>
+    /// Two real solutions on one rung is the ambiguity auto-discovery already refuses; the walk
+    /// refuses it the same way instead of silently taking whichever the OS listed first. The
+    /// message names both, so the caller can pass the one they meant.
+    /// </summary>
+    [Fact]
+    public void FindSolutionFile_RefusesAnAmbiguousDirectory_InsteadOfGuessing()
+    {
+        var a = Touch("A.sln");
+        var b = Touch("B.sln");
+        var csproj = Touch(Path.Combine("Src", "App.csproj"));
+
+        var ex = Should.Throw<ArgumentException>(() => FindSolutionFile(csproj));
+        ex.Message.ShouldContain(a);
+        ex.Message.ShouldContain(b);
+    }
+
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
     [Fact]
     public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
