@@ -45,7 +45,23 @@ The application uses a dependency injection-based service architecture with clea
    - `DiagnosticComputationService`: The one shared "compiler + analyzer diagnostics" pass
      (`CompilationWithAnalyzers`) used by all three diagnostics tools — bundled catalog plus the
      target project's own analyzer references, deduped by analyzer type; disabled via
-     `RoselineMCP:RunAnalyzers = false` (compiler-only)
+     `RoselineMCP:RunAnalyzers = false` (compiler-only). Returns a `DiagnosticComputationResult`:
+     the diagnostics **and** an `AnalyzerLoadReport` naming every reference that contributed
+     nothing. Roslyn reports a reference it cannot load (built against a newer
+     `Microsoft.CodeAnalysis` than ours — the SDK's own NetAnalyzers are the universal case) by
+     returning an *empty array* and raising `AnalyzerFileReference.AnalyzerLoadFailed`, never by
+     throwing; the service subscribes to that event around each `GetAnalyzers` call and
+     **remembers** a failure per reference object, because Roslyn raises it once and then serves
+     the cached empty answer silently (the workspace cache hands the same references to every
+     later call) under a per-reference lock (a solution's projects are analyzed in parallel).
+     Reasons: `load-failure` (with Roslyn's `errorCode` — `ReferencesNewerCompiler` names both
+     versions; a *partial* failure keeps the analyzers that loaded and is still named),
+     `no C# analyzers` (generator-only, fixer-only and support assemblies — accurate, not
+     alarming), `exception` (also the `(analyzer pass)` entry when the whole pass failed and the
+     response fell back to compiler diagnostics). `analyzersRan: false` is the off state.
+     `DescribeAnalyzerLoad(project)` yields the same report without a diagnostics pass — what
+     `ApplyFixes` uses when none of its IDs had a fixer, so "no fixer" and "the reference carrying
+     it never loaded" stay distinguishable
    - `VerificationService`: Compiles a candidate solution in memory and reports what the change did
      to the compiler's verdict — the gate behind the three write tools and the payload of
      `check_compilation`. Compiler-only by design (`DiagnosticComputationService.CompilerOnly`);
@@ -53,8 +69,16 @@ The application uses a dependency injection-based service architecture with clea
      dependent version (the semantic version alone is blind to method-body edits), storing detached
      `DiagnosticDetail` values only
    - `DiagnosticFilterService`: Filtering and categorization of diagnostics
-   - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers (scans the
-     Roslyn built-ins plus the `AnalyzerCatalog` assemblies)
+   - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers. Two layers:
+     a **process-wide map** built once in the constructor (the Roslyn built-ins, then the
+     `AnalyzerCatalog` assemblies — first-wins per ID), and a **per-project overlay** of the
+     `CodeFixProvider` types carried by the target project's own `AnalyzerReferences`, reflected
+     once per reference object (`ConditionalWeakTable`) through the reference's own
+     `IAnalyzerAssemblyLoader` — so it adds no assembly the diagnostics pass does not already load.
+     Lookup order is map first, overlay second: an ID both can fix resolves to the bundled
+     provider. The `Project`-taking overloads (`GetProviderForDiagnostic(id, project)`,
+     `GetFixableDiagnosticIds(project)`) are what `ApplyFixes` and `suggestedFixableIds` use; the
+     no-project members are the `null` case. The decision is recorded in `SECURITY.md`
    - `PatchService`/`DiffService`: Unified diff generation for code changes
    - `MSBuildService`: MSBuildWorkspace management and initialization
 
@@ -174,18 +198,24 @@ dotnet list package --outdated
 > The diagnostics tools (1–3) report compiler **and** analyzer diagnostics: the bundled
 > Roslynator analyzers plus the target project's own analyzer references are executed via
 > `CompilationWithAnalyzers` (`DiagnosticComputationService`). `RoselineMCP:RunAnalyzers = false`
-> makes them compiler-only.
+> makes them compiler-only. All three carry an `analyzerLoad` block naming every analyzer
+> reference that contributed nothing and why (`referencesConsulted`, `referencesContributing`,
+> `analyzersLoaded`, `analyzersRan`, `notes[] { reference, reason, errorCode?, message? }`) — **omitted when every
+> consulted reference contributed**, so an absent block means "nothing to report" and a present
+> one always says something (`analyzersRan: false` when the pass is off). Degraded coverage is
+> named, never silent.
 
 ### 1. AnalyzeSolution
 Analyzes entire C# solutions for diagnostics with filtering options.
 - **Parameters**: pathOrGit, branch, include, exclude, severity, maxDiagnostics
-- **Returns**: Solution summary, project counts, top diagnostics with location details
+- **Returns**: Solution summary, project counts, top diagnostics with location details,
+  `analyzerLoad` (merged across the analyzed projects: reference counters summed, `analyzersLoaded` the largest per-project count, each reference named once)
 
 ### 2. ListDiagnostics  
 Gets detailed diagnostics for specific projects with statistics. Loads via `IProjectLoader`, so
 `project` is **optional** (same auto-discovery and `.sln` support as the navigation tools).
 - **Parameters**: project (optional), ids[], files[], max
-- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), diagnostics list, statistics by ID/severity, suggested fixable IDs
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), diagnostics list, statistics by ID/severity, suggested fixable IDs (fixers from the Roslyn built-ins, the bundled catalog **and the project's own analyzer references** — bundled wins on a shared ID), `analyzerLoad`
 
 ### 3. ApplyFixes
 Applies automated code fixes for specified diagnostic IDs. Loads via `IProjectLoader`, so
@@ -198,7 +228,7 @@ was fixed and which of the solution's were skipped — only when the caller's ta
 never when they named a `.csproj` — plus any linked file whose write reaches a sibling), on every
 path including preview.
 - **Parameters**: ids[], project (optional), previewOnly, allowIntroducedErrors, max
-- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`, `analyzerLoad` (from the first diagnostics pass — so "no diagnostics found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are resolved through the same three layers as `ListDiagnostics`' fixable IDs
 
 ### 14. CheckCompilation
 Answers "does this compile right now, and what broke" against on-disk state — the replacement for a
@@ -429,6 +459,11 @@ Logging levels adjust automatically:
   the bundled Roslynator set *and* the target project's own analyzer references, which are
   third-party code executed in-process at analysis time. `RoselineMCP:RunAnalyzers = false`
   disables the **diagnostic analyzer** pass (compiler-only diagnostics). See `SECURITY.md`.
+- **Code-fix providers are loaded from the project's `AnalyzerReferences` too — by decision.**
+  The lookup adds no assembly the analyzer pass does not already load (each reference's assembly
+  comes through its own `IAnalyzerAssemblyLoader`); it instantiates additional `CodeFixProvider`
+  *types* from resident assemblies. `RunAnalyzers = false` does not govern it. Recorded in
+  `SECURITY.md` so the choice stops being implicit.
 - **Source generators run regardless of `RunAnalyzers`**: generators ship through the same
   `AnalyzerReferences` but execute as part of building *any* compilation, not as part of the
   diagnostics pass — so every semantic path runs them, including all navigation tools (via

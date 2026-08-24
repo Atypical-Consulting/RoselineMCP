@@ -33,7 +33,20 @@ public interface IDiagnosticFilterService
     int GetSeverityPriority(string severity);
 
     /// <summary>
-    /// Determines if a diagnostic ID is fixable.
+    /// Determines if a diagnostic ID is fixable by the process-wide providers (the Roslyn built-ins
+    /// and the bundled catalog). Equivalent to <see cref="IsFixableDiagnostic(string, Project?)"/>
+    /// with a <see langword="null"/> project.
     /// </summary>
     bool IsFixableDiagnostic(string id);
+
+    /// <summary>
+    /// Determines if a diagnostic ID is fixable — by the process-wide providers, or by a provider
+    /// carried by <paramref name="project"/>'s own analyzer references.
+    /// </summary>
+    /// <param name="id">The diagnostic ID.</param>
+    /// <param name="project">
+    /// The target project whose analyzer references may carry the fixer; <see langword="null"/>
+    /// consults the process-wide providers only.
+    /// </param>
+    bool IsFixableDiagnostic(string id, Project? project);
 }

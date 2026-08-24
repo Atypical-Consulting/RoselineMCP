@@ -387,8 +387,8 @@ public class VerificationService : IVerificationService, IDisposable
             return errors;
         }
 
-        var diagnostics = await _diagnostics.GetDiagnosticsAsync(project, compilation, cancellationToken);
-        foreach (var diagnostic in diagnostics)
+        var computed = await _diagnostics.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        foreach (var diagnostic in computed.Diagnostics)
         {
             if (diagnostic.Severity == DiagnosticSeverity.Error)
             {

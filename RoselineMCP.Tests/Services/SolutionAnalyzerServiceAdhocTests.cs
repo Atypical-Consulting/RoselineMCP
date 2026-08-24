@@ -85,7 +85,7 @@ public class SolutionAnalyzerServiceAdhocTests
             var method = methods.FirstOrDefault();
             method.ShouldNotBeNull();
             var result = (AnalyzeSolutionResponse)method!.Invoke(_sut,
-                new object[] { solutionPath, solution, diagnostics, summary, 100 })!;
+                new object[] { solutionPath, solution, diagnostics, summary, new AnalyzerLoadReport(), 100 })!;
 
             // Assert
             result.ShouldNotBeNull();
@@ -113,7 +113,7 @@ public class SolutionAnalyzerServiceAdhocTests
                 .GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
                 .First(m => m.Name == "BuildAnalyzeSolutionResponse");
             var result = (AnalyzeSolutionResponse)method.Invoke(_sut,
-                new object[] { solutionPath, solution, diagnostics, summary, 100 })!;
+                new object[] { solutionPath, solution, diagnostics, summary, new AnalyzerLoadReport(), 100 })!;
 
             // Assert — should be ordered by severity (error first)
             result.TopDiagnostics.ShouldNotBeNull();
@@ -135,7 +135,7 @@ public class SolutionAnalyzerServiceAdhocTests
                 .GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
                 .First(m => m.Name == "BuildAnalyzeSolutionResponse");
             var result = (AnalyzeSolutionResponse)method.Invoke(_sut,
-                new object[] { "/Solution.sln", solution, diagnostics, new DiagnosticSummary(), 3 })!;
+                new object[] { "/Solution.sln", solution, diagnostics, new DiagnosticSummary(), new AnalyzerLoadReport(), 3 })!;
 
             // Assert — limited to 3
             result.TopDiagnostics.Count.ShouldBe(3);

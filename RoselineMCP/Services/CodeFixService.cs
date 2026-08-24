@@ -124,6 +124,7 @@ public class CodeFixService : ICodeFixService
                 var changedDocuments = new HashSet<DocumentId>();
                 var currentSolution = originalSolution;
                 var fixCount = 0;
+                var analyzerLoad = new AnalyzerLoadCapture();
 
                 var diagnosticIndex = 0;
                 foreach (var diagnosticId in ids)
@@ -139,8 +140,9 @@ public class CodeFixService : ICodeFixService
                     });
                     _logger.LogInformation("Attempting to fix diagnostic: {Id}", diagnosticId);
 
-                    // Find code fix provider for this diagnostic
-                    var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId);
+                    // Find code fix provider for this diagnostic — process-wide first, then the
+                    // providers the project's own analyzer references carry.
+                    var provider = _codeFixProviderFactory.GetProviderForDiagnostic(diagnosticId, msProject);
                     if (provider == null)
                     {
                         response.Notes.Add($"No code fix provider found for {diagnosticId}");
@@ -151,7 +153,7 @@ public class CodeFixService : ICodeFixService
                     {
                         var (updatedSolution, fixedForThisId, anyDiagnosticsFound) =
                             await ApplyFixesForDiagnosticIdAsync(
-                                currentSolution, msProject.Id, diagnosticId, provider, changedDocuments, cancellationToken);
+                                currentSolution, msProject.Id, diagnosticId, provider, changedDocuments, analyzerLoad, cancellationToken);
 
                         currentSolution = updatedSolution;
 
@@ -178,6 +180,11 @@ public class CodeFixService : ICodeFixService
 
                 response.FixersApplied = appliedFixes.ToList();
                 response.FixedCount = fixCount;
+                // When no requested ID had a fixer, no diagnostics pass ran and nothing was captured —
+                // yet that is the headline case to explain: the reference carrying both the analyzer
+                // and its fixer may be the one that failed to load. Describe the load anyway.
+                response.AnalyzerLoad = AnalyzerLoadReport.ForResponse(
+                    analyzerLoad.Report ?? _diagnosticComputation.DescribeAnalyzerLoad(msProject));
 
                 // Format the changed documents
                 if (changedDocuments.Any())
@@ -343,6 +350,7 @@ public class CodeFixService : ICodeFixService
     /// <param name="diagnosticId">The diagnostic ID to fix.</param>
     /// <param name="provider">The code fix provider to use.</param>
     /// <param name="changedDocuments">Accumulator of file paths that were modified.</param>
+    /// <param name="analyzerLoad">Receives the analyzer-load report of the first diagnostics pass.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
     /// <returns>The resulting solution, how many fixes were applied, and whether any matching diagnostics existed.</returns>
     private async Task<(Solution Solution, int FixedCount, bool AnyDiagnosticsFound)> ApplyFixesForDiagnosticIdAsync(
@@ -351,9 +359,10 @@ public class CodeFixService : ICodeFixService
         string diagnosticId,
         CodeFixProvider provider,
         HashSet<DocumentId> changedDocuments,
+        AnalyzerLoadCapture analyzerLoad,
         CancellationToken cancellationToken)
     {
-        var initialDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken);
+        var initialDiagnostics = await GetMatchingDiagnosticsAsync(solution, projectId, diagnosticId, cancellationToken, analyzerLoad);
         if (initialDiagnostics.Count == 0)
         {
             return (solution, 0, false);
@@ -391,12 +400,16 @@ public class CodeFixService : ICodeFixService
     /// The diagnostics with the given ID currently reported for the project — compiler and
     /// analyzer diagnostics alike (see <see cref="IDiagnosticComputationService"/>):
     /// unsuppressed and located in source (the only occurrences a code fix can be applied to).
+    /// When <paramref name="analyzerLoad"/> is given, the pass's analyzer-load report is handed to
+    /// it — the response carries the first one, so a caller can tell "no diagnostics found" from
+    /// "the analyzer that reports them never loaded".
     /// </summary>
     private async Task<List<Diagnostic>> GetMatchingDiagnosticsAsync(
         Solution solution,
         ProjectId projectId,
         string diagnosticId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AnalyzerLoadCapture? analyzerLoad = null)
     {
         var project = solution.GetProject(projectId);
         if (project == null)
@@ -410,10 +423,23 @@ public class CodeFixService : ICodeFixService
             return [];
         }
 
-        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
-        return allDiagnostics
+        var computed = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        analyzerLoad?.Record(computed.AnalyzerLoad);
+        return computed.Diagnostics
             .Where(d => d.Id == diagnosticId && !d.IsSuppressed && d.Location.SourceTree != null)
             .ToList();
+    }
+
+    /// <summary>
+    /// Keeps the analyzer-load report of the <em>first</em> diagnostics pass of an
+    /// <c>apply_fixes</c> call. Every later pass in the same call consults the same references
+    /// and would say the same thing.
+    /// </summary>
+    private sealed class AnalyzerLoadCapture
+    {
+        public AnalyzerLoadReport? Report { get; private set; }
+
+        public void Record(AnalyzerLoadReport report) => Report ??= report;
     }
 
     /// <summary>

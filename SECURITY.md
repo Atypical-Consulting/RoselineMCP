@@ -93,6 +93,34 @@ code would then be reported as a compile error. Semantic analysis of a modern
 untrusted repository; it does not close it. MSBuild evaluation and source
 generators both remain. Isolation — not the switch — is the mitigation.
 
+**Code-fix providers are loaded from the project's `AnalyzerReferences` too —
+by decision, not by accident.** `ListDiagnostics` (for `suggestedFixableIds`)
+and `ApplyFixes` (to fix) look up providers in the Roslyn built-ins and the
+bundled Roslynator catalog first, then in the assemblies the target project
+itself references. This adds **no assembly to the process that the analyzer
+pass does not already load and execute**: each reference's assembly is
+obtained through that reference's own `IAnalyzerAssemblyLoader` — the loader
+Roslyn used to run its analyzers — and what the overlay adds is the
+instantiation of additional *types* (`CodeFixProvider` subclasses) from
+assemblies already resident. Like analyzers, a provider is arbitrary in-process
+.NET code; unlike analyzers, it runs only when `ApplyFixes` is asked to fix an
+ID it serves (instantiation to read `FixableDiagnosticIds` happens on the
+first lookup). `RunAnalyzers=false` does **not** govern this lookup: it switches
+off the *diagnostic* pass, and with no analyzer diagnostics there is nothing
+for a project-referenced fixer to fix — but `suggestedFixableIds` still lists
+what it could fix, and the lookup still instantiates the provider types. The
+mitigation is the same one: isolation for untrusted repositories.
+
+**What could not be loaded is reported, never silent.** Roslyn signals an
+analyzer reference it cannot load — an assembly built against a newer
+`Microsoft.CodeAnalysis` than the server's, a corrupt file — by returning zero
+analyzers and raising `AnalyzerLoadFailed`, not by throwing. The diagnostics
+responses carry an `analyzerLoad` block naming every reference that
+contributed nothing, with Roslyn's reason. That matters for security reviews
+as much as for correctness: a diagnostics run whose coverage silently shrank by
+an entire analyzer family (the SDK's `CA*` rules, say) looked exactly like a
+clean run.
+
 **The write-confirmation gate is operator-disablable.** The three write tools
 (`ApplyFixes`, `EditMember`, `RenameSymbol`) write nothing unless the caller
 passes `previewOnly: false`; behind that opt-in they ask the connected client
@@ -224,8 +252,8 @@ client that has blocked itself.
   configuration switch substitutes for it — `RunAnalyzers=false` narrows the
   surface but leaves MSBuild evaluation and source generators running.
 - Review project files before analysis when working with untrusted input —
-  including their `AnalyzerReferences`, which carry both analyzers and
-  generators.
+  including their `AnalyzerReferences`, which carry analyzers, generators and
+  code-fix providers alike.
 - Treat the `pathOrGit`/`branch` parameters of `AnalyzeSolution` as a code
   execution surface, not just a data source, when reasoning about threat
   models.

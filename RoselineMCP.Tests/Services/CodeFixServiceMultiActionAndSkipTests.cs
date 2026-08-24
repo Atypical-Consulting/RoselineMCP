@@ -161,7 +161,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
                  """));
 
             var factory = A.Fake<ICodeFixProviderFactory>();
-            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219")).Returns(new TwoActionsCodeFixProvider());
+            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219", A<Project?>._)).Returns(new TwoActionsCodeFixProvider());
 
             var sut = CreateSut(factory);
 
@@ -245,7 +245,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
             var csprojPath = CreateProject("NoOpFix.csproj", ("Program.cs", source));
 
             var factory = A.Fake<ICodeFixProviderFactory>();
-            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219")).Returns(new NoOpCodeFixProvider());
+            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219", A<Project?>._)).Returns(new NoOpCodeFixProvider());
 
             var sut = CreateSut(factory);
 
@@ -306,7 +306,7 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
                  """));
 
             var factory = A.Fake<ICodeFixProviderFactory>();
-            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219"))
+            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219", A<Project?>._))
                 .Returns(new FixesOnlyNamedFileCodeFixProvider("Second", fixedSecondFileContent));
 
             var sut = CreateSut(factory);

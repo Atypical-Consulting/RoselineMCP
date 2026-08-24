@@ -80,6 +80,18 @@ public class ApplyFixesResponse : IWriteToolResponse
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public VerificationVerdict? Verification { get; set; }
 
+    /// <summary>
+    /// Which of the project's analyzer references could not contribute to the diagnostics this
+    /// call looked for, and why. Omitted when every consulted reference contributed; present, with
+    /// <c>analyzersRan: false</c>, when the analyzer pass did not run. When no requested ID had a
+    /// fixer — so no diagnostics pass ran — the load is described anyway, because that is the
+    /// case to explain: the reference carrying both the analyzer and its fixer may be the one that
+    /// failed to load, and "no code fix provider found for X" must stay distinguishable from it.
+    /// </summary>
+    [JsonPropertyName("analyzerLoad")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AnalyzerLoadReport? AnalyzerLoad { get; set; }
+
     /// <inheritdoc />
     [JsonIgnore]
     public bool HasChanges => ChangedFiles.Count > 0;

@@ -30,4 +30,15 @@ public class AnalyzeSolutionResponse
     /// </summary>
     [JsonPropertyName("topDiagnostics")]
     public List<DiagnosticDetail> TopDiagnostics { get; set; } = new();
+
+    /// <summary>
+    /// Which analyzer references could not contribute, and why — merged across the analyzed
+    /// projects (<see cref="AnalyzerLoadReport.Merge"/>: reference counters summed, analyzers
+    /// loaded the largest per-project count, notes named once). Omitted when every consulted
+    /// reference contributed; present, with <c>analyzersRan: false</c>, when the analyzer pass did
+    /// not run.
+    /// </summary>
+    [JsonPropertyName("analyzerLoad")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AnalyzerLoadReport? AnalyzerLoad { get; set; }
 }

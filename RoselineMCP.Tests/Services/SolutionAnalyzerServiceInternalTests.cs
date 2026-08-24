@@ -469,7 +469,7 @@ public class SolutionAnalyzerServiceInternalTests : IDisposable
             var fixableIds = new HashSet<string>();
 
             // Act
-            InvokePrivateVoid("CheckFixability", fixableIds, "CS0168"); // CS0168 is known fixable
+            InvokePrivateVoid("CheckFixability", fixableIds, "CS0168", null); // CS0168 is known fixable
 
             // Assert
             fixableIds.ShouldContain("CS0168");
@@ -482,7 +482,7 @@ public class SolutionAnalyzerServiceInternalTests : IDisposable
             var fixableIds = new HashSet<string>();
 
             // Act
-            InvokePrivateVoid("CheckFixability", fixableIds, "UNKNOWN999");
+            InvokePrivateVoid("CheckFixability", fixableIds, "UNKNOWN999", null);
 
             // Assert
             fixableIds.ShouldBeEmpty();
@@ -495,8 +495,8 @@ public class SolutionAnalyzerServiceInternalTests : IDisposable
             var fixableIds = new HashSet<string>();
 
             // Act
-            InvokePrivateVoid("CheckFixability", fixableIds, "CS0168");
-            InvokePrivateVoid("CheckFixability", fixableIds, "CS0168");
+            InvokePrivateVoid("CheckFixability", fixableIds, "CS0168", null);
+            InvokePrivateVoid("CheckFixability", fixableIds, "CS0168", null);
 
             // Assert
             fixableIds.Count.ShouldBe(1);

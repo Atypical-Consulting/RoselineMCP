@@ -43,11 +43,11 @@
     },
     {
       "name": "list_diagnostics",
-      "description": "Detailed diagnostics for a project with statistics and suggested fixable IDs."
+      "description": "Detailed diagnostics for a project with statistics and suggested fixable IDs (fixers from Roslyn, the bundled Roslynator catalog and the project's own analyzer references); names any analyzer reference that could not be loaded."
     },
     {
       "name": "apply_fixes",
-      "description": "Apply automated Roslyn/Roslynator code fixes; preview-only by default."
+      "description": "Apply automated code fixes — Roslyn built-ins, bundled Roslynator, and the fixers carried by the project's own analyzer references; preview-only by default."
     },
     {
       "name": "check_compilation",

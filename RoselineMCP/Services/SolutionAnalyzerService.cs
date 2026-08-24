@@ -90,9 +90,9 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 MaxDiagnostics = maxDiagnostics
             };
 
-            var (diagnostics, summary) = await AnalyzeProjectsAsync(solution, analysisContext, progress, progressOffset: 2, cancellationToken);
+            var (diagnostics, summary, analyzerLoad) = await AnalyzeProjectsAsync(solution, analysisContext, progress, progressOffset: 2, cancellationToken);
 
-            return BuildAnalyzeSolutionResponse(solutionPath, solution, diagnostics, summary, maxDiagnostics);
+            return BuildAnalyzeSolutionResponse(solutionPath, solution, diagnostics, summary, analyzerLoad, maxDiagnostics);
         }
         catch (Exception ex)
         {
@@ -123,7 +123,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         return await workspace.OpenSolutionAsync(solutionPath, cancellationToken: cancellationToken);
     }
 
-    private async Task<(List<DiagnosticDetail> diagnostics, DiagnosticSummary summary)> AnalyzeProjectsAsync(
+    private async Task<(List<DiagnosticDetail> diagnostics, DiagnosticSummary summary, AnalyzerLoadReport analyzerLoad)> AnalyzeProjectsAsync(
         Solution solution,
         AnalysisContext context,
         IProgress<ProgressNotificationValue>? progress,
@@ -197,11 +197,13 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             return new ProjectAnalysisResult();
         }
 
-        var diagnostics = await GetFilteredDiagnosticsAsync(project, compilation, context, cancellationToken);
-        return ProcessProjectDiagnostics(diagnostics, project.Name, context.MaxDiagnostics);
+        var (diagnostics, analyzerLoad) = await GetFilteredDiagnosticsAsync(project, compilation, context, cancellationToken);
+        var result = ProcessProjectDiagnostics(diagnostics, project.Name, context.MaxDiagnostics);
+        result.AnalyzerLoad = analyzerLoad;
+        return result;
     }
 
-    private async Task<List<Diagnostic>> GetFilteredDiagnosticsAsync(
+    private async Task<(List<Diagnostic> Diagnostics, AnalyzerLoadReport AnalyzerLoad)> GetFilteredDiagnosticsAsync(
         Project project,
         Compilation compilation,
         AnalysisContext context,
@@ -211,10 +213,11 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         // Deliberately no Take() here: the summary must count every diagnostic that passes the
         // filters. Capping to MaxDiagnostics happens per project in ProcessProjectDiagnostics,
         // after sorting, so no high-severity diagnostic is dropped in favor of a lower one.
-        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
-        return allDiagnostics
+        var computed = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        var diagnostics = computed.Diagnostics
             .Where(d => _filterService.ShouldIncludeDiagnostic(d, context.Severity))
             .ToList();
+        return (diagnostics, computed.AnalyzerLoad);
     }
 
     private ProjectAnalysisResult ProcessProjectDiagnostics(
@@ -243,7 +246,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         return new ProjectAnalysisResult { TopDiagnostics = topDiagnostics, Summary = summary };
     }
 
-    private (List<DiagnosticDetail> diagnostics, DiagnosticSummary summary) MergeProjectResults(
+    private (List<DiagnosticDetail> diagnostics, DiagnosticSummary summary, AnalyzerLoadReport analyzerLoad) MergeProjectResults(
         IReadOnlyList<ProjectAnalysisResult> results,
         int maxDiagnostics)
     {
@@ -259,18 +262,24 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             candidates.AddRange(result.TopDiagnostics);
         }
 
-        return (OrderDiagnostics(candidates, maxDiagnostics), summary);
+        // A project that produced no compilation ran no diagnostics pass and has no report to merge.
+        var analyzerLoad = AnalyzerLoadReport.Merge(
+            results.Select(r => r.AnalyzerLoad).Where(r => r is not null)!);
+
+        return (OrderDiagnostics(candidates, maxDiagnostics), summary, analyzerLoad);
     }
 
     /// <summary>
     /// Per-project analysis output: severity counts covering <b>every</b> diagnostic that passed
     /// the filters, plus at most MaxDiagnostics highest-ranked diagnostics as candidates for the
-    /// global top selection.
+    /// global top selection, plus the project's analyzer-load report (<see langword="null"/> when
+    /// the project produced no compilation and so no diagnostics pass ran).
     /// </summary>
     private sealed class ProjectAnalysisResult
     {
         public List<DiagnosticDetail> TopDiagnostics { get; init; } = [];
         public DiagnosticSummary Summary { get; init; } = new();
+        public AnalyzerLoadReport? AnalyzerLoad { get; set; }
     }
 
     private DiagnosticDetail CreateDiagnosticDetail(Diagnostic diagnostic, string projectName)
@@ -293,6 +302,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         Solution solution,
         List<DiagnosticDetail> diagnostics,
         DiagnosticSummary summary,
+        AnalyzerLoadReport analyzerLoad,
         int maxDiagnostics)
     {
         return new AnalyzeSolutionResponse
@@ -300,7 +310,8 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             Solution = Path.GetFileName(solutionPath),
             Projects = solution.Projects.Count(),
             DiagnosticSummary = summary,
-            TopDiagnostics = OrderDiagnostics(diagnostics, maxDiagnostics)
+            TopDiagnostics = OrderDiagnostics(diagnostics, maxDiagnostics),
+            AnalyzerLoad = AnalyzerLoadReport.ForResponse(analyzerLoad)
         };
     }
 
@@ -353,8 +364,8 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                     };
                 }
 
-                var allDiagnostics = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
-                var stats = CollectDiagnosticStatistics(allDiagnostics);
+                var (allDiagnostics, analyzerLoad) = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
+                var stats = CollectDiagnosticStatistics(allDiagnostics, msProject);
                 var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
 
                 return new ListDiagnosticsResponse
@@ -364,7 +375,8 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                     TotalDiagnostics = allDiagnostics.Count,
                     Stats = stats.Stats,
                     SuggestedFixableIds = stats.FixableIds,
-                    Diagnostics = diagnosticDetails
+                    Diagnostics = diagnosticDetails,
+                    AnalyzerLoad = AnalyzerLoadReport.ForResponse(analyzerLoad)
                 };
             }
             catch (Exception ex)
@@ -392,7 +404,7 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         return compilation;
     }
 
-    private async Task<List<Diagnostic>> GetProjectDiagnosticsAsync(
+    private async Task<(List<Diagnostic> Diagnostics, AnalyzerLoadReport AnalyzerLoad)> GetProjectDiagnosticsAsync(
         Project project,
         Compilation compilation,
         List<string>? ids,
@@ -400,15 +412,21 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         CancellationToken cancellationToken)
     {
         // Compiler + analyzer diagnostics (see IDiagnosticComputationService).
-        var allDiagnostics = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
-        return allDiagnostics
+        var computed = await _diagnosticComputation.GetDiagnosticsAsync(project, compilation, cancellationToken);
+        var diagnostics = computed.Diagnostics
             .Where(d => !d.IsSuppressed)
             .Where(d => _filterService.FilterByIds(d, ids))
             .Where(d => _filterService.FilterByFiles(d, files))
             .ToList();
+        return (diagnostics, computed.AnalyzerLoad);
     }
 
-    private (DiagnosticStats Stats, List<string> FixableIds) CollectDiagnosticStatistics(List<Diagnostic> diagnostics)
+    /// <summary>
+    /// Per-ID and per-severity counts, plus the IDs a fixer exists for — process-wide or carried by
+    /// <paramref name="project"/>'s own analyzer references (<see langword="null"/> consults the
+    /// process-wide providers only).
+    /// </summary>
+    private (DiagnosticStats Stats, List<string> FixableIds) CollectDiagnosticStatistics(List<Diagnostic> diagnostics, Project? project)
     {
         var byId = new Dictionary<string, int>();
         var bySeverity = new Dictionary<string, int>();
@@ -418,7 +436,14 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         {
             UpdateIdStatistics(byId, diagnostic.Id);
             UpdateSeverityStatistics(bySeverity, diagnostic.Severity);
-            CheckFixability(fixableIds, diagnostic.Id);
+        }
+
+        // Fixability is a property of the ID, not the occurrence: ask once per distinct ID (tens)
+        // rather than once per diagnostic (thousands on a legacy project) — the project-aware
+        // answer unions the process-wide map with every reference's overlay on each call.
+        foreach (var diagnosticId in byId.Keys)
+        {
+            CheckFixability(fixableIds, diagnosticId, project);
         }
 
         var stats = new DiagnosticStats
@@ -449,9 +474,9 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
         bySeverity[severityStr]++;
     }
 
-    private void CheckFixability(HashSet<string> fixableIds, string diagnosticId)
+    private void CheckFixability(HashSet<string> fixableIds, string diagnosticId, Project? project)
     {
-        if (_filterService.IsFixableDiagnostic(diagnosticId))
+        if (_filterService.IsFixableDiagnostic(diagnosticId, project))
         {
             fixableIds.Add(diagnosticId);
         }
