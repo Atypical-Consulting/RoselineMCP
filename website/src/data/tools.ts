@@ -113,15 +113,31 @@ export const groups = ['Code navigation', 'Code editing', 'Diagnostics & fixes']
 /** How many tools the array holds. */
 export const toolCount = tools.length;
 
-// Capitalised, because both headings open a sentence with it.
+// Capitalised, because every heading that uses one opens a sentence with it.
 const numberWords = [
   'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen',
   'Nineteen', 'Twenty',
 ];
 
-/** `toolCount` as an English word — digits outside the mapped range, never nothing. */
-export const toolCountWord = numberWords[toolCount] ?? String(toolCount);
+/** A count as an English word — digits outside the mapped range, never nothing. */
+export const numberWord = (n: number): string => numberWords[n] ?? String(n);
+
+/** `toolCount` as an English word. */
+export const toolCountWord = numberWord(toolCount);
 
 /** The noun phrase both headings open with: "Fourteen tools" — and "One tool" if it ever is. */
 export const toolCountPhrase = `${toolCountWord} ${toolCount === 1 ? 'tool' : 'tools'}`;
+
+// The home page's blurb counts only the code-intelligence groups — the tools layered on top of the
+// original diagnostics surface — so it needs its own derived count rather than `toolCount`.
+const codeIntelligenceGroups = ['Code navigation', 'Code editing'];
+
+/** How many tools sit in the code-intelligence groups (navigation + editing). */
+export const codeIntelligenceToolCount =
+  tools.filter((t) => codeIntelligenceGroups.includes(t.group)).length;
+
+/** "Nine code-intelligence tools" — and the singular if it ever comes to that. */
+export const codeIntelligenceToolPhrase =
+  `${numberWord(codeIntelligenceToolCount)} code-intelligence ` +
+  `${codeIntelligenceToolCount === 1 ? 'tool' : 'tools'}`;
