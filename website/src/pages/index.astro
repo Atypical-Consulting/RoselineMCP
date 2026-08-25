@@ -1,6 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
-import { tools, groups } from '../data/tools.ts';
+import { tools, groups, toolCountPhrase } from '../data/tools.ts';
 import data from '../data/benchmark-results.json';
 
 const base = import.meta.env.BASE_URL;
@@ -286,7 +286,7 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     <div class="wrap">
       <div class="sec-head">
         <span class="eyebrow">The surface</span>
-        <h2>Thirteen tools. Structure in, tokens down.</h2>
+        <h2>{toolCountPhrase}. Structure in, tokens down.</h2>
         <p>Nine code-intelligence tools on top of the original diagnostics surface.
           <a href={base + 'tools'}>Full reference →</a></p>
       </div>

@@ -1,6 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
-import { tools, groups } from '../data/tools.ts';
+import { tools, groups, toolCount, toolCountPhrase } from '../data/tools.ts';
 const base = import.meta.env.BASE_URL;
 const kindLabel: Record<string, string> = { read: 'read-only', write: 'write · preview', diagnostics: 'read-only' };
 const groupBlurb: Record<string, string> = {
@@ -10,11 +10,11 @@ const groupBlurb: Record<string, string> = {
 };
 ---
 <Base title="Tool reference — RoselineMCP" active="tools"
-      description="The 13 MCP tools RoselineMCP exposes: code navigation, code editing, and diagnostics.">
+      description={`The ${toolCount} MCP tools RoselineMCP exposes: code navigation, code editing, and diagnostics.`}>
   <section>
     <div class="wrap">
       <span class="eyebrow">Reference</span>
-      <h1 style="margin:1rem 0">Thirteen tools</h1>
+      <h1 style="margin:1rem 0">{toolCountPhrase}</h1>
       <p class="lede">The navigation, editing, and diagnostics/fix tools take an <strong>optional</strong>
         <code>project</code> (name, directory, <code>.csproj</code>, or <code>.sln</code> path) — omit it
         and RoselineMCP auto-discovers the solution/project from its working directory. A
