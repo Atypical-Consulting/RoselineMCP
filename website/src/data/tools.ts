@@ -104,3 +104,24 @@ export const tools: Tool[] = [
 ];
 
 export const groups = ['Code navigation', 'Code editing', 'Diagnostics & fixes'];
+
+// ── The tool count, derived ──
+// The headings on tools.astro and index.astro used to restate this number in prose, and drifted
+// (they still said "Thirteen" after check_compilation landed as tool 14). Both now read it from the
+// array above, so the count cannot go stale when a tool is added.
+
+/** How many tools the array holds. */
+export const toolCount = tools.length;
+
+// Capitalised, because both headings open a sentence with it.
+const numberWords = [
+  'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen',
+  'Nineteen', 'Twenty',
+];
+
+/** `toolCount` as an English word — digits outside the mapped range, never nothing. */
+export const toolCountWord = numberWords[toolCount] ?? String(toolCount);
+
+/** The noun phrase both headings open with: "Fourteen tools" — and "One tool" if it ever is. */
+export const toolCountPhrase = `${toolCountWord} ${toolCount === 1 ? 'tool' : 'tools'}`;
