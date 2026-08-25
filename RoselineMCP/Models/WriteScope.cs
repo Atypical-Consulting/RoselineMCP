@@ -138,8 +138,8 @@ public sealed record WritePrompt
         WriteScope.PrimaryProjectOf => RenderPrimaryProjectOf(target),
         WriteScope.SingleFile => RenderSingleFile(target),
         WriteScope.WholeSolution =>
-            $"Rename '{Sanitize(Symbol)}' to '{Sanitize(NewName)}' across the solution of "
-            + $"'{target}' and write the changes to disk?",
+            $"Rename '{Sanitize(Symbol)}' to '{Sanitize(NewName)}' and write the changes to disk? "
+            + $"The write reaches every project across the solution of '{target}'.",
 
         // Spelled out on purpose: a catch-all would quietly give a scope added later the wording of
         // whichever arm it fell into, which is how a human ends up approving a write described as
@@ -153,8 +153,8 @@ public sealed record WritePrompt
         var qualifier = target.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
             ? "the primary project of "
             : string.Empty;
-        return $"Apply code fixes for {DiagnosticIdCount} diagnostic ID(s) to {qualifier}'{target}' "
-            + "and write the changes to disk?";
+        return $"Apply code fixes for {DiagnosticIdCount} diagnostic ID(s) and write the changes to "
+            + $"disk? The write reaches {qualifier}'{target}'.";
     }
 
     private string RenderSingleFile(string target)

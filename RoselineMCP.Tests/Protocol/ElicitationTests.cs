@@ -884,7 +884,9 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        message.ShouldBe($"Apply code fixes for 1 diagnostic ID(s) to '{_fixtureProject}' and write the changes to disk?");
+        message.ShouldBe(
+            "Apply code fixes for 1 diagnostic ID(s) and write the changes to disk? "
+            + $"The write reaches '{_fixtureProject}'.");
         message.ShouldNotContain("primary project of");
     }
 
@@ -1009,7 +1011,9 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        message.ShouldBe($"Rename 'Foo' to 'Bar' across the solution of '{_fixtureSolution}' and write the changes to disk?");
+        message.ShouldBe(
+            "Rename 'Foo' to 'Bar' and write the changes to disk? "
+            + $"The write reaches every project across the solution of '{_fixtureSolution}'.");
         message.ShouldNotContain("Exactly one file");
     }
 
@@ -1559,8 +1563,13 @@ public class ElicitationTests : IDisposable
         // narrows a solution to a single anchor project, so naming the solution outright would have
         // the human authorise a write broader than the one about to happen. A .csproj target *is*
         // its own write scope, so it takes no qualifier.
+        //
+        // The scope moved behind the question mark so the target lands last (#173) — the claim is
+        // unchanged, only its position: still N diagnostic IDs, still written to disk, still the
+        // primary project when and only when the target is a solution.
         WritePrompt.ForPrimaryProjectOf(3).Render(target).ShouldBe(
-            $"Apply code fixes for 3 diagnostic ID(s) to {qualifier}'{target}' and write the changes to disk?");
+            "Apply code fixes for 3 diagnostic ID(s) and write the changes to disk? "
+            + $"The write reaches {qualifier}'{target}'.");
     }
 
     [Theory]
@@ -1599,8 +1608,13 @@ public class ElicitationTests : IDisposable
         // The counterweight, and the reason the other two are not a blanket rule: RenameSymbolAsync
         // really is solution-wide, so naming the solution is exact and a narrowing qualifier here
         // would be a fresh inaccuracy of the same family #149/#154 closed.
+        //
+        // Re-worded for #173 so the target lands last, and deliberately WIDENED rather than
+        // narrowed while doing it: "every project across the solution of" keeps the old clause and
+        // spells out what it already claimed, which is what WriteScope.WholeSolution documents.
         WritePrompt.ForWholeSolution("Foo", "Bar").Render(target).ShouldBe(
-            $"Rename 'Foo' to 'Bar' across the solution of '{target}' and write the changes to disk?");
+            "Rename 'Foo' to 'Bar' and write the changes to disk? "
+            + $"The write reaches every project across the solution of '{target}'.");
     }
 
     [Fact]
@@ -1613,7 +1627,9 @@ public class ElicitationTests : IDisposable
         WritePrompt.ForSingleFile("delete", "A B'C").Render("/repo/App.sln")
             .ShouldContain("member 'ABC'");
         WritePrompt.ForWholeSolution("A B'C", "D E'F").Render("/repo/App.sln")
-            .ShouldBe("Rename 'ABC' to 'DEF' across the solution of '/repo/App.sln' and write the changes to disk?");
+            .ShouldBe(
+                "Rename 'ABC' to 'DEF' and write the changes to disk? "
+                + "The write reaches every project across the solution of '/repo/App.sln'.");
     }
 
     [Fact]
