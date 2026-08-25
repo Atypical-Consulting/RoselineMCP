@@ -19,11 +19,14 @@ review and update every surface that mirrors it:
 - `CLAUDE.md` — the "MCP Tools Available" list and the "Adding New MCP Tools" example/pattern
 - `README.md` — the tool list and any usage snippets
 - `website/src/data/tools.ts` and `website/src/pages/tools.astro` — the public tools reference
-  (name, title, kind, params, `data` payload, capability pills). Adding a tool means editing
-  **`tools.ts` only**: the pages render the grid *and* the counts in their headings from that array
-  (`toolCount`, `toolCountPhrase`, `codeIntelligenceToolPhrase`), so the copy follows automatically.
-  Never restate a count in a page's prose — that is how `tools.astro` came to announce "Thirteen
-  tools" above fourteen cards (#197)
+  (name, title, kind, params, `data` payload, capability pills). Both pages **derive their counts**
+  from that array — `toolCountPhrase` (the two headings) and `codeIntelligenceToolPhrase`
+  (`index.astro`'s blurb), plus `toolCount` in `tools.astro`'s meta description — so a tool added to
+  an existing group needs no page edit and the copy cannot go stale. A tool in a **new group**, or
+  with a new `ToolKind`, still does: `groupBlurb` is kept in `index.astro` *and* `tools.astro`, and
+  `kindLabel` in `tools.astro`; a missing key renders as nothing rather than failing. Never restate a
+  count in a page's prose — that is how `tools.astro` came to announce "Thirteen tools" above
+  fourteen cards (#197)
 - `mcpb/manifest.json` — the `tools[]` array (names + descriptions)
 - `CHANGELOG.md` — **nothing to edit by hand.** release-please generates each release's entries
   from Conventional Commits, so a user-facing change is described by your PR *title*; write it to

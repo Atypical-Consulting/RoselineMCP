@@ -3,7 +3,7 @@ export type ToolKind = 'read' | 'write' | 'diagnostics';
 export interface Tool {
   name: string;        // MCP wire name (snake_case)
   title: string;       // human-readable Title advertised to clients (v1.4.0)
-  group: string;
+  group: ToolGroup;    // one of `groups` — typed, so a typo is a compile error, not a missing card
   kind: ToolKind;
   summary: string;
   params: string;
@@ -103,7 +103,13 @@ export const tools: Tool[] = [
   },
 ];
 
-export const groups = ['Code navigation', 'Code editing', 'Diagnostics & fixes'];
+// `as const` so `ToolGroup` is the union of these three literals rather than `string`. Both pages
+// render their grids with `tools.filter((t) => t.group === g)` over this list, so an entry whose
+// group is not in it would render no card at all while still counting towards `toolCount` — "N tools"
+// above N-1 cards, i.e. #197 again. Typing `Tool.group` makes that a compile error.
+export const groups = ['Code navigation', 'Code editing', 'Diagnostics & fixes'] as const;
+
+export type ToolGroup = (typeof groups)[number];
 
 // ── The tool count, derived ──
 // The headings on tools.astro and index.astro used to restate this number in prose, and drifted
@@ -113,31 +119,30 @@ export const groups = ['Code navigation', 'Code editing', 'Diagnostics & fixes']
 /** How many tools the array holds. */
 export const toolCount = tools.length;
 
-// Capitalised, because every heading that uses one opens a sentence with it.
+// Capitalised, because every heading that uses one opens a sentence with it. Module-private: a
+// public Capitalised word invites a mid-sentence use that reads wrong.
 const numberWords = [
   'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen',
   'Nineteen', 'Twenty',
 ];
 
-/** A count as an English word — digits outside the mapped range, never nothing. */
-export const numberWord = (n: number): string => numberWords[n] ?? String(n);
+// A count as an English word, falling back to digits outside the mapped range rather than rendering
+// nothing (the spec's validation rule).
+const numberWord = (n: number): string => numberWords[n] ?? String(n);
 
-/** `toolCount` as an English word. */
-export const toolCountWord = numberWord(toolCount);
+const plural = (n: number) => (n === 1 ? 'tool' : 'tools');
 
 /** The noun phrase both headings open with: "Fourteen tools" — and "One tool" if it ever is. */
-export const toolCountPhrase = `${toolCountWord} ${toolCount === 1 ? 'tool' : 'tools'}`;
+export const toolCountPhrase = `${numberWord(toolCount)} ${plural(toolCount)}`;
 
-// The home page's blurb counts only the code-intelligence groups — the tools layered on top of the
-// original diagnostics surface — so it needs its own derived count rather than `toolCount`.
-const codeIntelligenceGroups = ['Code navigation', 'Code editing'];
-
-/** How many tools sit in the code-intelligence groups (navigation + editing). */
-export const codeIntelligenceToolCount =
-  tools.filter((t) => codeIntelligenceGroups.includes(t.group)).length;
+// The home page's blurb counts only the code-intelligence surface — everything that is not the
+// original diagnostics group — so it needs its own derived count rather than `toolCount`. Naming the
+// group through `ToolGroup` rather than a second literal list keeps a rename a compile error; a
+// stale copy of the group names here would silently count zero.
+const diagnosticsGroup: ToolGroup = 'Diagnostics & fixes';
+const codeIntelligenceToolCount = tools.filter((t) => t.group !== diagnosticsGroup).length;
 
 /** "Nine code-intelligence tools" — and the singular if it ever comes to that. */
 export const codeIntelligenceToolPhrase =
-  `${numberWord(codeIntelligenceToolCount)} code-intelligence ` +
-  `${codeIntelligenceToolCount === 1 ? 'tool' : 'tools'}`;
+  `${numberWord(codeIntelligenceToolCount)} code-intelligence ${plural(codeIntelligenceToolCount)}`;
