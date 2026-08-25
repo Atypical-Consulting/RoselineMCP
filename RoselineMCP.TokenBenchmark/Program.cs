@@ -58,9 +58,10 @@ var wireJson = McpJsonUtilities.DefaultOptions;
 string Ser<T>(T payload) =>
     JsonSerializer.Serialize(ToolResult<T>.Success(payload), wireJson.GetTypeInfo(typeof(object)));
 
-// Tool-emitted file paths are solution-root-relative (falling back to the project directory when
-// no .sln was loaded) — resolve them against that root, never the process cwd, so the benchmark
-// produces identical numbers no matter where it is launched from.
+// Tool-emitted file paths hang off the directory of the response's resolvedPath. SharedProjectLoader
+// hands the services a LoadedProject with no explicit resolvedPath, so that directory is the one
+// below — resolve against it, never the process cwd, so the benchmark produces identical numbers no
+// matter where it is launched from.
 var solutionRoot = Path.GetDirectoryName(solution.FilePath ?? project.FilePath)
     ?? throw new InvalidOperationException("Could not determine the solution root from the loaded solution.");
 

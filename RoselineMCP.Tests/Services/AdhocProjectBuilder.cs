@@ -67,8 +67,9 @@ internal static class AdhocProjectBuilder
     /// unless listed in <paramref name="projectReferences"/> (From → To by project name), so tests
     /// can model a sibling project the anchor cannot see through references. When
     /// <paramref name="solutionFileName"/> is given, the solution gets a <c>FilePath</c> under
-    /// <paramref name="baseDirectory"/> — mirroring an MSBuild-loaded <c>.sln</c> — so tests can
-    /// assert solution-root-relative output paths.
+    /// <paramref name="baseDirectory"/> — mirroring an MSBuild-loaded <c>.sln</c> — so a handle
+    /// built over it reports that <c>.sln</c> as <c>resolvedPath</c> and tests can assert
+    /// solution-root-relative output paths.
     /// </summary>
     public static (AdhocWorkspace Workspace, Project Anchor) CreateSolution(
         (string ProjectName, (string Name, string Code)[] Files)[] projects,
@@ -129,12 +130,67 @@ internal static class AdhocProjectBuilder
         return (workspace, anchor);
     }
 
-    /// <summary>Creates a fake <see cref="IProjectLoader"/> that always returns the given project.</summary>
-    public static IProjectLoader FakeLoaderFor(AdhocWorkspace workspace, Project project)
+    /// <summary>
+    /// Builds the layout from issue #151 — a solution listing only <c>Main</c>, plus a
+    /// <c>Scratch</c> project that exists but is <b>not</b> listed in it. Roslyn grafts such a
+    /// project onto the already-open solution, so <c>Solution.FilePath</c> keeps naming the
+    /// <c>.sln</c> while the loader reports the <c>.csproj</c> as <c>resolvedPath</c> — the
+    /// divergence issue #181 is about. Every source file (and the <c>.sln</c>) is also written to
+    /// disk under <paramref name="baseDirectory"/>, so a reconstructed
+    /// <c>Path.GetDirectoryName(resolvedPath)</c> + relative path can be checked with
+    /// <see cref="File.Exists(string)"/>. The caller owns <paramref name="baseDirectory"/> and must
+    /// delete it.
+    /// </summary>
+    public static (AdhocWorkspace Workspace, Project Scratch, string ScratchCsprojPath) CreateUnlistedProjectSolutionOnDisk(
+        string baseDirectory,
+        (string Name, string Code)[] mainFiles,
+        (string Name, string Code)[] scratchFiles)
+    {
+        var projects = new[] { ("Main", mainFiles), ("Scratch", scratchFiles) };
+
+        foreach (var (projectName, files) in projects)
+        {
+            var projectDirectory = Path.Combine(baseDirectory, projectName);
+            Directory.CreateDirectory(projectDirectory);
+            foreach (var (name, code) in files)
+            {
+                File.WriteAllText(Path.Combine(projectDirectory, name), code);
+            }
+        }
+
+        // Only Main is listed. Nothing here parses this file — CreateSolution below adds both
+        // projects to the workspace unconditionally, and the fidelity that matters comes from the
+        // caller passing `resolvedPath: scratchCsproj` to FakeLoaderFor. It is written so the
+        // directory on disk matches the layout the tests describe.
+        File.WriteAllText(
+            Path.Combine(baseDirectory, "Repo.sln"),
+            """
+            Microsoft Visual Studio Solution File, Format Version 12.00
+            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Main", "Main\Main.csproj", "{22222222-2222-2222-2222-222222222222}"
+            EndProject
+            """);
+
+        // CreateSolution never applies its solution to the workspace, so reach the sibling through
+        // the anchor's snapshot rather than workspace.CurrentSolution (which is still empty).
+        var (workspace, anchor) = CreateSolution(projects, baseDirectory: baseDirectory, solutionFileName: "Repo.sln");
+        var scratch = anchor.Solution.Projects.Single(p => p.Name == "Scratch");
+        return (workspace, scratch, scratch.FilePath!);
+    }
+
+    /// <summary>
+    /// Creates a fake <see cref="IProjectLoader"/> that always returns the given project.
+    /// <paramref name="resolvedPath"/> mirrors what <c>ProjectLoader</c> supplies when it knows
+    /// precisely which file answered — e.g. a <c>.csproj</c> opened standalone because its nearest
+    /// ancestor <c>.sln</c> doesn't list it; <see langword="null"/> (the default) leaves
+    /// <see cref="LoadedProject.ResolvedPath"/> on its <c>Solution.FilePath ?? Project.FilePath</c>
+    /// fallback.
+    /// </summary>
+    public static IProjectLoader FakeLoaderFor(AdhocWorkspace workspace, Project project, string? resolvedPath = null)
     {
         var loader = A.Fake<IProjectLoader>();
         A.CallTo(() => loader.LoadAsync(A<string>._, A<CancellationToken>._))
-            .ReturnsLazily(() => Task.FromResult(new LoadedProject(workspace, project.Solution, project)));
+            .ReturnsLazily(() => Task.FromResult(
+                new LoadedProject(workspace, project.Solution, project, resolvedPath: resolvedPath)));
         return loader;
     }
 }

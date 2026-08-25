@@ -31,14 +31,6 @@ public class CodeNavigationService : ICodeNavigationService
         _projectLoader = projectLoader;
     }
 
-    /// <summary>
-    /// Root the emitted file paths at, so navigation output is workspace-portable and doesn't repeat
-    /// the absolute prefix on every result. Prefers the solution directory (covers cross-project
-    /// references); falls back to the project directory when no <c>.sln</c> was loaded.
-    /// </summary>
-    private static string? BaseDirOf(LoadedProject loaded)
-        => Path.GetDirectoryName(loaded.Solution.FilePath ?? loaded.Project.FilePath);
-
     /// <summary>Rewrites each summary's <see cref="SymbolSummary.File"/> to <paramref name="baseDir"/>-relative.</summary>
     private static void RelativizePaths(IEnumerable<SymbolSummary>? summaries, string? baseDir)
     {
@@ -105,7 +97,7 @@ public class CodeNavigationService : ICodeNavigationService
             // full summary (file + fully-qualified name).
             Func<ISymbol, SymbolSummary> toSummary = file != null ? LeanOutlineSummary : SymbolResolver.ToSummary;
             var capped = ordered.Take(Math.Max(1, max)).Select(toSummary).ToList();
-            RelativizePaths(capped, BaseDirOf(loaded));
+            RelativizePaths(capped, loaded.BaseDirectory);
 
             return new SymbolSearchResponse
             {
@@ -235,7 +227,7 @@ public class CodeNavigationService : ICodeNavigationService
                 Modifiers = modifiers.Count > 0 ? modifiers : null,
                 Signature = resolved.ToDisplayString(SymbolResolver.SignatureFormat),
                 Documentation = ExtractSummary(resolved.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
-                DefinitionFile = SymbolResolver.Relativize(file, BaseDirOf(loaded)),
+                DefinitionFile = SymbolResolver.Relativize(file, loaded.BaseDirectory),
                 DefinitionLine = line
             };
 
@@ -351,7 +343,7 @@ public class CodeNavigationService : ICodeNavigationService
                 ContainingType = symbol.ContainingType?.Name,
                 IsDeclaration = IsDeclaredOnLine(symbol, document, line),
                 Documentation = ExtractSummary(symbol.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
-                DefinitionFile = SymbolResolver.Relativize(definitionFile, BaseDirOf(loaded)),
+                DefinitionFile = SymbolResolver.Relativize(definitionFile, loaded.BaseDirectory),
                 DefinitionLine = definitionLine
             };
         }
@@ -502,7 +494,7 @@ public class CodeNavigationService : ICodeNavigationService
                 .ToList();
 
             var capped = ordered.Take(Math.Max(1, max)).ToList();
-            RelativizePaths(capped, BaseDirOf(loaded));
+            RelativizePaths(capped, loaded.BaseDirectory);
 
             return new ReferencesResponse
             {
@@ -590,7 +582,7 @@ public class CodeNavigationService : ICodeNavigationService
                 .ToList();
 
             var capped = ordered.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
-            RelativizePaths(capped, BaseDirOf(loaded));
+            RelativizePaths(capped, loaded.BaseDirectory);
 
             return new ImplementationsResponse
             {
@@ -661,7 +653,7 @@ public class CodeNavigationService : ICodeNavigationService
                     new HashSet<string> { response.FullName }, budget, cancellationToken);
             }
 
-            var baseDir = BaseDirOf(loaded);
+            var baseDir = loaded.BaseDirectory;
             RelativizePaths(response.Callers, baseDir);
             RelativizePaths(response.Callees, baseDir);
 
@@ -864,7 +856,7 @@ public class CodeNavigationService : ICodeNavigationService
                 response.DerivedTypesTruncated = orderedDerived.Count > cappedDerived.Count;
             }
 
-            var baseDir = BaseDirOf(loaded);
+            var baseDir = loaded.BaseDirectory;
             RelativizePaths(response.BaseTypes, baseDir);
             RelativizePaths(response.Interfaces, baseDir);
             RelativizePaths(response.DerivedTypes, baseDir);

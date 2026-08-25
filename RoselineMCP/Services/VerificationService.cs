@@ -480,9 +480,21 @@ public class VerificationService : IVerificationService, IDisposable
     }
 
     /// <summary>
-    /// Solution-root-relative, forward-slashed paths — the same rule the navigation tools,
-    /// <c>ApplyFixes</c> and <c>EditMember</c> use, so a file has one canonical path across every
-    /// tool's output.
+    /// Forward-slashed paths relative to the solution's own directory, falling back to the first
+    /// project's when the solution has no path.
+    /// <para>
+    /// ⚠️ This is <em>not</em> yet the rule the navigation tools, <c>ApplyFixes</c> and the edit
+    /// tools use: they anchor on <see cref="LoadedProject.BaseDirectory"/> — the directory of the
+    /// <c>resolvedPath</c> reported in the same response (#181) — while this method only sees a
+    /// <see cref="Solution"/> and has to re-derive the anchor. The two agree everywhere except the
+    /// case #181 is about: a <c>.csproj</c> not listed in its nearest ancestor <c>.sln</c>, where
+    /// Roslyn grafts the project onto the already-open solution and <c>Solution.FilePath</c> keeps
+    /// naming a <c>.sln</c> that never contributed it. So a <c>verification.errors[].file</c> (and
+    /// <c>check_compilation</c>'s <c>errors[]</c>) can still disagree with the <c>resolvedPath</c>
+    /// beside it there. Closing that needs the anchor threaded through
+    /// <see cref="IVerificationService.VerifyAsync"/> from each caller's loader handle, which is a
+    /// public-signature change and is tracked separately rather than folded into #181's three sites.
+    /// </para>
     /// </summary>
     private static string? BaseDirectoryOf(Solution solution) =>
         Path.GetDirectoryName(solution.FilePath ?? solution.Projects.FirstOrDefault()?.FilePath);

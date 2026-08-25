@@ -596,4 +596,122 @@ public class CodeNavigationServiceTests
 
         response.ResolvedPath.ShouldBe(csproj);
     }
+
+    /// <summary>
+    /// Regression for #181: <c>resolvedPath</c> and the anchor the response's relative <c>file</c>
+    /// paths hang off must agree, so a caller can combine
+    /// <c>Path.GetDirectoryName(resolvedPath)</c> with a returned path and land on the real file.
+    /// They diverged for a <c>.csproj</c> not listed in its ancestor <c>.sln</c>: #151 made
+    /// <c>resolvedPath</c> report the <c>.csproj</c>, while <c>BaseDirOf</c> still read
+    /// <c>Solution.FilePath</c> — the <c>.sln</c> Roslyn grafted the project onto — and emitted
+    /// <c>Scratch/ScratchWidget.cs</c>, which recombines into a path that does not exist.
+    /// </summary>
+    [Fact]
+    public async Task FindReferences_Paths_Hang_Off_ResolvedPath_When_Project_Is_Not_In_The_Sln()
+    {
+        var baseDirectory = FreshBaseDir();
+        Directory.CreateDirectory(baseDirectory);
+
+        try
+        {
+            var (workspace, scratch, scratchCsproj) = AdhocProjectBuilder.CreateUnlistedProjectSolutionOnDisk(
+                baseDirectory,
+                [("MainWidget.cs", "namespace MainNs { public class MainWidget { } }")],
+                [("ScratchWidget.cs", "namespace ScratchNs { public class ScratchWidget { } }")]);
+            var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, scratch, scratchCsproj);
+            var service = new CodeNavigationService(A.Fake<ILogger<CodeNavigationService>>(), loader);
+
+            var response = await service.FindReferencesAsync(
+                scratchCsproj, "ScratchWidget", includeDefinition: true, 50, CancellationToken.None);
+
+            response.ResolvedPath.ShouldBe(scratchCsproj);
+            response.References.ShouldNotBeEmpty();
+            response.References.Select(r => r.File).Distinct().ShouldBe(["ScratchWidget.cs"]);
+
+            foreach (var reference in response.References)
+            {
+                var reconstructed = Path.Combine(Path.GetDirectoryName(response.ResolvedPath)!, reference.File);
+                File.Exists(reconstructed).ShouldBeTrue(
+                    $"'{reconstructed}' should be the real file on disk, but resolvedPath and the "
+                    + "relative-path anchor disagree");
+            }
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The other half of the unlisted-project case, stated rather than left to be discovered: the
+    /// grafted solution still contains <c>Main</c>, and symbol search deliberately spans it, but the
+    /// anchor is now <c>Scratch/</c> — so a sibling-project hit relativizes to something starting
+    /// <c>..</c>, which <see cref="SymbolResolver.Relativize"/> refuses and returns absolute instead.
+    /// One response can therefore mix a relative path with an absolute one. Both still satisfy the
+    /// <c>resolvedPath</c> contract (joining an absolute path with any base yields itself), and the
+    /// alternative — teaching <c>Relativize</c> to emit <c>../</c> paths — changes every tool's
+    /// output shape and is out of scope here. Pinned so the trade-off is a decision, not a surprise.
+    /// </summary>
+    [Fact]
+    public async Task SearchSymbols_Falls_Back_To_Absolute_For_A_Sibling_Project_When_Anchored_On_The_Csproj()
+    {
+        var baseDirectory = FreshBaseDir();
+        Directory.CreateDirectory(baseDirectory);
+
+        try
+        {
+            var (workspace, scratch, scratchCsproj) = AdhocProjectBuilder.CreateUnlistedProjectSolutionOnDisk(
+                baseDirectory,
+                [("MainWidget.cs", "namespace MainNs { public class MainWidget { } }")],
+                [("ScratchWidget.cs", "namespace ScratchNs { public class ScratchWidget { } }")]);
+            var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, scratch, scratchCsproj);
+            var service = new CodeNavigationService(A.Fake<ILogger<CodeNavigationService>>(), loader);
+
+            var response = await service.SearchSymbolsAsync(
+                scratchCsproj, "*Widget", null, null, 50, CancellationToken.None);
+
+            var files = response.Symbols.ToDictionary(s => s.Name, s => s.File);
+            files["ScratchWidget"].ShouldBe("ScratchWidget.cs");
+            files["MainWidget"].ShouldBe(
+                Path.Combine(baseDirectory, "Main", "MainWidget.cs").Replace('\\', '/'));
+
+            // Whichever form it takes, joining it with resolvedPath's directory reaches the file.
+            foreach (var file in files.Values)
+            {
+                File.Exists(Path.Combine(Path.GetDirectoryName(response.ResolvedPath)!, file)).ShouldBeTrue(file);
+            }
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Companion to the regression above: the common "project listed in its solution" case keeps
+    /// reporting solution-root-relative paths — the anchor is unchanged there, because
+    /// <c>resolvedPath</c> is the <c>.sln</c> itself.
+    /// </summary>
+    [Fact]
+    public async Task FindReferences_Paths_Stay_Solution_Root_Relative_When_ResolvedPath_Is_The_Sln()
+    {
+        var baseDirectory = FreshBaseDir();
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [
+                ("App", [("App.cs", "namespace AppNs { public class AppRoot { } }")]),
+                ("Lib", [("Widget.cs", "namespace LibNs { public class Widget { } }")])
+            ],
+            baseDirectory: baseDirectory,
+            solutionFileName: "Everything.sln");
+        var slnPath = Path.Combine(baseDirectory, "Everything.sln");
+        var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, anchor, slnPath);
+        var service = new CodeNavigationService(A.Fake<ILogger<CodeNavigationService>>(), loader);
+
+        var response = await service.FindReferencesAsync(
+            slnPath, "Widget", includeDefinition: true, 50, CancellationToken.None);
+
+        response.ResolvedPath.ShouldBe(slnPath);
+        response.References.ShouldNotBeEmpty();
+        response.References.Select(r => r.File).Distinct().ShouldBe(["Lib/Widget.cs"]);
+    }
 }

@@ -228,7 +228,7 @@ was fixed and which of the solution's were skipped — only when the caller's ta
 never when they named a `.csproj` — plus any linked file whose write reaches a sibling), on every
 path including preview.
 - **Parameters**: ids[], project (optional), previewOnly, allowIntroducedErrors, max
-- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`, `analyzerLoad` (from the first diagnostics pass — so "no diagnostics found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are resolved through the same three layers as `ListDiagnostics`' fixable IDs
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (relative to `resolvedPath`'s directory, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`, `analyzerLoad` (from the first diagnostics pass — so "no diagnostics found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are resolved through the same three layers as `ListDiagnostics`' fixable IDs
 
 ### 14. CheckCompilation
 Answers "does this compile right now, and what broke" against on-disk state — the replacement for a
@@ -264,6 +264,25 @@ contains the project, otherwise the `.csproj` that was opened directly (e.g. a p
 its nearest ancestor `.sln`). Pass an absolute path as `project` to target a
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
+
+**Relative paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`, and
+`ApplyFixes`/`EditMember`/`RenameSymbol`'s `changedFiles` **and unified-diff headers**, are
+relativized against the directory of *that same response's* `resolvedPath` —
+`LoadedProject.BaseDirectory`, the one authoritative anchor. The three services used to each
+re-derive `Solution.FilePath ?? Project.FilePath`, which stopped agreeing with `resolvedPath` once
+#151 fixed it (#181). Concretely: the solution's directory when the `.sln` answered, the project's
+own when the `.csproj` did — including a project absent from its nearest ancestor `.sln`. So
+`Path.GetDirectoryName(resolvedPath)` joined with such a path is a real file on disk, and a returned
+`patch` applies from that directory rather than from the repo root.
+
+⚠️ **Two things this does *not* cover**, so don't state the rule more widely than it holds:
+`ListDiagnostics`/`AnalyzeSolution` report `file` as an **absolute** path (`DiagnosticDetail.File =
+location.Path`), and `verification.errors[]`/`CheckCompilation`'s `errors[]` are still anchored by
+`VerificationService.BaseDirectoryOf(Solution)` on the loaded solution — which diverges from
+`resolvedPath` in exactly the unlisted-`.csproj` case. Closing the latter means threading the anchor
+through `IVerificationService.VerifyAsync` from its five callers; it is deliberate follow-up work,
+not an oversight.
+
 
 That remedy covers **failures too**, and they are the common shape of this mistake: querying the
 wrong checkout usually produces `NotFoundError: Symbol not found: 'X'`, not a wrong-but-successful

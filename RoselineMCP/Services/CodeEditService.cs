@@ -126,7 +126,7 @@ public class CodeEditService : ICodeEditService
             var newSourceText = await newDocument.GetTextAsync(cancellationToken);
             var newText = newSourceText.ToString();
 
-            var relativePath = RelativePath(loaded, filePath);
+            var relativePath = RelativePath(loaded.BaseDirectory, filePath);
             var response = new EditMemberResponse
             {
                 Project = loaded.Project.Name,
@@ -336,6 +336,10 @@ public class CodeEditService : ICodeEditService
             var filesToWrite = new List<(string Path, SourceText Text)>();
             var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // Hoisted: BaseDirectory recomputes GetDirectoryName(ResolvedPath) on every read, and a
+            // solution-wide rename walks every changed document.
+            var baseDirectory = loaded.BaseDirectory;
+
             foreach (var projectChange in newSolution.GetChanges(originalSolution).GetProjectChanges())
             {
                 foreach (var documentId in projectChange.GetChangedDocuments())
@@ -357,7 +361,7 @@ public class CodeEditService : ICodeEditService
                         continue;
                     }
 
-                    var relativePath = RelativePath(loaded, oldDocument.FilePath);
+                    var relativePath = RelativePath(baseDirectory, oldDocument.FilePath);
                     var diff = _diffService.GenerateUnifiedDiff(oldText, newText, $"a/{relativePath}", $"b/{relativePath}");
                     if (string.IsNullOrWhiteSpace(diff))
                     {
@@ -422,13 +426,13 @@ public class CodeEditService : ICodeEditService
     }
 
     /// <summary>
-    /// Emitted paths are solution-root-relative with forward slashes (falling back to the project
-    /// directory when no <c>.sln</c> was loaded) — the same rule the navigation tools and
-    /// <c>ApplyFixes</c> use, so a given file has one canonical path across every tool's output.
+    /// Emitted paths hang off the directory of <see cref="LoadedProject.ResolvedPath"/> — the file
+    /// that actually answered — with forward slashes, so combining the two lands on the real file.
+    /// Usually the solution root; the project's own directory when no <c>.sln</c> answered,
+    /// including the <c>.csproj</c> its nearest ancestor <c>.sln</c> doesn't list (#181). The same
+    /// rule the navigation tools and <c>ApplyFixes</c> use, so a given file has one canonical path
+    /// across every tool's output.
     /// </summary>
-    private static string RelativePath(LoadedProject loaded, string filePath)
-    {
-        var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? loaded.Project.FilePath);
-        return SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
-    }
+    private static string RelativePath(string? baseDirectory, string filePath)
+        => SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
 }
