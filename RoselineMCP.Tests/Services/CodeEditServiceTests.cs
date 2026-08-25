@@ -767,4 +767,44 @@ public class CodeEditServiceTests
             Directory.Delete(baseDirectory, recursive: true);
         }
     }
+
+    /// <summary>
+    /// #199: the <c>verification</c> block travels in the same response as <c>resolvedPath</c> and
+    /// is documented to be joinable with it, so its error paths must use the same anchor
+    /// <c>changedFiles</c> does. #181 fixed <c>changedFiles</c> and left this one behind — a refusal
+    /// naming a file the caller cannot find is the worst place for the two to disagree, because it
+    /// is the response an agent reads when it is already lost.
+    /// </summary>
+    [Fact]
+    public async Task EditMember_Verification_Error_Paths_Hang_Off_ResolvedPath_When_Project_Is_Not_In_The_Sln()
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-edit-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(baseDirectory);
+
+        try
+        {
+            var (service, workspace, scratchCsproj) = CreateUnlistedProjectService(baseDirectory);
+            using var _ = workspace;
+
+            // An edit that does not compile: refused, and the refusal names where the break is.
+            var result = await service.EditMemberAsync(
+                scratchCsproj, "Add", "replace", "public int Add(int a, int b) { return Missing.Thing(); }",
+                previewOnly: true, cancellationToken: CancellationToken.None);
+
+            result.Applied.ShouldBeFalse();
+            result.ResolvedPath.ShouldBe(scratchCsproj);
+            result.Verification.ShouldNotBeNull();
+            var introduced = result.Verification.Introduced.ShouldNotBeNull().ShouldHaveSingleItem();
+            introduced.File.ShouldBe("Calc.cs");
+
+            var reconstructed = Path.Combine(Path.GetDirectoryName(result.ResolvedPath)!, introduced.File);
+            File.Exists(reconstructed).ShouldBeTrue(
+                $"'{reconstructed}' should be the real file on disk, but resolvedPath and the "
+                + "verification.errors anchor disagree");
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
 }

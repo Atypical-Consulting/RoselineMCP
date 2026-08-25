@@ -442,14 +442,13 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > the call failed before resolving anything. See [docs/API.md](docs/API.md#which-checkout-answered).
 >
 > **Relative file paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`,
-> and `applyFixes`/`editMember`/`renameSymbol`'s `changedFiles` **and patch headers**, are relative
+> `applyFixes`/`editMember`/`renameSymbol`'s `changedFiles` **and patch headers**, and
+> `verification.errors[]`/`checkCompilation`'s `errors[]` `file`, are relative
 > to the directory containing `resolvedPath` — so `dirname(resolvedPath) + <returned path>` is the
 > real file, and a returned `patch` applies (`git apply -p1`) from that directory. That is the
 > solution root in the usual case, and the project's own directory whenever a `.csproj` answered
-> directly — including a project not listed in its nearest ancestor `.sln`. Two exceptions:
-> `listDiagnostics`/`analyzeSolution` report `file` **absolute** (nothing to join), and
-> `verification.errors[]`/`checkCompilation`'s `errors[]` are still anchored to the loaded
-> solution's directory, which differs from `resolvedPath` in that unlisted-project case. See
+> directly — including a project not listed in its nearest ancestor `.sln`. One exception:
+> `listDiagnostics`/`analyzeSolution` report `file` **absolute**, so there is nothing to join. See
 > [docs/API.md](docs/API.md#code-navigation-tools).
 
 > **Tool names on the wire are `snake_case`.** The section headings below use friendly

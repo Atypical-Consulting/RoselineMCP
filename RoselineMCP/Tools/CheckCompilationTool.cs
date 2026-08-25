@@ -58,7 +58,7 @@ public static class CheckCompilationTool
 
                 // No baseline: an absolute verdict about what is on disk, which is the question asked.
                 var verdict = await verificationService.VerifyAsync(
-                    baseline: null, loaded.Solution, max, timeoutSource.Token);
+                    baseline: null, loaded.Solution, loaded.BaseDirectory, max, timeoutSource.Token);
                 verdict.ResolvedPath = loaded.ResolvedPath;
 
                 invocation.MarkSuccess();

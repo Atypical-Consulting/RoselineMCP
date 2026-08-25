@@ -346,6 +346,7 @@ public class GuardServiceTests : IDisposable
         public async Task<VerificationVerdict> VerifyAsync(
             Solution? baseline,
             Solution candidate,
+            string? baseDirectory,
             int max = 20,
             CancellationToken cancellationToken = default)
         {
@@ -359,7 +360,7 @@ public class GuardServiceTests : IDisposable
 
             return _inner is null
                 ? new VerificationVerdict { Compiles = true, ScopeComplete = true }
-                : await _inner.VerifyAsync(baseline, candidate, max, cancellationToken);
+                : await _inner.VerifyAsync(baseline, candidate, baseDirectory, max, cancellationToken);
         }
     }
 }
