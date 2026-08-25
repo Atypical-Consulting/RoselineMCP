@@ -23,7 +23,7 @@ public static class AnalyzeSolutionTool
     /// Analyzes a C# solution and returns diagnostics summary with details about errors, warnings, and info messages.
     /// </summary>
     [McpServerTool(Title = "Analyze Solution", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = true, UseStructuredContent = true)]
-    [Description("Analyze a C# solution and return diagnostics summary with details about errors, warnings, and info messages. Read-only: never modifies any files on disk.")]
+    [Description("Analyze a C# solution and return diagnostics summary with details about errors, warnings, and info messages. Read-only: never modifies any files on disk. Limitations: loads a fresh workspace per call (no cache reuse), so it is slower than the project-scoped tools; MSBuild evaluation executes the project's own build logic; only http(s) URLs are treated as Git remotes. Example: analyze_solution{pathOrGit:'/repo/App.sln', severity:'Warning', maxDiagnostics:50} -> summary + top diagnostics.")]
     public static async Task<ToolResult<AnalyzeSolutionResponse>> AnalyzeSolution(
         ISolutionAnalyzerService analyzerService,
         [Description("Path to solution file or directory containing .sln file, or Git repository URL")]

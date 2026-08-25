@@ -286,6 +286,12 @@ using the same `command`/`args` shape as the VS Code snippet above.
 
 ## Available Tools
 
+Every tool's description — the text an MCP client shows the model at tool-selection time — states
+its own `Limitations:` and shows one `Example:` call, within a test-enforced word ceiling; the
+twelve tools with an optional `project` share one wording for the worktree caveat below, and
+`resolvedPath` is how you confirm which checkout actually answered. See
+[docs/API.md § Tool description contract](docs/API.md#tool-description-contract).
+
 ### 1. AnalyzeSolution
 
 Analyzes an entire C# solution for diagnostics. Read-only — never modifies files on disk.

@@ -32,7 +32,9 @@ public static class CheckCompilationTool
         + "Read-only: never modifies any files on disk. "
         + "For an exploratory inventory of code quality — analyzer diagnostics (Roslynator RCS*, StyleCop, the project's own "
         + "analyzers), severity statistics and which IDs are auto-fixable — use list_diagnostics instead; it is the slower, "
-        + "broader tool. Rule of thumb: check_compilation answers \"is it still building?\", list_diagnostics answers \"what should I clean up?\".")]
+        + "broader tool. Rule of thumb: check_compilation answers \"is it still building?\", list_diagnostics answers \"what should I clean up?\". Limitations: compiler diagnostics only, no analyzers; scopeComplete=false means not every dependent was seen."
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+        + " Example: check_compilation{} -> resolvedPath + compiles + errors[] + scope/scopeComplete.")]
     public static async Task<ToolResult<VerificationVerdict>> CheckCompilation(
         IProjectLoader projectLoader,
         IVerificationService verificationService,
