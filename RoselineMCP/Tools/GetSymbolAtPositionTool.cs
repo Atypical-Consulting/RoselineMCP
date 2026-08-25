@@ -20,7 +20,8 @@ public static class GetSymbolAtPositionTool
     /// definition location, and whether the position is the symbol's own declaration.
     /// </summary>
     [McpServerTool(Title = "Get Symbol At Position", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("You have a file and line (from a diagnostic, stack trace, grep, or find_references) and want to know what C# symbol lives there — prefer this over Read. Resolves the position to the symbol (declared or referenced), returning its name, kind, signature, definition location, and isDeclaration; feed the fullName straight into get_symbol_info/find_references. Read-only: never modifies any files on disk.")]
+    [Description("You have a file and line (from a diagnostic, stack trace, grep, or find_references) and want to know what C# symbol lives there — prefer this over Read. Resolves the position to the symbol (declared or referenced), returning its name, kind, signature, definition location, and isDeclaration; feed the fullName straight into get_symbol_info/find_references. Read-only: never modifies any files on disk. Limitations: file matches by name/path suffix, so an ambiguous suffix can resolve the wrong file; line-only prefers declarations."
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
     public static async Task<ToolResult<SymbolAtPositionResponse>> GetSymbolAtPosition(
         ICodeNavigationService navigationService,
         [Description("File to resolve the position in (name or path suffix, e.g. 'UserService.cs' or 'Services/UserService.cs')")]

@@ -29,7 +29,8 @@ public static class ApplyFixesTool
     /// express "destructive only for a specific parameter value".
     /// </remarks>
     [McpServerTool(Title = "Apply Fixes", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Apply code fixes for specified diagnostic IDs in a project. Defaults to preview mode: with previewOnly left unset (or true), no files are changed and only a diff is returned. Pass previewOnly=false explicitly to write the fixes to disk.")]
+    [Description("Apply code fixes for specified diagnostic IDs in a project. Defaults to preview mode: with previewOnly left unset (or true), no files are changed and only a diff is returned. Pass previewOnly=false explicitly to write the fixes to disk. Limitations: IDs with no registered fixer are reported, not fixed; nothing is written unless previewOnly=false."
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
     public static async Task<ToolResult<ApplyFixesResponse>> ApplyFixes(
         ICodeFixService codeFixService,
         [Description("List of diagnostic IDs to fix (e.g., ['RCS1213', 'SA1101'])")]

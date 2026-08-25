@@ -25,7 +25,8 @@ public static class RenameSymbolTool
     /// tool *can* write files when preview mode is turned off.
     /// </remarks>
     [McpServerTool(Title = "Rename Symbol", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Rename a C# symbol and update every reference across the solution using Roslyn, returning a unified diff. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the changes to disk.")]
+    [Description("Rename a C# symbol and update every reference across the solution using Roslyn, returning a unified diff. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the changes to disk. Limitations: the multi-file write is NOT atomic — an interrupted rename leaves some files written and some not."
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
     public static async Task<ToolResult<RenameSymbolResponse>> RenameSymbol(
         ICodeEditService editService,
         [Description("Symbol to rename (simple or fully-qualified name)")]

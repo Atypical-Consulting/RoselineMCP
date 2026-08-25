@@ -23,7 +23,8 @@ public static class ListDiagnosticsTool
         + "statistics and which IDs apply_fixes can fix. Read-only: never modifies any files on disk. "
         + "Running the analyzers costs several times a bare compile, so this is the exploratory tool, not the "
         + "edit-loop one. To ask \"is it still building?\" after an edit — compiler errors only, in under a "
-        + "second — use check_compilation instead.")]
+        + "second — use check_compilation instead. Limitations: runs third-party analyzers in-process; RoselineMCP:RunAnalyzers=false makes it compiler-only."
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
     public static async Task<ToolResult<ListDiagnosticsResponse>> ListDiagnostics(
         ISolutionAnalyzerService analyzerService,
         [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]

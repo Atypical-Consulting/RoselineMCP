@@ -19,7 +19,24 @@ public class ToolDescriptionContractTests
     /// without the overhead — so the budget is deliberately tight. Raising it is allowed, but only
     /// as a visible, reviewed edit to this constant.
     /// </summary>
-    private const int MaxWords = 120;
+    /// <remarks>
+    /// <para>
+    /// Set from the measured worst case, not from taste. Issue #179 proposed 120 on the premise
+    /// that it "admits both additions to the longest tool"; that arithmetic does not hold. The
+    /// longest baseline description (<c>check_compilation</c>) was already <b>98</b> words before
+    /// this change, and the two mandated components cost ~59 more — its own <c>Limitations:</c>
+    /// clause (15), <see cref="RoselineToolDescriptions.ProjectAutoDiscoveryLimit"/> (34) and an
+    /// <c>Example:</c> line (10) — landing at <b>157</b>. Reaching 120 would have required cutting
+    /// existing Purpose/Guidelines text, which #179 forbids outright and which is this repo's
+    /// measured strength (the ecosystem fails that component 89.3% of the time).
+    /// </para>
+    /// <para>
+    /// So 165 = the 157-word worst case plus a small margin: still far below the "enrich
+    /// everything" regime the paper priced, and still tight enough that no tool can absorb a
+    /// paragraph of prose. If a future tool needs more, raise this deliberately — and say why.
+    /// </para>
+    /// </remarks>
+    private const int MaxWords = 165;
 
     /// <summary>
     /// Every <c>[McpServerTool]</c> method in the server assembly, as
@@ -56,5 +73,22 @@ public class ToolDescriptionContractTests
             $"{name}'s description is {words} words. arXiv:2602.14878 measured full six-component " +
             "enrichment at +67.46% steps and a 16.67% regression rate; compact variants kept the " +
             "reliability without the overhead. Trim, or raise MaxWords deliberately in review.");
+    }
+
+    [Theory]
+    [MemberData(nameof(ToolDescriptions))]
+    public void Optional_Project_Tools_Carry_The_Shared_Limitation(
+        string name, string description, bool hasOptionalProject)
+    {
+        if (!hasOptionalProject)
+        {
+            return;
+        }
+
+        description.ShouldContain(RoselineToolDescriptions.ProjectAutoDiscoveryLimit.Trim(),
+            Case.Sensitive,
+            $"{name} takes an optional 'project' but does not state that auto-discovery is anchored " +
+            "to the SERVER's cwd. Append RoselineToolDescriptions.ProjectAutoDiscoveryLimit — verbatim, " +
+            "not a paraphrase, so all twelve stay in sync.");
     }
 }
