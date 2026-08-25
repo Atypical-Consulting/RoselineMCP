@@ -24,14 +24,14 @@ public class ToolDescriptionContractTests
     /// Set from the measured worst case, not from taste. Issue #179 proposed 120 on the premise
     /// that it "admits both additions to the longest tool"; that arithmetic does not hold. The
     /// longest baseline description (<c>check_compilation</c>) was already <b>98</b> words before
-    /// this change, and the two mandated components cost 59 more — its own <c>Limitations:</c>
-    /// clause (13), <see cref="RoselineToolDescriptions.ProjectAutoDiscoveryLimit"/> (36) and an
-    /// <c>Example:</c> line (10) — landing at <b>157</b>. Reaching 120 would have required cutting
+    /// this change, and the two mandated components cost 62 more — its own <c>Limitations:</c>
+    /// clause (13), <see cref="RoselineToolDescriptions.ProjectAutoDiscoveryLimit"/> (39) and an
+    /// <c>Example:</c> line (10) — landing at <b>160</b>. Reaching 120 would have required cutting
     /// existing Purpose/Guidelines text, which #179 forbids outright and which is this repo's
     /// measured strength (the ecosystem fails that component 89.3% of the time).
     /// </para>
     /// <para>
-    /// So 165 = the 157-word worst case plus a small margin: still far below the "enrich
+    /// So 165 = the 160-word worst case plus a small margin: still far below the "enrich
     /// everything" regime the paper priced, and still tight enough that no tool can absorb a
     /// paragraph of prose. If a future tool needs more, raise this deliberately — and say why.
     /// </para>
@@ -74,6 +74,20 @@ public class ToolDescriptionContractTests
             "enrichment at +67.46% steps and a 16.67% regression rate; compact variants kept the " +
             "reliability without the overhead. Trim, or raise MaxWords deliberately in review.");
     }
+
+    /// <summary>
+    /// The count of fragment-carrying tools, pinned because five prose surfaces say "twelve"
+    /// (README, <c>docs/API.md</c> ×2, the constant's own docs and a failure message below) and
+    /// nothing else would notice them going stale. <see cref="Optional_Project_Tools_Carry_The_Shared_Limitation"/>
+    /// returns early for a tool without an optional <c>project</c>, so on its own it can never
+    /// observe that the population changed size.
+    /// </summary>
+    [Fact]
+    public void Exactly_Twelve_Tools_Take_An_Optional_Project()
+        => ToolDescriptions().Count(t => (bool)t[2]).ShouldBe(12,
+            "The number of tools with an optional 'project' changed. Update the count here AND the " +
+            "prose that says \"twelve\": README.md, docs/API.md (twice) and " +
+            "RoselineToolDescriptions.ProjectAutoDiscoveryLimit's XML docs.");
 
     [Theory]
     [MemberData(nameof(ToolDescriptions))]

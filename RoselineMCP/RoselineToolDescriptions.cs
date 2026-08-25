@@ -34,5 +34,5 @@ public static class RoselineToolDescriptions
     public const string ProjectAutoDiscoveryLimit =
         " Auto-discovery uses the SERVER's working directory (fixed at spawn), not yours: in a git "
         + "worktree an omitted project silently resolves the MAIN checkout — check resolvedPath "
-        + "(present on failures too) or pass an absolute .sln/.csproj path.";
+        + "(also on failures, once a project resolved) or pass an absolute .sln/.csproj path.";
 }
