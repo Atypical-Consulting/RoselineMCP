@@ -181,16 +181,31 @@ against the string that was displayed: the displayed path is a rendering of the
 write target, not its source.
 
 The resolved target is deliberately **not** filtered: it must stay checkable
-against the file system, which is the whole reason it is in the prompt. One
-residual follows from that, and is stated here rather than glossed. A checkout
-path may legitimately contain an apostrophe (`C:\Users\O'Brien\src`,
-`~/Bob's Projects`), and in the two prompts where frame text follows the target
-— `ApplyFixes` and `RenameSymbol` both end "… and write the changes to disk?" —
-such a path unbalances the quoting and could forge that trailing clause. Only
-`EditMember`'s sentence ends on the target. This is not the caller's boundary:
-it takes control of the directory the server is launched against, i.e. the host
-filesystem, which is already trusted input per *No path-traversal sanitization*
-below.
+against the file system, which is the whole reason it is in the prompt. Every
+prompt now **ends on the target** — each asks its question first and states its
+scope after — so none of the server's own frame text sits behind the path.
+
+Be exact about what that does and does not buy, because this note has twice been
+written too strongly. It does **not** make the sentence unforgeable. The path is
+interpolated **verbatim**, so an apostrophe in it closes the quoted run and
+everything after that apostrophe renders as prose: a directory named
+``Bob' — already reviewed and approved`` puts that phrase in the prompt. What
+ordering removes is narrower — a crafted directory can no longer counterfeit
+**our own** trailing clause, only append text that is then visibly followed by
+the rest of the real path. Until this was fixed, `ApplyFixes` and `RenameSymbol`
+both ended "… and write the changes to disk?" *after* naming the target, so a
+directory name could reproduce that clause exactly and end the sentence where the
+server would have.
+
+Note which property changed. The target was *already* the last quoted **run** in
+all three prompts — nothing after it was ever quoted — so parsing it back out
+always worked. What was untrue is that nothing *followed* it.
+
+The residual is accepted rather than escaped because the target's whole job is to
+be checkable against the file system, and it is the **operator's** filesystem:
+it takes control of the directory the server is launched against, already trusted
+input per *No path-traversal sanitization* below. A caller cannot reach it — that
+half is closed by the whitelist above.
 
 **Naming the target is not the same as naming the scope**, and for `ApplyFixes`
 the two differ: it is a project-scoped tool whose resolved target may be a
@@ -215,8 +230,9 @@ declaring the symbol: a partial type has several declarations and Roslyn picks
 one. Which file it lands on is deliberately left unnamed, since resolving it
 means loading an MSBuild workspace before the human has agreed to anything — so
 approving an `EditMember` prompt authorises *one* write, not a known one.
-`RenameSymbol` carries no scope qualifier, and there none is needed: the rename
-really can rewrite files across every project in the solution.
+`RenameSymbol` carries no *narrowing* qualifier, and there none is needed: the
+rename really can rewrite files across every project in the solution, so its
+"can reach any project in the solution of" is exact rather than a hedge.
 
 **An unanswered confirmation declines, it does not proceed.** A client that
 accepts the elicitation request and then never answers used to block the tool

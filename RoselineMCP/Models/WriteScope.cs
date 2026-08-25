@@ -129,6 +129,24 @@ public sealed record WritePrompt
     /// </item>
     /// </list>
     /// <para>
+    /// One shape is common to all three and is <b>load-bearing rather than stylistic</b>: every
+    /// sentence <b>ends on <paramref name="target"/></b>. Each asks its question first and states
+    /// its scope after, so none of the server's own frame text sits behind the path.
+    /// </para>
+    /// <para>
+    /// Be precise about which property that is, because the neighbouring one is easy to claim by
+    /// mistake. The target was <em>already</em> the last quoted <em>run</em> before #173 — nothing
+    /// after it was ever quoted — and <c>TargetFromPrompt</c> parsed it correctly the whole time.
+    /// What was not true is that nothing <em>followed</em> it:
+    /// <see cref="WriteScope.PrimaryProjectOf"/> and <see cref="WriteScope.WholeSolution"/> both
+    /// ended "… and write the changes to disk?" <em>after</em> naming the target, so a directory
+    /// name containing an apostrophe could close the quoted run early and counterfeit that clause —
+    /// the shape #161a closed for <c>symbol</c>, arriving instead from the operator's filesystem.
+    /// #173 re-worded the two to <see cref="WriteScope.SingleFile"/>'s shape, moving where each
+    /// claim sits without changing what any of them claims. What that buys is bounded, and
+    /// <see cref="Sanitize"/>'s remarks say what it does not buy.
+    /// </para>
+    /// <para>
     /// Every caller-supplied value goes through <see cref="Sanitize"/> on its way in;
     /// <paramref name="target"/> deliberately does not (see that method's remarks).
     /// </para>
@@ -138,8 +156,8 @@ public sealed record WritePrompt
         WriteScope.PrimaryProjectOf => RenderPrimaryProjectOf(target),
         WriteScope.SingleFile => RenderSingleFile(target),
         WriteScope.WholeSolution =>
-            $"Rename '{Sanitize(Symbol)}' to '{Sanitize(NewName)}' across the solution of "
-            + $"'{target}' and write the changes to disk?",
+            $"Rename '{Sanitize(Symbol)}' to '{Sanitize(NewName)}'{AndWriteToDisk} "
+            + $"The write can reach any project in the solution of '{target}'.",
 
         // Spelled out on purpose: a catch-all would quietly give a scope added later the wording of
         // whichever arm it fell into, which is how a human ends up approving a write described as
@@ -148,13 +166,30 @@ public sealed record WritePrompt
             nameof(Scope), Scope, "No confirmation sentence exists for this write scope."),
     };
 
+    /// <summary>
+    /// The clause that asks the actual question, shared by the two scopes whose sentence ends on the
+    /// target. One copy rather than two: keeping the three renderings from drifting is the whole
+    /// reason <see cref="WriteScope"/> exists, and two hand-maintained copies of the same sentence
+    /// fragment is how the per-tool wording drifted in the first place (#161b).
+    /// </summary>
+    private const string AndWriteToDisk = " and write the changes to disk?";
+
     private string RenderPrimaryProjectOf(string target)
     {
+        // Branches on the extension, and only on the extension (#149): a .sln is narrowed to one
+        // anchor project, so it must say so, while a .csproj IS the whole write scope and takes no
+        // NARROWING qualifier. What the two sentences claim about scope is settled (#149/#152) and
+        // #173 did not reopen it.
+        // NOTE (#173 follow-up): under the old "apply fixes ... to '<x>.csproj'" a bare path read
+        // as the project; under "the write reaches '<x>.csproj'" it reads a little more like a
+        // promise to rewrite that FILE, and CodeFixService only ever writes .cs documents. Adding
+        // "the project" here would settle it, but that reopens phrasing #149/#152 fixed, so it is
+        // raised on the PR rather than decided in passing.
         var qualifier = target.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
             ? "the primary project of "
             : string.Empty;
-        return $"Apply code fixes for {DiagnosticIdCount} diagnostic ID(s) to {qualifier}'{target}' "
-            + "and write the changes to disk?";
+        return $"Apply code fixes for {DiagnosticIdCount} diagnostic ID(s){AndWriteToDisk} "
+            + $"The write reaches {qualifier}'{target}'.";
     }
 
     private string RenderSingleFile(string target)
@@ -180,6 +215,45 @@ public sealed record WritePrompt
     /// characters — and small enough that a payload cannot bury the rest of the sentence.
     /// </summary>
     private const int MaxValueLength = 120;
+
+    /// <summary>
+    /// Whether a character can appear in a C# symbol reference as these tools accept one: a letter
+    /// or digit in any script, plus the punctuation that qualifies, parameterises or decorates a
+    /// name — <c>Acme.Orders.Repository&lt;T,U&gt;</c>, <c>@class</c>, <c>List`1</c>,
+    /// <c>global::Acme</c>, <c>Outer+Inner</c>.
+    /// </summary>
+    /// <remarks>
+    /// Surrogate halves are category <c>Cs</c> and so fall outside this, which drops astral-plane
+    /// identifiers from the *display* — an acceptable loss, and one that removes the possibility of
+    /// <see cref="Sanitize"/>'s mid-string elision splitting a surrogate pair.
+    /// </remarks>
+    private static bool IsSymbolReferenceChar(char c) =>
+        (char.IsLetterOrDigit(c) || c is '.' or '_' or '<' or '>' or ',' or '@' or '`' or ':' or '+')
+        && !IsBlankRenderingLetter(c);
+
+    /// <summary>
+    /// The four Hangul fillers — U+115F, U+1160, U+3164, U+FFA0 — which Unicode categorises as
+    /// <em>letters</em> (Lo) while they render as blanks.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A denylist inside the whitelist, and deliberately so: the whitelist's premise is "a character
+    /// a symbol reference can contain, which renders as itself", and .NET's character categories are
+    /// the only available stand-in for the second half. These four are where that stand-in is wrong
+    /// — <c>char.IsLetterOrDigit('\u3164')</c> returns <see langword="true"/> — so a payload could
+    /// use them as word separators and rebuild a readable sentence out of characters the whitelist
+    /// had just admitted. The first version of this whitelist did exactly that, and the test that
+    /// pins it (<c>Render_Drops_Look_Alike_Characters_A_Symbol_Reference_Cannot_Contain</c>) is what
+    /// caught it.
+    /// </para>
+    /// <para>
+    /// The list is closed rather than open-ended: among Unicode's default-ignorable code points,
+    /// these are the only ones that are also letters or digits. Everything else that renders blank —
+    /// U+200B, U+2060, U+FEFF, U+2800 — is already outside the whitelist by category.
+    /// </para>
+    /// </remarks>
+    private static bool IsBlankRenderingLetter(char c) =>
+        c is '\u115F' or '\u1160' or '\u3164' or '\uFFA0';
 
     /// <summary>
     /// A caller-supplied value, made safe to interpolate into the confirmation prompt.
@@ -221,58 +295,25 @@ public sealed record WritePrompt
     /// <c>File.Exists</c> on it), so it is rendered verbatim.
     /// </para>
     /// <para>
-    /// ⚠️ That leaves one residual, and it is worth stating precisely rather than papering over: a
-    /// checkout path may legitimately contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
-    /// <c>~/Bob's Projects</c> — and in the two sentences where frame text follows the target
-    /// (<see cref="WriteScope.PrimaryProjectOf"/> and <see cref="WriteScope.WholeSolution"/> both end
-    /// "… and write the changes to disk?") such a path unbalances the quoting and could forge that
-    /// trailing clause. Only <see cref="WriteScope.SingleFile"/> ends on the target. This is
-    /// **not** the caller's trust boundary — it takes control of the directory the server is pointed
-    /// at, i.e. the operator's own filesystem, which is why #161 scoped it out and why the wording is
-    /// not being reopened here (#149/#152/#154 settled it). An earlier draft of these remarks claimed
-    /// the target is always last so nothing can follow it; that was false for two prompts of three,
-    /// and a security note that is false is worse than no note.
-    /// </para>
-    /// </remarks>
-    /// <summary>
-    /// Whether a character can appear in a C# symbol reference as these tools accept one: a letter
-    /// or digit in any script, plus the punctuation that qualifies, parameterises or decorates a
-    /// name — <c>Acme.Orders.Repository&lt;T,U&gt;</c>, <c>@class</c>, <c>List`1</c>,
-    /// <c>global::Acme</c>, <c>Outer+Inner</c>.
-    /// </summary>
-    /// <remarks>
-    /// Surrogate halves are category <c>Cs</c> and so fall outside this, which drops astral-plane
-    /// identifiers from the *display* — an acceptable loss, and one that removes the possibility of
-    /// <see cref="Sanitize"/>'s mid-string elision splitting a surrogate pair.
-    /// </remarks>
-    private static bool IsSymbolReferenceChar(char c) =>
-        (char.IsLetterOrDigit(c) || c is '.' or '_' or '<' or '>' or ',' or '@' or '`' or ':' or '+')
-        && !IsBlankRenderingLetter(c);
-
-    /// <summary>
-    /// The four Hangul fillers — U+115F, U+1160, U+3164, U+FFA0 — which Unicode categorises as
-    /// <em>letters</em> (Lo) while they render as blanks.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// A denylist inside the whitelist, and deliberately so: the whitelist's premise is "a character
-    /// a symbol reference can contain, which renders as itself", and .NET's character categories are
-    /// the only available stand-in for the second half. These four are where that stand-in is wrong
-    /// — <c>char.IsLetterOrDigit('\u3164')</c> returns <see langword="true"/> — so a payload could
-    /// use them as word separators and rebuild a readable sentence out of characters the whitelist
-    /// had just admitted. The first version of this whitelist did exactly that, and the test that
-    /// pins it (<c>Render_Drops_Look_Alike_Characters_A_Symbol_Reference_Cannot_Contain</c>) is what
-    /// caught it.
+    /// ⚠️ That exemption has a residual, and it must be stated at its true size — an earlier draft
+    /// said the target is always last so nothing can follow it, which was false for two prompts of
+    /// three, and #173's first cut then replaced it with "so it cannot append a clause", which is
+    /// false for a different reason. Because the path is interpolated <em>verbatim</em>, an
+    /// apostrophe in it closes the quoted run and <b>everything after that apostrophe renders as
+    /// prose</b>. A directory named <c>x'. Nothing will be written to</c> therefore puts that
+    /// sentence in the prompt. Ordering does not fix this and was never able to.
     /// </para>
     /// <para>
-    /// The list is closed rather than open-ended: among Unicode's default-ignorable code points,
-    /// these are the only ones that are also letters or digits. Everything else that renders blank —
-    /// U+200B, U+2060, U+FEFF, U+2800 — is already outside the whitelist by category.
+    /// What ordering (#173) actually bought is narrower and still worth having: the two sentences no
+    /// longer end in frame text <em>after</em> the target, so a crafted directory can no longer
+    /// counterfeit <b>our own</b> trailing clause — it can only append text that is visibly followed
+    /// by the rest of the real path. The reason the residual is accepted rather than escaped is the
+    /// paragraph above: the target's whole job is to be checkable against the file system, and it is
+    /// the <em>operator's</em> filesystem, already trusted input per <c>SECURITY.md</c>'s
+    /// <em>No dedicated path-traversal sanitization</em>. A caller cannot reach it; #161a closed
+    /// that half.
     /// </para>
     /// </remarks>
-    private static bool IsBlankRenderingLetter(char c) =>
-        c is '\u115F' or '\u1160' or '\u3164' or '\uFFA0';
-
     internal static string Sanitize(string? value)
     {
         if (value is null)

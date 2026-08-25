@@ -195,7 +195,7 @@ was never going to happen spends the one thing the elicitation costs — their a
 The prompt **names the concrete `.sln` or `.csproj` the write resolved to** — an absolute path, never
 a placeholder — whether the caller passed `project`, left it out, or passed an empty string:
 
-> Rename 'Foo' to 'Bar' across the solution of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
+> Rename 'Foo' to 'Bar' and write the changes to disk? The write can reach any project in the solution of '/Users/me/src/Acme/Acme.sln'.
 
 The path is resolved by the same function, against the same base directory, that the loader uses —
 and the **resolved path is what the write is then performed against**, rather than the argument the
@@ -212,7 +212,7 @@ anchor `ProjectLoader` selects (the C# project whose file name matches the `.sln
 first C# project Roslyn enumerated) — and only that project's documents are rewritten. Its prompt
 says so rather than implying a solution-wide write:
 
-> Apply code fixes for 2 diagnostic ID(s) to the primary project of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
+> Apply code fixes for 2 diagnostic ID(s) and write the changes to disk? The write reaches the primary project of '/Users/me/src/Acme/Acme.sln'.
 
 When the resolved target is already a `.csproj`, that project *is* the whole scope and the sentence
 names it directly, with no qualifier. The prompt deliberately does not name *which* project the
@@ -253,10 +253,14 @@ and the member being added is declared nowhere yet:
 
 > Write the 'add' of a member to type 'Acme.OrderService' to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '/Users/me/src/Acme/Acme.sln'.
 
-[`RenameSymbol`](#renamesymbol) carries no scope qualifier at all — it is a genuinely solution-wide
-Roslyn operation that can rewrite files across every project in the loaded solution, so naming the
-solution is already exact. (`ApplyFixes` also drops its qualifier when the target is a `.csproj`, for
-the same reason: there the target *is* the scope.)
+[`RenameSymbol`](#renamesymbol) carries no *narrowing* qualifier at all — it is a genuinely
+solution-wide Roslyn operation that can rewrite files across every project in the loaded solution.
+It says "**can** reach any project" rather than "reaches every project" because the latter would be
+false for the ordinary rename: `Renamer.RenameSymbolAsync` rewrites only the files that actually
+reference the symbol, so renaming a `private` helper in a five-project solution touches one. Stating
+the *reachable* scope is exact; stating it as what *will* happen would be a fresh inaccuracy of the
+family #149/#154 closed. (`ApplyFixes` drops its qualifier entirely when the target is a `.csproj`,
+for the same reason: there the target *is* the scope.)
 
 All three sentences above are rendered in **one place**, from structured inputs: a tool names its
 scope from a closed vocabulary (`WriteScope` — `PrimaryProjectOf`, `SingleFile`, `WholeSolution`) and
@@ -276,8 +280,17 @@ elision (`Acme.…Service`). Whitelisting rather than escaping is deliberate —
 and the set of characters that *look* like a space or a quote is open-ended (U+2800 and U+3164 render
 blank without being whitespace; a caller-supplied U+2019 reads as the frame's own quote). An ordinary
 C# symbol contains none of them and renders unchanged. The **target** is deliberately left verbatim,
-because it has to stay checkable against the file system; see
-[SECURITY.md](../SECURITY.md) for the one residual that follows from that.
+because it has to stay checkable against the file system — and what makes leaving it verbatim
+*safer* is that **every prompt ends on it**. That is why all three sentences above put the scope
+statement *after* the question mark: no frame text of the server's own sits behind the path, so a
+checkout path that legitimately contains an apostrophe (`~/Bob's Projects`) closes its quoted run
+early without leaving one of **our** clauses for it to counterfeit.
+
+Read that as the bounded claim it is. Ordering removes the *frame's* tail, not the *path's*: a
+directory named `Bob' — already approved` still closes the quote at `Bob` and renders its own
+remainder as bare prose before the sentence ends. That residue is the operator's own filesystem —
+already trusted input per SECURITY.md's *No dedicated path-traversal sanitization* — and a caller
+cannot reach it. See [SECURITY.md](../SECURITY.md) for the full write-up.
 
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory
