@@ -77,6 +77,18 @@ public class ToolDescriptionContractTests
 
     [Theory]
     [MemberData(nameof(ToolDescriptions))]
+    public void Every_Description_States_Its_Limitations(
+        string name, string description, bool hasOptionalProject)
+    {
+        _ = hasOptionalProject;
+
+        description.ShouldContain("Limitations:", Case.Sensitive,
+            $"{name} states no Limitations. arXiv:2602.14878 found Unstated Limitations in 89.8% of " +
+            "856 MCP tools; one sentence naming the failure mode a caller cannot infer is enough.");
+    }
+
+    [Theory]
+    [MemberData(nameof(ToolDescriptions))]
     public void Optional_Project_Tools_Carry_The_Shared_Limitation(
         string name, string description, bool hasOptionalProject)
     {
