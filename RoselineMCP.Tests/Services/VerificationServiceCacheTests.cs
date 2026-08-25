@@ -206,4 +206,40 @@ public class VerificationServiceCacheTests
         // Assert
         counter.Calls.ShouldBe(MaxCacheEntries + 2);
     }
+
+    /// <summary>
+    /// The cache key is the project's file path plus its two versions — the anchor is deliberately
+    /// <em>not</em> part of it, so one warm workspace serves both a <c>.sln</c>-anchored call and a
+    /// <c>.csproj</c>-anchored one from the same entry. That is only sound while what is cached is
+    /// anchor-independent: cache an already-relativized path and the second caller silently receives
+    /// the first caller's anchor, which turns #199 from a wrong path into an intermittently wrong one.
+    /// </summary>
+    [Fact]
+    public async Task A_Cached_Entry_Is_Re_Anchored_Rather_Than_Served_With_The_First_Callers_Paths()
+    {
+        // Arrange — one project, two legitimate anchors: the solution root and the project's own
+        // directory (the unlisted-.csproj shape of #151/#181).
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [("Scratch", [("Program.cs", "public class Program { public int Nope() => Missing.Thing(); }")])],
+            solutionFileName: "Repo.sln");
+        using var _ = workspace;
+        var (service, counter) = CreateService();
+        using var __ = service;
+        var solution = anchor.Solution;
+        var solutionDirectory = Path.GetDirectoryName(solution.FilePath)!;
+        var projectDirectory = Path.GetDirectoryName(anchor.FilePath)!;
+
+        // Act — same project state, two anchors, back to back.
+        var fromSolution = await service.VerifyAsync(
+            null, solution, solutionDirectory, cancellationToken: TestContext.Current.CancellationToken);
+        var fromProject = await service.VerifyAsync(
+            null, solution, projectDirectory, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert — each answer is anchored to what its own caller asked for…
+        fromSolution.Errors!.ShouldHaveSingleItem().File.ShouldBe("Scratch/Program.cs");
+        fromProject.Errors!.ShouldHaveSingleItem().File.ShouldBe("Program.cs");
+
+        // …and re-anchoring did not cost a second compilation: the entry was still a hit.
+        counter.Calls.ShouldBe(1);
+    }
 }

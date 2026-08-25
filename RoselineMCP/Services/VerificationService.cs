@@ -264,8 +264,17 @@ public class VerificationService : IVerificationService, IDisposable
 
     /// <summary>
     /// Compiles every project in scope and projects its compiler <b>errors</b> (warnings are not a
-    /// build gate) into the wire model.
+    /// build gate) into the wire model, anchored on <paramref name="baseDirectory"/>.
     /// </summary>
+    /// <remarks>
+    /// Relativization happens <b>here</b>, on the way out of the cache rather than on the way in.
+    /// The cache is keyed on the project's path and versions, not on the anchor — deliberately, so
+    /// one warm workspace serves a <c>.sln</c>-anchored call and a <c>.csproj</c>-anchored one from
+    /// the same entry — and that is only sound while the cached values are anchor-independent.
+    /// Caching an already-relativized path would hand the second caller the first caller's anchor,
+    /// making #199 intermittent instead of fixing it. Adding the anchor to the key would fix it too,
+    /// at the cost of one extra compilation per distinct anchor; this way costs a list copy.
+    /// </remarks>
     private async Task<List<DiagnosticDetail>> CollectErrorsAsync(
         Solution solution,
         IReadOnlyList<ProjectId> scope,
@@ -284,20 +293,46 @@ public class VerificationService : IVerificationService, IDisposable
                 continue;
             }
 
-            errors.AddRange(await ErrorsForProjectAsync(project, baseDirectory, cancellationToken));
+            var cached = await ErrorsForProjectAsync(project, cancellationToken);
+            foreach (var detail in cached)
+            {
+                errors.Add(Anchor(detail, baseDirectory));
+            }
         }
 
         return errors;
     }
 
     /// <summary>
+    /// A copy of <paramref name="detail"/> whose <see cref="DiagnosticDetail.File"/> hangs off
+    /// <paramref name="baseDirectory"/>. Always a copy: the original belongs to a cache entry that
+    /// other callers — with other anchors — will read again.
+    /// </summary>
+    private static DiagnosticDetail Anchor(DiagnosticDetail detail, string? baseDirectory) =>
+        new()
+        {
+            Project = detail.Project,
+            File = string.IsNullOrEmpty(detail.File)
+                ? string.Empty
+                : SymbolResolver.Relativize(detail.File, baseDirectory) ?? detail.File,
+            Line = detail.Line,
+            Column = detail.Column,
+            Id = detail.Id,
+            Severity = detail.Severity,
+            Message = detail.Message
+        };
+
+    /// <summary>
     /// One project's errors, served from the cache when this exact project state has already been
     /// compiled. The default <c>previewOnly</c> flow verifies the same baseline over and over while
     /// the candidate changes, so this is what turns two compilations per edit into one.
+    /// <para>
+    /// Paths here are <b>absolute</b> — anchor-independent, so an entry stays servable to callers
+    /// with different anchors. <see cref="CollectErrorsAsync"/> relativizes on the way out.
+    /// </para>
     /// </summary>
     private async Task<IReadOnlyList<DiagnosticDetail>> ErrorsForProjectAsync(
         Project project,
-        string? baseDirectory,
         CancellationToken cancellationToken)
     {
         var filePath = project.FilePath;
@@ -305,7 +340,7 @@ public class VerificationService : IVerificationService, IDisposable
         {
             // Nothing stable to key on (an in-memory project). Compile it every time rather than
             // risk serving one anonymous project's diagnostics for another's.
-            return await ComputeErrorsAsync(project, baseDirectory, cancellationToken);
+            return await ComputeErrorsAsync(project, cancellationToken);
         }
 
         // What this cache does and does not buy, measured rather than assumed (2026-08-20, Roslyn
@@ -346,7 +381,7 @@ public class VerificationService : IVerificationService, IDisposable
                 // Started and stored under the gate, so two concurrent misses on the same project
                 // await one compilation instead of racing into two. The shared work deliberately
                 // runs uncancelled: one caller walking away must not cancel it for the other.
-                pending = ComputeErrorsAsync(project, baseDirectory, CancellationToken.None);
+                pending = ComputeErrorsAsync(project, CancellationToken.None);
                 _cache[key] = new CacheEntry { Errors = pending, LastAccess = ++_accessCounter };
                 EvictWhileOverBound();
             }
@@ -373,10 +408,13 @@ public class VerificationService : IVerificationService, IDisposable
         }
     }
 
-    /// <summary>Compiles one project and projects its errors into detached, workspace-free values.</summary>
+    /// <summary>
+    /// Compiles one project and projects its errors into detached, workspace-free values with
+    /// <b>absolute</b> file paths — see <see cref="ErrorsForProjectAsync"/> for why they are not
+    /// relativized here.
+    /// </summary>
     private async Task<List<DiagnosticDetail>> ComputeErrorsAsync(
         Project project,
-        string? baseDirectory,
         CancellationToken cancellationToken)
     {
         var errors = new List<DiagnosticDetail>();
@@ -393,7 +431,7 @@ public class VerificationService : IVerificationService, IDisposable
         {
             if (diagnostic.Severity == DiagnosticSeverity.Error)
             {
-                errors.Add(ToDetail(diagnostic, project.Name, baseDirectory));
+                errors.Add(ToDetail(diagnostic, project.Name));
             }
         }
 
@@ -480,14 +518,14 @@ public class VerificationService : IVerificationService, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static DiagnosticDetail ToDetail(Diagnostic diagnostic, string projectName, string? baseDirectory)
+    private static DiagnosticDetail ToDetail(Diagnostic diagnostic, string projectName)
     {
         var span = diagnostic.Location.GetLineSpan();
         var path = span.Path;
         return new DiagnosticDetail
         {
             Project = projectName,
-            File = string.IsNullOrEmpty(path) ? string.Empty : SymbolResolver.Relativize(path, baseDirectory) ?? path,
+            File = path,
             Line = span.StartLinePosition.Line + 1,
             Column = span.StartLinePosition.Character + 1,
             Id = diagnostic.Id,
