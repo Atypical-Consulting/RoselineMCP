@@ -183,10 +183,12 @@ public class MedianFigureContractTests
     /// <summary>
     /// Pins the home page's "rose-line transform" showcase - the <c>Program.cs</c> before/after that
     /// is the first concrete number a visitor sees. The same <c>outline</c> suite row is restated by
-    /// hand three times: the lede's prose, the figure's <c>aria-label</c> (the only copy of this
-    /// claim a screen-reader user hears - the visual panels beside it are not read to them), and the
-    /// "whole file" panel's own cost line. A re-measurement can leave any subset of the three stale
-    /// relative to the others, which is exactly the silent-drift shape this class exists to catch.
+    /// hand four times: the lede's prose, the figure's <c>aria-label</c> (the only copy of this
+    /// claim a screen-reader user hears - the visual panels beside it are not read to them), the
+    /// "whole file" panel's own cost line, and the outline panel's head, which carries both halves of
+    /// the claim - the token count and the percentage together. A re-measurement can leave any subset
+    /// of the four stale relative to the others, which is exactly the silent-drift shape this class
+    /// exists to catch.
     /// </summary>
     [Fact]
     public void Index_Page_Should_State_The_Generated_ProgramCs_Transform()
@@ -194,6 +196,7 @@ public class MedianFigureContractTests
         var programCs = CurrentFigures.Value.ProgramCs;
         var wholeFile = FormatTokenCount(programCs.WholeFileTokens);
         var tool = FormatTokenCount(programCs.ToolTokens);
+        var magnitude = Math.Abs(programCs.SavingsPercent);
         const string relativePath = "website/src/pages/index.astro";
 
         AssertLiteralClaim(
@@ -209,6 +212,11 @@ public class MedianFigureContractTests
         AssertLiteralClaim(
             relativePath,
             $"<span class=\"mono\">Program.cs · the whole file</span><span class=\"tp-cost mono\">{wholeFile} tokens</span>",
+            1);
+
+        AssertLiteralClaim(
+            relativePath,
+            $"<span class=\"tp-save mono\">{tool}&nbsp;tokens</span><span class=\"pill write\">−{magnitude}%</span>",
             1);
     }
 
