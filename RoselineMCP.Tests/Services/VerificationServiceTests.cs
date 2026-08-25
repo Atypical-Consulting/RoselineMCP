@@ -50,7 +50,7 @@ public class VerificationServiceTests
             "public class Thing { public int Value() => 2; }");
 
         // Act
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert — a file-only or project-only scope would miss exactly the cross-project breakage
         // this gate exists to catch.
@@ -69,7 +69,7 @@ public class VerificationServiceTests
             "public class Endpoint { public int Call() => new Middle().Use() + 1; }");
 
         // Act
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert — paying to compile Core and Mid here would be pure waste.
         verdict.Scope.ShouldBe(["Web"]);
@@ -84,7 +84,7 @@ public class VerificationServiceTests
         using var _ = workspace;
 
         // Act
-        var verdict = await CreateService().VerifyAsync(null, project.Solution, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(null, project.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         verdict.Compiles.ShouldBe(false);
@@ -103,7 +103,7 @@ public class VerificationServiceTests
         var (workspace, anchor) = CreateChain();
         using var _ = workspace;
 
-        var verdict = await CreateService().VerifyAsync(null, anchor.Solution, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(null, anchor.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Compiles.ShouldBe(true);
         verdict.Errors.ShouldBeNull();
@@ -136,13 +136,13 @@ public class VerificationServiceTests
         var candidate = baseline.WithDocumentText(document.Id, SourceText.From(ShiftyClass(80)));
 
         // Guard the premise: the error really did move.
-        var before = await CreateService().VerifyAsync(null, baseline, cancellationToken: TestContext.Current.CancellationToken);
-        var after = await CreateService().VerifyAsync(null, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var before = await CreateService().VerifyAsync(null, baseline, null, cancellationToken: TestContext.Current.CancellationToken);
+        var after = await CreateService().VerifyAsync(null, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
         before.Errors!.Single().Line.ShouldBe(80);
         after.Errors!.Single().Line.ShouldBe(83);
 
         // Act
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert — a set difference over DiagnosticDetail (which carries line/column) would call this
         // one error both introduced and resolved, and refuse a write for a break the edit never made.
@@ -167,7 +167,7 @@ public class VerificationServiceTests
             "public class Dup { public int A() => Missing.Thing(); public int B() => Missing.Thing(); }"));
 
         // Act
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         verdict.Introduced.ShouldNotBeNull();
@@ -188,7 +188,7 @@ public class VerificationServiceTests
         var candidate = baseline.WithDocumentText(document.Id, SourceText.From(
             "public class Fixed { public int A() => 1; }"));
 
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Resolved.ShouldNotBeNull();
         verdict.Resolved.Count.ShouldBe(1);
@@ -214,7 +214,7 @@ public class VerificationServiceTests
         var candidate = baseline.WithDocumentText(fine.Id, SourceText.From(
             "public class Fine { public int B() => 2; }"));
 
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Compiles.ShouldBe(false);
         verdict.Introduced.ShouldBeNull();
@@ -234,7 +234,7 @@ public class VerificationServiceTests
         var candidate = baseline.WithDocumentText(document.Id, SourceText.From(
             "public class Quiet { public int A() => Missing.Thing(); public int B() => 2; }"));
 
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Errors.ShouldBeNull();
         verdict.Compiles.ShouldBe(false);
@@ -252,7 +252,7 @@ public class VerificationServiceTests
         var document = baseline.Projects.Single().Documents.Single();
         var candidate = baseline.WithDocumentText(document.Id, SourceText.From($"public class Flood {{ {body} }}"));
 
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, max: 2, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, max: 2, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Introduced.ShouldNotBeNull();
         verdict.Introduced.Count.ShouldBe(2);
@@ -268,7 +268,7 @@ public class VerificationServiceTests
         using var _ = workspace;
 
         // Act
-        var verdict = await CreateService().VerifyAsync(null, project.Solution, max: 2, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(null, project.Solution, null, max: 2, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         verdict.Errors.ShouldNotBeNull();
@@ -291,7 +291,7 @@ public class VerificationServiceTests
             "public class Api { public int Value(int a, int b) => a + b; }"));
 
         // Act
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert — the write still proceeds (nothing was introduced *that we can see*), but the
         // caller is told the gate was partial rather than handed a false green.
@@ -310,7 +310,7 @@ public class VerificationServiceTests
         var candidate = WithChangedDocument(baseline, "Core", "Thing.cs",
             "public class Thing { public int Value() => 2; }");
 
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.ScopeComplete.ShouldBeTrue();
         verdict.Notes.ShouldBeNull();
@@ -325,7 +325,7 @@ public class VerificationServiceTests
             [("Api.cs", "public class Api { public int Value(int a) => a; }")]);
         using var _ = workspace;
 
-        var verdict = await CreateService().VerifyAsync(null, project.Solution, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(null, project.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Compiles.ShouldBe(true);
         verdict.ScopeComplete.ShouldBeFalse();
@@ -378,7 +378,7 @@ public class VerificationServiceTests
         var candidate = baseline.WithDocumentText(
             firstLegDocument.Id, SourceText.From("public class Shared { public int Value() => 2; }"));
 
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Scope.ShouldBe(["Multi(net8.0)"]);
         verdict.ScopeComplete.ShouldBeFalse();
@@ -396,7 +396,7 @@ public class VerificationServiceTests
         var candidate = WithChangedDocument(baseline, "Core", "Thing.cs",
             "public class Thing { public int Value() => 3; }");
 
-        var verdict = await CreateService().VerifyAsync(baseline, candidate, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(baseline, candidate, null, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.ScopeComplete.ShouldBeTrue();
         verdict.Notes.ShouldBeNull();
@@ -411,9 +411,56 @@ public class VerificationServiceTests
         var (workspace, project) = AdhocProjectBuilder.Create("Many", [("Many.cs", $"public class Many {{ {body} }}")]);
         using var _ = workspace;
 
-        var verdict = await CreateService().VerifyAsync(null, project.Solution, max: 0, cancellationToken: TestContext.Current.CancellationToken);
+        var verdict = await CreateService().VerifyAsync(null, project.Solution, null, max: 0, cancellationToken: TestContext.Current.CancellationToken);
 
         verdict.Errors!.Count.ShouldBe(1);
         verdict.Omitted.ShouldBe(5);
+    }
+
+    /// <summary>
+    /// The anchor for <c>errors[].file</c> is the directory the caller names — the one behind the
+    /// <c>resolvedPath</c> travelling in the same response — not one re-derived from
+    /// <see cref="Solution.FilePath"/>. The two diverge for a <c>.csproj</c> its nearest ancestor
+    /// <c>.sln</c> does not list (#151/#181/#199): Roslyn grafts such a project onto the already-open
+    /// solution, so the solution keeps naming a <c>.sln</c> that never contributed it, and a path
+    /// relativized against that <c>.sln</c> cannot be joined back onto <c>resolvedPath</c>.
+    /// </summary>
+    [Fact]
+    public async Task Error_Paths_Hang_Off_The_Caller_Supplied_Anchor_Not_The_Solution()
+    {
+        // Arrange — the solution file sits in the repo root, but the anchor is the project's own
+        // directory, exactly as it is for a .csproj the .sln never listed.
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [("Scratch", [("Program.cs", "public class Program { public int Nope() => Missing.Thing(); }")])],
+            solutionFileName: "Repo.sln");
+        using var _ = workspace;
+        var projectDirectory = Path.GetDirectoryName(anchor.FilePath)!;
+
+        // Act
+        var verdict = await CreateService().VerifyAsync(
+            null, anchor.Solution, projectDirectory, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert — "Program.cs", not "Scratch/Program.cs": the latter joined onto the anchor yields
+        // <root>/Scratch/Scratch/Program.cs, which does not exist.
+        verdict.Errors.ShouldNotBeNull();
+        verdict.Errors[0].File.ShouldBe("Program.cs");
+    }
+
+    /// <summary>
+    /// A <see langword="null"/> anchor is the in-memory case — no path to hang off — and must leave
+    /// the reported paths absolute rather than inventing one.
+    /// </summary>
+    [Fact]
+    public async Task A_Null_Anchor_Leaves_Error_Paths_Absolute()
+    {
+        var (workspace, project) = AdhocProjectBuilder.Create("Broken",
+            [("Broken.cs", "public class Broken { public int Nope() => Missing.Thing(); }")]);
+        using var _ = workspace;
+
+        var verdict = await CreateService().VerifyAsync(
+            null, project.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
+
+        verdict.Errors.ShouldNotBeNull();
+        Path.IsPathRooted(verdict.Errors[0].File).ShouldBeTrue();
     }
 }

@@ -50,11 +50,12 @@ public class CodeEditService : ICodeEditService
     private async Task<(VerificationVerdict Verdict, bool Refused)> VerifyAsync(
         Solution baseline,
         Solution candidate,
+        string? baseDirectory,
         bool allowIntroducedErrors,
         int max,
         CancellationToken cancellationToken)
     {
-        var verdict = await _verificationService.VerifyAsync(baseline, candidate, max, cancellationToken);
+        var verdict = await _verificationService.VerifyAsync(baseline, candidate, baseDirectory, max, cancellationToken);
         var introducedCount = verdict.Introduced?.Count ?? 0;
         // The gate is `introduced`, never `compiles`: a repository that was already broken must
         // still be editable, or RoselineMCP is useless on exactly the branches agents are sent to fix.
@@ -150,7 +151,7 @@ public class CodeEditService : ICodeEditService
             // compiler is asked about, before the write and before any human is asked to approve one.
             var candidate = loaded.Solution.WithDocumentText(document.Id, newSourceText);
             var (verdict, refused) = await VerifyAsync(
-                loaded.Solution, candidate, allowIntroducedErrors, max, cancellationToken);
+                loaded.Solution, candidate, loaded.BaseDirectory, allowIntroducedErrors, max, cancellationToken);
             response.Verification = verdict;
 
             if (refused)
@@ -386,7 +387,7 @@ public class CodeEditService : ICodeEditService
             // boundary in docs/API.md), so a rename that breaks a downstream project must be stopped
             // before the first file is touched rather than unwound after the fifth.
             var (verdict, refused) = await VerifyAsync(
-                originalSolution, newSolution, allowIntroducedErrors, max, cancellationToken);
+                originalSolution, newSolution, baseDirectory, allowIntroducedErrors, max, cancellationToken);
             response.Verification = verdict;
 
             if (refused)

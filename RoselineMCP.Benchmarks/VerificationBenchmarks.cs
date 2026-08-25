@@ -89,7 +89,7 @@ public class CheckCompilationColdBenchmarks
     private async Task<VerificationVerdict> CheckAsync(string solutionPath)
     {
         using var loaded = await _loader.LoadAsync(solutionPath);
-        return await _verification.VerifyAsync(baseline: null, loaded.Solution);
+        return await _verification.VerifyAsync(baseline: null, loaded.Solution, loaded.BaseDirectory);
     }
 
     [Benchmark(Description = "check_compilation — COLD, small solution (1 project, 5 files)")]
@@ -139,7 +139,7 @@ public class CheckCompilationWarmBenchmarks
     private async Task<VerificationVerdict> CheckAsync(string solutionPath)
     {
         using var loaded = await _loader.LoadAsync(solutionPath);
-        return await _verification.VerifyAsync(baseline: null, loaded.Solution);
+        return await _verification.VerifyAsync(baseline: null, loaded.Solution, loaded.BaseDirectory);
     }
 
     [Benchmark(Description = "check_compilation — WARM, small solution (1 project, 5 files)")]
@@ -221,7 +221,7 @@ public class CheckCompilationAfterEditBenchmarks
     private async Task<VerificationVerdict> CheckAsync(string solutionPath)
     {
         using var loaded = await _loader.LoadAsync(solutionPath);
-        return await _verification.VerifyAsync(baseline: null, loaded.Solution);
+        return await _verification.VerifyAsync(baseline: null, loaded.Solution, loaded.BaseDirectory);
     }
 
     [IterationSetup(Target = nameof(AfterEditSmall))]
@@ -276,7 +276,11 @@ public class VerifiedWriteOverheadBenchmarks
     private sealed class NoVerification : IVerificationService
     {
         public Task<VerificationVerdict> VerifyAsync(
-            Solution? baseline, Solution candidate, int max = 20, CancellationToken cancellationToken = default) =>
+            Solution? baseline,
+            Solution candidate,
+            string? baseDirectory,
+            int max = 20,
+            CancellationToken cancellationToken = default) =>
             Task.FromResult(new VerificationVerdict());
     }
 

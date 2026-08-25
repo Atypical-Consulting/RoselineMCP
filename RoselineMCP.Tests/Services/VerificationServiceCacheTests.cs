@@ -66,8 +66,8 @@ public class VerificationServiceCacheTests
         var second = WithText(baseline, "public class Calc { public int Add(int a, int b) { return a + b + 2; } }");
 
         // Act — two edits against the same on-disk state, the default previewOnly flow.
-        await service.VerifyAsync(baseline, first, cancellationToken: TestContext.Current.CancellationToken);
-        await service.VerifyAsync(baseline, second, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(baseline, first, null, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(baseline, second, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert — baseline + first + second = 3, not 4: the second call reused the baseline.
         counter.Calls.ShouldBe(3);
@@ -81,8 +81,8 @@ public class VerificationServiceCacheTests
         var (service, counter) = CreateService();
         using var __ = service;
 
-        await service.VerifyAsync(null, project.Solution, cancellationToken: TestContext.Current.CancellationToken);
-        await service.VerifyAsync(null, project.Solution, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(null, project.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(null, project.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
 
         counter.Calls.ShouldBe(1);
     }
@@ -97,8 +97,8 @@ public class VerificationServiceCacheTests
         var changed = WithText(project.Solution,
             "public class Calc { public int Add(int a, int b) { return a + b; } public int Sub() => 0; }");
 
-        await service.VerifyAsync(null, project.Solution, cancellationToken: TestContext.Current.CancellationToken);
-        await service.VerifyAsync(null, changed, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(null, project.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(null, changed, null, cancellationToken: TestContext.Current.CancellationToken);
 
         counter.Calls.ShouldBe(2);
     }
@@ -127,8 +127,8 @@ public class VerificationServiceCacheTests
         (await editedProject.GetDependentVersionAsync(ct))
             .ShouldNotBe(await originalProject.GetDependentVersionAsync(ct));
 
-        var before = await service.VerifyAsync(null, project.Solution, cancellationToken: TestContext.Current.CancellationToken);
-        var after = await service.VerifyAsync(null, bodyChanged, cancellationToken: TestContext.Current.CancellationToken);
+        var before = await service.VerifyAsync(null, project.Solution, null, cancellationToken: TestContext.Current.CancellationToken);
+        var after = await service.VerifyAsync(null, bodyChanged, null, cancellationToken: TestContext.Current.CancellationToken);
 
         counter.Calls.ShouldBe(2);
         before.Compiles.ShouldBe(true);
@@ -146,10 +146,10 @@ public class VerificationServiceCacheTests
         using var _ = service;
         var solution = project.Solution;
 
-        var before = await service.VerifyAsync(null, solution, cancellationToken: TestContext.Current.CancellationToken);
+        var before = await service.VerifyAsync(null, solution, null, cancellationToken: TestContext.Current.CancellationToken);
         workspace.Dispose();
 
-        var after = await service.VerifyAsync(null, solution, cancellationToken: TestContext.Current.CancellationToken);
+        var after = await service.VerifyAsync(null, solution, null, cancellationToken: TestContext.Current.CancellationToken);
 
         counter.Calls.ShouldBe(1);
         after.Errors.ShouldNotBeNull();
@@ -170,8 +170,8 @@ public class VerificationServiceCacheTests
 
         // Act — tool invocations are not serialized, so two calls can land on a cold entry together.
         var verdicts = await Task.WhenAll(
-            Task.Run(() => service.VerifyAsync(null, solution, cancellationToken: TestContext.Current.CancellationToken)),
-            Task.Run(() => service.VerifyAsync(null, solution, cancellationToken: TestContext.Current.CancellationToken)));
+            Task.Run(() => service.VerifyAsync(null, solution, null, cancellationToken: TestContext.Current.CancellationToken)),
+            Task.Run(() => service.VerifyAsync(null, solution, null, cancellationToken: TestContext.Current.CancellationToken)));
 
         // Assert — single-flight, and no torn dictionary state.
         counter.Calls.ShouldBe(1);
@@ -188,20 +188,20 @@ public class VerificationServiceCacheTests
         var solution = project.Solution;
 
         // The very first state, which we come back to at the end.
-        await service.VerifyAsync(null, solution, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(null, solution, null, cancellationToken: TestContext.Current.CancellationToken);
         counter.Calls.ShouldBe(1);
 
         // Push it out with MaxCacheEntries distinct later states.
         for (var i = 0; i < MaxCacheEntries; i++)
         {
             var other = WithText(solution, $"public class Calc {{ public int Add(int a, int b) {{ return a + b + {i}; }} }}");
-            await service.VerifyAsync(null, other, cancellationToken: TestContext.Current.CancellationToken);
+            await service.VerifyAsync(null, other, null, cancellationToken: TestContext.Current.CancellationToken);
         }
 
         counter.Calls.ShouldBe(MaxCacheEntries + 1);
 
         // Act — the original state is no longer cached, so it recompiles.
-        await service.VerifyAsync(null, solution, cancellationToken: TestContext.Current.CancellationToken);
+        await service.VerifyAsync(null, solution, null, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         counter.Calls.ShouldBe(MaxCacheEntries + 2);

@@ -76,7 +76,11 @@ public class CodeFixServiceVerificationTests : IDisposable
         public int Calls { get; private set; }
 
         public Task<VerificationVerdict> VerifyAsync(
-            Solution? baseline, Solution candidate, int max = 20, CancellationToken cancellationToken = default)
+            Solution? baseline,
+            Solution candidate,
+            string? baseDirectory,
+            int max = 20,
+            CancellationToken cancellationToken = default)
         {
             Calls++;
             return Task.FromResult(verdict);
