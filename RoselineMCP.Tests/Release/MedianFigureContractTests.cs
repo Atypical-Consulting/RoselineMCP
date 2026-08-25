@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using Shouldly;
 
@@ -34,6 +35,15 @@ namespace RoselineMCP.Tests.Release;
 /// the expected percentage into this file. A test that hardcoded <c>85</c> would reproduce exactly
 /// the defect it exists to prevent.
 /// </para>
+/// <para>
+/// <b>Scope.</b> This class pins the <i>headline</i> median and nothing else. Two neighbouring
+/// figures are deliberately out of its reach and must not be folded in: the pooled, size-weighted
+/// 93%, which did not move with the median, and the separate end-to-end medians in
+/// <c>docs/AGENT-BENCHMARK.md</c> (the ~50% forced-use ceiling and ~13% self-directed figures),
+/// which measure a different thing entirely. That is why each claim below is anchored on the words
+/// around it rather than on a bare percentage: an assertion keyed to "any two-digit figure near the
+/// word median" would fail on those correct sentences and tell the reader to corrupt them.
+/// </para>
 /// </summary>
 public class MedianFigureContractTests
 {
@@ -54,8 +64,8 @@ public class MedianFigureContractTests
     {
         AssertClaim("README.md", "Measured {median}% fewer tokens (median)", 1);
         AssertClaim("README.md", "tokens-{median}%25_fewer_(median)", 1);
-        AssertClaim("README.md", "median {median}% fewer tokens", 1);
-        AssertClaim("README.md", "**{median}% median**", 1);
+        AssertClaim("README.md", "**median {median}% fewer tokens per task**", 1);
+        AssertClaim("README.md", "**{median}% median** token reduction per task", 1);
     }
 
     /// <summary>
@@ -67,7 +77,7 @@ public class MedianFigureContractTests
     [Fact]
     public void Benchmarks_Doc_Should_State_The_Generated_Median()
     {
-        AssertClaim("BENCHMARKS.md", "**{median}% median**", 1);
+        AssertClaim("BENCHMARKS.md", "**{median}% median** headline", 1);
     }
 
     /// <summary>
@@ -79,8 +89,8 @@ public class MedianFigureContractTests
     [Fact]
     public void AgentBenchmark_Doc_Should_State_The_Generated_Median_In_Both_Places()
     {
-        AssertClaim("docs/AGENT-BENCHMARK.md", "**median {median}%**", 1);
-        AssertClaim("docs/AGENT-BENCHMARK.md", "({median}% median)", 1);
+        AssertClaim("docs/AGENT-BENCHMARK.md", "**median {median}%** reduction per task", 1);
+        AssertClaim("docs/AGENT-BENCHMARK.md", "per-call savings ({median}% median)", 1);
     }
 
     /// <summary>
@@ -131,9 +141,14 @@ public class MedianFigureContractTests
     /// </summary>
     private static void AssertClaim(string relativePath, string claimTemplate, int expectedOccurrences)
     {
-        var text = ReadRepoFile(relativePath);
-        var median = CurrentMedianPercent();
-        var claim = Fill(claimTemplate, median);
+        // Both sides are whitespace-normalised before matching. These are hard-wrapped Markdown
+        // files, so a claim routinely straddles a newline (README's "median 85% fewer tokens / per
+        // task" does today). Matching raw text would couple every assertion to the current wrap:
+        // re-flowing a paragraph would fail the guard for no real reason, and — worse — a stale
+        // figure written across a line break would slip past the sweep below unseen.
+        var text = Normalize(ReadRepoFile(relativePath));
+        var median = CurrentMedianPercent.Value;
+        var claim = Normalize(Fill(claimTemplate, median));
 
         Occurrences(text, claim).ShouldBe(
             expectedOccurrences,
@@ -149,7 +164,7 @@ public class MedianFigureContractTests
                 continue;
             }
 
-            var stale = Fill(claimTemplate, other);
+            var stale = Normalize(Fill(claimTemplate, other));
 
             Occurrences(text, stale).ShouldBe(
                 0,
@@ -162,8 +177,12 @@ public class MedianFigureContractTests
     /// uses JavaScript's <c>Math.round</c>, which breaks ties upward rather than to even, so
     /// <c>Math.Floor(x + 0.5)</c> is used here instead of <c>Math.Round</c> - otherwise the test and
     /// the page it guards could disagree about a value landing exactly on .5.
+    /// <para>
+    /// Read once for the whole class: the benchmark data is a ~550 KB document and cannot change
+    /// during a run, so parsing it per assertion would re-parse it nine times for one number.
+    /// </para>
     /// </summary>
-    private static int CurrentMedianPercent()
+    private static readonly Lazy<int> CurrentMedianPercent = new(() =>
     {
         using var document = JsonDocument.Parse(ReadRepoFile(BenchmarkDataPath));
 
@@ -173,6 +192,36 @@ public class MedianFigureContractTests
             .GetDouble();
 
         return (int)Math.Floor((median * 100) + 0.5);
+    });
+
+    /// <summary>
+    /// Collapses every run of whitespace to a single space so a claim matches regardless of where
+    /// the file happens to wrap. See the comment in <see cref="AssertClaim"/> for why that coupling
+    /// would otherwise be a hole in the guard rather than merely an inconvenience.
+    /// </summary>
+    private static string Normalize(string text)
+    {
+        var builder = new StringBuilder(text.Length);
+        var pendingSpace = false;
+
+        foreach (var c in text)
+        {
+            if (char.IsWhiteSpace(c))
+            {
+                pendingSpace = true;
+                continue;
+            }
+
+            if (pendingSpace && builder.Length > 0)
+            {
+                builder.Append(' ');
+            }
+
+            pendingSpace = false;
+            builder.Append(c);
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>
