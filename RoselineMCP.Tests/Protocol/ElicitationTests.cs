@@ -1667,4 +1667,77 @@ public class ElicitationTests : IDisposable
         WritePrompt.ForSingleFile("delete", symbol).Render("/repo/App.sln")
             .ShouldContain("member '(unnamed)'");
     }
+
+    // ---------------------------------------------------------------------------------------
+    // The target is the sentence's LAST quoted run — for every scope, not just SingleFile (#173).
+    // A checkout path may legitimately contain an apostrophe (an "O'Brien" home directory, a
+    // "Bob's Projects" folder), which closes the quoted run early; wherever frame text still
+    // follows the target, that trailing clause becomes forgeable by a DIRECTORY name — the same
+    // shape #161 closed on the caller's side, arriving from the operator's filesystem instead.
+    //
+    // The fix is ORDERING, not escaping. The target is the one value in the sentence a human can
+    // check against reality, which is why ShouldNameARealProject asserts File.Exists on it and why
+    // Sanitize deliberately exempts it; transforming it for display would trade that real guarantee
+    // for a theoretical one. So it goes last, and the invariant becomes true by construction.
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A target path carrying the two things a real checkout can: an apostrophe, and a space in the
+    /// same segment. The apostrophe follows a letter, as it does in every plausible directory name,
+    /// which is what keeps <see cref="TargetFromPrompt"/>'s "opening quote is the last one preceded
+    /// by a space" heuristic on its feet.
+    /// </summary>
+    private const string ApostropheSolution = "/repo/Bob's Projects/App.sln";
+
+    /// <summary>
+    /// The same path as a project. <see cref="WriteScope.PrimaryProjectOf"/> is the one scope whose
+    /// wording branches on the extension (#149), so both sides of that branch need covering.
+    /// </summary>
+    private const string ApostropheProject = "/repo/Bob's Projects/App.csproj";
+
+    /// <summary>
+    /// One prompt per <see cref="WriteScope"/> member, built from values that survive
+    /// <c>Sanitize</c> untouched so the only variable under test is where the target sits. The
+    /// switch is exhaustive on purpose: a fourth scope fails here rather than going silently
+    /// uncovered by the invariant these tests exist to hold.
+    /// </summary>
+    private static WritePrompt PromptFor(WriteScope scope) => scope switch
+    {
+        WriteScope.PrimaryProjectOf => WritePrompt.ForPrimaryProjectOf(3),
+        WriteScope.SingleFile => WritePrompt.ForSingleFile("delete", "Foo.Bar"),
+        WriteScope.WholeSolution => WritePrompt.ForWholeSolution("Foo", "Bar"),
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(scope), scope, "This write scope has no prompt in the target-ordering coverage."),
+    };
+
+    [Theory]
+    [InlineData(WriteScope.PrimaryProjectOf, ApostropheSolution)]
+    [InlineData(WriteScope.PrimaryProjectOf, ApostropheProject)]
+    [InlineData(WriteScope.SingleFile, ApostropheSolution)]
+    [InlineData(WriteScope.SingleFile, ApostropheProject)]
+    [InlineData(WriteScope.WholeSolution, ApostropheSolution)]
+    [InlineData(WriteScope.WholeSolution, ApostropheProject)]
+    public void Every_Write_Prompt_Ends_On_Its_Target(WriteScope scope, string target)
+    {
+        // Asserted as the PROPERTY — the message ends on the target's closing quote — rather than
+        // against any one phrasing, so a future re-word is free to change the frame and not free to
+        // put text back after the target.
+        PromptFor(scope).Render(target).ShouldEndWith($"'{target}'.");
+    }
+
+    [Theory]
+    [InlineData(WriteScope.PrimaryProjectOf, ApostropheSolution)]
+    [InlineData(WriteScope.PrimaryProjectOf, ApostropheProject)]
+    [InlineData(WriteScope.SingleFile, ApostropheSolution)]
+    [InlineData(WriteScope.SingleFile, ApostropheProject)]
+    [InlineData(WriteScope.WholeSolution, ApostropheSolution)]
+    [InlineData(WriteScope.WholeSolution, ApostropheProject)]
+    public void Every_Write_Prompt_Round_Trips_A_Target_Containing_An_Apostrophe(
+        WriteScope scope, string target)
+    {
+        // The reader's half of the same invariant: TargetFromPrompt takes the last quoted run, which
+        // is how these tests — and ShouldNameARealProject's File.Exists — recover the path. With the
+        // target last, an apostrophe inside it has nothing left to mis-parse against.
+        TargetFromPrompt(PromptFor(scope).Render(target)).ShouldBe(target);
+    }
 }
