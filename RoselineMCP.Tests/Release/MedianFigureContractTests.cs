@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -132,51 +133,187 @@ public class MedianFigureContractTests
     }
 
     /// <summary>
+    /// Pins the per-file outline savings and the outline suite's own median in
+    /// <c>benchmark.astro</c>'s "where the file outline wins - and where it can't" callout, which
+    /// names <c>Program.cs</c>, <c>CodeFixService.cs</c> and <c>IDiagnosticFilterService.cs</c> and
+    /// restates each one's saving by hand. These four figures come from the <c>outline</c> suite's
+    /// own rows and aggregate in <see cref="BenchmarkDataPath"/> - not from
+    /// <c>headline.medianSavingsReadTools</c> - so a re-measurement can move them independently of
+    /// the headline median every other test in this class pins, and nothing else here would catch
+    /// them drifting.
+    /// </summary>
+    [Fact]
+    public void Benchmark_Page_Should_State_The_Generated_Outline_Figures()
+    {
+        var figures = CurrentFigures.Value;
+        const string relativePath = "website/src/pages/benchmark.astro";
+
+        // benchmark.astro's own pct() helper signs the magnitude explicitly - ASCII '+' or the
+        // U+2212 MINUS SIGN used throughout this class - and never emits a bare number, so each
+        // claim below fixes the sign as a template literal and sweeps only the two-digit magnitude.
+        AssertClaim(
+            relativePath,
+            "to <span class=\"save-ink\">+{value}%</span>.</p>",
+            "{value}",
+            figures.OutlineMedianSavingsPercent,
+            1);
+
+        AssertClaim(
+            relativePath,
+            "<code>Program.cs</code> <span class=\"save-ink\">+{value}%</span>",
+            "{value}",
+            figures.ProgramCs.SavingsPercent,
+            1);
+
+        AssertClaim(
+            relativePath,
+            "<code>CodeFixService.cs</code> <span class=\"save-ink\">+{value}%</span>",
+            "{value}",
+            figures.CodeFixService.SavingsPercent,
+            1);
+
+        AssertClaim(
+            relativePath,
+            "<code>IDiagnosticFilterService.cs</code> <span class=\"cost-ink\">−{value}%</span>",
+            "{value}",
+            Math.Abs(figures.DiagnosticFilterService.SavingsPercent),
+            1);
+    }
+
+    /// <summary>
+    /// Pins the home page's "rose-line transform" showcase - the <c>Program.cs</c> before/after that
+    /// is the first concrete number a visitor sees. The same <c>outline</c> suite row is restated by
+    /// hand three times: the lede's prose, the figure's <c>aria-label</c> (the only copy of this
+    /// claim a screen-reader user hears - the visual panels beside it are not read to them), and the
+    /// "whole file" panel's own cost line. A re-measurement can leave any subset of the three stale
+    /// relative to the others, which is exactly the silent-drift shape this class exists to catch.
+    /// </summary>
+    [Fact]
+    public void Index_Page_Should_State_The_Generated_ProgramCs_Transform()
+    {
+        var programCs = CurrentFigures.Value.ProgramCs;
+        var wholeFile = FormatTokenCount(programCs.WholeFileTokens);
+        var tool = FormatTokenCount(programCs.ToolTokens);
+        const string relativePath = "website/src/pages/index.astro";
+
+        AssertLiteralClaim(
+            relativePath,
+            $"this repo: <strong>{wholeFile} tokens become {tool}</strong>",
+            1);
+
+        AssertLiteralClaim(
+            relativePath,
+            $"aria-label=\"RoselineMCP turns a {wholeFile}-token file into a {tool}-token outline.\"",
+            1);
+
+        AssertLiteralClaim(
+            relativePath,
+            $"<span class=\"mono\">Program.cs · the whole file</span><span class=\"tp-cost mono\">{wholeFile} tokens</span>",
+            1);
+    }
+
+    /// <summary>
+    /// Pins the README's pull-quote - the line most likely to be copy-pasted elsewhere by someone
+    /// deciding whether to try the tool. It uses a sign convention different from every other
+    /// surface in this class: it states the figure as a magnitude of reduction
+    /// ("2,093 tokens → 120 (−94%)"), always with the U+2212 minus, even though the same
+    /// <c>outline</c> row's <c>savingsVsWholeFilePct</c> is a <i>positive</i> saving (0.9427). Read
+    /// the sign off the surface being pinned, not off the JSON - that asymmetry is the easiest thing
+    /// to get subtly wrong here, which is why it is called out rather than folded silently into a
+    /// shared formatter with <see cref="Benchmark_Page_Should_State_The_Generated_Outline_Figures"/>.
+    /// </summary>
+    [Fact]
+    public void Readme_Should_State_The_Generated_ProgramCs_PullQuote()
+    {
+        var programCs = CurrentFigures.Value.ProgramCs;
+        var wholeFile = FormatTokenCount(programCs.WholeFileTokens);
+        var tool = FormatTokenCount(programCs.ToolTokens);
+        var magnitude = Math.Abs(programCs.SavingsPercent);
+
+        AssertLiteralClaim(
+            "README.md",
+            $"on `Program.cs`: **{wholeFile} tokens → {tool}** (−{magnitude}%).",
+            1);
+    }
+
+    /// <summary>
     /// Asserts that <paramref name="claimTemplate"/>, with the generated median substituted for
     /// <c>{median}</c>, occurs in <paramref name="relativePath"/> exactly
     /// <paramref name="expectedOccurrences"/> times - <b>and</b> that the same claim carrying any
     /// other two-digit figure occurs nowhere in that file. The second half is what distinguishes
     /// this from a <c>ShouldContain</c>: a file that states the current median once and a
     /// superseded one somewhere else is exactly the defect being guarded, and "contains" passes it.
+    /// Delegates to <see cref="AssertClaim(string,string,string,int,int)"/>, which generalises the
+    /// placeholder and the figure it stands for so a claim pinning a different generated figure (a
+    /// per-file saving, a suite's own median) does not need a second copy of this method's body.
     /// </summary>
-    private static void AssertClaim(string relativePath, string claimTemplate, int expectedOccurrences)
+    private static void AssertClaim(string relativePath, string claimTemplate, int expectedOccurrences) =>
+        AssertClaim(relativePath, claimTemplate, "{median}", CurrentMedianPercent.Value, expectedOccurrences);
+
+    /// <summary>
+    /// The shared core <see cref="AssertClaim(string,string,int)"/> delegates to: fills
+    /// <paramref name="placeholder"/> in <paramref name="claimTemplate"/> with
+    /// <paramref name="value"/>, asserts the result occurs <paramref name="expectedOccurrences"/>
+    /// times, and sweeps every <b>other</b> two-digit figure through the same placeholder to prove no
+    /// stale variant of the claim survives - the load-bearing negative half described on
+    /// <see cref="AssertClaim(string,string,int)"/>. Every caller anchors
+    /// <paramref name="claimTemplate"/> on the words around the figure, per the class summary's
+    /// Scope note, rather than on a bare percentage.
+    /// </summary>
+    private static void AssertClaim(string relativePath, string claimTemplate, string placeholder, int value, int expectedOccurrences)
     {
-        // Both sides are whitespace-normalised before matching. These are hard-wrapped Markdown
+        // Both sides are whitespace-normalised before matching. These are hard-wrapped Markdown/HTML
         // files, so a claim routinely straddles a newline (README's "median 85% fewer tokens / per
         // task" does today). Matching raw text would couple every assertion to the current wrap:
         // re-flowing a paragraph would fail the guard for no real reason, and — worse — a stale
         // figure written across a line break would slip past the sweep below unseen.
         var text = Normalize(ReadRepoFile(relativePath));
-        var median = CurrentMedianPercent.Value;
-        var claim = Normalize(Fill(claimTemplate, median));
+        var claim = Normalize(Fill(claimTemplate, placeholder, value));
 
         Occurrences(text, claim).ShouldBe(
             expectedOccurrences,
-            $"{relativePath} should carry \"{claim}\" exactly {expectedOccurrences} time(s) - the median generated in {BenchmarkDataPath} is {median}%.");
+            $"{relativePath} should carry \"{claim}\" exactly {expectedOccurrences} time(s) - the generated figure in {BenchmarkDataPath} is {value}.");
 
-        // Only two-digit figures are swept: every published claim is one, and the generated median
-        // has never been outside that range. A future median of 9% or 100% would still be pinned by
-        // the positive assertion above; this loop would simply have nothing stale to find.
+        // Only two-digit figures are swept: every claim this core backs is a percentage (10-99), and
+        // the generated figures have never been outside that range. A future figure of 9 or 100
+        // would still be pinned by the positive assertion above; this loop would simply have nothing
+        // stale to find.
         for (var other = 10; other <= 99; other++)
         {
-            if (other == median)
+            if (other == value)
             {
                 continue;
             }
 
-            var stale = Normalize(Fill(claimTemplate, other));
+            var stale = Normalize(Fill(claimTemplate, placeholder, other));
 
             Occurrences(text, stale).ShouldBe(
                 0,
-                $"{relativePath} still carries \"{stale}\", but the generated median in {BenchmarkDataPath} is {median}%. Update the surface, not this test.");
+                $"{relativePath} still carries \"{stale}\", but the generated figure in {BenchmarkDataPath} is {value}. Update the surface, not this test.");
         }
     }
 
     /// <summary>
-    /// The generated median as a whole percentage, rounded the way the website rounds it. The site
-    /// uses JavaScript's <c>Math.round</c>, which breaks ties upward rather than to even, so
-    /// <c>Math.Floor(x + 0.5)</c> is used here instead of <c>Math.Round</c> - otherwise the test and
-    /// the page it guards could disagree about a value landing exactly on .5.
+    /// The positive half of <see cref="AssertClaim(string,string,string,int,int)"/> alone, for a
+    /// claim that is already fully filled in (typically with token counts) rather than pinning a
+    /// single two-digit percentage - a 10-99 sweep has nothing meaningful to enumerate over a
+    /// four-digit token count. Reuses the same file access and whitespace normalisation as every
+    /// other assertion in this class rather than opening <paramref name="relativePath"/> a second
+    /// way.
+    /// </summary>
+    private static void AssertLiteralClaim(string relativePath, string claim, int expectedOccurrences)
+    {
+        var text = Normalize(ReadRepoFile(relativePath));
+        var normalizedClaim = Normalize(claim);
+
+        Occurrences(text, normalizedClaim).ShouldBe(
+            expectedOccurrences,
+            $"{relativePath} should carry \"{normalizedClaim}\" exactly {expectedOccurrences} time(s), matching the figures generated in {BenchmarkDataPath}.");
+    }
+
+    /// <summary>
+    /// The generated median as a whole percentage, rounded the way the website rounds it - see
+    /// <see cref="SiteRoundPercent"/> for the rule itself.
     /// <para>
     /// Read once for the whole class: the benchmark data is a ~550 KB document and cannot change
     /// during a run, so parsing it per assertion would re-parse it nine times for one number.
@@ -191,13 +328,109 @@ public class MedianFigureContractTests
             .GetProperty("medianSavingsReadTools")
             .GetDouble();
 
-        return (int)Math.Floor((median * 100) + 0.5);
+        return SiteRoundPercent(median);
     });
 
     /// <summary>
+    /// The per-file outline savings and the outline suite's own median, pinned by
+    /// <see cref="Benchmark_Page_Should_State_The_Generated_Outline_Figures"/>,
+    /// <see cref="Index_Page_Should_State_The_Generated_ProgramCs_Transform"/> and
+    /// <see cref="Readme_Should_State_The_Generated_ProgramCs_PullQuote"/>. Extracted once, like
+    /// <see cref="CurrentMedianPercent"/> above and for the same reason - a second, independent
+    /// <c>Lazy&lt;&gt;</c> rather than folding into it, so a fact that only needs the median does not
+    /// pay for resolving suite rows it never reads.
+    /// </summary>
+    private static readonly Lazy<BenchmarkFigures> CurrentFigures = new(() =>
+    {
+        using var document = JsonDocument.Parse(ReadRepoFile(BenchmarkDataPath));
+
+        var outline = ResolveSuite(document, "outline");
+
+        return new BenchmarkFigures(
+            ProgramCs: ResolveSuiteRow(outline, "RoselineMCP/Program.cs"),
+            CodeFixService: ResolveSuiteRow(outline, "/Services/CodeFixService.cs"),
+            DiagnosticFilterService: ResolveSuiteRow(outline, "RoselineMCP/Interfaces/IDiagnosticFilterService.cs"),
+            OutlineMedianSavingsPercent: SiteRoundPercent(outline.GetProperty("aggregate").GetProperty("medianSavingsVsWholeFile").GetDouble()));
+    });
+
+    /// <summary>
+    /// What <see cref="CurrentFigures"/> extracts from the <c>outline</c> suite: one named row each
+    /// for <c>Program.cs</c>, <c>CodeFixService.cs</c> and <c>IDiagnosticFilterService.cs</c>, plus
+    /// the suite's own median saving.
+    /// </summary>
+    private sealed record BenchmarkFigures(
+        SuiteRowFigure ProgramCs,
+        SuiteRowFigure CodeFixService,
+        SuiteRowFigure DiagnosticFilterService,
+        int OutlineMedianSavingsPercent);
+
+    /// <summary>
+    /// One <c>rows[]</c> entry's saving (site-rounded, signed) and both token counts - what
+    /// benchmark.astro, index.astro and the README each restate by hand for a named file.
+    /// </summary>
+    private sealed record SuiteRowFigure(int SavingsPercent, int WholeFileTokens, int ToolTokens);
+
+    /// <summary>
+    /// Resolves a <c>suites[]</c> entry by <c>id</c>.
+    /// </summary>
+    private static JsonElement ResolveSuite(JsonDocument document, string suiteId) =>
+        document.RootElement
+            .GetProperty("suites")
+            .EnumerateArray()
+            .Single(s => s.GetProperty("id").GetString() == suiteId);
+
+    /// <summary>
+    /// Resolves the one row in <paramref name="suite"/> whose <c>target</c> ends with
+    /// <paramref name="targetSuffix"/>, and fails loudly rather than silently picking a wrong match
+    /// if more than one does. That guard is not theoretical here:
+    /// <c>RoselineMCP/Interfaces/ICodeFixService.cs</c> also ends with the literal string
+    /// <c>CodeFixService.cs</c>, so a naive <c>EndsWith("CodeFixService.cs")</c> lookup would match
+    /// it too and could silently resolve to the wrong row depending on array order.
+    /// <see cref="CurrentFigures"/> avoids that by passing the longer, unambiguous suffix
+    /// <c>"/Services/CodeFixService.cs"</c> - this check exists so a future caller who does not is
+    /// told loudly instead of getting a plausible-looking wrong figure.
+    /// </summary>
+    private static SuiteRowFigure ResolveSuiteRow(JsonElement suite, string targetSuffix)
+    {
+        var matches = suite.GetProperty("rows")
+            .EnumerateArray()
+            .Where(r => r.GetProperty("target").GetString()!.EndsWith(targetSuffix, StringComparison.Ordinal))
+            .ToArray();
+
+        matches.Length.ShouldBe(
+            1,
+            $"expected exactly one row whose target ends with \"{targetSuffix}\" in {BenchmarkDataPath}, found {matches.Length}.");
+
+        var row = matches[0];
+
+        return new SuiteRowFigure(
+            SavingsPercent: SiteRoundPercent(row.GetProperty("savingsVsWholeFilePct").GetDouble()),
+            WholeFileTokens: row.GetProperty("wholeFile").GetProperty("tokens").GetInt32(),
+            ToolTokens: row.GetProperty("tool").GetProperty("tokens").GetInt32());
+    }
+
+    /// <summary>
+    /// The single rounding rule in this file. The site uses JavaScript's <c>Math.round</c>, which
+    /// breaks ties upward rather than to even, so <c>Math.Floor(x + 0.5)</c> is used here instead of
+    /// <c>Math.Round</c> - otherwise the test and the page it guards could disagree about a value
+    /// landing exactly on .5. Every figure this class pins - the headline median and each per-file
+    /// or per-suite outline saving - goes through this one method so the rule cannot drift between
+    /// them.
+    /// </summary>
+    private static int SiteRoundPercent(double fraction) => (int)Math.Floor((fraction * 100) + 0.5);
+
+    /// <summary>
+    /// Formats a token count the way every site does: thousands-separated, no decimal - "2,093" not
+    /// "2093". Shared so the README and index.astro claims agree on formatting with each other and
+    /// with the chart/headline stats elsewhere on the site.
+    /// </summary>
+    private static string FormatTokenCount(int tokens) => tokens.ToString("N0", CultureInfo.InvariantCulture);
+
+    /// <summary>
     /// Collapses every run of whitespace to a single space so a claim matches regardless of where
-    /// the file happens to wrap. See the comment in <see cref="AssertClaim"/> for why that coupling
-    /// would otherwise be a hole in the guard rather than merely an inconvenience.
+    /// the file happens to wrap. See the comment in <see cref="AssertClaim(string,string,string,int,int)"/>
+    /// for why that coupling would otherwise be a hole in the guard rather than merely an
+    /// inconvenience.
     /// </summary>
     private static string Normalize(string text)
     {
@@ -229,8 +462,8 @@ public class MedianFigureContractTests
     /// claims include HTML and JSON fragments, and a stray brace in one of them would turn a
     /// missing assertion into a format exception.
     /// </summary>
-    private static string Fill(string claimTemplate, int median) =>
-        claimTemplate.Replace("{median}", median.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    private static string Fill(string claimTemplate, string placeholder, int value) =>
+        claimTemplate.Replace(placeholder, value.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
 
     private static int Occurrences(string haystack, string needle)
     {
