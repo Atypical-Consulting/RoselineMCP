@@ -27,11 +27,14 @@ drift on those pages. Every other published statement of it is hand-written, and
 Re-measuring is meant to fail all of them at once — update the surfaces the failure names; do not
 loosen the test.
 
-⚠️ **The site's per-file and per-suite figures are no longer unpinned.** `benchmark.astro`'s outline
-examples and suite prose — the `Program.cs`, `CodeFixService.cs` and `IDiagnosticFilterService.cs`
-rows, and the outline suite's own median — are now **computed** from the same regenerated JSON, the
-same way the headline median is, so a re-measurement cannot leave them behind. The `Program.cs`
-token-count pull-quote repeated on `index.astro` and `README.md` is still hand-written, but
+⚠️ **The site's per-file and per-suite figures are no longer unpinned.** `benchmark.astro` computes
+every such figure from the same regenerated JSON, the same way the headline median is, so a
+re-measurement cannot leave any of them behind: the `Program.cs`, `CodeFixService.cs` and
+`IDiagnosticFilterService.cs` outline rows, the outline suite's own median, the read-tool suites'
+savings range quoted in "Reading the two baselines" (the min/max of `medianSavingsVsWholeFile`
+across the six suites the chart plots), and the `get_symbol_info` with `includeSource=true` figure
+(the `symbol-info-source` suite's own median). The `Program.cs` token-count pull-quote repeated on
+`index.astro` and `README.md` is still hand-written, but
 `MedianFigureContractTests` now pins it too (`Index_Page_Should_State_The_Generated_ProgramCs_Transform`,
 `Readme_Should_State_The_Generated_ProgramCs_PullQuote`), against the same `outline` row, for the
 same reason the headline median is pinned above. One figure is deliberately left outside both

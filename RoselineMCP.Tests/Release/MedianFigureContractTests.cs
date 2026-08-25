@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Shouldly;
 
 namespace RoselineMCP.Tests.Release;
@@ -132,15 +133,13 @@ public class MedianFigureContractTests
         AssertClaim("website/og-card.html", "<div class=\"stat\">{median}<span class=\"pct\">%</span></div>", 1);
     }
 
-    // Benchmark_Page_Should_State_The_Generated_Outline_Figures used to live here, pinning
-    // benchmark.astro's per-file outline savings (Program.cs, CodeFixService.cs,
-    // IDiagnosticFilterService.cs) and the outline suite's own median. It was removed when
-    // benchmark.astro stopped restating those four figures by hand and started computing them
-    // directly from website/src/data/benchmark-results.json (the same file this class reads) - at
-    // that point pinning the rendered text only tests that Astro can evaluate a lookup, not that the
-    // content is correct, and the JSON-vs-page drift this class exists to catch became impossible by
-    // construction. If a future change reintroduces a hand-written figure in benchmark.astro, add a
-    // test back rather than assuming this comment still applies.
+    // No test pins benchmark.astro's per-file outline savings (Program.cs, CodeFixService.cs,
+    // IDiagnosticFilterService.cs) or the outline suite's own median here. benchmark.astro computes
+    // all four directly from website/src/data/benchmark-results.json (the same file this class
+    // reads) rather than restating them by hand, so pinning the rendered text would only prove Astro
+    // can evaluate a lookup, not that the content is correct - the JSON-vs-page drift this class
+    // exists to catch is impossible by construction for these figures. If a future change
+    // reintroduces a hand-written figure in benchmark.astro, add a test for it.
 
     /// <summary>
     /// Pins the home page's "rose-line transform" showcase - the <c>Program.cs</c> before/after that
@@ -264,12 +263,21 @@ public class MedianFigureContractTests
     }
 
     /// <summary>
-    /// The positive half of <see cref="AssertClaim(string,string,string,int,int)"/> alone, for a
-    /// claim that is already fully filled in (typically with token counts) rather than pinning a
-    /// single two-digit percentage - a 10-99 sweep has nothing meaningful to enumerate over a
-    /// four-digit token count. Reuses the same file access and whitespace normalisation as every
-    /// other assertion in this class rather than opening <paramref name="relativePath"/> a second
-    /// way.
+    /// Mirrors <see cref="AssertClaim(string,string,string,int,int)"/> for a claim that is already
+    /// fully filled in (typically with token counts) rather than pinning a single two-digit
+    /// percentage through a <c>{placeholder}</c> - a 10-99 sweep has nothing meaningful to enumerate
+    /// over a four-digit token count. Reuses the same file access and whitespace normalisation as
+    /// every other assertion in this class rather than opening <paramref name="relativePath"/> a
+    /// second way.
+    /// <para>
+    /// Carries the same load-bearing negative half as <see cref="AssertClaim(string,string,string,int,int)"/>,
+    /// generalised to this method's shape: every maximal run of digits (and thousands-separating
+    /// commas) in <paramref name="claim"/> is turned into a <c>[\d,]+</c> wildcard via
+    /// <see cref="DigitRunPattern"/> and matched against the whole file. If that pattern matches more
+    /// than <paramref name="expectedOccurrences"/> times, the same words survive somewhere else
+    /// carrying different digits - a stale token count or percentage a re-measurement left behind -
+    /// which the exact-match assertion above would not catch on its own.
+    /// </para>
     /// </summary>
     private static void AssertLiteralClaim(string relativePath, string claim, int expectedOccurrences)
     {
@@ -279,7 +287,23 @@ public class MedianFigureContractTests
         Occurrences(text, normalizedClaim).ShouldBe(
             expectedOccurrences,
             $"{relativePath} should carry \"{normalizedClaim}\" exactly {expectedOccurrences} time(s), matching the figures generated in {BenchmarkDataPath}.");
+
+        var totalMatches = Regex.Matches(text, DigitRunPattern(normalizedClaim)).Count;
+
+        totalMatches.ShouldBe(
+            expectedOccurrences,
+            $"{relativePath} carries {totalMatches} occurrence(s) of the claim shape \"{normalizedClaim}\" with any digits substituted, but only {expectedOccurrences} should match - a stale figure may still be present. Update the surface, not this test.");
     }
+
+    /// <summary>
+    /// Turns an already-filled claim into a regex that generalises every digit run (including
+    /// thousands-separating commas, e.g. "2,093") back to a <c>[\d,]+</c> wildcard, so
+    /// <see cref="AssertLiteralClaim"/> can find any other occurrence of the same claim shape
+    /// regardless of which figures it carries. Everything else in <paramref name="literalClaim"/> is
+    /// escaped so the surrounding words and markup still match literally.
+    /// </summary>
+    private static string DigitRunPattern(string literalClaim) =>
+        string.Join(@"[\d,]+", Regex.Split(literalClaim, @"[\d,]+").Select(Regex.Escape));
 
     /// <summary>
     /// The generated median as a whole percentage, rounded the way the website rounds it - see
@@ -311,8 +335,9 @@ public class MedianFigureContractTests
     /// <para>
     /// <see cref="BenchmarkFigures"/> used to carry the <c>CodeFixService.cs</c> and
     /// <c>IDiagnosticFilterService.cs</c> rows too, plus the outline suite's own median - all three
-    /// were dropped along with <c>Benchmark_Page_Should_State_The_Generated_Outline_Figures</c> (see
-    /// the comment above where that test used to be) once nothing in this class read them any more.
+    /// were dropped once benchmark.astro stopped restating those figures by hand and started
+    /// computing them from the JSON directly (see the note above where that pinning would go), so
+    /// nothing in this class needed to read them any more.
     /// </para>
     /// </summary>
     private static readonly Lazy<BenchmarkFigures> CurrentFigures = new(() =>
@@ -332,8 +357,9 @@ public class MedianFigureContractTests
     private sealed record BenchmarkFigures(SuiteRowFigure ProgramCs);
 
     /// <summary>
-    /// One <c>rows[]</c> entry's saving (site-rounded, signed) and both token counts - what
-    /// benchmark.astro, index.astro and the README each restate by hand for a named file.
+    /// One <c>rows[]</c> entry's saving (site-rounded magnitude - see <see cref="SiteRoundPercent"/>)
+    /// and both token counts - what benchmark.astro, index.astro and the README each restate by hand
+    /// for a named file.
     /// </summary>
     private sealed record SuiteRowFigure(int SavingsPercent, int WholeFileTokens, int ToolTokens);
 
@@ -377,14 +403,17 @@ public class MedianFigureContractTests
     }
 
     /// <summary>
-    /// The single rounding rule in this file. The site uses JavaScript's <c>Math.round</c>, which
-    /// breaks ties upward rather than to even, so <c>Math.Floor(x + 0.5)</c> is used here instead of
-    /// <c>Math.Round</c> - otherwise the test and the page it guards could disagree about a value
-    /// landing exactly on .5. Every figure this class pins - the headline median and each per-file
-    /// or per-suite outline saving - goes through this one method so the rule cannot drift between
-    /// them.
+    /// The single rounding rule in this file. The site's <c>pct()</c> rounds the <b>magnitude</b> -
+    /// <c>Math.round(Math.abs(v) * 100)</c> - not the signed value, so this rounds
+    /// <c>Math.Abs(fraction)</c> the same way rather than rounding the signed fraction and taking
+    /// <c>Math.Abs</c> of the result afterward. The two disagree on an exact <c>.5</c> tie for a
+    /// negative figure: for <c>-0.395</c> the site renders "40%" (<c>Math.round(39.5)</c> rounds
+    /// half up to 40), while rounding the signed value first and only then taking the absolute value
+    /// gives <c>Math.Abs(Math.Floor(-39.0))</c> = 39. Every figure this class pins - the headline
+    /// median and each per-file or per-suite outline saving - goes through this one method so the
+    /// rule cannot drift between them.
     /// </summary>
-    private static int SiteRoundPercent(double fraction) => (int)Math.Floor((fraction * 100) + 0.5);
+    private static int SiteRoundPercent(double fraction) => (int)Math.Round(Math.Abs(fraction) * 100, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// Formats a token count the way every site does: thousands-separated, no decimal - "2,093" not

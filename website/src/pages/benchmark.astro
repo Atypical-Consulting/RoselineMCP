@@ -7,18 +7,34 @@ const base = import.meta.env.BASE_URL;
 const m = data.metadata;
 const hd = data.headline;
 const fmt = (n: number) => n.toLocaleString('en-US');
-const pct = (v: number | null) => (v === null ? '—' : `${v >= 0 ? '' : '−'}${Math.round(Math.abs(v) * 100)}%`);
+// The bare rounded magnitude, with no sign and no '%' — shared by pct() below and by the inline
+// prose ranges (e.g. "58–94%"), which need two magnitudes either side of one '%'.
+const pctNum = (v: number) => Math.round(Math.abs(v) * 100);
+const pct = (v: number | null) => (v === null ? '—' : `${v >= 0 ? '' : '−'}${pctNum(v)}%`);
 // Same rounding rule as pct(), just with an explicit '+' for non-negative values — the outline
 // prose below writes "+94%" rather than "94%", but must not invent a second rounding rule to do it.
 const pctPlus = (v: number) => (v >= 0 ? '+' : '') + pct(v);
 const saved = hd.totalBaselineTokens - hd.totalToolTokens;
 
+// Looks up exactly one item matching `predicate`, throwing a build-time error naming what could
+// not be resolved uniquely — so a renamed/removed suite id or row target fails loudly at `astro
+// build` instead of a `.find()` silently taking the first match, or a `!` assertion crashing with
+// a bare `Cannot read properties of undefined`.
+function findOne<T>(items: T[], predicate: (item: T) => boolean, what: string): T {
+  const matches = items.filter(predicate);
+  if (matches.length !== 1) {
+    throw new Error(`benchmark.astro: expected exactly one ${what}, found ${matches.length}`);
+  }
+  return matches[0];
+}
+
 // The three per-file outline figures and the outline suite's own median, looked up from the same
 // JSON the chart reads — so these can never drift from the data the way hand-restated figures did.
 // `/Services/CodeFixService.cs` must stay a full relative suffix: a bare `.endsWith('CodeFixService.cs')`
 // also matches `Interfaces/ICodeFixService.cs`, a different row with a different figure.
-const outlineSuite = data.suites.find((s) => s.id === 'outline')!;
-const outlineRow = (suffix: string) => outlineSuite.rows.find((r) => r.target.endsWith(suffix))!.savingsVsWholeFilePct;
+const outlineSuite = findOne(data.suites, (s) => s.id === 'outline', "suite with id 'outline'");
+const outlineRow = (suffix: string) =>
+  findOne(outlineSuite.rows, (r) => r.target.endsWith(suffix), `outline row ending in '${suffix}'`).savingsVsWholeFilePct;
 const programCsSavings = outlineRow('/Program.cs');
 const codeFixServiceSavings = outlineRow('/Services/CodeFixService.cs');
 const diagnosticFilterSavings = outlineRow('/IDiagnosticFilterService.cs');
@@ -35,11 +51,20 @@ const label: Record<string, string> = {
   'edit-output': 'Rename → diff',
 };
 const chartIds = ['outline', 'symbol-info', 'symbol-info-source', 'references', 'implementations', 'call-graph'];
-const chartRows = data.suites.filter((s) => chartIds.includes(s.id)).map((s) => ({
+// One guarded lookup per chart id, reused both for the chart rows and for the "Reading the two
+// baselines" prose below — so the sentence describing the read-tool suites and the chart plotting
+// them can never enumerate a different set.
+const readToolSuites = chartIds.map((id) => findOne(data.suites, (s) => s.id === id, `suite with id '${id}'`));
+const readToolMedians = readToolSuites.map((s) => s.aggregate.medianSavingsVsWholeFile);
+const readToolSavingsMin = Math.min(...readToolMedians);
+const readToolSavingsMax = Math.max(...readToolMedians);
+const chartRows = readToolSuites.map((s) => ({
   id: s.id, tool: s.tool, title: label[s.id] ?? s.title,
   value: s.aggregate.medianSavingsVsWholeFile, min: s.aggregate.minSavingsVsWholeFile,
   max: s.aggregate.maxSavingsVsWholeFile, pooled: s.aggregate.pooledSavingsVsWholeFile, n: s.aggregate.count,
 }));
+const symbolInfoSourceSuite = findOne(data.suites, (s) => s.id === 'symbol-info-source', "suite with id 'symbol-info-source'");
+const symbolInfoSourceSavings = symbolInfoSourceSuite.aggregate.medianSavingsVsWholeFile;
 const editSuite = data.suites.find((s) => s.id === 'edit-output');
 const reproduce = 'git clone https://github.com/Atypical-Consulting/RoselineMCP\ncd RoselineMCP\ndotnet run --project RoselineMCP.TokenBenchmark -c Release';
 ---
@@ -78,12 +103,12 @@ const reproduce = 'git clone https://github.com/Atypical-Consulting/RoselineMCP\
 
       <div class="note" style="margin-top:1.6rem">
         <h3>Where the file outline wins — and where it can't</h3>
-        <p>The first run of this benchmark caught <code>search_symbols</code> outline <em>costing</em>
+        <p>The first run of this benchmark caught <code>search_symbols</code> outline <em>costing</em>{' '}
           tokens: it repeated the file path and fully-qualified name on every symbol. That was fixed —
-          the outline now returns a lean projection, and the median went from <span class="cost-ink">−45%</span>
+          the outline now returns a lean projection, and the median went from <span class="cost-ink">−45%</span>{' '}
           to <span class={inkClass(outlineMedian)}>{pctPlus(outlineMedian)}</span>.</p>
         <p style="margin-bottom:0">What remains is a limit, not a bug. Outline wins big on body-heavy
-          files (<code>Program.cs</code> <span class={inkClass(programCsSavings)}>{pctPlus(programCsSavings)}</span>, <code>CodeFixService.cs</code>
+          files (<code>Program.cs</code> <span class={inkClass(programCsSavings)}>{pctPlus(programCsSavings)}</span>, <code>CodeFixService.cs</code>{' '}
           <span class={inkClass(codeFixServiceSavings)}>{pctPlus(codeFixServiceSavings)}</span>) but still costs tokens on declaration-only
           files (<code>IDiagnosticFilterService.cs</code> <span class={inkClass(diagnosticFilterSavings)}>{pctPlus(diagnosticFilterSavings)}</span>) —
           an interface <em>is</em> already just signatures, so the outline projection adds overhead instead of removing it.
@@ -130,9 +155,9 @@ const reproduce = 'git clone https://github.com/Atypical-Consulting/RoselineMCP\
       <div class="note" style="margin-top:1.6rem">
         <h3>Reading the two baselines</h3>
         <ul class="clean">
-          <li><strong>vs. whole files (B1):</strong> the read tools cut 54–91% — a file is far bigger than the one fact you needed from it.</li>
+          <li><strong>vs. whole files (B1):</strong> the read tools cut {pctNum(readToolSavingsMin)}–{pctNum(readToolSavingsMax)}% — a file is far bigger than the one fact you needed from it.</li>
           <li><strong>vs. an optimal grep (B2):</strong> the tools are roughly comparable in raw tokens (<code>find_references</code> ≈ <code>grep -C3</code>). Their edge over grep is <em>structure and precision</em> — resolved symbols, cross-project references, real call edges — not raw count.</li>
-          <li><strong><code>get_symbol_info</code> with <code>includeSource=true</code></strong> (~55%) is shown separately: you get the body back, so it doesn't pretend to replace reading code you're about to edit.</li>
+          <li><strong><code>get_symbol_info</code> with <code>includeSource=true</code></strong> (~{pctNum(symbolInfoSourceSavings)}%) is shown separately: you get the body back, so it doesn't pretend to replace reading code you're about to edit.</li>
         </ul>
       </div>
 
