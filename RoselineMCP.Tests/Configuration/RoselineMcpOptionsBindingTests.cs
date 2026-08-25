@@ -19,6 +19,7 @@ namespace RoselineMCP.Tests.Configuration;
 /// key, or a wrong section path, would leave every such test green while the switch silently did
 /// nothing in production.
 /// </remarks>
+[Collection(ProcessEnvironmentCollection.Name)]
 public class RoselineMcpOptionsBindingTests
 {
     private static RoselineMcpOptions Bind(Action<IConfigurationBuilder> configure)
