@@ -88,6 +88,21 @@ public sealed class LoadedProject : IDisposable
     public string ResolvedPath => _resolvedPath ?? Solution.FilePath ?? Project.FilePath ?? string.Empty;
 
     /// <summary>
+    /// The directory every relative file path in a response hangs off — always the directory
+    /// containing <see cref="ResolvedPath"/>, so a caller can combine
+    /// <c>Path.GetDirectoryName(resolvedPath)</c> with any returned path and land on the real file.
+    /// That is the whole promise of <see cref="ResolvedPath"/>, and it only holds while the two are
+    /// computed from the same value: the navigation tools, <c>ApplyFixes</c> and the edit tools each
+    /// derived this directory from <c>Solution.FilePath ?? Project.FilePath</c> instead, which
+    /// diverges from <see cref="ResolvedPath"/> for a <c>.csproj</c> not listed in its nearest
+    /// ancestor <c>.sln</c> — Roslyn grafts such a project onto the already-open solution, so
+    /// <c>Solution.FilePath</c> keeps naming the <c>.sln</c> that never contributed it (issue #181).
+    /// <see langword="null"/> when there is no path to anchor on at all (an in-memory workspace),
+    /// which leaves paths absolute — the same fallback the three call sites had before.
+    /// </summary>
+    public string? BaseDirectory => Path.GetDirectoryName(ResolvedPath);
+
+    /// <summary>
     /// The absolute <c>.sln</c> or <c>.csproj</c> the caller's <c>project</c> reference resolved
     /// to <em>before</em> the loader opened anything — what the caller named, as opposed to
     /// <see cref="ResolvedPath"/>, which is what answered. The two differ for a <c>.csproj</c>

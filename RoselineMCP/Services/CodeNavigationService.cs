@@ -33,11 +33,14 @@ public class CodeNavigationService : ICodeNavigationService
 
     /// <summary>
     /// Root the emitted file paths at, so navigation output is workspace-portable and doesn't repeat
-    /// the absolute prefix on every result. Prefers the solution directory (covers cross-project
-    /// references); falls back to the project directory when no <c>.sln</c> was loaded.
+    /// the absolute prefix on every result. Always the directory of
+    /// <see cref="LoadedProject.ResolvedPath"/> — the file that actually answered — so a caller can
+    /// combine <c>Path.GetDirectoryName(resolvedPath)</c> with a returned path and land on the real
+    /// file. Usually the solution directory (covering cross-project references); the project's own
+    /// directory when no <c>.sln</c> answered, including the <c>.csproj</c> that its nearest
+    /// ancestor <c>.sln</c> doesn't list (#181).
     /// </summary>
-    private static string? BaseDirOf(LoadedProject loaded)
-        => Path.GetDirectoryName(loaded.Solution.FilePath ?? loaded.Project.FilePath);
+    private static string? BaseDirOf(LoadedProject loaded) => loaded.BaseDirectory;
 
     /// <summary>Rewrites each summary's <see cref="SymbolSummary.File"/> to <paramref name="baseDir"/>-relative.</summary>
     private static void RelativizePaths(IEnumerable<SymbolSummary>? summaries, string? baseDir)
