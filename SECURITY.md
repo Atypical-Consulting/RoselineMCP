@@ -181,16 +181,24 @@ against the string that was displayed: the displayed path is a rendering of the
 write target, not its source.
 
 The resolved target is deliberately **not** filtered: it must stay checkable
-against the file system, which is the whole reason it is in the prompt. One
-residual follows from that, and is stated here rather than glossed. A checkout
-path may legitimately contain an apostrophe (`C:\Users\O'Brien\src`,
-`~/Bob's Projects`), and in the two prompts where frame text follows the target
-— `ApplyFixes` and `RenameSymbol` both end "… and write the changes to disk?" —
-such a path unbalances the quoting and could forge that trailing clause. Only
-`EditMember`'s sentence ends on the target. This is not the caller's boundary:
-it takes control of the directory the server is launched against, i.e. the host
-filesystem, which is already trusted input per *No path-traversal sanitization*
-below.
+against the file system, which is the whole reason it is in the prompt. What
+keeps that exemption safe is **ordering**, not escaping — the target is the
+**last quoted run of every prompt**, so no frame text follows it and there is
+nothing after it left to forge. A checkout path may legitimately contain an
+apostrophe (`C:\Users\O'Brien\src`, `~/Bob's Projects`); such a path closes the
+quoted run early, but because the sentence ends there, the most it can do is
+make the displayed path read oddly — it cannot append a clause.
+
+That invariant used to hold for one prompt of three. `ApplyFixes` and
+`RenameSymbol` both named the target mid-sentence and finished
+"… and write the changes to disk?", and a **directory** name containing an
+apostrophe could forge that trailing clause the same way a crafted `symbol`
+once could. Both now put the scope statement behind the question mark and end on
+the path, which is the shape `EditMember` already had. The exposure was the
+operator's boundary rather than the caller's — it takes control of the directory
+the server is launched against, already trusted input per *No path-traversal
+sanitization* below — but closing it cost only a re-wording, so it is closed
+rather than carried as a caveat.
 
 **Naming the target is not the same as naming the scope**, and for `ApplyFixes`
 the two differ: it is a project-scoped tool whose resolved target may be a

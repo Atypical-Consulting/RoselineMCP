@@ -129,6 +129,21 @@ public sealed record WritePrompt
     /// </item>
     /// </list>
     /// <para>
+    /// One shape is common to all three and is <b>load-bearing rather than stylistic</b>:
+    /// <paramref name="target"/> is the <b>last quoted run of the sentence</b>. Each prompt asks its
+    /// question first and states its scope after, so nothing follows the path. That is what lets the
+    /// target stay verbatim (see <see cref="Sanitize"/>'s remarks): a checkout directory may
+    /// legitimately contain an apostrophe, which closes the quoted run early, and with the sentence
+    /// ending there it has no trailing clause left to forge.
+    /// <see cref="WriteScope.PrimaryProjectOf"/> and <see cref="WriteScope.WholeSolution"/> used to
+    /// name the target mid-sentence and end "… and write the changes to disk?", which made that
+    /// clause forgeable by a <em>directory</em> name the same way <c>symbol</c> once was (#173);
+    /// they were re-worded to <see cref="WriteScope.SingleFile"/>'s shape, and the re-wording moved
+    /// where each claim sits without changing what any of them claims. A fourth scope must keep the
+    /// property — <c>ElicitationTests.Every_Write_Prompt_Ends_On_Its_Target</c> is exhaustive over
+    /// the enum, so one that does not fails there rather than shipping.
+    /// </para>
+    /// <para>
     /// Every caller-supplied value goes through <see cref="Sanitize"/> on its way in;
     /// <paramref name="target"/> deliberately does not (see that method's remarks).
     /// </para>
@@ -221,17 +236,20 @@ public sealed record WritePrompt
     /// <c>File.Exists</c> on it), so it is rendered verbatim.
     /// </para>
     /// <para>
-    /// ⚠️ That leaves one residual, and it is worth stating precisely rather than papering over: a
-    /// checkout path may legitimately contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
-    /// <c>~/Bob's Projects</c> — and in the two sentences where frame text follows the target
-    /// (<see cref="WriteScope.PrimaryProjectOf"/> and <see cref="WriteScope.WholeSolution"/> both end
-    /// "… and write the changes to disk?") such a path unbalances the quoting and could forge that
-    /// trailing clause. Only <see cref="WriteScope.SingleFile"/> ends on the target. This is
-    /// **not** the caller's trust boundary — it takes control of the directory the server is pointed
-    /// at, i.e. the operator's own filesystem, which is why #161 scoped it out and why the wording is
-    /// not being reopened here (#149/#152/#154 settled it). An earlier draft of these remarks claimed
-    /// the target is always last so nothing can follow it; that was false for two prompts of three,
-    /// and a security note that is false is worse than no note.
+    /// Leaving it verbatim is safe because of where it sits, not because of what it contains: the
+    /// target is the <b>last quoted run of every sentence</b> (<see cref="Render"/>). A checkout path
+    /// may legitimately contain an apostrophe — <c>C:\Users\O'Brien\src</c>, <c>~/Bob's Projects</c> —
+    /// which closes the quoted run early; with nothing following it, the worst that does is render
+    /// the path oddly, and there is no trailing clause to forge.
+    /// </para>
+    /// <para>
+    /// That was not always true, and the history is the reason it is stated here rather than assumed.
+    /// <see cref="WriteScope.PrimaryProjectOf"/> and <see cref="WriteScope.WholeSolution"/> both used
+    /// to end "… and write the changes to disk?" <em>after</em> the target, which made that clause
+    /// forgeable by a <em>directory</em> name — the operator's filesystem reaching the same hole
+    /// #161a closed on the caller's side. #170 corrected the claim; #173 closed the hole, by
+    /// re-ordering the two sentences rather than by escaping the path, so that nothing had to be
+    /// traded away here.
     /// </para>
     /// </remarks>
     /// <summary>
