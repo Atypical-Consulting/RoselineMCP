@@ -1,11 +1,13 @@
+using System.Text.RegularExpressions;
+using RoselineMCP.Tests.Services;
 using Shouldly;
 
 namespace RoselineMCP.Tests.Configuration;
 
 /// <summary>
-/// Pins the membership of <see cref="ProcessEnvironmentCollection"/>: every test class that mutates
-/// the process environment through the scoped helpers must sit in that collection, which is the only
-/// thing stopping xunit from running them concurrently.
+/// Pins the membership of <see cref="ProcessEnvironmentCollection"/>: every test class in a file that
+/// mutates the process environment must sit in that collection, and that collection must still
+/// disable parallelization.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -16,7 +18,7 @@ namespace RoselineMCP.Tests.Configuration;
 /// <c>ROSELINE_</c> to <c>RoselineMCP:</c> namespace at once is what made
 /// <c>RoselineMcpOptionsBindingTests.An_Ambient_All_Caps_Export_Cannot_Change_What_These_Tests_See</c>
 /// go red once in four full runs (#189). Until this test existed the rule lived only in a remark, so
-/// a fourth class that started scoping the environment would have reintroduced the race in silence.
+/// a class that started scoping the environment would have reintroduced the race in silence.
 /// </para>
 /// <para>
 /// The scan reads <b>source text</b> rather than reflecting over types, because the hazard is
@@ -24,22 +26,40 @@ namespace RoselineMCP.Tests.Configuration;
 /// attribute; it cannot see that a method body opens an environment scope — the helpers are
 /// <c>internal</c> and the calls are ordinary statements that leave no trace in metadata.
 /// </para>
+/// <para>
+/// The rule is deliberately <b>per class, and whole-file</b>: once any code in a file mutates the
+/// environment, <i>every</i> class declared in that file must carry the attribute. Asserting once per
+/// file would be the hole this test exists to close — <c>ScopedEnvironmentVariableTests.cs</c> already
+/// declares two classes, so a third added without the attribute would inherit a green bar from its
+/// neighbours and get its own parallel collection anyway. Requiring it of every class is
+/// over-inclusive by design: it is trivially satisfied, and it needs no judgement about which class in
+/// a shared file owns the call.
+/// </para>
+/// <para>
+/// Known limitation, inherent to a source scan: the tree walked is whatever sits above
+/// <see cref="AppContext.BaseDirectory"/>, which under <c>--no-build</c> after a branch switch need
+/// not be the tree the running assembly was compiled from. The same limitation applies to
+/// <see cref="AnalyzerReferenceLoadTests.FindRepositoryRoot"/>, which this shares.
+/// </para>
 /// </remarks>
-public class ProcessEnvironmentCollectionTests
+public partial class ProcessEnvironmentCollectionTests
 {
     /// <summary>The helper's own file: it <i>defines</i> the calls below rather than making them.</summary>
-    private const string HelperFileName = "ScopedEnvironmentVariable.cs";
+    private const string HelperRelativePath = "Configuration/ScopedEnvironmentVariable.cs";
 
     /// <summary>This file: its needles would otherwise match themselves.</summary>
-    private const string ThisFileName = "ProcessEnvironmentCollectionTests.cs";
+    private const string ThisRelativePath = "Configuration/ProcessEnvironmentCollectionTests.cs";
 
-    private const string RequiredAttribute = "[Collection(ProcessEnvironmentCollection.Name)]";
-
-    /// <summary>Opening either scope is what makes a file an environment mutator.</summary>
-    private static readonly string[] EnvironmentScopeCalls =
+    /// <summary>
+    /// What makes a file an environment mutator. The raw framework call is listed alongside the two
+    /// helpers because it is the idiom the helpers replaced, and the first thing someone unaware of
+    /// them writes — it races identically and would otherwise be invisible to this scan.
+    /// </summary>
+    private static readonly string[] EnvironmentMutations =
     [
         "ScopedEnvironmentVariable.Set(",
         "ScopedEnvironmentNamespace.Clear(",
+        "Environment.SetEnvironmentVariable(",
     ];
 
     /// <summary>
@@ -49,90 +69,125 @@ public class ProcessEnvironmentCollectionTests
     /// </summary>
     private static readonly string[] KnownMutatorFiles =
     [
-        "RoselineMcpOptionsBindingTests.cs",
-        "GuardOptionsTests.cs",
-        "ScopedEnvironmentVariableTests.cs",
+        "Configuration/RoselineMcpOptionsBindingTests.cs",
+        "Configuration/GuardOptionsTests.cs",
+        "Configuration/ScopedEnvironmentVariableTests.cs",
     ];
+
+    /// <summary>A top-level class declaration, capturing its name.</summary>
+    [GeneratedRegex(@"^[ \t]*(?:(?:public|internal|sealed|abstract|static|partial)[ \t]+)*class[ \t]+(?<name>\w+)",
+        RegexOptions.Multiline)]
+    private static partial Regex ClassDeclaration();
+
+    /// <summary>
+    /// Membership in this collection, in any spelling xunit.v3 accepts — the string form this repo
+    /// uses, plus <c>CollectionAttribute&lt;T&gt;</c> and <c>CollectionAttribute(Type)</c>, which are
+    /// equally valid and would otherwise fail a caller for an attribute they already carry.
+    /// </summary>
+    [GeneratedRegex(@"\[\s*(?:Xunit\s*\.\s*)?Collection\s*(?:<\s*ProcessEnvironmentCollection\s*>\s*(?:\(\s*\))?|\(\s*(?:ProcessEnvironmentCollection\s*\.\s*Name|typeof\s*\(\s*ProcessEnvironmentCollection\s*\))\s*\))\s*\]")]
+    private static partial Regex CollectionMembership();
 
     [Fact]
     public void Every_Class_That_Scopes_The_Environment_Is_In_The_Sequential_Collection()
     {
-        var testProjectRoot = FindTestProjectRoot();
+        var root = AnalyzerReferenceLoadTests.FindRepositoryRoot();
+        var testProjectRoot = Path.Combine(root.FullName, "RoselineMCP.Tests");
+        Directory.Exists(testProjectRoot).ShouldBeTrue(
+            $"expected the test project's sources at {testProjectRoot}");
 
-        var sources = Directory
-            .EnumerateFiles(testProjectRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(path => !IsBuildOutput(testProjectRoot, path))
+        var sources = EnumerateSources(testProjectRoot)
+            .Select(path => (
+                Relative: Path.GetRelativePath(testProjectRoot, path).Replace('\\', '/'),
+                Text: File.ReadAllText(path)))
             .ToList();
 
         sources.ShouldNotBeEmpty($"expected C# sources under {testProjectRoot}");
 
-        // Both exclusions are named rather than pattern-matched, so renaming either file fails here
-        // instead of silently dropping a file from the scan or re-admitting one that matches itself.
-        foreach (var excluded in new[] { HelperFileName, ThisFileName })
+        // Both exclusions are named by full relative path, so a same-named file elsewhere in the tree
+        // is still scanned, and renaming either one fails here rather than silently covering nothing.
+        foreach (var excluded in new[] { HelperRelativePath, ThisRelativePath })
         {
             sources.ShouldContain(
-                path => Path.GetFileName(path) == excluded,
-                $"'{excluded}' is excluded from the scan by name — it must still exist, or the " +
+                file => file.Relative == excluded,
+                $"'{excluded}' is excluded from the scan by path — it must still exist, or the " +
                 "exclusion is silently covering nothing");
         }
 
         var mutators = sources
-            .Where(path => Path.GetFileName(path) != HelperFileName
-                && Path.GetFileName(path) != ThisFileName)
-            .Select(path => (Path: path, Text: File.ReadAllText(path)))
-            .Where(file => EnvironmentScopeCalls.Any(
+            .Where(file => file.Relative != HelperRelativePath && file.Relative != ThisRelativePath)
+            .Where(file => EnvironmentMutations.Any(
                 call => file.Text.Contains(call, StringComparison.Ordinal)))
             .ToList();
 
-        var mutatorNames = mutators.Select(file => Path.GetFileName(file.Path)).ToList();
-        mutatorNames.ShouldNotBeEmpty(
+        var mutatorPaths = mutators.Select(file => file.Relative).ToList();
+        mutatorPaths.ShouldNotBeEmpty(
             "the scan found no environment-mutating file at all — the needles no longer match " +
             "anything, so this test would pass vacuously");
 
         foreach (var known in KnownMutatorFiles)
         {
-            mutatorNames.ShouldContain(known, $"'{known}' mutates the process environment");
+            mutatorPaths.ShouldContain(known, $"'{known}' mutates the process environment");
         }
 
-        foreach (var (path, text) in mutators)
+        foreach (var (relative, text) in mutators)
         {
-            text.ShouldContain(
-                RequiredAttribute,
-                customMessage:
-                $"{Path.GetFileName(path)} opens a scoped environment mutation, so every test class " +
-                $"in it must carry {RequiredAttribute} — otherwise xunit runs it in parallel with " +
-                "the other mutators and their save/restore of process-global state can interleave");
+            var declarations = ClassDeclaration().Matches(text);
+            declarations.Count.ShouldBeGreaterThan(
+                0, $"{relative} mutates the environment but declares no class this test can check");
+
+            // Each class is judged on the text since the previous declaration — where its own
+            // attribute list sits. Checking the file as a whole is what would let a second class in
+            // an already-attributed file through.
+            var searchedFrom = 0;
+            foreach (Match declaration in declarations)
+            {
+                var preamble = text[searchedFrom..declaration.Index];
+                CollectionMembership().IsMatch(preamble).ShouldBeTrue(
+                    $"{relative} opens a scoped environment mutation, so its class " +
+                    $"'{declaration.Groups["name"].Value}' must carry " +
+                    $"[Collection({nameof(ProcessEnvironmentCollection)}.Name)] — otherwise xunit " +
+                    "runs it in parallel with the other mutators and their save/restore of " +
+                    "process-global state can interleave");
+
+                searchedFrom = declaration.Index + declaration.Length;
+            }
         }
     }
 
     /// <summary>
-    /// Walks up from the test output directory to the repository root (the directory holding
-    /// <c>RoselineMCP.sln</c>) and returns the test project's source directory — the same ascent
-    /// <c>AnalyzerReferenceLoadTests.FindRepositoryProject</c> makes.
+    /// Sharing a collection is only half the mechanism; without this flag the collection still runs
+    /// in parallel with every other collection, and <see cref="ScopedEnvironmentNamespace"/> needs
+    /// more than mutual exclusion between its own members — it deletes every variable under the
+    /// prefix and section for the duration of the scope, so nothing else may be reading them.
     /// </summary>
-    private static string FindTestProjectRoot()
+    [Fact]
+    public void The_Collection_Definition_Still_Disables_Parallelization()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "RoselineMCP.sln")))
-        {
-            dir = dir.Parent;
-        }
+        var definitions = typeof(ProcessEnvironmentCollection)
+            .GetCustomAttributes(typeof(CollectionDefinitionAttribute), inherit: false)
+            .Cast<CollectionDefinitionAttribute>()
+            .ToList();
 
-        dir.ShouldNotBeNull("RoselineMCP.sln must be an ancestor of the test output directory");
-        var testProjectRoot = Path.Combine(dir.FullName, "RoselineMCP.Tests");
-        Directory.Exists(testProjectRoot).ShouldBeTrue(
-            $"expected the test project's sources at {testProjectRoot}");
-        return testProjectRoot;
+        definitions.Count.ShouldBe(
+            1, $"{nameof(ProcessEnvironmentCollection)} must carry exactly one [CollectionDefinition]");
+        definitions[0].Name.ShouldBe(ProcessEnvironmentCollection.Name);
+        definitions[0].DisableParallelization.ShouldBeTrue(
+            "without it the collection still runs in parallel with every other collection, and a " +
+            "namespace-wide Clear is not safe against a concurrent reader");
     }
 
     /// <summary>
-    /// True for anything under <c>bin/</c> or <c>obj/</c> — build output and generated sources are
-    /// not the code whose collection membership is being pinned.
+    /// Every <c>.cs</c> file the test project actually owns. <c>bin</c>/<c>obj</c> are skipped at the
+    /// project root — where MSBuild is the only thing that writes them — rather than at any depth, so
+    /// a real source directory that happens to be called <c>bin</c> stays in the audit.
     /// </summary>
-    private static bool IsBuildOutput(string root, string path) =>
-        Path.GetRelativePath(root, path)
-            .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .Any(segment =>
-                segment.Equals("bin", StringComparison.OrdinalIgnoreCase)
-                || segment.Equals("obj", StringComparison.OrdinalIgnoreCase));
+    private static IEnumerable<string> EnumerateSources(string testProjectRoot) =>
+        Directory.EnumerateFiles(testProjectRoot, "*.cs", SearchOption.TopDirectoryOnly)
+            .Concat(Directory
+                .EnumerateDirectories(testProjectRoot)
+                .Where(directory => Path.GetFileName(directory) is var name
+                    && !name.Equals("bin", StringComparison.OrdinalIgnoreCase)
+                    && !name.Equals("obj", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(directory =>
+                    Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)));
 }

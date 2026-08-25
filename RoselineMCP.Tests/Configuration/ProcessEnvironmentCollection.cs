@@ -17,14 +17,23 @@ namespace RoselineMCP.Tests.Configuration;
 /// <c>RoselineMCP</c>, and neither belonged to a collection.
 /// </para>
 /// <para>
-/// Sharing a collection with <c>DisableParallelization</c> is the narrowest fix available: these
-/// classes stop running concurrently with <i>each other</i> (well under a second combined) while the
-/// rest of the suite keeps its parallelism. It is the same idiom
-/// <c>RoselineMCP.Tests.Protocol.McpProtocolCollection</c> already applies around a shared cache.
+/// Sharing a collection is what serializes these classes against <i>each other</i>;
+/// <c>DisableParallelization</c> goes further, and deliberately so — xunit documents it as
+/// "determines whether tests in this collection runs in parallel with <b>any other collections</b>",
+/// so the collection also overlaps nothing else in the suite. That breadth is the point:
+/// <see cref="ScopedEnvironmentNamespace"/> deletes <i>every</i> variable under a prefix and section
+/// for the duration of the scope, so mutual exclusion between its own members would not stop an
+/// unrelated parallel test from reading them while they are gone. The cost is bounded — these classes
+/// take well under a second combined — and the rest of the suite still runs in parallel with itself.
+/// It is the same idiom <c>RoselineMCP.Tests.Protocol.McpProtocolCollection</c> already applies
+/// around a shared cache.
 /// </para>
 /// <para>
 /// Membership is pinned by <see cref="ProcessEnvironmentCollectionTests"/>, so a class that starts
-/// scoping the environment outside this collection is a red bar rather than a new flake.
+/// scoping the environment outside this collection is a red bar rather than a new flake. The pin is
+/// a source scan for the two helpers and the raw <c>Environment.SetEnvironmentVariable</c> call they
+/// replaced, so it catches what is written at the call site — reaching the environment through some
+/// further indirection of one's own would still slip past it.
 /// </para>
 /// </remarks>
 [CollectionDefinition(Name, DisableParallelization = true)]

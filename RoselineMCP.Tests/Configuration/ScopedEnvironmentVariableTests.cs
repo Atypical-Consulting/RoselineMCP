@@ -7,6 +7,7 @@ namespace RoselineMCP.Tests.Configuration;
 /// returned to the value the scope found, not unconditionally cleared.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The keys below carry no <c>ROSELINE_</c> prefix at all, which is the strongest form of the rule
 /// this file follows: <b>a class that mutates process-wide environment state must pick names no
 /// other collection touches.</b> <see cref="RoselineMcpOptionsBindingTests"/> both ingests every
@@ -20,6 +21,7 @@ namespace RoselineMCP.Tests.Configuration;
 /// Disjoint names are a first line, not the guarantee: because these classes mutate process-global
 /// state at all, they share <see cref="ProcessEnvironmentCollection"/> and so never run concurrently
 /// with one another (#189).
+/// </para>
 /// </remarks>
 [Collection(ProcessEnvironmentCollection.Name)]
 public class ScopedEnvironmentVariableTests
