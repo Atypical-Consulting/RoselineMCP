@@ -67,8 +67,9 @@ internal static class AdhocProjectBuilder
     /// unless listed in <paramref name="projectReferences"/> (From → To by project name), so tests
     /// can model a sibling project the anchor cannot see through references. When
     /// <paramref name="solutionFileName"/> is given, the solution gets a <c>FilePath</c> under
-    /// <paramref name="baseDirectory"/> — mirroring an MSBuild-loaded <c>.sln</c> — so tests can
-    /// assert solution-root-relative output paths.
+    /// <paramref name="baseDirectory"/> — mirroring an MSBuild-loaded <c>.sln</c> — so a handle
+    /// built over it reports that <c>.sln</c> as <c>resolvedPath</c> and tests can assert
+    /// solution-root-relative output paths.
     /// </summary>
     public static (AdhocWorkspace Workspace, Project Anchor) CreateSolution(
         (string ProjectName, (string Name, string Code)[] Files)[] projects,
@@ -157,7 +158,10 @@ internal static class AdhocProjectBuilder
             }
         }
 
-        // Only Main is listed — that is the whole point of the layout.
+        // Only Main is listed. Nothing here parses this file — CreateSolution below adds both
+        // projects to the workspace unconditionally, and the fidelity that matters comes from the
+        // caller passing `resolvedPath: scratchCsproj` to FakeLoaderFor. It is written so the
+        // directory on disk matches the layout the tests describe.
         File.WriteAllText(
             Path.Combine(baseDirectory, "Repo.sln"),
             """

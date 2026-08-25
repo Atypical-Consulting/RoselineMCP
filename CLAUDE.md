@@ -265,14 +265,24 @@ its nearest ancestor `.sln`). Pass an absolute path as `project` to target a
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
 
-**Relative paths hang off `resolvedPath`.** Every `file`/`definitionFile`/`changedFiles` entry in a
-response is relativized against the directory of *that same response's* `resolvedPath`
-(`LoadedProject.BaseDirectory`, the one authoritative anchor — the three services used to each
-re-derive `Solution.FilePath ?? Project.FilePath` and so disagreed with it, #181). Concretely: the
-solution's directory when the `.sln` answered, the project's own directory when the `.csproj` did —
-including a project absent from its nearest ancestor `.sln`. So
-`Path.GetDirectoryName(resolvedPath)` joined with any returned path is a real file on disk, which is
-what makes the field usable rather than merely informative.
+**Relative paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`, and
+`ApplyFixes`/`EditMember`/`RenameSymbol`'s `changedFiles` **and unified-diff headers**, are
+relativized against the directory of *that same response's* `resolvedPath` —
+`LoadedProject.BaseDirectory`, the one authoritative anchor. The three services used to each
+re-derive `Solution.FilePath ?? Project.FilePath`, which stopped agreeing with `resolvedPath` once
+#151 fixed it (#181). Concretely: the solution's directory when the `.sln` answered, the project's
+own when the `.csproj` did — including a project absent from its nearest ancestor `.sln`. So
+`Path.GetDirectoryName(resolvedPath)` joined with such a path is a real file on disk, and a returned
+`patch` applies from that directory rather than from the repo root.
+
+⚠️ **Two things this does *not* cover**, so don't state the rule more widely than it holds:
+`ListDiagnostics`/`AnalyzeSolution` report `file` as an **absolute** path (`DiagnosticDetail.File =
+location.Path`), and `verification.errors[]`/`CheckCompilation`'s `errors[]` are still anchored by
+`VerificationService.BaseDirectoryOf(Solution)` on the loaded solution — which diverges from
+`resolvedPath` in exactly the unlisted-`.csproj` case. Closing the latter means threading the anchor
+through `IVerificationService.VerifyAsync` from its five callers; it is deliberate follow-up work,
+not an oversight.
+
 
 That remedy covers **failures too**, and they are the common shape of this mistake: querying the
 wrong checkout usually produces `NotFoundError: Symbol not found: 'X'`, not a wrong-but-successful

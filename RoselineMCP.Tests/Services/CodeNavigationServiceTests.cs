@@ -643,6 +643,51 @@ public class CodeNavigationServiceTests
     }
 
     /// <summary>
+    /// The other half of the unlisted-project case, stated rather than left to be discovered: the
+    /// grafted solution still contains <c>Main</c>, and symbol search deliberately spans it, but the
+    /// anchor is now <c>Scratch/</c> — so a sibling-project hit relativizes to something starting
+    /// <c>..</c>, which <see cref="SymbolResolver.Relativize"/> refuses and returns absolute instead.
+    /// One response can therefore mix a relative path with an absolute one. Both still satisfy the
+    /// <c>resolvedPath</c> contract (joining an absolute path with any base yields itself), and the
+    /// alternative — teaching <c>Relativize</c> to emit <c>../</c> paths — changes every tool's
+    /// output shape and is out of scope here. Pinned so the trade-off is a decision, not a surprise.
+    /// </summary>
+    [Fact]
+    public async Task SearchSymbols_Falls_Back_To_Absolute_For_A_Sibling_Project_When_Anchored_On_The_Csproj()
+    {
+        var baseDirectory = FreshBaseDir();
+        Directory.CreateDirectory(baseDirectory);
+
+        try
+        {
+            var (workspace, scratch, scratchCsproj) = AdhocProjectBuilder.CreateUnlistedProjectSolutionOnDisk(
+                baseDirectory,
+                [("MainWidget.cs", "namespace MainNs { public class MainWidget { } }")],
+                [("ScratchWidget.cs", "namespace ScratchNs { public class ScratchWidget { } }")]);
+            var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, scratch, scratchCsproj);
+            var service = new CodeNavigationService(A.Fake<ILogger<CodeNavigationService>>(), loader);
+
+            var response = await service.SearchSymbolsAsync(
+                scratchCsproj, "*Widget", null, null, 50, CancellationToken.None);
+
+            var files = response.Symbols.ToDictionary(s => s.Name, s => s.File);
+            files["ScratchWidget"].ShouldBe("ScratchWidget.cs");
+            files["MainWidget"].ShouldBe(
+                Path.Combine(baseDirectory, "Main", "MainWidget.cs").Replace('\\', '/'));
+
+            // Whichever form it takes, joining it with resolvedPath's directory reaches the file.
+            foreach (var file in files.Values)
+            {
+                File.Exists(Path.Combine(Path.GetDirectoryName(response.ResolvedPath)!, file)).ShouldBeTrue(file);
+            }
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Companion to the regression above: the common "project listed in its solution" case keeps
     /// reporting solution-root-relative paths — the anchor is unchanged there, because
     /// <c>resolvedPath</c> is the <c>.sln</c> itself.

@@ -126,7 +126,7 @@ public class CodeEditService : ICodeEditService
             var newSourceText = await newDocument.GetTextAsync(cancellationToken);
             var newText = newSourceText.ToString();
 
-            var relativePath = RelativePath(loaded, filePath);
+            var relativePath = RelativePath(loaded.BaseDirectory, filePath);
             var response = new EditMemberResponse
             {
                 Project = loaded.Project.Name,
@@ -336,6 +336,10 @@ public class CodeEditService : ICodeEditService
             var filesToWrite = new List<(string Path, SourceText Text)>();
             var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // Hoisted: BaseDirectory recomputes GetDirectoryName(ResolvedPath) on every read, and a
+            // solution-wide rename walks every changed document.
+            var baseDirectory = loaded.BaseDirectory;
+
             foreach (var projectChange in newSolution.GetChanges(originalSolution).GetProjectChanges())
             {
                 foreach (var documentId in projectChange.GetChangedDocuments())
@@ -357,7 +361,7 @@ public class CodeEditService : ICodeEditService
                         continue;
                     }
 
-                    var relativePath = RelativePath(loaded, oldDocument.FilePath);
+                    var relativePath = RelativePath(baseDirectory, oldDocument.FilePath);
                     var diff = _diffService.GenerateUnifiedDiff(oldText, newText, $"a/{relativePath}", $"b/{relativePath}");
                     if (string.IsNullOrWhiteSpace(diff))
                     {
@@ -429,6 +433,6 @@ public class CodeEditService : ICodeEditService
     /// rule the navigation tools and <c>ApplyFixes</c> use, so a given file has one canonical path
     /// across every tool's output.
     /// </summary>
-    private static string RelativePath(LoadedProject loaded, string filePath)
-        => SymbolResolver.Relativize(filePath, loaded.BaseDirectory) ?? filePath;
+    private static string RelativePath(string? baseDirectory, string filePath)
+        => SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
 }

@@ -31,17 +31,6 @@ public class CodeNavigationService : ICodeNavigationService
         _projectLoader = projectLoader;
     }
 
-    /// <summary>
-    /// Root the emitted file paths at, so navigation output is workspace-portable and doesn't repeat
-    /// the absolute prefix on every result. Always the directory of
-    /// <see cref="LoadedProject.ResolvedPath"/> — the file that actually answered — so a caller can
-    /// combine <c>Path.GetDirectoryName(resolvedPath)</c> with a returned path and land on the real
-    /// file. Usually the solution directory (covering cross-project references); the project's own
-    /// directory when no <c>.sln</c> answered, including the <c>.csproj</c> that its nearest
-    /// ancestor <c>.sln</c> doesn't list (#181).
-    /// </summary>
-    private static string? BaseDirOf(LoadedProject loaded) => loaded.BaseDirectory;
-
     /// <summary>Rewrites each summary's <see cref="SymbolSummary.File"/> to <paramref name="baseDir"/>-relative.</summary>
     private static void RelativizePaths(IEnumerable<SymbolSummary>? summaries, string? baseDir)
     {
@@ -108,7 +97,7 @@ public class CodeNavigationService : ICodeNavigationService
             // full summary (file + fully-qualified name).
             Func<ISymbol, SymbolSummary> toSummary = file != null ? LeanOutlineSummary : SymbolResolver.ToSummary;
             var capped = ordered.Take(Math.Max(1, max)).Select(toSummary).ToList();
-            RelativizePaths(capped, BaseDirOf(loaded));
+            RelativizePaths(capped, loaded.BaseDirectory);
 
             return new SymbolSearchResponse
             {
@@ -238,7 +227,7 @@ public class CodeNavigationService : ICodeNavigationService
                 Modifiers = modifiers.Count > 0 ? modifiers : null,
                 Signature = resolved.ToDisplayString(SymbolResolver.SignatureFormat),
                 Documentation = ExtractSummary(resolved.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
-                DefinitionFile = SymbolResolver.Relativize(file, BaseDirOf(loaded)),
+                DefinitionFile = SymbolResolver.Relativize(file, loaded.BaseDirectory),
                 DefinitionLine = line
             };
 
@@ -354,7 +343,7 @@ public class CodeNavigationService : ICodeNavigationService
                 ContainingType = symbol.ContainingType?.Name,
                 IsDeclaration = IsDeclaredOnLine(symbol, document, line),
                 Documentation = ExtractSummary(symbol.GetDocumentationCommentXml(cancellationToken: cancellationToken)),
-                DefinitionFile = SymbolResolver.Relativize(definitionFile, BaseDirOf(loaded)),
+                DefinitionFile = SymbolResolver.Relativize(definitionFile, loaded.BaseDirectory),
                 DefinitionLine = definitionLine
             };
         }
@@ -505,7 +494,7 @@ public class CodeNavigationService : ICodeNavigationService
                 .ToList();
 
             var capped = ordered.Take(Math.Max(1, max)).ToList();
-            RelativizePaths(capped, BaseDirOf(loaded));
+            RelativizePaths(capped, loaded.BaseDirectory);
 
             return new ReferencesResponse
             {
@@ -593,7 +582,7 @@ public class CodeNavigationService : ICodeNavigationService
                 .ToList();
 
             var capped = ordered.Take(Math.Max(1, max)).Select(SymbolResolver.ToSummary).ToList();
-            RelativizePaths(capped, BaseDirOf(loaded));
+            RelativizePaths(capped, loaded.BaseDirectory);
 
             return new ImplementationsResponse
             {
@@ -664,7 +653,7 @@ public class CodeNavigationService : ICodeNavigationService
                     new HashSet<string> { response.FullName }, budget, cancellationToken);
             }
 
-            var baseDir = BaseDirOf(loaded);
+            var baseDir = loaded.BaseDirectory;
             RelativizePaths(response.Callers, baseDir);
             RelativizePaths(response.Callees, baseDir);
 
@@ -867,7 +856,7 @@ public class CodeNavigationService : ICodeNavigationService
                 response.DerivedTypesTruncated = orderedDerived.Count > cappedDerived.Count;
             }
 
-            var baseDir = BaseDirOf(loaded);
+            var baseDir = loaded.BaseDirectory;
             RelativizePaths(response.BaseTypes, baseDir);
             RelativizePaths(response.Interfaces, baseDir);
             RelativizePaths(response.DerivedTypes, baseDir);

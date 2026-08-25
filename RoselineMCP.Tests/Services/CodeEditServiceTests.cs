@@ -219,10 +219,11 @@ public class CodeEditServiceTests
     }
 
     /// <summary>
-    /// Emitted paths are solution-root-relative with forward slashes — the same base the
-    /// navigation tools and ApplyFixes use — so the same file has one canonical path across every
-    /// tool's output. Pinned against a multi-project solution whose FilePath is set (mirroring an
-    /// MSBuild-loaded .sln).
+    /// Emitted paths use the same base the navigation tools and ApplyFixes use — the directory of
+    /// <c>resolvedPath</c> — so the same file has one canonical path across every tool's output.
+    /// Pinned against a multi-project solution whose FilePath is set (mirroring an MSBuild-loaded
+    /// .sln), where that base is the solution root; the <c>.csproj</c>-answered case is pinned by
+    /// the #181 tests at the end of this file.
     /// </summary>
     [Fact]
     public async Task RenameSymbol_Paths_Are_Solution_Root_Relative_In_Multi_Project_Solution()
