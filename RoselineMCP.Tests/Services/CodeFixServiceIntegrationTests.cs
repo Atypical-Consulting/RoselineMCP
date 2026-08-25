@@ -787,4 +787,61 @@ public class CodeFixServiceIntegrationTests : IDisposable
             fileB.ShouldContain("System.Console.WriteLine(\"b\");");
         }
     }
+
+    /// <summary>
+    /// <c>changedFiles</c> and <c>resolvedPath</c> must be anchored to the same directory, so a
+    /// caller can combine <c>Path.GetDirectoryName(resolvedPath)</c> with a returned entry and land
+    /// on the real file — the documented purpose of <c>resolvedPath</c>. They diverged for a
+    /// <c>.csproj</c> not listed in its nearest ancestor <c>.sln</c> (#181): #151 made
+    /// <c>resolvedPath</c> report the <c>.csproj</c>, while <c>ApplyFixes</c> still relativized
+    /// against <c>Solution.FilePath</c> — the <c>.sln</c> Roslyn grafted the project onto.
+    /// </summary>
+    public class ResolvedPathAnchorTests : CodeFixServiceIntegrationTests
+    {
+        private const string OneUnusedLocal =
+            """
+            class Program
+            {
+                static void Main()
+                {
+                    int unused = 1;
+                    System.Console.WriteLine("hi");
+                }
+            }
+            """;
+
+        [Fact]
+        public async Task ChangedFiles_Hang_Off_ResolvedPath_When_Project_Is_Not_In_The_Sln()
+        {
+            CreateProject("Main.csproj", ("MainProgram.cs", "class MainProgram { static void Main() { } }"));
+            var scratchCsproj = CreateProject("Scratch.csproj", ("Program.cs", OneUnusedLocal));
+            CreateSolutionFile("Repo.sln", "Main"); // Scratch is on disk but deliberately NOT listed.
+
+            var result = await _sut.ApplyFixesAsync(scratchCsproj, ["CS0219"], previewOnly: true);
+
+            result.ResolvedPath.ShouldBe(scratchCsproj);
+            result.ChangedFiles.ShouldBe(["Program.cs"]);
+
+            var reconstructed = Path.Combine(Path.GetDirectoryName(result.ResolvedPath)!, result.ChangedFiles[0]);
+            File.Exists(reconstructed).ShouldBeTrue(
+                $"'{reconstructed}' should be the real file on disk, but resolvedPath and the "
+                + "changedFiles anchor disagree");
+        }
+
+        /// <summary>
+        /// Companion: the common "project listed in its solution" case is untouched — the solution
+        /// answered, so <c>changedFiles</c> stays solution-root-relative.
+        /// </summary>
+        [Fact]
+        public async Task ChangedFiles_Stay_Solution_Root_Relative_When_The_Sln_Answered()
+        {
+            var listedCsproj = CreateProject("Listed.csproj", ("Program.cs", OneUnusedLocal));
+            var slnPath = CreateSolutionFile("Repo.sln", "Listed");
+
+            var result = await _sut.ApplyFixesAsync(listedCsproj, ["CS0219"], previewOnly: true);
+
+            result.ResolvedPath.ShouldBe(slnPath);
+            result.ChangedFiles.ShouldBe(["Listed/Program.cs"]);
+        }
+    }
 }
