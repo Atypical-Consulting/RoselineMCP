@@ -8,7 +8,25 @@ const m = data.metadata;
 const hd = data.headline;
 const fmt = (n: number) => n.toLocaleString('en-US');
 const pct = (v: number | null) => (v === null ? '—' : `${v >= 0 ? '' : '−'}${Math.round(Math.abs(v) * 100)}%`);
+// Same rounding rule as pct(), just with an explicit '+' for non-negative values — the outline
+// prose below writes "+94%" rather than "94%", but must not invent a second rounding rule to do it.
+const pctPlus = (v: number) => (v >= 0 ? '+' : '') + pct(v);
 const saved = hd.totalBaselineTokens - hd.totalToolTokens;
+
+// The three per-file outline figures and the outline suite's own median, looked up from the same
+// JSON the chart reads — so these can never drift from the data the way hand-restated figures did.
+// `/Services/CodeFixService.cs` must stay a full relative suffix: a bare `.endsWith('CodeFixService.cs')`
+// also matches `Interfaces/ICodeFixService.cs`, a different row with a different figure.
+const outlineSuite = data.suites.find((s) => s.id === 'outline')!;
+const outlineRow = (suffix: string) => outlineSuite.rows.find((r) => r.target.endsWith(suffix))!.savingsVsWholeFilePct;
+const programCsSavings = outlineRow('/Program.cs');
+const codeFixServiceSavings = outlineRow('/Services/CodeFixService.cs');
+const diagnosticFilterSavings = outlineRow('/IDiagnosticFilterService.cs');
+const outlineMedian = outlineSuite.aggregate.medianSavingsVsWholeFile;
+const inkClass = (v: number) => (v >= 0 ? 'save-ink' : 'cost-ink');
+// NOTE: the "median went from X to Y" sentence below is a historical before/after about a fix to
+// the outline projection. The "before" figure (−45%) is a fact about a past run, not derivable
+// from the current JSON — leave it as a hand-written literal. Only the "after" half is `outlineMedian`.
 
 const label: Record<string, string> = {
   outline: 'File outline', 'symbol-info': 'Symbol info (metadata)',
@@ -63,12 +81,13 @@ const reproduce = 'git clone https://github.com/Atypical-Consulting/RoselineMCP\
         <p>The first run of this benchmark caught <code>search_symbols</code> outline <em>costing</em>
           tokens: it repeated the file path and fully-qualified name on every symbol. That was fixed —
           the outline now returns a lean projection, and the median went from <span class="cost-ink">−45%</span>
-          to <span class="save-ink">+30%</span>.</p>
+          to <span class={inkClass(outlineMedian)}>{pctPlus(outlineMedian)}</span>.</p>
         <p style="margin-bottom:0">What remains is a limit, not a bug. Outline wins big on body-heavy
-          files (<code>Program.cs</code> <span class="save-ink">+89%</span>, <code>CodeFixService.cs</code>
-          <span class="save-ink">+76%</span>) but only breaks even on declaration-only files
-          (<code>IDiagnosticFilterService.cs</code> <span class="cost-ink">−92%</span>) — an interface
-          <em>is</em> already just signatures. Read those directly; outline the big ones.</p>
+          files (<code>Program.cs</code> <span class={inkClass(programCsSavings)}>{pctPlus(programCsSavings)}</span>, <code>CodeFixService.cs</code>
+          <span class={inkClass(codeFixServiceSavings)}>{pctPlus(codeFixServiceSavings)}</span>) but still costs tokens on declaration-only
+          files (<code>IDiagnosticFilterService.cs</code> <span class={inkClass(diagnosticFilterSavings)}>{pctPlus(diagnosticFilterSavings)}</span>) —
+          an interface <em>is</em> already just signatures, so the outline projection adds overhead instead of removing it.
+          Read those directly; outline the big ones.</p>
       </div>
     </div>
   </section>

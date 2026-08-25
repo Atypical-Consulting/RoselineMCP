@@ -132,53 +132,15 @@ public class MedianFigureContractTests
         AssertClaim("website/og-card.html", "<div class=\"stat\">{median}<span class=\"pct\">%</span></div>", 1);
     }
 
-    /// <summary>
-    /// Pins the per-file outline savings and the outline suite's own median in
-    /// <c>benchmark.astro</c>'s "where the file outline wins - and where it can't" callout, which
-    /// names <c>Program.cs</c>, <c>CodeFixService.cs</c> and <c>IDiagnosticFilterService.cs</c> and
-    /// restates each one's saving by hand. These four figures come from the <c>outline</c> suite's
-    /// own rows and aggregate in <see cref="BenchmarkDataPath"/> - not from
-    /// <c>headline.medianSavingsReadTools</c> - so a re-measurement can move them independently of
-    /// the headline median every other test in this class pins, and nothing else here would catch
-    /// them drifting.
-    /// </summary>
-    [Fact]
-    public void Benchmark_Page_Should_State_The_Generated_Outline_Figures()
-    {
-        var figures = CurrentFigures.Value;
-        const string relativePath = "website/src/pages/benchmark.astro";
-
-        // benchmark.astro's own pct() helper signs the magnitude explicitly - ASCII '+' or the
-        // U+2212 MINUS SIGN used throughout this class - and never emits a bare number, so each
-        // claim below fixes the sign as a template literal and sweeps only the two-digit magnitude.
-        AssertClaim(
-            relativePath,
-            "to <span class=\"save-ink\">+{value}%</span>.</p>",
-            "{value}",
-            figures.OutlineMedianSavingsPercent,
-            1);
-
-        AssertClaim(
-            relativePath,
-            "<code>Program.cs</code> <span class=\"save-ink\">+{value}%</span>",
-            "{value}",
-            figures.ProgramCs.SavingsPercent,
-            1);
-
-        AssertClaim(
-            relativePath,
-            "<code>CodeFixService.cs</code> <span class=\"save-ink\">+{value}%</span>",
-            "{value}",
-            figures.CodeFixService.SavingsPercent,
-            1);
-
-        AssertClaim(
-            relativePath,
-            "<code>IDiagnosticFilterService.cs</code> <span class=\"cost-ink\">−{value}%</span>",
-            "{value}",
-            Math.Abs(figures.DiagnosticFilterService.SavingsPercent),
-            1);
-    }
+    // Benchmark_Page_Should_State_The_Generated_Outline_Figures used to live here, pinning
+    // benchmark.astro's per-file outline savings (Program.cs, CodeFixService.cs,
+    // IDiagnosticFilterService.cs) and the outline suite's own median. It was removed when
+    // benchmark.astro stopped restating those four figures by hand and started computing them
+    // directly from website/src/data/benchmark-results.json (the same file this class reads) - at
+    // that point pinning the rendered text only tests that Astro can evaluate a lookup, not that the
+    // content is correct, and the JSON-vs-page drift this class exists to catch became impossible by
+    // construction. If a future change reintroduces a hand-written figure in benchmark.astro, add a
+    // test back rather than assuming this comment still applies.
 
     /// <summary>
     /// Pins the home page's "rose-line transform" showcase - the <c>Program.cs</c> before/after that
@@ -228,7 +190,7 @@ public class MedianFigureContractTests
     /// <c>outline</c> row's <c>savingsVsWholeFilePct</c> is a <i>positive</i> saving (0.9427). Read
     /// the sign off the surface being pinned, not off the JSON - that asymmetry is the easiest thing
     /// to get subtly wrong here, which is why it is called out rather than folded silently into a
-    /// shared formatter with <see cref="Benchmark_Page_Should_State_The_Generated_Outline_Figures"/>.
+    /// shared formatter with <see cref="Index_Page_Should_State_The_Generated_ProgramCs_Transform"/>.
     /// </summary>
     [Fact]
     public void Readme_Should_State_The_Generated_ProgramCs_PullQuote()
@@ -340,13 +302,18 @@ public class MedianFigureContractTests
     });
 
     /// <summary>
-    /// The per-file outline savings and the outline suite's own median, pinned by
-    /// <see cref="Benchmark_Page_Should_State_The_Generated_Outline_Figures"/>,
+    /// The <c>Program.cs</c> outline row, pinned by
     /// <see cref="Index_Page_Should_State_The_Generated_ProgramCs_Transform"/> and
     /// <see cref="Readme_Should_State_The_Generated_ProgramCs_PullQuote"/>. Extracted once, like
     /// <see cref="CurrentMedianPercent"/> above and for the same reason - a second, independent
     /// <c>Lazy&lt;&gt;</c> rather than folding into it, so a fact that only needs the median does not
     /// pay for resolving suite rows it never reads.
+    /// <para>
+    /// <see cref="BenchmarkFigures"/> used to carry the <c>CodeFixService.cs</c> and
+    /// <c>IDiagnosticFilterService.cs</c> rows too, plus the outline suite's own median - all three
+    /// were dropped along with <c>Benchmark_Page_Should_State_The_Generated_Outline_Figures</c> (see
+    /// the comment above where that test used to be) once nothing in this class read them any more.
+    /// </para>
     /// </summary>
     private static readonly Lazy<BenchmarkFigures> CurrentFigures = new(() =>
     {
@@ -355,22 +322,14 @@ public class MedianFigureContractTests
         var outline = ResolveSuite(document, "outline");
 
         return new BenchmarkFigures(
-            ProgramCs: ResolveSuiteRow(outline, "RoselineMCP/Program.cs"),
-            CodeFixService: ResolveSuiteRow(outline, "/Services/CodeFixService.cs"),
-            DiagnosticFilterService: ResolveSuiteRow(outline, "RoselineMCP/Interfaces/IDiagnosticFilterService.cs"),
-            OutlineMedianSavingsPercent: SiteRoundPercent(outline.GetProperty("aggregate").GetProperty("medianSavingsVsWholeFile").GetDouble()));
+            ProgramCs: ResolveSuiteRow(outline, "RoselineMCP/Program.cs"));
     });
 
     /// <summary>
-    /// What <see cref="CurrentFigures"/> extracts from the <c>outline</c> suite: one named row each
-    /// for <c>Program.cs</c>, <c>CodeFixService.cs</c> and <c>IDiagnosticFilterService.cs</c>, plus
-    /// the suite's own median saving.
+    /// What <see cref="CurrentFigures"/> extracts from the <c>outline</c> suite: the
+    /// <c>Program.cs</c> row.
     /// </summary>
-    private sealed record BenchmarkFigures(
-        SuiteRowFigure ProgramCs,
-        SuiteRowFigure CodeFixService,
-        SuiteRowFigure DiagnosticFilterService,
-        int OutlineMedianSavingsPercent);
+    private sealed record BenchmarkFigures(SuiteRowFigure ProgramCs);
 
     /// <summary>
     /// One <c>rows[]</c> entry's saving (site-rounded, signed) and both token counts - what
@@ -390,12 +349,12 @@ public class MedianFigureContractTests
     /// <summary>
     /// Resolves the one row in <paramref name="suite"/> whose <c>target</c> ends with
     /// <paramref name="targetSuffix"/>, and fails loudly rather than silently picking a wrong match
-    /// if more than one does. That guard is not theoretical here:
-    /// <c>RoselineMCP/Interfaces/ICodeFixService.cs</c> also ends with the literal string
-    /// <c>CodeFixService.cs</c>, so a naive <c>EndsWith("CodeFixService.cs")</c> lookup would match
-    /// it too and could silently resolve to the wrong row depending on array order.
-    /// <see cref="CurrentFigures"/> avoids that by passing the longer, unambiguous suffix
-    /// <c>"/Services/CodeFixService.cs"</c> - this check exists so a future caller who does not is
+    /// if more than one does. That guard is not theoretical: in the <c>outline</c> suite,
+    /// <c>RoselineMCP/Interfaces/ICodeFixService.cs</c> ends with the literal string
+    /// <c>CodeFixService.cs</c>, so a naive <c>EndsWith("CodeFixService.cs")</c> lookup for the
+    /// <i>other</i> <c>CodeFixService.cs</c> row would match it too and could silently resolve to the
+    /// wrong row depending on array order - a caller must pass a suffix long enough to be unambiguous
+    /// (e.g. <c>"/Services/CodeFixService.cs"</c>), and this check exists so a caller who does not is
     /// told loudly instead of getting a plausible-looking wrong figure.
     /// </summary>
     private static SuiteRowFigure ResolveSuiteRow(JsonElement suite, string targetSuffix)
