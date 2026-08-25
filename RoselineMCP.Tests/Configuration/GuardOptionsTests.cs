@@ -16,6 +16,7 @@ namespace RoselineMCP.Tests.Configuration;
 /// typo in the key green forever. <c>Guard</c> matters more than most: it is default-off, so a key
 /// an operator cannot reach means a feature that can never be turned on.
 /// </remarks>
+[Collection(ProcessEnvironmentCollection.Name)]
 public class GuardOptionsTests
 {
     private static RoselineMcpOptions Bind(Action<IConfigurationBuilder> configure)
