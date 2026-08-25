@@ -58,6 +58,7 @@ public class VerificationService : IVerificationService, IDisposable
     public async Task<VerificationVerdict> VerifyAsync(
         Solution? baseline,
         Solution candidate,
+        string? baseDirectory,
         int max = 20,
         CancellationToken cancellationToken = default)
     {
@@ -107,7 +108,7 @@ public class VerificationService : IVerificationService, IDisposable
             Notes = notes.Count > 0 ? notes : null
         };
 
-        var candidateErrors = await CollectErrorsAsync(candidate, scope, cancellationToken);
+        var candidateErrors = await CollectErrorsAsync(candidate, scope, baseDirectory, cancellationToken);
         verdict.Compiles = candidateErrors.Count == 0;
 
         if (baseline is null)
@@ -117,7 +118,7 @@ public class VerificationService : IVerificationService, IDisposable
             return verdict;
         }
 
-        var baselineErrors = await CollectErrorsAsync(baseline, scope, cancellationToken);
+        var baselineErrors = await CollectErrorsAsync(baseline, scope, baseDirectory, cancellationToken);
         var (introduced, resolved) = Delta(baselineErrors, candidateErrors);
 
         verdict.Introduced = Truncate(introduced, max, out var introducedOmitted);
@@ -263,14 +264,23 @@ public class VerificationService : IVerificationService, IDisposable
 
     /// <summary>
     /// Compiles every project in scope and projects its compiler <b>errors</b> (warnings are not a
-    /// build gate) into the wire model.
+    /// build gate) into the wire model, anchored on <paramref name="baseDirectory"/>.
     /// </summary>
+    /// <remarks>
+    /// Relativization happens <b>here</b>, on the way out of the cache rather than on the way in.
+    /// The cache is keyed on the project's path and versions, not on the anchor — deliberately, so
+    /// one warm workspace serves a <c>.sln</c>-anchored call and a <c>.csproj</c>-anchored one from
+    /// the same entry — and that is only sound while the cached values are anchor-independent.
+    /// Caching an already-relativized path would hand the second caller the first caller's anchor,
+    /// making #199 intermittent instead of fixing it. Adding the anchor to the key would fix it too,
+    /// at the cost of one extra compilation per distinct anchor; this way costs a list copy.
+    /// </remarks>
     private async Task<List<DiagnosticDetail>> CollectErrorsAsync(
         Solution solution,
         IReadOnlyList<ProjectId> scope,
+        string? baseDirectory,
         CancellationToken cancellationToken)
     {
-        var baseDirectory = BaseDirectoryOf(solution);
         var errors = new List<DiagnosticDetail>();
 
         foreach (var projectId in scope)
@@ -283,20 +293,46 @@ public class VerificationService : IVerificationService, IDisposable
                 continue;
             }
 
-            errors.AddRange(await ErrorsForProjectAsync(project, baseDirectory, cancellationToken));
+            var cached = await ErrorsForProjectAsync(project, cancellationToken);
+            foreach (var detail in cached)
+            {
+                errors.Add(Anchor(detail, baseDirectory));
+            }
         }
 
         return errors;
     }
 
     /// <summary>
+    /// A copy of <paramref name="detail"/> whose <see cref="DiagnosticDetail.File"/> hangs off
+    /// <paramref name="baseDirectory"/>. Always a copy: the original belongs to a cache entry that
+    /// other callers — with other anchors — will read again.
+    /// </summary>
+    private static DiagnosticDetail Anchor(DiagnosticDetail detail, string? baseDirectory) =>
+        new()
+        {
+            Project = detail.Project,
+            File = string.IsNullOrEmpty(detail.File)
+                ? string.Empty
+                : SymbolResolver.Relativize(detail.File, baseDirectory) ?? detail.File,
+            Line = detail.Line,
+            Column = detail.Column,
+            Id = detail.Id,
+            Severity = detail.Severity,
+            Message = detail.Message
+        };
+
+    /// <summary>
     /// One project's errors, served from the cache when this exact project state has already been
     /// compiled. The default <c>previewOnly</c> flow verifies the same baseline over and over while
     /// the candidate changes, so this is what turns two compilations per edit into one.
+    /// <para>
+    /// Paths here are <b>absolute</b> — anchor-independent, so an entry stays servable to callers
+    /// with different anchors. <see cref="CollectErrorsAsync"/> relativizes on the way out.
+    /// </para>
     /// </summary>
     private async Task<IReadOnlyList<DiagnosticDetail>> ErrorsForProjectAsync(
         Project project,
-        string? baseDirectory,
         CancellationToken cancellationToken)
     {
         var filePath = project.FilePath;
@@ -304,7 +340,7 @@ public class VerificationService : IVerificationService, IDisposable
         {
             // Nothing stable to key on (an in-memory project). Compile it every time rather than
             // risk serving one anonymous project's diagnostics for another's.
-            return await ComputeErrorsAsync(project, baseDirectory, cancellationToken);
+            return await ComputeErrorsAsync(project, cancellationToken);
         }
 
         // What this cache does and does not buy, measured rather than assumed (2026-08-20, Roslyn
@@ -345,7 +381,7 @@ public class VerificationService : IVerificationService, IDisposable
                 // Started and stored under the gate, so two concurrent misses on the same project
                 // await one compilation instead of racing into two. The shared work deliberately
                 // runs uncancelled: one caller walking away must not cancel it for the other.
-                pending = ComputeErrorsAsync(project, baseDirectory, CancellationToken.None);
+                pending = ComputeErrorsAsync(project, CancellationToken.None);
                 _cache[key] = new CacheEntry { Errors = pending, LastAccess = ++_accessCounter };
                 EvictWhileOverBound();
             }
@@ -372,10 +408,13 @@ public class VerificationService : IVerificationService, IDisposable
         }
     }
 
-    /// <summary>Compiles one project and projects its errors into detached, workspace-free values.</summary>
+    /// <summary>
+    /// Compiles one project and projects its errors into detached, workspace-free values with
+    /// <b>absolute</b> file paths — see <see cref="ErrorsForProjectAsync"/> for why they are not
+    /// relativized here.
+    /// </summary>
     private async Task<List<DiagnosticDetail>> ComputeErrorsAsync(
         Project project,
-        string? baseDirectory,
         CancellationToken cancellationToken)
     {
         var errors = new List<DiagnosticDetail>();
@@ -392,7 +431,7 @@ public class VerificationService : IVerificationService, IDisposable
         {
             if (diagnostic.Severity == DiagnosticSeverity.Error)
             {
-                errors.Add(ToDetail(diagnostic, project.Name, baseDirectory));
+                errors.Add(ToDetail(diagnostic, project.Name));
             }
         }
 
@@ -479,34 +518,20 @@ public class VerificationService : IVerificationService, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Forward-slashed paths relative to the solution's own directory, falling back to the first
-    /// project's when the solution has no path.
-    /// <para>
-    /// ⚠️ This is <em>not</em> yet the rule the navigation tools, <c>ApplyFixes</c> and the edit
-    /// tools use: they anchor on <see cref="LoadedProject.BaseDirectory"/> — the directory of the
-    /// <c>resolvedPath</c> reported in the same response (#181) — while this method only sees a
-    /// <see cref="Solution"/> and has to re-derive the anchor. The two agree everywhere except the
-    /// case #181 is about: a <c>.csproj</c> not listed in its nearest ancestor <c>.sln</c>, where
-    /// Roslyn grafts the project onto the already-open solution and <c>Solution.FilePath</c> keeps
-    /// naming a <c>.sln</c> that never contributed it. So a <c>verification.errors[].file</c> (and
-    /// <c>check_compilation</c>'s <c>errors[]</c>) can still disagree with the <c>resolvedPath</c>
-    /// beside it there. Closing that needs the anchor threaded through
-    /// <see cref="IVerificationService.VerifyAsync"/> from each caller's loader handle, which is a
-    /// public-signature change and is tracked separately rather than folded into #181's three sites.
-    /// </para>
-    /// </summary>
-    private static string? BaseDirectoryOf(Solution solution) =>
-        Path.GetDirectoryName(solution.FilePath ?? solution.Projects.FirstOrDefault()?.FilePath);
-
-    private static DiagnosticDetail ToDetail(Diagnostic diagnostic, string projectName, string? baseDirectory)
+    private static DiagnosticDetail ToDetail(Diagnostic diagnostic, string projectName)
     {
         var span = diagnostic.Location.GetLineSpan();
-        var path = span.Path;
+
+        // Coerced here, not left to the reader: a diagnostic with no location at all (CS5001, CS0006,
+        // an analyzer-load failure — all Error severity, so all of them reach this method) yields a
+        // default FileLinePositionSpan whose Path is null at runtime, despite the non-nullable
+        // annotation. These values are cached and handed to every later caller, so the entry has to
+        // honour DiagnosticDetail's own contract rather than rely on whoever reads it next.
+        var path = span.Path ?? string.Empty;
         return new DiagnosticDetail
         {
             Project = projectName,
-            File = string.IsNullOrEmpty(path) ? string.Empty : SymbolResolver.Relativize(path, baseDirectory) ?? path,
+            File = path,
             Line = span.StartLinePosition.Line + 1,
             Column = span.StartLinePosition.Character + 1,
             Id = diagnostic.Id,

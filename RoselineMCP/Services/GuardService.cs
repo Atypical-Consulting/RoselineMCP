@@ -184,7 +184,8 @@ public sealed class GuardService : IGuardService, IDisposable
         }
 
         var candidate = advance.Candidate!;
-        var verdict = await _verificationService.VerifyAsync(entry.Snapshot, candidate, MaxDiagnostics, cancellationToken);
+        var verdict = await _verificationService.VerifyAsync(
+            entry.Snapshot, candidate, entry.BaseDirectory, MaxDiagnostics, cancellationToken);
 
         lock (_sync)
         {
@@ -219,6 +220,7 @@ public sealed class GuardService : IGuardService, IDisposable
             Snapshot = loaded.Solution,
             Stamps = StampAll(loaded.Solution),
             ResolvedPath = resolvedPath,
+            BaseDirectory = loaded.BaseDirectory,
         };
 
         lock (_sync)
@@ -434,6 +436,14 @@ public sealed class GuardService : IGuardService, IDisposable
         public required Dictionary<string, (long Ticks, long Length)> Stamps { get; set; }
 
         public required string ResolvedPath { get; init; }
+
+        /// <summary>
+        /// The anchor the entry's reported file paths hang off — <see cref="LoadedProject.BaseDirectory"/>
+        /// of the handle that established this baseline, captured here because the verification runs
+        /// long after that handle was disposed. Kept beside <see cref="ResolvedPath"/> so the guard's
+        /// paths and the path it reports stay two views of one value (#199).
+        /// </summary>
+        public required string? BaseDirectory { get; init; }
 
         public long LastAccess { get; set; }
     }

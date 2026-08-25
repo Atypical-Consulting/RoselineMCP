@@ -697,8 +697,9 @@ repository are otherwise indistinguishable in a response — same project name, 
 paths — so pass an absolute `.sln`/`.csproj` path to target a specific checkout, and check
 `resolvedPath` in the response to confirm which one answered.
 
-**Relative file paths.** The seven navigation tools' `file`/`definitionFile`, and `ApplyFixes`',
-`EditMember`' and `RenameSymbol`' `changedFiles` **and unified-diff `a/`…`b/` headers**, are relative
+**Relative file paths.** The seven navigation tools' `file`/`definitionFile`, `ApplyFixes`',
+`EditMember`' and `RenameSymbol`' `changedFiles` **and unified-diff `a/`…`b/` headers**, and the
+`verification.errors[]`/`CheckCompilation` `errors[]` `file` fields, are relative
 to the directory containing that response's own `resolvedPath`, with forward slashes. So
 `dirname(resolvedPath)` joined with such a path is the real file on disk — the point of the field.
 Concretely that directory is the solution's when the `.sln` answered (the usual case, and why these
@@ -707,16 +708,10 @@ directly — including a project that exists on disk but is not listed in its ne
 Apply a returned `patch` from that same directory (`git apply -p1` there), not from the repository
 root, which only coincide in the `.sln` case.
 
-Two carve-outs, so the rule is not read wider than it holds:
+One carve-out, so the rule is not read wider than it holds:
 
 - **`ListDiagnostics` and `AnalyzeSolution` report `file` as an absolute path**, not a relative one.
   Nothing needs joining; they are unaffected by the anchor.
-- **`verification.errors[]` and `CheckCompilation`'s `errors[]` are still anchored to the loaded
-  solution's directory**, not to `resolvedPath`. The two coincide everywhere except the
-  unlisted-`.csproj` case above, where such a `file` is relative to the `.sln`'s directory while
-  `resolvedPath` names the `.csproj` — so joining them there does *not* reach the file. Tracked as
-  follow-up work; closing it needs the anchor threaded through `IVerificationService.VerifyAsync`
-  from each of its five callers.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
@@ -1330,8 +1325,9 @@ diagnostics only, by design.
 public interface IVerificationService
 {
     Task<VerificationVerdict> VerifyAsync(
-        Solution? baseline,   // null → absolute verdict (check_compilation)
+        Solution? baseline,       // null → absolute verdict (check_compilation)
         Solution candidate,
+        string? baseDirectory,    // required: LoadedProject.BaseDirectory of the same response
         int max = 20,
         CancellationToken cancellationToken = default);
 }
@@ -1340,6 +1336,11 @@ public interface IVerificationService
 `touched` is deliberately **not** a parameter: the changed-project set is derived internally from
 `candidate.GetChanges(baseline)`, because a caller that under-reported it would silently narrow the
 scope and let the gate pass broken code.
+
+`baseDirectory` is deliberately **required** (no default), for the same reason read the other way:
+it is the anchor every reported `errors[].file` hangs off, and a default would silently reinstate a
+re-derived one. Without a default, a call site that forgets it does not compile. `null` is legal and
+means "no path to anchor on" (an in-memory workspace), leaving the paths absolute.
 
 The production registration passes `DiagnosticComputationService.CompilerOnly`, never the
 analyzer-aware implementation. Per-project results are cached, keyed by the project's **file path**
@@ -1596,10 +1597,10 @@ project's solution was loaded and lists it, and the `.csproj` when the project w
 — including when a `.csproj` exists on disk but is not listed in its nearest ancestor `.sln`, in
 which case the `.sln` never contributed the loaded project and reporting it would be wrong.
 
-The navigation, `ApplyFixes` and edit tools anchor their relative file paths on that same
-`resolvedPath`'s directory, so joining the two yields a real path. See **Relative file paths**
-above for the two carve-outs where that does not yet hold (`ListDiagnostics`/`AnalyzeSolution`
-report absolute paths; verification errors are still solution-anchored).
+The navigation, `ApplyFixes`, edit and verification tools all anchor their relative file paths on
+that same `resolvedPath`'s directory, so joining the two yields a real path. See **Relative file
+paths** above for the one carve-out where that does not apply (`ListDiagnostics`/`AnalyzeSolution`
+report absolute paths, so there is nothing to join).
 
 On the success path that mismatch surfaces as a `resolvedPath` you did not expect. On the failure
 path it surfaces as `NotFoundError: Symbol not found: 'X'` — and without this field there is nothing

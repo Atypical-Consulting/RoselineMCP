@@ -275,7 +275,7 @@ public class CodeFixService : ICodeFixService
                 if (changedDocuments.Any())
                 {
                     var verdict = await _verificationService.VerifyAsync(
-                        originalSolution, currentSolution, max, cancellationToken);
+                        originalSolution, currentSolution, baseDirectory, max, cancellationToken);
                     response.Verification = verdict;
 
                     if (verdict.Introduced is { Count: > 0 } introduced && !allowIntroducedErrors)

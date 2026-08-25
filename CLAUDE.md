@@ -67,7 +67,10 @@ The application uses a dependency injection-based service architecture with clea
      `check_compilation`. Compiler-only by design (`DiagnosticComputationService.CompilerOnly`);
      caches per-project results keyed by **file path + both** the dependent semantic version and the
      dependent version (the semantic version alone is blind to method-body edits), storing detached
-     `DiagnosticDetail` values only
+     `DiagnosticDetail` values only — with **absolute** file paths, because the anchor is not part
+     of the key: relativization against the caller's `baseDirectory` happens on the way *out* of the
+     cache, so one warm entry serves a `.sln`-anchored call and a `.csproj`-anchored one without
+     handing the second caller the first's anchor (#199)
    - `DiagnosticFilterService`: Filtering and categorization of diagnostics
    - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers. Two layers:
      a **process-wide map** built once in the constructor (the Roslyn built-ins, then the
@@ -265,23 +268,28 @@ its nearest ancestor `.sln`). Pass an absolute path as `project` to target a
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
 
-**Relative paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`, and
-`ApplyFixes`/`EditMember`/`RenameSymbol`'s `changedFiles` **and unified-diff headers**, are
+**Relative paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`,
+`ApplyFixes`/`EditMember`/`RenameSymbol`'s `changedFiles` **and unified-diff headers**, and
+`verification.errors[]`/`CheckCompilation`'s `errors[]`, are all
 relativized against the directory of *that same response's* `resolvedPath` —
-`LoadedProject.BaseDirectory`, the one authoritative anchor. The three services used to each
+`LoadedProject.BaseDirectory`, the one authoritative anchor. Four services used to each
 re-derive `Solution.FilePath ?? Project.FilePath`, which stopped agreeing with `resolvedPath` once
-#151 fixed it (#181). Concretely: the solution's directory when the `.sln` answered, the project's
-own when the `.csproj` did — including a project absent from its nearest ancestor `.sln`. So
-`Path.GetDirectoryName(resolvedPath)` joined with such a path is a real file on disk, and a returned
-`patch` applies from that directory rather than from the repo root.
+#151 fixed it (#181 fixed three, #199 the fourth). Concretely: the solution's directory when the
+`.sln` answered, the project's own when the `.csproj` did — including a project absent from its
+nearest ancestor `.sln`. So `Path.GetDirectoryName(resolvedPath)` joined with such a path is a real
+file on disk, and a returned `patch` applies from that directory rather than from the repo root.
 
-⚠️ **Two things this does *not* cover**, so don't state the rule more widely than it holds:
+The anchor reaches `VerificationService` as the **required** `baseDirectory` parameter on
+`IVerificationService.VerifyAsync`, threaded from each of its five call sites (`CodeEditService` ×2,
+`CodeFixService`, `CheckCompilationTool`, `GuardService`). Required, with no default, deliberately:
+a default would silently reinstate the re-derived anchor, so forgetting it is a compile error rather
+than a wrong path. `null` is the legal in-memory case and leaves paths absolute. No shipped code
+re-derives the anchor any more — `Solution.FilePath ?? …` survives only as
+`LoadedProject.ResolvedPath`'s own definition.
+
+⚠️ **One thing this does *not* cover**, so don't state the rule more widely than it holds:
 `ListDiagnostics`/`AnalyzeSolution` report `file` as an **absolute** path (`DiagnosticDetail.File =
-location.Path`), and `verification.errors[]`/`CheckCompilation`'s `errors[]` are still anchored by
-`VerificationService.BaseDirectoryOf(Solution)` on the loaded solution — which diverges from
-`resolvedPath` in exactly the unlisted-`.csproj` case. Closing the latter means threading the anchor
-through `IVerificationService.VerifyAsync` from its five callers; it is deliberate follow-up work,
-not an oversight.
+location.Path`) — pre-existing, unrelated to the anchor, and a wire-shape change if touched.
 
 
 That remedy covers **failures too**, and they are the common shape of this mistake: querying the

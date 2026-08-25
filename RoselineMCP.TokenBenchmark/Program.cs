@@ -58,11 +58,13 @@ var wireJson = McpJsonUtilities.DefaultOptions;
 string Ser<T>(T payload) =>
     JsonSerializer.Serialize(ToolResult<T>.Success(payload), wireJson.GetTypeInfo(typeof(object)));
 
-// Tool-emitted file paths hang off the directory of the response's resolvedPath. SharedProjectLoader
-// hands the services a LoadedProject with no explicit resolvedPath, so that directory is the one
-// below — resolve against it, never the process cwd, so the benchmark produces identical numbers no
-// matter where it is launched from.
-var solutionRoot = Path.GetDirectoryName(solution.FilePath ?? project.FilePath)
+// Tool-emitted file paths hang off the directory of the response's resolvedPath, which the handle
+// answers with directly — resolve against it, never the process cwd, so the benchmark produces
+// identical numbers no matter where it is launched from. Reading the handle rather than re-deriving
+// `Solution.FilePath ?? Project.FilePath` keeps this on the one authoritative anchor (#181/#199);
+// SharedProjectLoader supplies no explicit resolvedPath, so the two provably coincide here — this is
+// consistency, not a fix.
+var solutionRoot = realLoaded.BaseDirectory
     ?? throw new InvalidOperationException("Could not determine the solution root from the loaded solution.");
 
 var fileCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -294,13 +296,13 @@ try
         using var fixtureLoaded = await realLoader.LoadAsync(csproj);
 
         // The shipped default (max: 20) — what a caller gets without asking for anything…
-        var capped = await verification.VerifyAsync(null, fixtureLoaded.Solution);
+        var capped = await verification.VerifyAsync(null, fixtureLoaded.Solution, fixtureLoaded.BaseDirectory);
         capped.ResolvedPath = fixtureLoaded.ResolvedPath;
 
         // …and untruncated, so the comparison is not flattered by truncation alone. On the worst
         // case these differ by an order of magnitude, and hiding that would turn the headline into
         // a statement about `max` rather than about the tool.
-        var full = await verification.VerifyAsync(null, fixtureLoaded.Solution, int.MaxValue);
+        var full = await verification.VerifyAsync(null, fixtureLoaded.Solution, fixtureLoaded.BaseDirectory, int.MaxValue);
         full.ResolvedPath = fixtureLoaded.ResolvedPath;
 
         var errorCount = (full.Errors?.Count ?? 0) + full.Omitted;
