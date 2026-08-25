@@ -303,11 +303,18 @@ When implementing new tools:
 3. Accept required services as first parameters (injected automatically)
 4. Return a `ToolResult<T>` envelope — the payload on success, a classified failure envelope on error
 5. Handle exceptions and return the failure envelope (never throw to the MCP layer)
+6. State one `Limitations:` clause and one `Example:` line in the `[Description]`, reusing
+   `RoselineToolDescriptions.ProjectAutoDiscoveryLimit` when `project` is optional. Keep the whole
+   description ≤ 165 words — `ToolDescriptionContractTests` enforces all three (and the tool count,
+   so a new tool trips it until you opt it in deliberately)
 
 Example:
 ```csharp
 [McpServerTool(UseStructuredContent = true)]
-[Description("Tool description")]
+[Description("Tool description — what it does, and when to prefer it over Read/Grep. "
+    + "Limitations: the failure mode a caller cannot infer (capped by max, not atomic, preview-only, …)."
+    + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+    + " Example: new_tool{param:'value'} -> what comes back.")]
 public static async Task<ToolResult<Result>> NewTool(
     IRequiredService service,
     [Description("Parameter description")] string param,

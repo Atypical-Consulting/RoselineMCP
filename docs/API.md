@@ -5,6 +5,7 @@ Complete API reference for RoselineMCP tools and services.
 ## Table of Contents
 
 - [MCP Tools](#mcp-tools)
+  - [Tool description contract](#tool-description-contract)
   - [Compile Verification](#compile-verification)
   - [Write Confirmation](#write-confirmation)
   - [AnalyzeSolution](#analyzesolution)
@@ -58,6 +59,38 @@ All tools are exposed via the Model Context Protocol and return JSON responses.
 Each tool's **Response** schema shown below describes the shape of the `data` object (the success
 payload), not the envelope. The tools set `UseStructuredContent = true`, so the same object is also
 delivered as MCP `structuredContent` alongside an advertised `outputSchema`.
+
+### Tool description contract
+
+Every tool's `description` in `tools/list` is written to a fixed six-component rubric
+(arXiv:2602.14878, which scored 856 tools across 103 MCP servers and found 97.1% of descriptions
+defective in at least one component):
+
+| Component | Where it comes from | Enforced by |
+|---|---|---|
+| Purpose | the opening sentence | review |
+| Guidelines — when to prefer this tool | the "Prefer this over Read/Grep…" / rule-of-thumb sentences | review |
+| Parameter explanation | the `[Description]` on each parameter | review |
+| **Limitations** | a `Limitations:` clause naming the failure mode a caller cannot infer | **test** |
+| **Examples** | a single `Example: tool{arg:'value'} -> what comes back.` line | **test** |
+| Length & completeness | the whole description | **test** (≤ 165 words) |
+
+The mechanical three are pinned by `ToolDescriptionContractTests`, which discovers tools by
+reflection — so a **new** tool inherits the contract rather than relying on anyone remembering it,
+and the suite's tool-count guard fails until the new tool is opted in deliberately.
+
+The word ceiling is the point, not an afterthought: the same study measured *full* six-component
+enrichment at **+67.46% steps** with a **16.67% regression rate**, while compact variants preserved
+the reliability without the overhead. So the two missing components were added compactly and the
+four already-present ones were left byte-for-byte alone.
+
+The twelve tools whose `project` is optional all end their limitations with one shared sentence,
+composed from a single constant (`RoselineToolDescriptions.ProjectAutoDiscoveryLimit`) and asserted
+verbatim by the same suite, so the wording cannot drift apart across twelve files. It states the
+most expensive unwritten limitation this API has — auto-discovery is anchored to the **server's**
+working directory, so inside a git worktree an omitted `project` silently answers from the main
+checkout. See **Working in a git worktree** in the navigation-tools preamble below (before
+[`SearchSymbols`](#searchsymbols)) for the full explanation and `resolvedPath`'s role in detecting it.
 
 ### Compile Verification
 
