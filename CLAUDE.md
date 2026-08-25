@@ -228,7 +228,7 @@ was fixed and which of the solution's were skipped — only when the caller's ta
 never when they named a `.csproj` — plus any linked file whose write reaches a sibling), on every
 path including preview.
 - **Parameters**: ids[], project (optional), previewOnly, allowIntroducedErrors, max
-- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`, `analyzerLoad` (from the first diagnostics pass — so "no diagnostics found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are resolved through the same three layers as `ListDiagnostics`' fixable IDs
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (relative to `resolvedPath`'s directory, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`, `analyzerLoad` (from the first diagnostics pass — so "no diagnostics found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are resolved through the same three layers as `ListDiagnostics`' fixable IDs
 
 ### 14. CheckCompilation
 Answers "does this compile right now, and what broke" against on-disk state — the replacement for a
@@ -264,6 +264,15 @@ contains the project, otherwise the `.csproj` that was opened directly (e.g. a p
 its nearest ancestor `.sln`). Pass an absolute path as `project` to target a
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
+
+**Relative paths hang off `resolvedPath`.** Every `file`/`definitionFile`/`changedFiles` entry in a
+response is relativized against the directory of *that same response's* `resolvedPath`
+(`LoadedProject.BaseDirectory`, the one authoritative anchor — the three services used to each
+re-derive `Solution.FilePath ?? Project.FilePath` and so disagreed with it, #181). Concretely: the
+solution's directory when the `.sln` answered, the project's own directory when the `.csproj` did —
+including a project absent from its nearest ancestor `.sln`. So
+`Path.GetDirectoryName(resolvedPath)` joined with any returned path is a real file on disk, which is
+what makes the field usable rather than merely informative.
 
 That remedy covers **failures too**, and they are the common shape of this mistake: querying the
 wrong checkout usually produces `NotFoundError: Symbol not found: 'X'`, not a wrong-but-successful

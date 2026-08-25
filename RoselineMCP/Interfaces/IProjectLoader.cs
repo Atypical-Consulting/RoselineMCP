@@ -80,7 +80,7 @@ public sealed class LoadedProject : IDisposable
     /// The absolute path that was actually resolved and loaded — the file the loader opened to
     /// answer the call. This is the only thing that distinguishes two checkouts of the same
     /// repository (a git worktree from its main checkout), which are otherwise reported
-    /// identically: same project name, same solution-root-relative file paths. Reports the value
+    /// identically: same project name, same relative file paths. Reports the value
     /// the loader supplied when it knows which file answered; otherwise falls back to
     /// <c>Solution.FilePath ?? Project.FilePath ?? string.Empty</c> — the only signal available for
     /// handles built without that knowledge (e.g. in-memory <c>AdhocWorkspace</c> handles in tests).

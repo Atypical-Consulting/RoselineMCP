@@ -354,7 +354,8 @@ applyFixes({
 
 **Returns:** project name, `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded),
 `fixedCount`, `fixersApplied` (diagnostic IDs actually fixed), `changedFiles`
-(solution-root-relative, forward slashes — the same path base as the navigation tools), a unified
+(relative to `resolvedPath`'s directory, forward slashes — the same path base as the navigation
+tools), a unified
 diff `patch`, `notes` (the scope — which project was fixed and which of the solution's projects were
 not analyzed, plus any linked file whose write reaches a sibling — and skipped/failed IDs and status
 messages), `previewOnly` echoing back what the caller asked for, `applied` (whether anything
@@ -439,6 +440,12 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > `NotFoundError: Symbol not found: 'X'` rather than a plausible-looking success. The failure
 > envelope's `error.resolvedPath` names the checkout that was searched, and is omitted entirely when
 > the call failed before resolving anything. See [docs/API.md](docs/API.md#which-checkout-answered).
+>
+> **Relative file paths hang off `resolvedPath`.** Every `file`/`definitionFile`/`changedFiles`
+> path a tool returns is relative to the directory containing `resolvedPath`, so
+> `dirname(resolvedPath) + <returned path>` is always the real file. That is the solution root in
+> the usual case, and the project's own directory whenever a `.csproj` answered directly — including
+> a project not listed in its nearest ancestor `.sln`.
 
 > **Tool names on the wire are `snake_case`.** The section headings below use friendly
 > PascalCase/`camelCase` for readability, but the actual MCP tool names returned by `tools/list`
@@ -462,7 +469,7 @@ searchSymbols({
 })
 ```
 
-**Returns:** `symbols` (name, fullName, kind, signature, file, line — file paths are solution-root-relative; the single-file outline instead returns name, kind, signature, line, containingType), `totalFound`, `truncated` (omitted when not capped).
+**Returns:** `symbols` (name, fullName, kind, signature, file, line — `file` is relative to `resolvedPath`'s directory; the single-file outline instead returns name, kind, signature, line, containingType), `totalFound`, `truncated` (omitted when not capped).
 
 #### 6. GetSymbolInfo
 
@@ -476,7 +483,7 @@ getSymbolInfo({
 })
 ```
 
-**Returns:** name, fullName, kind, signature, and (each omitted when empty/absent) modifiers, baseTypes, interfaces, documentation, definitionFile/Line, and source. Accessibility is already part of `signature`; `definitionFile` is solution-root-relative.
+**Returns:** name, fullName, kind, signature, and (each omitted when empty/absent) modifiers, baseTypes, interfaces, documentation, definitionFile/Line, and source. Accessibility is already part of `signature`; `definitionFile` is relative to `resolvedPath`'s directory.
 
 #### 7. FindReferences
 
@@ -486,7 +493,7 @@ Every use site of a symbol across the solution, as location + one-line snippet.
 findReferences({ project: "MyApp.Core", symbol: "GetUser", includeDefinition: false, max: 100 })
 ```
 
-**Returns:** `references` (file — solution-root-relative, line, snippet), `totalReferences`, `truncated` (omitted when not capped).
+**Returns:** `references` (file — relative to `resolvedPath`'s directory, line, snippet), `totalReferences`, `truncated` (omitted when not capped).
 
 #### 8. FindImplementations
 
@@ -512,7 +519,7 @@ getCallGraph({
 })
 ```
 
-**Returns:** `callers`/`callees` trees of nodes (fullName with simple parameter-type names, file — solution-root-relative, line, truncated, children). Call GetSymbolInfo for a node's full signature.
+**Returns:** `callers`/`callees` trees of nodes (fullName with simple parameter-type names, file — relative to `resolvedPath`'s directory, line, truncated, children). Call GetSymbolInfo for a node's full signature.
 
 #### 10. GetTypeHierarchy
 
@@ -543,7 +550,7 @@ getSymbolAtPosition({
 })
 ```
 
-**Returns:** name, fullName, kind, signature, `isDeclaration` (whether the position sits on the symbol's own declaration), and (each omitted when empty/absent) containingType, documentation, definitionFile/Line (solution-root-relative). Line-only queries prefer declarations on the line over referenced symbols.
+**Returns:** name, fullName, kind, signature, `isDeclaration` (whether the position sits on the symbol's own declaration), and (each omitted when empty/absent) containingType, documentation, definitionFile/Line (relative to `resolvedPath`'s directory). Line-only queries prefer declarations on the line over referenced symbols.
 
 ### Code Editing Tools (preview by default)
 

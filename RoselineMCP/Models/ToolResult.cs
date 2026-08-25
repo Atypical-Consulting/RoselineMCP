@@ -67,7 +67,7 @@ public sealed class ToolError
     /// The absolute <c>.sln</c>/<c>.csproj</c> that answered this call — the same value the success
     /// responses carry, so a caller can tell "the symbol is not there" apart from "I was answered
     /// from a different checkout" (two checkouts of one repository are otherwise reported
-    /// identically: same project name, same solution-root-relative paths).
+    /// identically: same project name, same relative paths).
     /// </summary>
     /// <remarks>
     /// <b>Absent is meaningful.</b> The field is omitted — never <c>""</c> — when the failure

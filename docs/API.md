@@ -686,15 +686,24 @@ solution, the whole solution is loaded and symbol search/resolution spans **ever
 a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
 project) is still found — so cross-project references and renames are complete.
 `ListDiagnostics` and `ApplyFixes` resolve and load their `project` through this same mechanism, so
-every tool accepts the same references and reports the same solution-root-relative paths.
+every tool accepts the same references and anchors its relative paths the same way (see **Relative
+file paths** below).
 
 **Working in a git worktree.** Auto-discovery is anchored to **the server's** working directory —
 the directory the MCP client launched RoselineMCP in — not the agent's. They differ whenever work
 happens in a git worktree (e.g. `.claude/worktrees/<name>`): the worktree sits below the level
 walk's reach, so an omitted `project` resolves the main checkout instead. Two checkouts of the same
-repository are otherwise indistinguishable in a response — same project name, same
-solution-root-relative paths — so pass an absolute `.sln`/`.csproj` path to target a specific
-checkout, and check `resolvedPath` in the response to confirm which one answered.
+repository are otherwise indistinguishable in a response — same project name, same relative
+paths — so pass an absolute `.sln`/`.csproj` path to target a specific checkout, and check
+`resolvedPath` in the response to confirm which one answered.
+
+**Relative file paths.** Every `file`, `definitionFile` and `changedFiles` entry a tool returns is
+relative to the directory containing that response's own `resolvedPath`, with forward slashes. So
+`dirname(resolvedPath)` joined with any returned path is the real file on disk — the point of the
+field. Concretely that is the solution's directory when the `.sln` answered (the usual case, and
+why these paths read as solution-root-relative), and the project's own directory whenever the
+`.csproj` answered directly — including a project that exists on disk but is not listed in its
+nearest ancestor `.sln`.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
@@ -1564,7 +1573,7 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
 #### Which checkout answered?
 
 Two checkouts of one repository — a git worktree and its main checkout — are otherwise reported
-identically: same project name, same solution-root-relative file paths. When `project` is omitted,
+identically: same project name, same relative file paths. When `project` is omitted,
 RoselineMCP auto-discovers from **the server process's** working directory, which is not the
 agent's; a worktree under `.claude/worktrees/<name>` sits below the discovery walk's reach, so the
 main checkout answers instead.
@@ -1573,6 +1582,9 @@ main checkout answers instead.
 project's solution was loaded and lists it, and the `.csproj` when the project was opened directly
 — including when a `.csproj` exists on disk but is not listed in its nearest ancestor `.sln`, in
 which case the `.sln` never contributed the loaded project and reporting it would be wrong.
+
+Relative file paths in the same response are anchored to that same `resolvedPath`'s directory, so
+the two never disagree: joining them always yields a real path.
 
 On the success path that mismatch surfaces as a `resolvedPath` you did not expect. On the failure
 path it surfaces as `NotFoundError: Symbol not found: 'X'` — and without this field there is nothing
