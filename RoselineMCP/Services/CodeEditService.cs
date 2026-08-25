@@ -422,13 +422,13 @@ public class CodeEditService : ICodeEditService
     }
 
     /// <summary>
-    /// Emitted paths are solution-root-relative with forward slashes (falling back to the project
-    /// directory when no <c>.sln</c> was loaded) — the same rule the navigation tools and
-    /// <c>ApplyFixes</c> use, so a given file has one canonical path across every tool's output.
+    /// Emitted paths hang off the directory of <see cref="LoadedProject.ResolvedPath"/> — the file
+    /// that actually answered — with forward slashes, so combining the two lands on the real file.
+    /// Usually the solution root; the project's own directory when no <c>.sln</c> answered,
+    /// including the <c>.csproj</c> its nearest ancestor <c>.sln</c> doesn't list (#181). The same
+    /// rule the navigation tools and <c>ApplyFixes</c> use, so a given file has one canonical path
+    /// across every tool's output.
     /// </summary>
     private static string RelativePath(LoadedProject loaded, string filePath)
-    {
-        var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? loaded.Project.FilePath);
-        return SymbolResolver.Relativize(filePath, baseDirectory) ?? filePath;
-    }
+        => SymbolResolver.Relativize(filePath, loaded.BaseDirectory) ?? filePath;
 }

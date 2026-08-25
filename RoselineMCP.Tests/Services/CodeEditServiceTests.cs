@@ -676,4 +676,94 @@ public class CodeEditServiceTests
             Directory.Delete(baseDirectory, recursive: true);
         }
     }
+
+    private const string UnlistedScratchCalc =
+        "namespace ScratchNs { public class Calc { public int Add(int a, int b) { return a + b; } } }";
+
+    /// <summary>
+    /// Builds the #151 layout on disk and a <see cref="CodeEditService"/> whose loader reports the
+    /// unlisted <c>Scratch.csproj</c> as <c>resolvedPath</c> — what the real loader does once Roslyn
+    /// has grafted the project onto the already-open solution.
+    /// </summary>
+    private static (CodeEditService Service, AdhocWorkspace Workspace, string ScratchCsproj) CreateUnlistedProjectService(
+        string baseDirectory)
+    {
+        var (workspace, scratch, scratchCsproj) = AdhocProjectBuilder.CreateUnlistedProjectSolutionOnDisk(
+            baseDirectory,
+            [("MainWidget.cs", "namespace MainNs { public class MainWidget { } }")],
+            [("Calc.cs", UnlistedScratchCalc)]);
+        var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, scratch, scratchCsproj);
+        var service = new CodeEditService(
+            A.Fake<ILogger<CodeEditService>>(),
+            loader,
+            new DiffService(),
+            new VerificationService(A.Fake<ILogger<VerificationService>>(), DiagnosticComputationService.CompilerOnly));
+        return (service, workspace, scratchCsproj);
+    }
+
+    /// <summary>
+    /// Regression for #181: <c>changedFiles</c> must hang off the directory <c>resolvedPath</c>
+    /// names, so combining the two lands on the real file. They diverged for a <c>.csproj</c> not
+    /// listed in its ancestor <c>.sln</c> — #151 made <c>resolvedPath</c> report the <c>.csproj</c>
+    /// while <c>RelativePath</c> still read <c>Solution.FilePath</c>, the <c>.sln</c> Roslyn grafted
+    /// the project onto.
+    /// </summary>
+    [Fact]
+    public async Task EditMember_ChangedFiles_Hang_Off_ResolvedPath_When_Project_Is_Not_In_The_Sln()
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-edit-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(baseDirectory);
+
+        try
+        {
+            var (service, workspace, scratchCsproj) = CreateUnlistedProjectService(baseDirectory);
+            using var _ = workspace;
+
+            var result = await service.EditMemberAsync(
+                scratchCsproj, "Add", "replace", "public int Add(int a, int b) { return a + b + 1; }",
+                previewOnly: true, cancellationToken: CancellationToken.None);
+
+            result.ResolvedPath.ShouldBe(scratchCsproj);
+            result.ChangedFiles.ShouldBe(["Calc.cs"]);
+            result.Patch.ShouldContain("a/Calc.cs");
+
+            var reconstructed = Path.Combine(Path.GetDirectoryName(result.ResolvedPath)!, result.ChangedFiles[0]);
+            File.Exists(reconstructed).ShouldBeTrue(
+                $"'{reconstructed}' should be the real file on disk, but resolvedPath and the "
+                + "changedFiles anchor disagree");
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    /// <summary><see cref="RenameSymbol"/>'s multi-file writer uses the same anchor (#181).</summary>
+    [Fact]
+    public async Task RenameSymbol_ChangedFiles_Hang_Off_ResolvedPath_When_Project_Is_Not_In_The_Sln()
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-edit-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(baseDirectory);
+
+        try
+        {
+            var (service, workspace, scratchCsproj) = CreateUnlistedProjectService(baseDirectory);
+            using var _ = workspace;
+
+            var result = await service.RenameSymbolAsync(
+                scratchCsproj, "Calc.Add", "Sum", previewOnly: true, cancellationToken: CancellationToken.None);
+
+            result.ResolvedPath.ShouldBe(scratchCsproj);
+            result.ChangedFiles.ShouldBe(["Calc.cs"]);
+
+            var reconstructed = Path.Combine(Path.GetDirectoryName(result.ResolvedPath)!, result.ChangedFiles[0]);
+            File.Exists(reconstructed).ShouldBeTrue(
+                $"'{reconstructed}' should be the real file on disk, but resolvedPath and the "
+                + "changedFiles anchor disagree");
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
 }
