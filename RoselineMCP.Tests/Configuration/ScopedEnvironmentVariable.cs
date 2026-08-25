@@ -23,7 +23,9 @@ namespace RoselineMCP.Tests.Configuration;
 /// ends the scope unset. And the save/restore is correct only under <b>strictly nested,
 /// single-threaded</b> use — xUnit runs each test class as its own collection, in parallel by default,
 /// so two classes scoping the same key would both capture the ambient value and the later disposer
-/// would write back a stale one. Keep every class that mutates a given key in a single collection.
+/// would write back a stale one. Keep every class that mutates a given key in
+/// <see cref="ProcessEnvironmentCollection"/>, which disables parallelization;
+/// <c>ProcessEnvironmentCollectionTests</c> pins that membership.
 /// </para>
 /// <para>
 /// This type guards <b>one exact key spelling</b>, which is only as strong as the environment block's
@@ -89,11 +91,11 @@ internal sealed class ScopedEnvironmentVariable : IDisposable
 /// ⚠️ It does <b>not</b> inherit the single-collection rule unchanged — it <b>widens</b> it. The
 /// per-key scope asks only that classes mutating <i>the same key</i> share a collection; this one
 /// captures every variable under the prefix and section at once, so what it needs is that no parallel
-/// collection mutates or reads <i>any</i> of them for the duration. Today
-/// <c>RoselineMcpOptionsBindingTests</c> is the only class scoping <c>ROSELINE_</c> →
-/// <c>RoselineMCP:</c>, and <c>ScopedEnvironmentNamespaceTests</c> deliberately probes a different
-/// section to keep that true. A new class that clears an overlapping section would reintroduce the
-/// race — and nothing but this paragraph currently prevents it.
+/// collection mutates or reads <i>any</i> of them for the duration. Two classes did clear the same
+/// <c>ROSELINE_</c> → <c>RoselineMCP:</c> namespace without sharing one — the intermittent failure
+/// #189 traced — which is why <see cref="ProcessEnvironmentCollection"/> now holds every such class
+/// and <c>ProcessEnvironmentCollectionTests</c> pins the membership by scanning for these call sites.
+/// A new class that clears an overlapping section is therefore a red bar rather than a new flake.
 /// </para>
 /// </remarks>
 internal sealed class ScopedEnvironmentNamespace : IDisposable
