@@ -27,11 +27,17 @@ drift on those pages. Every other published statement of it is hand-written, and
 Re-measuring is meant to fail all of them at once — update the surfaces the failure names; do not
 loosen the test.
 
-⚠️ **"Computed" covers the headline median only.** Those same site pages also carry hand-written
-*per-file* and *per-suite* figures drawn from the same regenerated JSON — the outline examples and
-suite prose on `benchmark.astro`, and the `Program.cs` token-count pull-quote repeated on
-`index.astro` and `README.md`. Nothing pins those, and a re-measurement moves them too. Do not read
-the paragraph above as permission to skip the site after re-running the benchmark.
+⚠️ **The site's per-file and per-suite figures are no longer unpinned.** `benchmark.astro`'s outline
+examples and suite prose — the `Program.cs`, `CodeFixService.cs` and `IDiagnosticFilterService.cs`
+rows, and the outline suite's own median — are now **computed** from the same regenerated JSON, the
+same way the headline median is, so a re-measurement cannot leave them behind. The `Program.cs`
+token-count pull-quote repeated on `index.astro` and `README.md` is still hand-written, but
+`MedianFigureContractTests` now pins it too (`Index_Page_Should_State_The_Generated_ProgramCs_Transform`,
+`Readme_Should_State_The_Generated_ProgramCs_PullQuote`), against the same `outline` row, for the
+same reason the headline median is pinned above. One figure is deliberately left outside both
+guards: `benchmark.astro`'s **−45%** "before" percentage, in the sentence describing the past fix to
+the outline projection. That number is a fact about what a former run measured, not a restatement of
+the current data, so nothing computes or pins it — leave it as a hand-written literal.
 
 ⚠️ **One gap the test does not close: `website/public/og.png`.** The card is a rendered image, so
 the guard pins its **template** (`og-card.html`) and not its pixels — a corrected template with a
