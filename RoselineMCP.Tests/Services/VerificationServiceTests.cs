@@ -463,4 +463,37 @@ public class VerificationServiceTests
         verdict.Errors.ShouldNotBeNull();
         Path.IsPathRooted(verdict.Errors[0].File).ShouldBeTrue();
     }
+
+    /// <summary>
+    /// Not every compiler error has a location. CS5001 (no entry point), CS0006 (a metadata
+    /// reference that will not load) and analyzer-load failures are all <c>Error</c> severity and
+    /// carry <see cref="Location.None"/>, whose line span has a <see langword="null"/> <c>Path</c>
+    /// at runtime — the non-nullable annotation notwithstanding. Anchoring must survive that and
+    /// report an empty <c>file</c>, not a null one and not a relativization attempt on nothing.
+    /// <para>
+    /// This pins the <em>reported</em> value. The matching coercion inside <c>ToDetail</c> is
+    /// belt-and-braces one layer down — the cache is private, so no test can observe an entry
+    /// directly, and the point of coercing there is that a future reader of that list should not
+    /// have to know to re-coerce.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task An_Error_With_No_Location_Reports_An_Empty_File_Never_Null()
+    {
+        // A library with no Main compiles; the same code as a console app is CS5001, reported
+        // against the compilation as a whole rather than any one file.
+        var (workspace, project) = AdhocProjectBuilder.Create("NoEntryPoint",
+            [("Lib.cs", "public class Lib { public int Value() => 1; }")]);
+        using var _ = workspace;
+        var solution = project.Solution.WithProjectCompilationOptions(
+            project.Id, new CSharpCompilationOptions(OutputKind.ConsoleApplication));
+
+        var verdict = await CreateService().VerifyAsync(
+            null, solution, null, cancellationToken: TestContext.Current.CancellationToken);
+
+        verdict.Compiles.ShouldBe(false);
+        var unlocated = verdict.Errors.ShouldNotBeNull().Single(e => e.Id == "CS5001");
+        unlocated.File.ShouldNotBeNull();
+        unlocated.File.ShouldBeEmpty();
+    }
 }

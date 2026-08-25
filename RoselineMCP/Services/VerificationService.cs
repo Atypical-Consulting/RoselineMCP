@@ -521,7 +521,13 @@ public class VerificationService : IVerificationService, IDisposable
     private static DiagnosticDetail ToDetail(Diagnostic diagnostic, string projectName)
     {
         var span = diagnostic.Location.GetLineSpan();
-        var path = span.Path;
+
+        // Coerced here, not left to the reader: a diagnostic with no location at all (CS5001, CS0006,
+        // an analyzer-load failure — all Error severity, so all of them reach this method) yields a
+        // default FileLinePositionSpan whose Path is null at runtime, despite the non-nullable
+        // annotation. These values are cached and handed to every later caller, so the entry has to
+        // honour DiagnosticDetail's own contract rather than rely on whoever reads it next.
+        var path = span.Path ?? string.Empty;
         return new DiagnosticDetail
         {
             Project = projectName,
