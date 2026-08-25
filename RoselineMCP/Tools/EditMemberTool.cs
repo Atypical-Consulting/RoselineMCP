@@ -30,7 +30,8 @@ public static class EditMemberTool
     /// </remarks>
     [McpServerTool(Title = "Edit Member", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Surgically replace, add, or delete a single C# member (method/property/field/etc.) and return a unified diff — instead of rewriting the whole file. Defaults to preview mode: with previewOnly left unset (or true), no files are changed. Pass previewOnly=false explicitly to write the change to disk. Limitations: one member at a time; refused if the change introduces compiler errors unless allowIntroducedErrors=true."
-        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+        + " Example: edit_member{symbol:'UserService.GetUser', operation:'replace', newSource:'public User GetUser(int id) => _db.Find(id);'} -> diff + verification.")]
     public static async Task<ToolResult<EditMemberResponse>> EditMember(
         ICodeEditService editService,
         [Description("For 'replace'/'delete': the member to edit. For 'add': the container type to add a member to. Simple or fully-qualified name.")]

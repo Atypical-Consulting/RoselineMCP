@@ -20,7 +20,8 @@ public static class GetSymbolInfoTool
     /// </summary>
     [McpServerTool(Title = "Get Symbol Info", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Look up one C# symbol's kind, modifiers, signature, base types/interfaces, XML docs, and definition location — the token-cheap 'go to definition'. Prefer this over reading the whole file; pass includeSource:true to get the member's exact body instead of Read. Read-only: never modifies any files on disk. Limitations: a simple name can match several symbols — pass a fully-qualified name to disambiguate."
-        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+        + " Example: get_symbol_info{symbol:'UserService.GetUser', includeSource:true} -> signature, docs, definition, source.")]
     public static async Task<ToolResult<SymbolInfoResponse>> GetSymbolInfo(
         ICodeNavigationService navigationService,
         [Description("Symbol to describe: a simple name (e.g. 'UserService') or a fully-qualified name (e.g. 'Acme.Users.UserService.GetUser') to disambiguate")]

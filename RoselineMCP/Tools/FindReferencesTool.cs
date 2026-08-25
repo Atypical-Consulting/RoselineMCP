@@ -19,7 +19,8 @@ public static class FindReferencesTool
     /// </summary>
     [McpServerTool(Title = "Find References", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("List every use site of a C# symbol across the whole solution (file/line + a one-line snippet each) — instead of grepping and opening every referencing file. Prefer this over Grep/Read to answer 'where is this used'. Read-only: never modifies any files on disk. Limitations: capped by max (default 100); finds source references only, not reflection or string-based use."
-        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+        + " Example: find_references{symbol:'UserService.GetUser', max:50} -> resolvedPath + references[] (file, line, snippet).")]
     public static async Task<ToolResult<ReferencesResponse>> FindReferences(
         ICodeNavigationService navigationService,
         [Description("Symbol to find references for: a simple name or a fully-qualified name to disambiguate")]

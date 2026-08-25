@@ -24,8 +24,8 @@ public class ToolDescriptionContractTests
     /// Set from the measured worst case, not from taste. Issue #179 proposed 120 on the premise
     /// that it "admits both additions to the longest tool"; that arithmetic does not hold. The
     /// longest baseline description (<c>check_compilation</c>) was already <b>98</b> words before
-    /// this change, and the two mandated components cost ~59 more — its own <c>Limitations:</c>
-    /// clause (15), <see cref="RoselineToolDescriptions.ProjectAutoDiscoveryLimit"/> (34) and an
+    /// this change, and the two mandated components cost 59 more — its own <c>Limitations:</c>
+    /// clause (13), <see cref="RoselineToolDescriptions.ProjectAutoDiscoveryLimit"/> (36) and an
     /// <c>Example:</c> line (10) — landing at <b>157</b>. Reaching 120 would have required cutting
     /// existing Purpose/Guidelines text, which #179 forbids outright and which is this repo's
     /// measured strength (the ecosystem fails that component 89.3% of the time).
@@ -85,6 +85,20 @@ public class ToolDescriptionContractTests
         description.ShouldContain("Limitations:", Case.Sensitive,
             $"{name} states no Limitations. arXiv:2602.14878 found Unstated Limitations in 89.8% of " +
             "856 MCP tools; one sentence naming the failure mode a caller cannot infer is enough.");
+    }
+
+    [Theory]
+    [MemberData(nameof(ToolDescriptions))]
+    public void Every_Description_Shows_One_Example(
+        string name, string description, bool hasOptionalProject)
+    {
+        _ = hasOptionalProject;
+
+        description.ShouldContain("Example:", Case.Sensitive,
+            $"{name} shows no example call. One line — tool{{arg:'value'}} -> what comes back.");
+
+        description.Split("Example:").Length.ShouldBe(2,
+            $"{name} has more than one Example: block. One is the budget.");
     }
 
     [Theory]

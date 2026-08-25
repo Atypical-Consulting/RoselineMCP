@@ -19,7 +19,8 @@ public static class FindImplementationsTool
     /// </summary>
     [McpServerTool(Title = "Find Implementations", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("List the implementations of an interface/member, overrides of a virtual/abstract member, or derived types of a class — as compact summaries, instead of reading candidate files to find them. Prefer this over Grep/Read to answer 'who implements/overrides/derives from this'. Read-only: never modifies any files on disk. Limitations: capped by max (default 100); spans the loaded solution only."
-        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+        + " Example: find_implementations{symbol:'IRepository'} -> resolvedPath + implementations[] + totalFound.")]
     public static async Task<ToolResult<ImplementationsResponse>> FindImplementations(
         ICodeNavigationService navigationService,
         [Description("Interface, class, or member to find implementations/overrides/derived types for (simple or fully-qualified name)")]

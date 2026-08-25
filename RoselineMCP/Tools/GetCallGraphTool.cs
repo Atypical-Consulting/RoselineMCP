@@ -19,7 +19,8 @@ public static class GetCallGraphTool
     /// </summary>
     [McpServerTool(Title = "Get Call Graph", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Trace who calls a C# method (and/or what it calls) as a depth-bounded, cycle-safe tree — instead of reading method bodies to follow control flow. Prefer this over Read to answer 'who calls this' / 'what does this call'. Read-only: never modifies any files on disk. Limitations: depth is capped at 3; virtual/interface dispatch resolves to declarations, not runtime targets."
-        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit)]
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+        + " Example: get_call_graph{method:'GetUser', direction:'callers', depth:2} -> a cycle-safe caller tree.")]
     public static async Task<ToolResult<CallGraphResponse>> GetCallGraph(
         ICodeNavigationService navigationService,
         [Description("Method to build the graph around (simple or fully-qualified name)")]
