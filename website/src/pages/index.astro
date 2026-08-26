@@ -79,13 +79,24 @@ const groupBlurb: Record<string, string> = {
       <figure class="transform" aria-label="RoselineMCP turns a 2,093-token file into a 120-token outline.">
         <div class="tpanel file">
           <div class="tp-head"><span class="mono">Program.cs · the whole file</span><span class="tp-cost mono">2,093 tokens</span></div>
-          <pre class="mono">{`var host = CreateHostBuilder(args).Build();
-var logger = host.Services
-    .GetRequiredService<ILogger<Program>>();
-logger.LogInformation("starting…");
+          <pre class="mono">{`if (args.Length > 0 && string.Equals(args[0], "guard", …))
+{
+    return await GuardClient.RunAsync(
+        Console.In, Console.Out, Console.Error, ReadGuardOptions());
+}
 
-static IHostBuilder CreateHostBuilder(string[] a) =>
-  Host.CreateDefaultBuilder(a)
+try
+{
+    var host = CreateHostBuilder(args).Build();
+    var logger = host.Services
+        .GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("RoselineMCP server starting…");
+    await host.RunAsync();
+    return 0;
+}
+
+static IHostBuilder CreateHostBuilder(string[] args) =>
+  Host.CreateDefaultBuilder(args)
     .ConfigureServices((ctx, services) =>
     {
       services.AddMcpServer()
@@ -109,8 +120,9 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
             <span class="tp-save mono">120&nbsp;tokens</span><span class="pill write">−94%</span></div>
           <div class="outrows">
             <div class="orow"><span class="okind">class</span><span class="osig mono">Program</span></div>
-            <div class="orow"><span class="okind">method</span><span class="osig mono">CreateHostBuilder(string[]) : IHostBuilder</span><span class="oline mono">:53</span></div>
-            <div class="orow"><span class="okind">ctor</span><span class="osig mono">Program()</span><span class="oline mono">:125</span></div>
+            <div class="orow"><span class="okind">method</span><span class="osig mono">ReadGuardOptions() : RoselineMcpOptions</span><span class="oline mono">:93</span></div>
+            <div class="orow"><span class="okind">method</span><span class="osig mono">CreateHostBuilder(string[]) : IHostBuilder</span><span class="oline mono">:123</span></div>
+            <div class="orow"><span class="okind">ctor</span><span class="osig mono">static Program()</span><span class="oline mono">:255</span></div>
           </div>
           <p class="tp-note">Signatures and locations — no method bodies, no using directives, no wall.</p>
         </div>
