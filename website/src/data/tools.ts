@@ -11,6 +11,7 @@ export interface Tool {
   progress?: boolean;  // emits MCP progress notifications
   verifies?: boolean;  // compiles the candidate change in memory and refuses writes that introduce compiler errors
   confirms?: boolean;  // asks the client to confirm via elicitation before writing (unless RoselineMCP:ConfirmDestructiveWrites is false); an unanswered prompt expires after RoselineMCP:ConfirmDestructiveWritesTimeout (5 min) into a preview, never a write
+  analyzerLoad?: boolean; // returns an analyzerLoad block naming any analyzer reference that contributed nothing (CLAUDE.md § MCP Tools Available calls these "the diagnostics tools (1–3)")
 }
 
 export const tools: Tool[] = [
@@ -72,19 +73,19 @@ export const tools: Tool[] = [
   },
   // ── Diagnostics & fixes ──
   {
-    name: 'analyze_solution', title: 'Analyze Solution', group: 'Diagnostics & fixes', kind: 'diagnostics', progress: true,
+    name: 'analyze_solution', title: 'Analyze Solution', group: 'Diagnostics & fixes', kind: 'diagnostics', progress: true, analyzerLoad: true,
     summary: 'Analyze an entire C# solution for diagnostics, with filtering. Also accepts an http(s) Git URL (the one open-world tool).',
     params: 'pathOrGit, branch?, include?, exclude?, severity?, maxDiagnostics?',
     returns: 'solution, projects, diagnosticSummary, topDiagnostics[], analyzerLoad? (every analyzer reference that contributed nothing, and why — merged across projects; omitted when all contributed)',
   },
   {
-    name: 'list_diagnostics', title: 'List Diagnostics', group: 'Diagnostics & fixes', kind: 'diagnostics',
+    name: 'list_diagnostics', title: 'List Diagnostics', group: 'Diagnostics & fixes', kind: 'diagnostics', analyzerLoad: true,
     summary: 'Detailed diagnostics for a project, with statistics and suggested fixable IDs — fixers from Roslyn, the bundled catalog and the project’s own analyzer references.',
     params: 'project?, ids?, files?, max?',
     returns: 'project, resolvedPath, totalDiagnostics, diagnostics[], stats, suggestedFixableIds[], analyzerLoad? (analyzersRan, referencesConsulted, referencesContributing, analyzersLoaded, notes[] — omitted when every reference contributed)',
   },
   {
-    name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true, verifies: true,
+    name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true, verifies: true, analyzerLoad: true,
     summary: 'Apply automated code fixes for diagnostic IDs to one project — a .sln target fixes its primary project and names the ones it skipped. Preview by default, and refused if the fixes would not compile.',
     params: 'ids, project?, previewOnly?, allowIntroducedErrors?, max?',
     returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (relative to the resolvedPath directory), patch, notes[] (scope: fixed/skipped projects, linked files; per-ID status), previewOnly, applied, verification?, analyzerLoad? (omitted when every analyzer reference contributed)',
@@ -128,13 +129,32 @@ const numberWords = [
 ];
 
 // A count as an English word, falling back to digits outside the mapped range rather than rendering
-// nothing (the spec's validation rule).
-const numberWord = (n: number): string => numberWords[n] ?? String(n);
+// nothing (the spec's validation rule). `lower` reuses the same 0–20 table rather than a second one,
+// so the two spellings can never disagree — a mid-sentence phrase ("seven navigation tools") needs
+// the lowercase form, a heading ("Fourteen tools") the capitalised one.
+const numberWord = (n: number, opts: { lower?: boolean } = {}): string => {
+  const word = numberWords[n] ?? String(n);
+  return opts.lower ? word.toLowerCase() : word;
+};
 
 const plural = (n: number) => (n === 1 ? 'tool' : 'tools');
 
+// One builder for every "<count> [noun] tool(s)" phrase below, so a sixth one can't re-spell the
+// template slightly wrong (code-review finding on #207: five call sites were each inlining
+// `${numberWord(...)} ${noun} ${plural(...)}` by hand). `noun` is the optional adjective/qualifier
+// between the number and "tool(s)" ("navigation", "write-capable", "code-intelligence" — omit for a
+// bare "<count> tools").
+const phrase = (count: number, opts: { lower?: boolean; noun?: string } = {}): string =>
+  `${numberWord(count, opts)} ${opts.noun ? `${opts.noun} ` : ''}${plural(count)}`;
+
+// Subject-verb agreement to pair with a `phrase()`-driven subject: English pluralises the *noun*
+// with "-s" but the *verb* the other way around ("tools default" vs. "a tool defaults"), so a bare
+// plural noun cannot drive both. `s` is the verb suffix, `pronoun` the one to keep sentences from
+// saying "they" about a single tool if a count ever drops to one.
+const agreement = (n: number) => ({ pronoun: n === 1 ? 'it' : 'they', s: n === 1 ? 's' : '' });
+
 /** The noun phrase both headings open with: "Fourteen tools" — and "One tool" if it ever is. */
-export const toolCountPhrase = `${numberWord(toolCount)} ${plural(toolCount)}`;
+export const toolCountPhrase = phrase(toolCount);
 
 // The home page's blurb counts only the code-intelligence surface — everything that is not the
 // original diagnostics group — so it needs its own derived count rather than `toolCount`. Naming the
@@ -144,5 +164,39 @@ const diagnosticsGroup: ToolGroup = 'Diagnostics & fixes';
 const codeIntelligenceToolCount = tools.filter((t) => t.group !== diagnosticsGroup).length;
 
 /** "Nine code-intelligence tools" — and the singular if it ever comes to that. */
-export const codeIntelligenceToolPhrase =
-  `${numberWord(codeIntelligenceToolCount)} code-intelligence ${plural(codeIntelligenceToolCount)}`;
+export const codeIntelligenceToolPhrase = phrase(codeIntelligenceToolCount, { noun: 'code-intelligence' });
+
+// ── Per-kind counts and tool lists, derived ──
+// tools.astro used to hand-restate these two mid-sentence ("The seven navigation tools…", "The three
+// write-capable tools…") — correct only until a tool moves in or out of the kind, exactly #197's
+// shape. `kind: 'read'` is entirely the Code navigation group; `kind: 'write'` is Code editing plus
+// apply_fixes. Lowercase because both sentences use the count mid-clause, not at the sentence start.
+// `writeTools` is exported (not just the count) so the page can render the member list — the three
+// names in parentheses — from the same filter instead of hand-naming them a second time next to it.
+const readToolCount = tools.filter((t) => t.kind === 'read').length;
+export const writeTools = tools.filter((t) => t.kind === 'write');
+const writeToolCount = writeTools.length;
+
+/** "seven navigation tools" — mid-sentence, lowercase. */
+export const readToolPhrase = phrase(readToolCount, { lower: true, noun: 'navigation' });
+
+/** "three write-capable tools" — mid-sentence, lowercase. */
+export const writeToolPhrase = phrase(writeToolCount, { lower: true, noun: 'write-capable' });
+
+/** Verb/pronoun agreement for the `writeToolPhrase` sentence's subject. */
+export const writeToolAgreement = agreement(writeToolCount);
+
+// ── The analyzerLoad-reporting tools, derived ──
+// tools.astro used to name these three inline and call them "the three diagnostics tools" — but that
+// collides with `kind: 'diagnostics'`, which is four tools (analyze_solution, list_diagnostics,
+// check_compilation, create_patch), and apply_fixes is `kind: 'write'`. The sentence was never really
+// about `kind`; it was about which tools return an `analyzerLoad` block (CLAUDE.md § MCP Tools
+// Available: "the diagnostics tools (1–3)"). Deriving both the count and the member list from the
+// `analyzerLoad` flag keeps the sentence from drifting in either direction again.
+export const analyzerLoadTools = tools.filter((t) => t.analyzerLoad);
+
+/** "three tools" — the count of `analyzerLoad`-reporting tools, mid-sentence, lowercase. */
+export const analyzerLoadToolPhrase = phrase(analyzerLoadTools.length, { lower: true });
+
+/** Verb agreement for the `analyzerLoadToolPhrase` sentence's subject. */
+export const analyzerLoadAgreement = agreement(analyzerLoadTools.length);
