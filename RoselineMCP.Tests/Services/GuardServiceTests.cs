@@ -31,7 +31,9 @@ public class GuardServiceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_root, true); }
+        catch { /* ignored */ }
 
         GC.SuppressFinalize(this);
     }
