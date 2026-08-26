@@ -874,6 +874,13 @@ public class ElicitationTests : IDisposable
         // have: ResolveTargetPath returns an existing .sln argument verbatim, so normalization is
         // the only thing making a relative one readable, and this is the branch that pins it.
         ShouldNameARealProject(message);
+
+        // apply_fixes has no free-form caller value to forge a sentence out of (ids[]/project never
+        // reach the prompt as text), so unlike the two tests above this exercises
+        // ShouldBeOneUnforgeableSentence's PrimaryProjectOf branch for coverage rather than for a
+        // forgery scenario — the branch #204 added so the helper's apostrophe count stops being
+        // asserted-in-theory for the one scope that had never actually called it.
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution, WriteScope.PrimaryProjectOf);
     }
 
     [Fact]
@@ -1363,21 +1370,44 @@ public class ElicitationTests : IDisposable
 
     /// <summary>
     /// Asserts that whatever the caller put in a prompt, the sentence still has exactly one shape:
-    /// one question, and three quoted runs opened and closed by the frame rather than by the caller.
+    /// one question, and every quoted run opened and closed by the frame rather than by the caller.
     /// </summary>
     /// <remarks>
-    /// The apostrophe count is the load-bearing half. "Contains no second sentence" is a property of
-    /// this particular payload; "the caller cannot open or close a quoted run" is the property that
-    /// holds against every payload, and it is what makes the last quoted run — the one the human
-    /// checks the target in, and the one <see cref="TargetFromPrompt"/> reads — the frame's rather
-    /// than the caller's. All three prompts quote exactly three things, so the expected count is 6.
+    /// The apostrophe count is the load-bearing half, and it is <em>scope-dependent</em> rather than
+    /// a single fixed number: <see cref="WriteScope.PrimaryProjectOf"/>'s prompt quotes only the
+    /// target (2), while <see cref="WriteScope.SingleFile"/> and <see cref="WriteScope.WholeSolution"/>
+    /// each quote two caller values ahead of it (6). An earlier version of this helper hard-coded "6"
+    /// on the theory that "all three prompts quote exactly three things" — true only of the two
+    /// scopes that happened to call it, and silently wrong for the third (#204); deriving the count
+    /// from <paramref name="scope"/> instead means a caller cannot get this wrong by pointing the
+    /// helper at a scope nobody had exercised it against yet. "Contains no second sentence" is a
+    /// property of this particular payload; "the caller cannot open or close a quoted run" is the
+    /// property that holds against every payload, and it is what makes the last quoted run — the one
+    /// the human checks the target in, and the one <see cref="TargetFromPrompt"/> reads — the
+    /// frame's rather than the caller's.
     /// </remarks>
-    private static void ShouldBeOneUnforgeableSentence(string message, string expectedTarget)
+    private static void ShouldBeOneUnforgeableSentence(string message, string expectedTarget, WriteScope scope)
     {
         CountOccurrences(message, "to disk?").ShouldBe(
             1, $"caller input appended a second question to the prompt: {message}");
+
+        // Every caller-supplied value ahead of the target renders as its own clean quoted pair
+        // (WritePrompt.Sanitize strips any apostrophe before interpolation); the target's own pair
+        // is the constant final +2. PrimaryProjectOf (apply_fixes) interpolates none; SingleFile
+        // (edit_member) and WholeSolution (rename_symbol) each interpolate two (operation/symbol,
+        // symbol/newName).
+        var sanitizedValuePairs = scope switch
+        {
+            WriteScope.PrimaryProjectOf => 0,
+            WriteScope.SingleFile => 2,
+            WriteScope.WholeSolution => 2,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(scope), scope, "This write scope has no known apostrophe count."),
+        };
+        var expectedApostropheCount = (sanitizedValuePairs * 2) + 2;
+
         message.Count(c => c == '\'').ShouldBe(
-            6, $"caller input opened or closed a quoted run: {message}");
+            expectedApostropheCount, $"caller input opened or closed a quoted run: {message}");
         TargetFromPrompt(message).ShouldBe(
             expectedTarget, $"the prompt's last quoted run is no longer the real target: {message}");
     }
@@ -1414,7 +1444,7 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        ShouldBeOneUnforgeableSentence(message, _fixtureSolution);
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution, WriteScope.SingleFile);
     }
 
     [Fact]
@@ -1450,7 +1480,7 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        ShouldBeOneUnforgeableSentence(message, _fixtureSolution);
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution, WriteScope.WholeSolution);
     }
 
     [Fact]
