@@ -29,6 +29,12 @@ public class CachingProjectLoaderTests : IDisposable
     {
         _root = Path.Combine(Path.GetTempPath(), $"RoselineCachingLoader_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
+
+        // Some fixtures point a fake solution path directly at _root (e.g. "{root}/Repo.sln"), which
+        // makes _root itself a tracked directory even though that .sln never exists on disk. Backdate
+        // it here too, for the same reason CreateProjectOnDisk backdates what it creates: a freshly
+        // created directory would otherwise be flagged racy (issue #235) at the very first capture.
+        Directory.SetLastWriteTimeUtc(_root, DateTime.UtcNow.AddSeconds(-10));
     }
 
     public void Dispose()
@@ -38,14 +44,31 @@ public class CachingProjectLoaderTests : IDisposable
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    /// <summary>Creates <c>{root}/{name}/{name}.csproj</c> + <c>Widget.cs</c> on disk; returns the csproj path.</summary>
+    /// <summary>
+    /// Creates <c>{root}/{name}/{name}.csproj</c> + <c>Widget.cs</c> on disk; returns the csproj path.
+    /// Backdates every created file/directory's <c>LastWriteTimeUtc</c> well past
+    /// <c>CachingProjectLoader</c>'s racy window (issue #235), so an ordinary cache-hit test's fixture
+    /// is never itself flagged racy at capture — that's what the deliberately fresh writes in the
+    /// stamp-collision regression tests are for.
+    /// </summary>
     private string CreateProjectOnDisk(string name)
     {
         var dir = Path.Combine(_root, name);
         Directory.CreateDirectory(dir);
         var csproj = Path.Combine(dir, $"{name}.csproj");
+        var widget = Path.Combine(dir, "Widget.cs");
         File.WriteAllText(csproj, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
-        File.WriteAllText(Path.Combine(dir, "Widget.cs"), "class Widget { }");
+        File.WriteAllText(widget, "class Widget { }");
+
+        var settled = DateTime.UtcNow.AddSeconds(-10);
+        File.SetLastWriteTimeUtc(csproj, settled);
+        File.SetLastWriteTimeUtc(widget, settled);
+        Directory.SetLastWriteTimeUtc(dir, settled);
+        // Directory.CreateDirectory(dir) just bumped _root's own mtime (a new child was added);
+        // re-settle it too, since some fixtures point a fake .sln straight at _root (see the
+        // constructor's own comment).
+        Directory.SetLastWriteTimeUtc(_root, settled);
+
         return csproj;
     }
 
@@ -199,6 +222,37 @@ public class CachingProjectLoaderTests : IDisposable
 
         inner.LoadCount.ShouldBe(2, "raciness is decided once at capture; a later check must not start trusting an already-racy fingerprint");
         ReferenceEquals(second.Solution, first.Solution).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// The racy flag is not a standing penalty: a fingerprint captured racy forces exactly one more
+    /// reload, and that reload's own fresh capture — taken once the tracked file's mtime is genuinely
+    /// older than *that* new capture time — comes back non-racy, so the entry settles back into
+    /// ordinary cache hits rather than reloading forever.
+    /// </summary>
+    [Fact]
+    public async Task A_Fingerprint_Captured_Racy_Settles_Into_A_Cache_Hit_Once_Its_Reload_Is_No_Longer_Racy()
+    {
+        CreateProjectOnDisk("App");
+        var widgetPath = Path.Combine(_root, "App", "Widget.cs");
+        File.WriteAllText(widgetPath, "class Widget { int A() => 1; }");
+        var fakeNow = File.GetLastWriteTimeUtc(widgetPath); // capture happens right at the write -> racy
+        var inner = new FakeInnerLoader(_root);
+        using var loader = CreateLoader(inner, utcNowProvider: () => fakeNow);
+
+        using var first = await loader.LoadAsync("App", Ct);
+        inner.LoadCount.ShouldBe(1);
+
+        // Widget.cs is untouched from here on. Advance the simulated clock well past the racy
+        // window (no real delay) before the next two loads.
+        fakeNow = fakeNow.AddSeconds(5);
+
+        using var second = await loader.LoadAsync("App", Ct);
+        inner.LoadCount.ShouldBe(2, "the racy first capture must still force exactly one more reload");
+
+        using var third = await loader.LoadAsync("App", Ct);
+        inner.LoadCount.ShouldBe(2, "the second capture, taken 5s after Widget.cs's own last write, must not itself be racy — this must be a cache hit");
+        ReferenceEquals(third.Solution, second.Solution).ShouldBeTrue();
     }
 
     [Fact]

@@ -22,6 +22,18 @@ namespace RoselineMCP.Services;
 /// workspace and reloads fresh. This also self-invalidates after RoselineMCP's own
 /// <c>ApplyFixes</c>/<c>EditMember</c>/<c>RenameSymbol</c> disk writes.
 ///
+/// A bare stat match is not, by itself, proof that nothing changed: two writes whose length happens
+/// to match can produce an identical <c>(LastWriteTimeUtc, Length)</c> stamp if they land inside the
+/// OS's file-timestamp update granularity (issue #235, the same defect class #233 found in
+/// <c>GuardService</c>) — a same-length <c>rename_symbol</c> is the realistic trigger. Rather than
+/// hashing file content (the correctness fix, but not free on every load), each
+/// <see cref="WorkspaceFingerprint"/> decides once, at capture, whether any tracked file/directory's
+/// own last write was still fresher than a short window relative to the capture itself — modeled on
+/// git's "racily clean index" handling. A fingerprint captured that way is never trusted on a later
+/// stat match and forces exactly one more reload, however long the next call takes to arrive; that
+/// reload's own fresh capture settles back to the ordinary cheap stat-only path once the tracked
+/// files have genuinely aged past the window. See <see cref="WorkspaceFingerprint.IsRacy"/>.
+///
 /// The cache is bounded (<see cref="MaxEntries"/> entries, least-recently-used eviction, evicted
 /// workspaces disposed) and guarded by a <see cref="SemaphoreSlim"/>. Handles returned from the
 /// cache do not own the shared workspace (<c>ownsWorkspace: false</c>), so disposing them — as all
@@ -313,9 +325,20 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             return new WorkspaceFingerprint(fileStamps, directoryStamps, isRacy);
         }
 
-        /// <summary>Re-stats every tracked file/directory; <see langword="false"/> means stale.</summary>
+        /// <summary>
+        /// Re-stats every tracked file/directory; <see langword="false"/> means stale. A fingerprint
+        /// captured <see cref="IsRacy"/> is never trusted here — no clock read, no stat loop, just
+        /// the flag decided once at capture — because a bare stat match cannot tell "unchanged"
+        /// apart from "changed again inside the same OS timestamp-granularity bucket" for a file
+        /// that was already that fresh when we captured it (issue #235).
+        /// </summary>
         public bool IsCurrent()
         {
+            if (IsRacy)
+            {
+                return false;
+            }
+
             foreach (var stamp in _files)
             {
                 if (FileStamp.Capture(stamp.Path) != stamp)
