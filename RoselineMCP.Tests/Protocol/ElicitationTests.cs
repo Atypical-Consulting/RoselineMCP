@@ -863,9 +863,10 @@ public class ElicitationTests : IDisposable
     public async Task ApplyFixes_Confirmation_Names_The_Project_Exactly_When_The_Target_Is_A_Csproj()
     {
         // The other side of the branch, and the reason it is asserted byte-for-byte rather than by
-        // substring: when the resolved target is already the project that gets written, today's
-        // wording is exact and the scope qualifier would be a fresh inaccuracy. A test that only
-        // checked for the .csproj path would still pass if the qualifier fired on both branches.
+        // substring: when the resolved target is already the project that gets written, "the
+        // project" is exact and "the primary project of" would be a fresh inaccuracy — narrowing the
+        // scope to a project-of-a-project that does not exist. A test that only checked for the
+        // .csproj path would still pass if the wrong qualifier fired on both branches.
         string? message = null;
         var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
 
@@ -887,7 +888,7 @@ public class ElicitationTests : IDisposable
         message.ShouldNotBeNull();
         message.ShouldBe(
             "Apply code fixes for 1 diagnostic ID(s) and write the changes to disk? "
-            + $"The write reaches '{_fixtureProject}'.");
+            + $"The write reaches the project '{_fixtureProject}'.");
         message.ShouldNotContain("primary project of");
     }
 
@@ -1560,20 +1561,22 @@ public class ElicitationTests : IDisposable
 
     [Theory]
     [InlineData("/repo/App.sln", "the primary project of ")]
-    [InlineData("/repo/App.csproj", "")]
+    [InlineData("/repo/App.csproj", "the project ")]
     public void PrimaryProjectOf_Renders_The_ApplyFixes_Sentence(string target, string qualifier)
     {
         // The one scope whose clause DOES branch on the target's extension (#149): CodeFixService
         // narrows a solution to a single anchor project, so naming the solution outright would have
         // the human authorise a write broader than the one about to happen. A .csproj target *is*
-        // its own write scope, so it takes no qualifier.
+        // its own write scope, so it takes "the project" rather than "the primary project of" (#203)
+        // — the noun still names what kind of thing the target is, it does not widen or narrow the
+        // write the sentence describes.
         //
         // The scope moved behind the question mark so the sentence ENDS on the target (#173) — the
         // claim is unchanged, only its position: still N diagnostic IDs, still written to disk,
         // still narrowed to the primary project when and only when the target is a solution.
         //
-        // The .csproj branch still takes NO qualifier: what each sentence claims about scope was
-        // settled by #149/#152 and #173 deliberately did not reopen it.
+        // #203: the .csproj branch now names the noun too, restoring the symmetry the two branches
+        // had before #173's re-ordering left the bare path to carry the project-ness alone.
         WritePrompt.ForPrimaryProjectOf(3).Render(target).ShouldBe(
             "Apply code fixes for 3 diagnostic ID(s) and write the changes to disk? "
             + $"The write reaches {qualifier}'{target}'.");

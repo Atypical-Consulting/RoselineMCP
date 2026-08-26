@@ -42,7 +42,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
     }
 
     /// <summary>One CS0219 (assigned but never used local) — the fixture most of these tests fix.</summary>
@@ -120,37 +122,6 @@ public class CodeFixServiceIntegrationTests : IDisposable
         return path;
     }
 
-    /// <summary>Writes a hand-rolled .sln in <c>_testDirectory</c> referencing the given (already created) projects.</summary>
-    private string CreateSolutionFile(string solutionFileName, params string[] projectNames)
-    {
-        var guids = projectNames
-            .Select((name, i) => (Name: name, Guid: $"{{1111111{i + 1}-1111-1111-1111-111111111111}}"))
-            .ToList();
-        var entries = string.Join("\n", guids.Select(p =>
-            $"Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{p.Name}\", \"{p.Name}\\{p.Name}.csproj\", \"{p.Guid}\"\nEndProject"));
-        var configs = string.Join("\n", guids.Select(p =>
-            $"\t\t{p.Guid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{p.Guid}.Debug|Any CPU.Build.0 = Debug|Any CPU"));
-
-        var slnPath = Path.Combine(_testDirectory, solutionFileName);
-        File.WriteAllText(slnPath,
-            $"""
-             Microsoft Visual Studio Solution File, Format Version 12.00
-             # Visual Studio Version 17
-             VisualStudioVersion = 17.0.31903.59
-             MinimumVisualStudioVersion = 10.0.40219.1
-             {entries}
-             Global
-             	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-             		Debug|Any CPU = Debug|Any CPU
-             	EndGlobalSection
-             	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-             {configs}
-             	EndGlobalSection
-             EndGlobal
-             """);
-        return slnPath;
-    }
-
     public class SingleDiagnosticTests : CodeFixServiceIntegrationTests
     {
         [Fact]
@@ -167,7 +138,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                 .Invokes((ProgressNotificationValue v) => reports.Add(v));
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false, progress: progress);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false, progress: progress, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert
             result.FixedCount.ShouldBe(1);
@@ -181,7 +152,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
             reports.ShouldContain(r => r.Total == 1);
             reports.ShouldContain(r => r.Progress >= 1);
 
-            var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs"));
+            var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs"), TestContext.Current.CancellationToken);
             onDisk.ShouldNotContain("unused");
             onDisk.ShouldContain("System.Console.WriteLine(\"hi\");");
         }
@@ -193,17 +164,17 @@ public class CodeFixServiceIntegrationTests : IDisposable
             var csprojPath = CreateProject("Preview.csproj",
                 ("Program.cs", OneUnusedLocal));
             var programPath = Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs");
-            var originalContent = await File.ReadAllTextAsync(programPath);
+            var originalContent = await File.ReadAllTextAsync(programPath, TestContext.Current.CancellationToken);
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert — the fix was computed (patch/count reflect it) but disk is untouched
             result.FixedCount.ShouldBe(1);
             result.PreviewOnly.ShouldBeTrue();
             result.Notes.ShouldContain(n => n.Contains("Preview mode"));
 
-            var onDisk = await File.ReadAllTextAsync(programPath);
+            var onDisk = await File.ReadAllTextAsync(programPath, TestContext.Current.CancellationToken);
             onDisk.ShouldBe(originalContent);
         }
 
@@ -224,7 +195,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                  """));
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, [], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(csprojPath, [], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert
             result.ShouldNotBeNull();
@@ -250,7 +221,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                  """));
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert
             result.FixedCount.ShouldBe(0);
@@ -292,15 +263,14 @@ public class CodeFixServiceIntegrationTests : IDisposable
                      """));
 
                 // Act
-                var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false);
+                var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
                 // Assert — fixCount must equal exactly the number of diagnostics that actually
                 // disappeared from the file, every single run.
                 result.FixedCount.ShouldBe(2, $"run {run}: fixCount should reflect both fixes");
                 result.ChangedFiles.ShouldContain($"Overlap{run}.cs");
 
-                var onDisk = await File.ReadAllTextAsync(
-                    Path.Combine(Path.GetDirectoryName(csprojPath)!, $"Overlap{run}.cs"));
+                var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, $"Overlap{run}.cs"), TestContext.Current.CancellationToken);
                 onDisk.ShouldNotContain("unusedA", customMessage: $"run {run}: first fix should have landed");
                 onDisk.ShouldNotContain("unusedB", customMessage: $"run {run}: second fix should have landed");
                 onDisk.ShouldContain("System.Console.WriteLine(\"hi\");");
@@ -326,13 +296,13 @@ public class CodeFixServiceIntegrationTests : IDisposable
                  """));
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0168", "CS0219"], previewOnly: false);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0168", "CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert
             result.FixedCount.ShouldBe(2);
             result.FixersApplied.ShouldBe(["CS0168", "CS0219"], ignoreOrder: true);
 
-            var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Mixed.cs"));
+            var onDisk = await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(csprojPath)!, "Mixed.cs"), TestContext.Current.CancellationToken);
             onDisk.ShouldNotContain("unusedDeclared");
             onDisk.ShouldNotContain("unusedAssigned");
         }
@@ -362,20 +332,20 @@ public class CodeFixServiceIntegrationTests : IDisposable
                         System.Console.WriteLine("hi");
                     }
                 }
-                """, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+                """, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true), TestContext.Current.CancellationToken);
 
             // Sanity: the BOM really is on disk before the fix runs.
-            (await File.ReadAllBytesAsync(programPath)).Take(3).ShouldBe(Utf8Bom);
+            (await File.ReadAllBytesAsync(programPath, TestContext.Current.CancellationToken)).Take(3).ShouldBe(Utf8Bom);
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert — the fix landed AND the BOM survived the rewrite
             result.FixedCount.ShouldBe(1);
-            var bytes = await File.ReadAllBytesAsync(programPath);
+            var bytes = await File.ReadAllBytesAsync(programPath, TestContext.Current.CancellationToken);
             bytes.Take(3).ShouldBe(Utf8Bom, customMessage: "the UTF-8 BOM must be preserved on write");
 
-            var onDisk = await File.ReadAllTextAsync(programPath);
+            var onDisk = await File.ReadAllTextAsync(programPath, TestContext.Current.CancellationToken);
             onDisk.ShouldNotContain("unused");
             onDisk.ShouldContain("System.Console.WriteLine(\"hi\");");
         }
@@ -400,10 +370,10 @@ public class CodeFixServiceIntegrationTests : IDisposable
                 ("Program.cs", OneUnusedLocal));
             CreateProject("Lib.csproj",
                 ("Thing.cs", "public class Thing { }"));
-            CreateSolutionFile("Fix.sln", "App", "Lib");
+            SolutionFileBuilder.Write(Path.Combine(_testDirectory, "Fix.sln"), "App", "Lib");
 
             // Act — reference the project by its .csproj path; the loader opens the containing solution.
-            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert — paths are rooted at the solution directory, with forward slashes.
             result.FixedCount.ShouldBe(1);
@@ -424,9 +394,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
                 ("Program.cs", OneUnusedLocal));
             CreateProject("Lib.csproj",
                 ("Thing.cs", "public class Thing { }"));
-            var slnPath = CreateSolutionFile("Resolved.sln", "App", "Lib");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "Resolved.sln"), "App", "Lib");
 
-            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             result.ResolvedPath.ShouldBe(slnPath);
         }
@@ -470,9 +440,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
                      }
                  }
                  """));
-            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App", "Lib");
 
-            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
             // The anchor was fixed...
             result.Project.ShouldBe("App");
@@ -565,10 +535,10 @@ public class CodeFixServiceIntegrationTests : IDisposable
             CreateSharedFile("Shared/Config.cs", UnusedLocalInShared);
             CreateProject("App.csproj", linkedFiles: ["Shared/Config.cs"], ("Program.cs", UnusedLocalInApp));
             CreateProject("Lib.csproj", linkedFiles: ["Shared/Config.cs"], ("Thing.cs", UnusedLocalInLib));
-            var slnPath = CreateSolutionFile("App.sln", firstInSolution, secondInSolution);
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), firstInSolution, secondInSolution);
             var before = SnapshotSources();
 
-            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
             result.Project.ShouldBe("App");
             result.Applied.ShouldBeTrue();
@@ -605,9 +575,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
             CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
             CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
             CreateProject("Other.csproj", ("Widget.cs", "public class Widget { }"));
-            var slnPath = CreateSolutionFile("App.sln", "App", "Lib", "Other");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App", "Lib", "Other");
 
-            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly);
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly, cancellationToken: TestContext.Current.CancellationToken);
 
             result.Project.ShouldBe("App");
             var scopeNote = result.Notes.Where(n => n.Contains("not analyzed or fixed")).ShouldHaveSingleItem();
@@ -624,7 +594,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             var csprojPath = CreateProject("Alone.csproj", ("Program.cs", UnusedLocalInApp));
 
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             result.FixedCount.ShouldBe(1);
             result.Notes.ShouldNotContain(n => n.Contains("not analyzed or fixed"));
@@ -641,9 +611,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             var appCsproj = CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
             CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
-            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App", "Lib");
 
-            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             result.FixedCount.ShouldBe(1);
             result.ResolvedPath.ShouldBe(slnPath);
@@ -655,9 +625,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
         public async Task ApplyFixes_On_A_Single_Project_Solution_Emits_No_Skipped_Project_Note()
         {
             CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
-            var slnPath = CreateSolutionFile("App.sln", "App");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App");
 
-            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             result.FixedCount.ShouldBe(1);
             result.ResolvedPath.ShouldBe(slnPath);
@@ -695,7 +665,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                  """));
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0168", "CS0219"], previewOnly: false);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0168", "CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert
             result.FixedCount.ShouldBe(2);
@@ -704,8 +674,8 @@ public class CodeFixServiceIntegrationTests : IDisposable
             result.FixersApplied.ShouldBe(["CS0168", "CS0219"], ignoreOrder: true);
 
             var projectDir = Path.GetDirectoryName(csprojPath)!;
-            var fileA = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileA.cs"));
-            var fileB = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileB.cs"));
+            var fileA = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileA.cs"), TestContext.Current.CancellationToken);
+            var fileB = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileB.cs"), TestContext.Current.CancellationToken);
             fileA.ShouldNotContain("unusedInA");
             fileB.ShouldNotContain("unusedInB");
         }
@@ -747,7 +717,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                  """));
 
             // Act
-            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219", "CS0168"], previewOnly: false);
+            var result = await _sut.ApplyFixesAsync(csprojPath, ["CS0219", "CS0168"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert
             result.FixedCount.ShouldBe(5);
@@ -756,8 +726,8 @@ public class CodeFixServiceIntegrationTests : IDisposable
             result.ChangedFiles.ShouldContain("FileB.cs");
 
             var projectDir = Path.GetDirectoryName(csprojPath)!;
-            var fileA = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileA.cs"));
-            var fileB = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileB.cs"));
+            var fileA = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileA.cs"), TestContext.Current.CancellationToken);
+            var fileB = await File.ReadAllTextAsync(Path.Combine(projectDir, "FileB.cs"), TestContext.Current.CancellationToken);
             fileA.ShouldNotContain("assignedA1");
             fileA.ShouldNotContain("assignedA2");
             fileA.ShouldNotContain("declaredA");
@@ -783,9 +753,9 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             CreateProject("Main.csproj", ("MainProgram.cs", "class MainProgram { static void Main() { } }"));
             var scratchCsproj = CreateProject("Scratch.csproj", ("Program.cs", OneUnusedLocal));
-            CreateSolutionFile("Repo.sln", "Main"); // Scratch is on disk but deliberately NOT listed.
+            SolutionFileBuilder.Write(Path.Combine(_testDirectory, "Repo.sln"), "Main"); // Scratch is on disk but deliberately NOT listed.
 
-            var result = await _sut.ApplyFixesAsync(scratchCsproj, ["CS0219"], previewOnly: true);
+            var result = await _sut.ApplyFixesAsync(scratchCsproj, ["CS0219"], previewOnly: true, cancellationToken: TestContext.Current.CancellationToken);
 
             result.ResolvedPath.ShouldBe(scratchCsproj);
             result.ChangedFiles.ShouldBe(["Program.cs"]);
