@@ -1,6 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
-import { tools, groups, toolCount, toolCountPhrase } from '../data/tools.ts';
+import { tools, groups, toolCount, toolCountPhrase, readToolPhrase, writeToolPhrase } from '../data/tools.ts';
 const base = import.meta.env.BASE_URL;
 const kindLabel: Record<string, string> = { read: 'read-only', write: 'write · preview', diagnostics: 'read-only' };
 const groupBlurb: Record<string, string> = {
@@ -39,8 +39,8 @@ const groupBlurb: Record<string, string> = {
       </div>
 
       <div class="note" style="margin:1.6rem 0">
-        <p style="margin:0"><strong>Read-only by default.</strong> The seven navigation tools and the
-          diagnostics/patch tools never touch disk. The three write-capable tools
+        <p style="margin:0"><strong>Read-only by default.</strong> The {readToolPhrase} and the
+          diagnostics/patch tools never touch disk. The {writeToolPhrase}
           (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
           <code>previewOnly: true</code> — they return a diff and write nothing unless you pass
           <code>previewOnly: false</code>, and even then they <strong>ask your client to confirm</strong>
