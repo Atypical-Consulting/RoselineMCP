@@ -214,8 +214,15 @@ says so rather than implying a solution-wide write:
 
 > Apply code fixes for 2 diagnostic ID(s) and write the changes to disk? The write reaches the primary project of '/Users/me/src/Acme/Acme.sln'.
 
-When the resolved target is already a `.csproj`, that project *is* the whole scope and the sentence
-names it directly, with no qualifier. The prompt deliberately does not name *which* project the
+When the resolved target is already a `.csproj`, that project *is* the whole scope, and the sentence
+names it with the same noun rather than a bare path:
+
+> Apply code fixes for 2 diagnostic ID(s) and write the changes to disk? The write reaches the project '/Users/me/src/Acme/App.csproj'.
+
+Both arms name the noun — "the primary project of" for a `.sln`, "the project" for a `.csproj` —
+so neither reads like a promise to rewrite the target path itself; `CodeFixService` only ever rewrites
+the project's `.cs` documents, never the `.csproj`/`.sln` file named in the sentence (#203). The
+prompt deliberately does not name *which* project the
 anchor will be: that answer requires loading an MSBuild workspace, which would happen before the
 human has agreed to anything and would have to be re-derived after the round-trip — reopening the
 window that resolving-once closes. Note that "one project's documents" is a statement about
@@ -259,8 +266,9 @@ It says "**can** reach any project" rather than "reaches every project" because 
 false for the ordinary rename: `Renamer.RenameSymbolAsync` rewrites only the files that actually
 reference the symbol, so renaming a `private` helper in a five-project solution touches one. Stating
 the *reachable* scope is exact; stating it as what *will* happen would be a fresh inaccuracy of the
-family #149/#154 closed. (`ApplyFixes` drops its qualifier entirely when the target is a `.csproj`,
-for the same reason: there the target *is* the scope.)
+family #149/#154 closed. (`ApplyFixes`' qualifier carries no *narrowing* when the target is a
+`.csproj` — it still names the noun ("the project"), for the same reason it names "the primary
+project of" on a `.sln`; neither narrows the write, since there the target *is* the scope.)
 
 All three sentences above are rendered in **one place**, from structured inputs: a tool names its
 scope from a closed vocabulary (`WriteScope` — `PrimaryProjectOf`, `SingleFile`, `WholeSolution`) and

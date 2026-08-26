@@ -104,9 +104,12 @@ public sealed record WritePrompt
     /// extension (#149). <c>CodeFixService</c> narrows a solution to a single anchor project and
     /// fixes only that project's documents, so naming the solution outright would have the human
     /// authorise a write broader than the one about to happen — on a three-project solution, two are
-    /// left untouched. A <c>.csproj</c> target <em>is</em> its own write scope, so it takes no
-    /// qualifier. The anchor is deliberately not resolved and named: that costs an MSBuildWorkspace
-    /// load before the human has been asked, and it would reopen the window PR #142 closed.
+    /// left untouched. A <c>.csproj</c> target <em>is</em> its own write scope, so its qualifier
+    /// carries no <em>narrowing</em> — but it still names the noun ("the project"), the same as the
+    /// <c>.sln</c> arm's "the primary project of", so neither reads like a promise to rewrite the
+    /// target path itself rather than the project's documents (#203). The anchor is deliberately not
+    /// resolved and named: that costs an MSBuildWorkspace load before the human has been asked, and
+    /// it would reopen the window PR #142 closed.
     /// </item>
     /// <item>
     /// <see cref="WriteScope.SingleFile"/> does <em>not</em> branch on the extension, because this
@@ -180,14 +183,15 @@ public sealed record WritePrompt
         // anchor project, so it must say so, while a .csproj IS the whole write scope and takes no
         // NARROWING qualifier. What the two sentences claim about scope is settled (#149/#152) and
         // #173 did not reopen it.
-        // NOTE (#173 follow-up): under the old "apply fixes ... to '<x>.csproj'" a bare path read
-        // as the project; under "the write reaches '<x>.csproj'" it reads a little more like a
-        // promise to rewrite that FILE, and CodeFixService only ever writes .cs documents. Adding
-        // "the project" here would settle it, but that reopens phrasing #149/#152 fixed, so it is
-        // raised on the PR rather than decided in passing.
+        // #203: both arms now name the noun — "the project" for a .csproj target, "the primary
+        // project of" for a .sln. Naming the noun is a CLARITY change, not a scope change: it says
+        // what kind of thing the target is, it does not widen or narrow what gets written. #173
+        // moved the target to the end of the sentence, which left the .csproj arm's bare path to
+        // carry the project-ness alone — "the write reaches '<x>.csproj'" read like a promise to
+        // rewrite that FILE, when CodeFixService only ever writes the project's .cs documents.
         var qualifier = target.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
             ? "the primary project of "
-            : string.Empty;
+            : "the project ";
         return $"Apply code fixes for {DiagnosticIdCount} diagnostic ID(s){AndWriteToDisk} "
             + $"The write reaches {qualifier}'{target}'.";
     }
