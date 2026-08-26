@@ -607,6 +607,8 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
     /// </summary>
     private async Task<string> CloneGitRepositoryAsync(string gitUrl, string? branch, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var tempDir = Path.Combine(Path.GetTempPath(), $"roselinemcp-clone-{Guid.NewGuid():N}");
         CreateCloneDirectory(tempDir);
 
