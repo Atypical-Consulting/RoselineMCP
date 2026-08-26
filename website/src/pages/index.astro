@@ -141,8 +141,8 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
           <span class="eyebrow">Measured, not marketed</span>
           <h2>{median}% fewer tokens, on its own source.</h2>
           <p>Every figure is a real string — the tool's actual output vs. the source an agent would
-            otherwise read, tokenized with a real BPE tokenizer, swept systematically over
-            {fmt(data.metadata.symbolsSwept)} symbols. Weak cases shown, not hidden.</p>
+            otherwise read, tokenized with a real BPE tokenizer, swept systematically
+            over {fmt(data.metadata.symbolsSwept)} symbols. Weak cases shown, not hidden.</p>
           <a class="btn ghost" href={base + 'benchmark'}>Read the methodology →</a>
         </div>
         <div class="proof-stats">
@@ -252,8 +252,8 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
       </div>
       <p class="clients muted">
         Verified with <strong>Claude Desktop</strong>, <strong>VS&nbsp;Code</strong> (Copilot / MCP),
-        and <strong>Cursor</strong>. Per-client config in the
-        <a href="https://github.com/Atypical-Consulting/RoselineMCP#mcp-client-compatibility">README</a>.
+        and <strong>Cursor</strong>. Per-client config in
+        the <a href="https://github.com/Atypical-Consulting/RoselineMCP#mcp-client-compatibility">README</a>.
         Also listed in the <a href="https://registry.modelcontextprotocol.io">official MCP Registry</a>,
         so registry-aware clients can find it by name.
       </p>
@@ -267,8 +267,8 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
         <span class="eyebrow">Compile guard <span class="tab-tag">opt-in</span></span>
         <h2>The compiler’s opinion, after every write.</h2>
         <p>RoselineMCP’s write tools already refuse an edit that breaks the build. But an agent that
-          reaches for plain <code>Edit</code> never gets that verdict. The guard runs as a
-          <code>PostToolUse</code> hook, so the compiler judges every write — whichever tool made it.</p>
+          reaches for plain <code>Edit</code> never gets that verdict. The guard runs
+          as a <code>PostToolUse</code> hook, so the compiler judges every write — whichever tool made it.</p>
       </div>
 
       <div class="codeblock" id="guard-hook">
@@ -290,9 +290,9 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
       </ul>
 
       <p class="muted small">Off by default — set <code>ROSELINE_RoselineMCP__Guard=true</code>. It opens
-        a local, per-user socket; read
-        <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/SECURITY.md#known-risk-the-compile-guard-endpoint">SECURITY.md</a>
-        before enabling it on a shared machine.</p>
+        a local, per-user socket;
+        read <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/SECURITY.md#known-risk-the-compile-guard-endpoint">SECURITY.md</a> before
+        enabling it on a shared machine.</p>
     </div>
   </section>
 
@@ -302,8 +302,8 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
       <div class="sec-head">
         <span class="eyebrow">The surface</span>
         <h2>{toolCountPhrase}. Structure in, tokens down.</h2>
-        <p>{codeIntelligenceToolPhrase} on top of the original diagnostics surface.
-          <a href={base + 'tools'}>Full reference →</a></p>
+        <p>{codeIntelligenceToolPhrase} on top of the original diagnostics
+          surface. <a href={base + 'tools'}>Full reference →</a></p>
       </div>
       {groups.map((g) => (
         <div class="tgroup">

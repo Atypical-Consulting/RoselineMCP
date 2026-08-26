@@ -18,22 +18,20 @@ const groupBlurb: Record<string, string> = {
     <div class="wrap">
       <span class="eyebrow">Reference</span>
       <h1 style="margin:1rem 0">{toolCountPhrase}</h1>
-      <p class="lede">The navigation, editing, and diagnostics/fix tools take an <strong>optional</strong>
-        <code>project</code> (name, directory, <code>.csproj</code>, or <code>.sln</code> path) — omit it
-        and RoselineMCP auto-discovers the solution/project from its working directory. A
-        <code>symbol</code> is a simple or fully-qualified name — add a parameter list to pick an
-        overload. Wire names are <code>snake_case</code>. Full request/response shapes live in
-        <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/docs/API.md">docs/API.md</a>.</p>
+      <p class="lede">The navigation, editing, and diagnostics/fix tools take an <strong>optional</strong> <code>project</code> (name, directory, <code>.csproj</code>, or <code>.sln</code> path) — omit it
+        and RoselineMCP auto-discovers the solution/project from its working directory.
+        A <code>symbol</code> is a simple or fully-qualified name — add a parameter list to pick an overload.
+        Wire names are <code>snake_case</code>. Full request/response shapes live in <a href="https://github.com/Atypical-Consulting/RoselineMCP/blob/dev/docs/API.md">docs/API.md</a>.</p>
 
       <div class="note" style="margin:1.6rem 0">
-        <p style="margin:0"><strong>Which checkout answered?</strong> Auto-discovery is anchored to
-          <em>the server's</em> working directory — the one your MCP client launched RoselineMCP in —
-          not yours. They differ whenever you work in a git worktree (e.g.
-          <code>.claude/worktrees/&lt;name&gt;</code>), which sits below the discovery walk's reach, so
+        <p style="margin:0"><strong>Which checkout answered?</strong> Auto-discovery is anchored to <em>the server's</em> working
+          directory — the one your MCP client launched RoselineMCP in —
+          not yours. They differ whenever you work in a git worktree (e.g. <code>.claude/worktrees/&lt;name&gt;</code>),
+          which sits below the discovery walk's reach, so
           an omitted <code>project</code> resolves the <strong>main checkout</strong> instead. Two
           checkouts of one repo are otherwise indistinguishable in a response, so every tool with an
-          optional <code>project</code> returns <code>resolvedPath</code> — the absolute
-          <code>.sln</code>/<code>.csproj</code> that actually answered: the <code>.sln</code> when the
+          optional <code>project</code> returns <code>resolvedPath</code> —
+          the absolute <code>.sln</code>/<code>.csproj</code> that actually answered: the <code>.sln</code> when the
           solution was loaded and contains the project, otherwise the <code>.csproj</code> that was
           opened directly (e.g. a project not listed in its nearest ancestor <code>.sln</code>). Pass
           an absolute path as <code>project</code> to target a specific checkout.
@@ -45,25 +43,23 @@ const groupBlurb: Record<string, string> = {
         <p style="margin:0"><strong>Read-only by default.</strong> The {readToolPhrase} and the
           diagnostics/patch tools never touch disk. The {writeToolPhrase} ({writeTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
           default{writeToolAgreement.s} to <code>previewOnly: true</code> — {writeToolAgreement.pronoun} return{writeToolAgreement.s} a diff and write nothing unless
-          you pass <code>previewOnly: false</code>, and even then {writeToolAgreement.pronoun} <strong>ask{writeToolAgreement.s} your client to confirm</strong>
-          via MCP elicitation before writing (declining downgrades the call to a preview). So does
-          leaving the prompt unanswered: the round-trip is bounded by
-          <code>RoselineMCP:ConfirmDestructiveWritesTimeout</code> (default 5 minutes), after which
+          you pass <code>previewOnly: false</code>, and even then {writeToolAgreement.pronoun} <strong>ask{writeToolAgreement.s} your client to confirm</strong> via
+          MCP elicitation before writing (declining downgrades the call to a preview). So does
+          leaving the prompt unanswered: the round-trip is
+          bounded by <code>RoselineMCP:ConfirmDestructiveWritesTimeout</code> (default 5 minutes), after which
           the call returns a preview rather than writing or hanging. That
-          confirmation can be switched off for unattended hosts with
-          <code>RoselineMCP:ConfirmDestructiveWrites=false</code>, leaving
-          <code>previewOnly: false</code> as the only guard.</p>
+          confirmation can be switched off for unattended hosts
+          with <code>RoselineMCP:ConfirmDestructiveWrites=false</code>, leaving <code>previewOnly: false</code> as the only guard.</p>
       </div>
 
       <div class="note" style="margin:1.6rem 0">
         <p style="margin:0"><strong>Degraded coverage is named, never silent.</strong> Roslyn reports
-          an analyzer reference it cannot load — one built against a newer
-          <code>Microsoft.CodeAnalysis</code> than the server's, the .NET SDK's own analyzers being
+          an analyzer reference it cannot load — one built against
+          a newer <code>Microsoft.CodeAnalysis</code> than the server's, the .NET SDK's own analyzers being
           the universal case — by contributing <em>zero</em> analyzers, not by failing. The {analyzerLoadToolPhrase} that
           report{analyzerLoadAgreement.s} <code>analyzerLoad</code> ({analyzerLoadTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
           therefore return{analyzerLoadAgreement.s} that block naming every reference that contributed nothing and why
-          (<code>load-failure</code> with Roslyn's
-          <code>errorCode</code> and message, <code>no C# analyzers</code>, or <code>exception</code>).
+          (<code>load-failure</code> with Roslyn's <code>errorCode</code> and message, <code>no C# analyzers</code>, or <code>exception</code>).
           It is <strong>omitted when every reference contributed</strong>, so a present block always
           says something — including <code>analyzersRan: false</code> when analyzers are switched
           off. Code fixers are looked up in the Roslyn built-ins, the bundled Roslynator catalog, and
@@ -78,12 +74,10 @@ const groupBlurb: Record<string, string> = {
           <div class="env-row"><span class="pill read">ok</span><code class="mono">{`{ "ok": true, "data": { … } }`}</code></div>
           <div class="env-row"><span class="pill write">err</span><code class="mono">{`{ "ok": false, "error": { "type", "message", "correlationId", "resolvedPath"? } }`}</code></div>
         </div>
-        <p class="muted" style="margin-bottom:0">Tools set <code>UseStructuredContent</code>, so
-          <code>data</code> is also delivered as MCP <code>structuredContent</code> alongside an advertised
-          <code>outputSchema</code>. Long-running tools emit <strong>progress notifications</strong>;
-          failures carry a <code>correlationId</code> to the client’s log stream, plus
-          <code>resolvedPath</code> — the checkout that answered — whenever the call failed
-          <em>after</em> resolving a project. It is omitted entirely when nothing was resolved.</p>
+        <p class="muted" style="margin-bottom:0">Tools set <code>UseStructuredContent</code>, so <code>data</code> is also delivered as MCP <code>structuredContent</code> alongside
+          an advertised <code>outputSchema</code>. Long-running tools emit <strong>progress notifications</strong>;
+          failures carry a <code>correlationId</code> to the client’s log stream, plus <code>resolvedPath</code> —
+          the checkout that answered — whenever the call failed <em>after</em> resolving a project. It is omitted entirely when nothing was resolved.</p>
       </div>
 
       {groups.map((g) => (
@@ -114,8 +108,8 @@ const groupBlurb: Record<string, string> = {
       <div class="sec-head" style="margin-top:2.5rem">
         <span class="eyebrow">Proof</span>
         <h2>How much do they save?</h2>
-        <p>The read tools exist to spend fewer tokens than reading source. See the
-          <a href={base + 'benchmark'}>measured, honest benchmark →</a></p>
+        <p>The read tools exist to spend fewer tokens than reading source.
+          See the <a href={base + 'benchmark'}>measured, honest benchmark →</a></p>
       </div>
     </div>
   </section>
