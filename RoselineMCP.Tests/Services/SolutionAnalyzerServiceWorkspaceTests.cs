@@ -36,7 +36,9 @@ public class SolutionAnalyzerServiceWorkspaceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
     }
 
     /// <summary>
@@ -163,7 +165,9 @@ public class ListDiagnosticsProjectLoaderIntegrationTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
     }
 
     [Fact]
@@ -185,28 +189,10 @@ public class ListDiagnosticsProjectLoaderIntegrationTests : IDisposable
         File.WriteAllText(Path.Combine(projectDir, "Widget.cs"),
             "namespace App { public class Widget { public void M() { int unused = 1; } } }");
 
-        var slnPath = Path.Combine(_testDirectory, "App.sln");
-        File.WriteAllText(slnPath,
-            """
-            Microsoft Visual Studio Solution File, Format Version 12.00
-            # Visual Studio Version 17
-            VisualStudioVersion = 17.0.31903.59
-            MinimumVisualStudioVersion = 10.0.40219.1
-            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
-            EndProject
-            Global
-            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-            		Debug|Any CPU = Debug|Any CPU
-            	EndGlobalSection
-            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU
-            	EndGlobalSection
-            EndGlobal
-            """);
+        var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App");
 
         // Act — pass the .sln path directly.
-        var result = await _sut.ListDiagnosticsAsync(slnPath, ids: ["CS0219"]);
+        var result = await _sut.ListDiagnosticsAsync(slnPath, ids: ["CS0219"], cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert — the primary project was analyzed and the expected diagnostic reported.
         result.Project.ShouldBe("App");
