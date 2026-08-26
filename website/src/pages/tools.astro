@@ -60,8 +60,10 @@ const groupBlurb: Record<string, string> = {
         <p style="margin:0"><strong>Degraded coverage is named, never silent.</strong> Roslyn reports
           an analyzer reference it cannot load — one built against a newer
           <code>Microsoft.CodeAnalysis</code> than the server's, the .NET SDK's own analyzers being
-          the universal case — by contributing <em>zero</em> analyzers, not by failing. The {analyzerLoadToolPhrase} that report <code>analyzerLoad</code> ({analyzerLoadTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)}) therefore return that block naming every
-          reference that contributed nothing and why (<code>load-failure</code> with Roslyn's
+          the universal case — by contributing <em>zero</em> analyzers, not by failing. The {analyzerLoadToolPhrase} that
+          report <code>analyzerLoad</code> ({analyzerLoadTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
+          therefore return that block naming every reference that contributed nothing and why
+          (<code>load-failure</code> with Roslyn's
           <code>errorCode</code> and message, <code>no C# analyzers</code>, or <code>exception</code>).
           It is <strong>omitted when every reference contributed</strong>, so a present block always
           says something — including <code>analyzersRan: false</code> when analyzers are switched
