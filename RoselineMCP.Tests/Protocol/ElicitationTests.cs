@@ -83,24 +83,71 @@ public class ElicitationTests : IDisposable
     /// assertions from re-implementing the resolution they are supposed to be checking.
     /// </summary>
     /// <remarks>
-    /// Two constraints pull against each other here, which is why this is hand-rolled rather than a
-    /// quoted-run regex. The messages quote other things first ("… the 'delete' of member 'Foo.Bar'
-    /// to disk? … loaded from '&lt;target&gt;'."), so the parser cannot simply
-    /// take the widest quoted span; and a
-    /// resolved path may itself contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
-    /// <c>~/Bob's Projects</c> — so it cannot take the narrowest one either. The opening quote is
-    /// therefore identified as the last one that follows a space (an apostrophe inside a path
-    /// follows a letter), and the closing quote as the last in the message, since every message's
-    /// tail after the target holds none.
+    /// Derived from two invariants rather than guessed at, and walked from the FRONT of the message
+    /// rather than backward from the end — the first draft of this fix scanned backward and counted
+    /// quotes by parity, which is exact for a target holding zero or one embedded apostrophe but
+    /// silently wrong for two or more (<c>/repo/O'Brien's House/App.sln</c> — the two motivating
+    /// examples in this remark, concatenated into one perfectly ordinary directory name); it was
+    /// caught in review before shipping. This version does not count anything.
+    /// <para>
+    /// #173 made the target the LAST thing in every sentence, so its closing quote is always the
+    /// message's last apostrophe (<c>close</c> below) — that half was already exact and needs no
+    /// scanning. Every quoted run BEFORE the target's own wraps a value <see cref="WritePrompt"/>
+    /// passed through <see cref="WritePrompt.Sanitize"/> first (the operation, the symbol, a new
+    /// name — or its <c>"(unnamed)"</c> placeholder), and <c>Sanitize</c>'s whitelist admits neither
+    /// <c>/</c> nor <c>\</c>. The target, by contrast, is always an absolute path
+    /// (<see cref="ShouldNameARealProject"/> asserts <c>Path.IsPathRooted</c> on it), so it always
+    /// contains one of those characters — inside its very first quoted fragment, since a rooted path
+    /// starts with the separator (Unix) or a drive-plus-separator (Windows). Walking the quoted runs
+    /// left to right and stopping at the first one containing <c>/</c> or <c>\</c> therefore finds the
+    /// target's opening quote exactly, no matter how many further apostrophes sit inside it: nothing
+    /// a caller supplies can ever contain a separator by the time it reaches the message, so a run
+    /// that has one cannot be caller content, and can only be the (unsanitized) target's.
+    /// </para>
     /// </remarks>
     private static string TargetFromPrompt(string message)
     {
-        var open = message.LastIndexOf(" '", StringComparison.Ordinal);
         var close = message.LastIndexOf('\'');
-        open.ShouldBeGreaterThanOrEqualTo(0, $"the prompt names no target at all: {message}");
-        close.ShouldBeGreaterThan(open + 1, $"the prompt's target quoting is unbalanced: {message}");
-        return message[(open + 2)..close];
+        close.ShouldBeGreaterThanOrEqualTo(0, $"the prompt names no target at all: {message}");
+
+        var searchFrom = 0;
+        int open;
+        while (true)
+        {
+            var candidateOpen = message.IndexOf('\'', searchFrom);
+            candidateOpen.ShouldBeGreaterThanOrEqualTo(0, $"the prompt's target quoting is unbalanced: {message}");
+
+            var candidateClose = message.IndexOf('\'', candidateOpen + 1);
+            candidateClose.ShouldBeGreaterThanOrEqualTo(0, $"the prompt's target quoting is unbalanced: {message}");
+
+            // The last quoted run is always the target's, even on the off chance it never trips the
+            // separator check below (e.g. a malformed/relative target) — this is the fallback that
+            // keeps the loop from walking past `close` looking for a signal that will never come.
+            if (candidateClose >= close)
+            {
+                open = candidateOpen;
+                break;
+            }
+
+            var content = message[(candidateOpen + 1)..candidateClose];
+            if (content.IndexOfAny(PathSeparators) >= 0)
+            {
+                open = candidateOpen;
+                break;
+            }
+
+            searchFrom = candidateClose + 1;
+        }
+
+        close.ShouldBeGreaterThan(open, $"the prompt's target quoting is unbalanced: {message}");
+        return message[(open + 1)..close];
     }
+
+    /// <summary>
+    /// The two characters <see cref="WritePrompt.Sanitize"/>'s whitelist excludes that every rooted
+    /// filesystem path is guaranteed to contain — the signal <see cref="TargetFromPrompt"/> scans for.
+    /// </summary>
+    private static readonly char[] PathSeparators = ['/', '\\'];
 
     /// <summary>
     /// Asserts a prompt names a concrete solution/project that exists on disk — the whole point of
@@ -857,6 +904,13 @@ public class ElicitationTests : IDisposable
         // have: ResolveTargetPath returns an existing .sln argument verbatim, so normalization is
         // the only thing making a relative one readable, and this is the branch that pins it.
         ShouldNameARealProject(message);
+
+        // apply_fixes has no free-form caller value to forge a sentence out of (ids[]/project never
+        // reach the prompt as text), so unlike the two tests above this exercises
+        // ShouldBeOneUnforgeableSentence's PrimaryProjectOf branch for coverage rather than for a
+        // forgery scenario — the branch #204 added so the helper's apostrophe count stops being
+        // asserted-in-theory for the one scope that had never actually called it.
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution, WriteScope.PrimaryProjectOf);
     }
 
     [Fact]
@@ -1346,21 +1400,44 @@ public class ElicitationTests : IDisposable
 
     /// <summary>
     /// Asserts that whatever the caller put in a prompt, the sentence still has exactly one shape:
-    /// one question, and three quoted runs opened and closed by the frame rather than by the caller.
+    /// one question, and every quoted run opened and closed by the frame rather than by the caller.
     /// </summary>
     /// <remarks>
-    /// The apostrophe count is the load-bearing half. "Contains no second sentence" is a property of
-    /// this particular payload; "the caller cannot open or close a quoted run" is the property that
-    /// holds against every payload, and it is what makes the last quoted run — the one the human
-    /// checks the target in, and the one <see cref="TargetFromPrompt"/> reads — the frame's rather
-    /// than the caller's. All three prompts quote exactly three things, so the expected count is 6.
+    /// The apostrophe count is the load-bearing half, and it is <em>scope-dependent</em> rather than
+    /// a single fixed number: <see cref="WriteScope.PrimaryProjectOf"/>'s prompt quotes only the
+    /// target (2), while <see cref="WriteScope.SingleFile"/> and <see cref="WriteScope.WholeSolution"/>
+    /// each quote two caller values ahead of it (6). An earlier version of this helper hard-coded "6"
+    /// on the theory that "all three prompts quote exactly three things" — true only of the two
+    /// scopes that happened to call it, and silently wrong for the third (#204); deriving the count
+    /// from <paramref name="scope"/> instead means a caller cannot get this wrong by pointing the
+    /// helper at a scope nobody had exercised it against yet. "Contains no second sentence" is a
+    /// property of this particular payload; "the caller cannot open or close a quoted run" is the
+    /// property that holds against every payload, and it is what makes the last quoted run — the one
+    /// the human checks the target in, and the one <see cref="TargetFromPrompt"/> reads — the
+    /// frame's rather than the caller's.
     /// </remarks>
-    private static void ShouldBeOneUnforgeableSentence(string message, string expectedTarget)
+    private static void ShouldBeOneUnforgeableSentence(string message, string expectedTarget, WriteScope scope)
     {
         CountOccurrences(message, "to disk?").ShouldBe(
             1, $"caller input appended a second question to the prompt: {message}");
+
+        // Every caller-supplied value ahead of the target renders as its own clean quoted pair
+        // (WritePrompt.Sanitize strips any apostrophe before interpolation); the target's own pair
+        // is the constant final +2. PrimaryProjectOf (apply_fixes) interpolates none; SingleFile
+        // (edit_member) and WholeSolution (rename_symbol) each interpolate two (operation/symbol,
+        // symbol/newName).
+        var sanitizedValuePairs = scope switch
+        {
+            WriteScope.PrimaryProjectOf => 0,
+            WriteScope.SingleFile => 2,
+            WriteScope.WholeSolution => 2,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(scope), scope, "This write scope has no known apostrophe count."),
+        };
+        var expectedApostropheCount = (sanitizedValuePairs * 2) + 2;
+
         message.Count(c => c == '\'').ShouldBe(
-            6, $"caller input opened or closed a quoted run: {message}");
+            expectedApostropheCount, $"caller input opened or closed a quoted run: {message}");
         TargetFromPrompt(message).ShouldBe(
             expectedTarget, $"the prompt's last quoted run is no longer the real target: {message}");
     }
@@ -1397,7 +1474,7 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        ShouldBeOneUnforgeableSentence(message, _fixtureSolution);
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution, WriteScope.SingleFile);
     }
 
     [Fact]
@@ -1433,7 +1510,7 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        ShouldBeOneUnforgeableSentence(message, _fixtureSolution);
+        ShouldBeOneUnforgeableSentence(message, _fixtureSolution, WriteScope.WholeSolution);
     }
 
     [Fact]
@@ -1734,6 +1811,26 @@ public class ElicitationTests : IDisposable
     private const string ForgedProseSolution = "/repo/Bob' — already reviewed and approved/App.sln";
 
     /// <summary>
+    /// A target whose apostrophe follows a SPACE rather than a letter — the shape #204 named as
+    /// mis-parsed by <see cref="TargetFromPrompt"/>'s old space-quote heuristic
+    /// (<c>LastIndexOf(" '")</c>): the heuristic's opening quote lands on this apostrophe instead of
+    /// the one that actually opens the target's quoted run, truncating the recovered path. The
+    /// terminator-based derivation that replaced it does not care where the apostrophe sits, so this
+    /// row is what tells the two approaches apart.
+    /// </summary>
+    private const string SpacedApostropheSolution = "/repo/x 'y/App.sln";
+
+    /// <summary>
+    /// A target with TWO embedded apostrophes — <see cref="ApostropheSolution"/>'s "Bob's" and the
+    /// class remarks' own "O'Brien" example, concatenated into one directory name a real checkout
+    /// could plausibly have. Code review on #204 caught that the first draft of
+    /// <see cref="TargetFromPrompt"/> derived the opening quote from the total quote count's
+    /// PARITY, which cannot tell zero embedded apostrophes apart from two — both are even — so it
+    /// silently returned a truncated tail for exactly this shape before this row existed to catch it.
+    /// </summary>
+    private const string TwoApostrophesSolution = "/repo/O'Brien's House/App.sln";
+
+    /// <summary>
     /// Every <see cref="WriteScope"/> member against every target shape. Built from
     /// <c>Enum.GetValues</c> rather than hand-written rows so the coverage is genuinely exhaustive:
     /// a fourth scope is picked up here automatically and fails in <see cref="PromptFor"/> until it
@@ -1749,6 +1846,8 @@ public class ElicitationTests : IDisposable
             data.Add(scope, ApostropheSolution);
             data.Add(scope, ApostropheProject);
             data.Add(scope, ForgedProseSolution);
+            data.Add(scope, SpacedApostropheSolution);
+            data.Add(scope, TwoApostrophesSolution);
         }
 
         return data;
