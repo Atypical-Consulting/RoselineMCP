@@ -546,13 +546,12 @@ are derived from the Conventional Commits on `dev`. Full detail in `PUBLISH.md`.
 1. **Land everything first** with Conventional Commit PR titles. The repo squash-merges, so the PR
    title *is* the commit release-please parses: the type selects the version bump (`feat:` → minor,
    `fix:` → patch, `!`/`BREAKING CHANGE` → major) and the changelog section. A bare title produces
-   no release entry.
-   ⚠️ **On a single-commit PR the commit message wins over the PR title** — the repo's squash title
-   setting is `COMMIT_OR_PR_TITLE`, which only uses the PR title when there is more than one commit.
-   Give the commit a conventional message too. Squash is now the *only* merge method enabled on the
-   repository (`.github/repo-setup.yml`), so the squash premise is a mechanism rather than a
-   convention — but that setting only guarantees the *squash*, never that the resulting subject is
-   conventional, which is what the single-commit caveat above is about.
+   no release entry — but this is now enforced rather than conventional (#164): the `PR title`
+   workflow (`.github/workflows/pr-title.yml`) fails any PR whose title is not a Conventional
+   Commit, and `squash_merge_commit_title` is `PR_TITLE` (`.github/repo-setup.yml`), so that
+   reviewed title is always what lands on `dev` — regardless of how many commits the PR carries.
+   Squash is also the only merge method enabled on the repository, so the "PR title becomes the
+   commit" premise is a mechanism, not a convention, end to end.
 2. **release-please opens or updates a release PR** (`chore(dev): release X.Y.Z` — the scope is the
    target branch, not `main`) on every push to
    `dev`, carrying the version bump, the regenerated `CHANGELOG.md`, and the three JSON manifest

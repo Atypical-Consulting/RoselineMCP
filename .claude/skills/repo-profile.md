@@ -47,14 +47,17 @@
 ## Integration style
 - **Merge mode:** squash — and **mechanically enforced** since `setup-repo` ran: merge commits and
   rebase merging are both disabled on the repository, so squash is the only method GitHub offers.
-  Branch protection on `dev` is still **off**; what the setting guarantees is the *squash*, never
-  that the resulting subject is conventional (see the single-commit trap below).
+  Branch protection on `dev` is still **off**. As of #164, the resulting subject is enforced
+  conventional too: `squash_merge_commit_title` is `PR_TITLE` (`.github/repo-setup.yml`), so the
+  reviewed PR title is always what lands regardless of commit count, and the `PR title` workflow
+  (`.github/workflows/pr-title.yml`) fails the PR outright if that title isn't Conventional Commit.
 - **Branch cleanup:** `delete_branch_on_merge` is **on**, so merging deletes the remote branch.
   `merge-pr` still tears down the local branch and worktree.
 - **PR title convention:** Conventional Commits prefix `<type>[(scope)]:` per `CONTRIBUTING.md`
   (`feat` · `fix` · `docs` · `test` · `refactor` · `perf` · `chore`; `build`/`ci`/`style` also appear
-  in history). **No semantic-PR-title CI check exists** — the convention is human-enforced, but the
-  CHANGELOG and release notes depend on it. Title ends in `(#issue)`; a squash-merge appends the PR
+  in history). **Enforced by CI** (`.github/workflows/pr-title.yml`, added by #164) — a
+  non-conventional title fails the PR instead of just risking a missing changelog entry. Title ends
+  in `(#issue)`; a squash-merge appends the PR
   number → `<type>(scope): subject (#issue) (#PR)`. Never pass an issue title through verbatim.
 - **Branch naming:** `feat/<issue>-<slug>` (lifecycle-skill default). `CONTRIBUTING.md` suggests
   `feature/<name>`; the real history uses `feat/…`, `fix/…`, `docs/…`, `ci/…`, `chore/…`.

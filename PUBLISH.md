@@ -44,15 +44,14 @@ where a `release:` trigger would not.
    the repo squash-merges, so the PR title becomes the commit release-please parses. The type
    selects both the version bump and the changelog section.
 
-   > ⚠️ **On a single-commit PR the commit message wins, not the PR title.** The repository's squash
-   > title setting is `COMMIT_OR_PR_TITLE`, which uses the PR title only when the PR has more than
-   > one commit. A one-commit PR titled `feat: add X` whose commit says `wip` lands on `dev` as
-   > `wip` — no version bump, no changelog entry, and nothing fails. Give the *commit* a
-   > conventional message too, or add a second commit. Squash is the only merge method enabled on
-   > this repository (merge commits and rebase merging are both off — see
-   > `.github/repo-setup.yml`), so the squash premise is a mechanism. What it does *not* mechanise
-   > is the subject: a squash still takes the commit message on a one-commit PR, which is exactly
-   > the trap above.
+   This is now enforced, not conventional (#164). The `PR title` workflow
+   (`.github/workflows/pr-title.yml`) fails any PR whose title is not one of these types, so a bare
+   or mistyped title cannot land silently. And it is that reviewed title, not any commit's message,
+   that ships: `squash_merge_commit_title` is `PR_TITLE` (`.github/repo-setup.yml`), so the PR title
+   is used regardless of how many commits the PR has — a stray `wip` commit under a properly-typed
+   PR title can no longer land as the release subject. Squash is also the only merge method enabled
+   on this repository (merge commits and rebase merging are both off), so the "PR title becomes the
+   commit" premise is a mechanism end to end, not a convention.
 2. release-please opens (or updates) a release PR titled `chore(dev): release X.Y.Z` — the scope is
    the target branch, which is `dev` here, not `main`. Review it —
    the version it chose and the generated `CHANGELOG.md` entries. **Generated entries are one-line
