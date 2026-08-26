@@ -31,10 +31,15 @@ public class AnalyzerReferenceLoadTests
     public AnalyzerReferenceLoadTests(ITestOutputHelper output) => _output = output;
 
     /// <summary>
-    /// Walks up from the test output directory to the repository root (the directory holding
-    /// <c>RoselineMCP.sln</c>) and returns the absolute path of <c>RoselineMCP/RoselineMCP.csproj</c>.
+    /// Walks up from the test output directory to the repository root — the directory holding
+    /// <c>RoselineMCP.sln</c>.
     /// </summary>
-    internal static string FindRepositoryProject()
+    /// <remarks>
+    /// The ascent starts at <see cref="AppContext.BaseDirectory"/>, so it finds the tree the output
+    /// directory sits in rather than the tree the assembly was compiled from. Those are the same
+    /// except under <c>--no-build</c> against a checkout that did not produce the binary.
+    /// </remarks>
+    internal static DirectoryInfo FindRepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "RoselineMCP.sln")))
@@ -43,7 +48,15 @@ public class AnalyzerReferenceLoadTests
         }
 
         dir.ShouldNotBeNull("RoselineMCP.sln must be an ancestor of the test output directory");
-        var csproj = Path.Combine(dir.FullName, "RoselineMCP", "RoselineMCP.csproj");
+        return dir;
+    }
+
+    /// <summary>
+    /// The absolute path of <c>RoselineMCP/RoselineMCP.csproj</c>, found from the repository root.
+    /// </summary>
+    internal static string FindRepositoryProject()
+    {
+        var csproj = Path.Combine(FindRepositoryRoot().FullName, "RoselineMCP", "RoselineMCP.csproj");
         File.Exists(csproj).ShouldBeTrue($"expected the repository's own project at {csproj}");
         return csproj;
     }

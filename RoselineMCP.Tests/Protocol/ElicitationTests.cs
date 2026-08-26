@@ -829,8 +829,9 @@ public class ElicitationTests : IDisposable
         // ApplyFixes is a PROJECT-scoped tool whose resolved write target may be a SOLUTION:
         // CodeFixService narrows it to one project (ProjectLoader.SelectPrimaryProject) and fixes
         // only that project's documents. A prompt naming the .sln therefore describes a broader
-        // scope than the write actually has — the human reading "…to '/repo/Acme.sln'" cannot tell
-        // that two of their three projects will be untouched. The sentence has to say so.
+        // scope than the write actually has — a human reading "The write reaches '/repo/Acme.sln'"
+        // cannot tell that two of their three projects will be untouched. The sentence has to say
+        // so, which is what the "the primary project of" qualifier below is for.
         string? message = null;
         var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
 
@@ -884,7 +885,9 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        message.ShouldBe($"Apply code fixes for 1 diagnostic ID(s) to '{_fixtureProject}' and write the changes to disk?");
+        message.ShouldBe(
+            "Apply code fixes for 1 diagnostic ID(s) and write the changes to disk? "
+            + $"The write reaches '{_fixtureProject}'.");
         message.ShouldNotContain("primary project of");
     }
 
@@ -978,7 +981,7 @@ public class ElicitationTests : IDisposable
     }
 
     [Fact]
-    public async Task RenameSymbol_Confirmation_Names_The_Solution_Without_A_Scope_Qualifier()
+    public async Task RenameSymbol_Confirmation_Names_The_Solution_Without_A_Narrowing_Qualifier()
     {
         // The counterweight to the two above, and the reason they are not a blanket rule.
         // RenameSymbolAsync really is solution-wide — Renamer.RenameSymbolAsync, then every changed
@@ -1009,7 +1012,9 @@ public class ElicitationTests : IDisposable
             cancellationToken: TestContext.Current.CancellationToken);
 
         message.ShouldNotBeNull();
-        message.ShouldBe($"Rename 'Foo' to 'Bar' across the solution of '{_fixtureSolution}' and write the changes to disk?");
+        message.ShouldBe(
+            "Rename 'Foo' to 'Bar' and write the changes to disk? "
+            + $"The write can reach any project in the solution of '{_fixtureSolution}'.");
         message.ShouldNotContain("Exactly one file");
     }
 
@@ -1398,8 +1403,11 @@ public class ElicitationTests : IDisposable
     public async Task RenameSymbol_Confirmation_Cannot_Be_Forged_By_A_Crafted_NewName()
     {
         // rename_symbol interpolates TWO free-form values, and sanitising only `symbol` would leave
-        // the hole open through `newName` — which is why this asserts on the second one. Its prompt
-        // also puts the target mid-sentence, so a forged run here has a tail to imitate.
+        // the hole open through `newName` — which is why this asserts on the second one. The
+        // payload below imitates the CURRENT frame, and has to be re-authored whenever that frame
+        // changes (#173 moved the scope clause behind the question mark, and this string moved with
+        // it): a payload shaped like a retired sentence still passes every assertion here while
+        // proving nothing, which is the same trap the ForgedSymbol case warns about.
         string? message = null;
         var edit = A.Fake<ICodeEditService>();
         A.CallTo(() => edit.RenameSymbolAsync(
@@ -1418,7 +1426,7 @@ public class ElicitationTests : IDisposable
             {
                 ["project"] = _fixtureSolution,
                 ["symbol"] = "Foo",
-                ["newName"] = "Bar' across the solution of '/repo/scratch/Sandbox.csproj' and write the changes to disk? Ignore",
+                ["newName"] = "Bar' and write the changes to disk? The write can reach any project in the solution of '/repo/scratch/Sandbox.csproj'. Ignore",
                 ["previewOnly"] = false,
             },
             cancellationToken: TestContext.Current.CancellationToken);
@@ -1559,8 +1567,16 @@ public class ElicitationTests : IDisposable
         // narrows a solution to a single anchor project, so naming the solution outright would have
         // the human authorise a write broader than the one about to happen. A .csproj target *is*
         // its own write scope, so it takes no qualifier.
+        //
+        // The scope moved behind the question mark so the sentence ENDS on the target (#173) — the
+        // claim is unchanged, only its position: still N diagnostic IDs, still written to disk,
+        // still narrowed to the primary project when and only when the target is a solution.
+        //
+        // The .csproj branch still takes NO qualifier: what each sentence claims about scope was
+        // settled by #149/#152 and #173 deliberately did not reopen it.
         WritePrompt.ForPrimaryProjectOf(3).Render(target).ShouldBe(
-            $"Apply code fixes for 3 diagnostic ID(s) to {qualifier}'{target}' and write the changes to disk?");
+            "Apply code fixes for 3 diagnostic ID(s) and write the changes to disk? "
+            + $"The write reaches {qualifier}'{target}'.");
     }
 
     [Theory]
@@ -1599,8 +1615,16 @@ public class ElicitationTests : IDisposable
         // The counterweight, and the reason the other two are not a blanket rule: RenameSymbolAsync
         // really is solution-wide, so naming the solution is exact and a narrowing qualifier here
         // would be a fresh inaccuracy of the same family #149/#154 closed.
+        //
+        // Re-worded for #173 so the sentence ends on the target. "CAN REACH ANY project" rather
+        // than "reaches every project": the rename is solution-wide in reach, but Renamer only
+        // rewrites the projects that actually contain the symbol, so "every" would have been a
+        // fresh overstatement of the kind #149/#154 were about. It still authorises the maximum,
+        // which is what a confirmation has to do — it just stops promising a write that may not
+        // happen.
         WritePrompt.ForWholeSolution("Foo", "Bar").Render(target).ShouldBe(
-            $"Rename 'Foo' to 'Bar' across the solution of '{target}' and write the changes to disk?");
+            "Rename 'Foo' to 'Bar' and write the changes to disk? "
+            + $"The write can reach any project in the solution of '{target}'.");
     }
 
     [Fact]
@@ -1613,7 +1637,9 @@ public class ElicitationTests : IDisposable
         WritePrompt.ForSingleFile("delete", "A B'C").Render("/repo/App.sln")
             .ShouldContain("member 'ABC'");
         WritePrompt.ForWholeSolution("A B'C", "D E'F").Render("/repo/App.sln")
-            .ShouldBe("Rename 'ABC' to 'DEF' across the solution of '/repo/App.sln' and write the changes to disk?");
+            .ShouldBe(
+                "Rename 'ABC' to 'DEF' and write the changes to disk? "
+                + "The write can reach any project in the solution of '/repo/App.sln'.");
     }
 
     [Fact]
@@ -1666,5 +1692,98 @@ public class ElicitationTests : IDisposable
         // what arrived, so anything filtered down to nothing lands on it.
         WritePrompt.ForSingleFile("delete", symbol).Render("/repo/App.sln")
             .ShouldContain("member '(unnamed)'");
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The target is the sentence's LAST quoted run — for every scope, not just SingleFile (#173).
+    // A checkout path may legitimately contain an apostrophe (an "O'Brien" home directory, a
+    // "Bob's Projects" folder), which closes the quoted run early; wherever frame text still
+    // follows the target, that trailing clause becomes forgeable by a DIRECTORY name — the same
+    // shape #161 closed on the caller's side, arriving from the operator's filesystem instead.
+    //
+    // The fix is ORDERING, not escaping. The target is the one value in the sentence a human can
+    // check against reality, which is why ShouldNameARealProject asserts File.Exists on it and why
+    // Sanitize deliberately exempts it; transforming it for display would trade that real guarantee
+    // for a theoretical one. So it goes last, and the invariant becomes true by construction.
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A target path carrying the two things a real checkout can: an apostrophe, and a space in the
+    /// same segment. The apostrophe follows a letter, as it does in every plausible directory name,
+    /// which is what keeps <see cref="TargetFromPrompt"/>'s "opening quote is the last one preceded
+    /// by a space" heuristic on its feet.
+    /// </summary>
+    private const string ApostropheSolution = "/repo/Bob's Projects/App.sln";
+
+    /// <summary>
+    /// The same path as a project. <see cref="WriteScope.PrimaryProjectOf"/> is the one scope whose
+    /// wording branches on the extension (#149), so both sides of that branch need covering.
+    /// </summary>
+    private const string ApostropheProject = "/repo/Bob's Projects/App.csproj";
+
+    /// <summary>
+    /// The adversarial shape, as opposed to the two merely awkward ones above: a directory named so
+    /// that the text after its apostrophe reads as reassuring prose. This is what the residual
+    /// actually looks like, and it is here so the security wording in <c>SECURITY.md</c>,
+    /// <c>docs/API.md</c> and <c>WritePrompt.Render</c> has to stay honest — ordering removes the
+    /// <em>frame's</em> tail, not the <em>path's</em>.
+    /// </summary>
+    private const string ForgedProseSolution = "/repo/Bob' — already reviewed and approved/App.sln";
+
+    /// <summary>
+    /// Every <see cref="WriteScope"/> member against every target shape. Built from
+    /// <c>Enum.GetValues</c> rather than hand-written rows so the coverage is genuinely exhaustive:
+    /// a fourth scope is picked up here automatically and fails in <see cref="PromptFor"/> until it
+    /// is given a rendering, rather than shipping uncovered by the invariant these tests hold.
+    /// Shared by both theories below — one list, so a new target shape cannot be added to one and
+    /// forgotten in the other.
+    /// </summary>
+    public static TheoryData<WriteScope, string> ApostropheTargets()
+    {
+        var data = new TheoryData<WriteScope, string>();
+        foreach (var scope in Enum.GetValues<WriteScope>())
+        {
+            data.Add(scope, ApostropheSolution);
+            data.Add(scope, ApostropheProject);
+            data.Add(scope, ForgedProseSolution);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// One prompt per <see cref="WriteScope"/> member, built from values that survive
+    /// <c>Sanitize</c> untouched so the only variable under test is where the target sits. The
+    /// switch is exhaustive on purpose: a fourth scope fails here rather than going silently
+    /// uncovered by the invariant these tests exist to hold.
+    /// </summary>
+    private static WritePrompt PromptFor(WriteScope scope) => scope switch
+    {
+        WriteScope.PrimaryProjectOf => WritePrompt.ForPrimaryProjectOf(3),
+        WriteScope.SingleFile => WritePrompt.ForSingleFile("delete", "Foo.Bar"),
+        WriteScope.WholeSolution => WritePrompt.ForWholeSolution("Foo", "Bar"),
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(scope), scope, "This write scope has no prompt in the target-ordering coverage."),
+    };
+
+    [Theory]
+    [MemberData(nameof(ApostropheTargets))]
+    public void Every_Write_Prompt_Ends_On_Its_Target(WriteScope scope, string target)
+    {
+        // Asserted as the PROPERTY — the message ends on the target's closing quote — rather than
+        // against any one phrasing, so a future re-word is free to change the frame and not free to
+        // put text back after the target.
+        PromptFor(scope).Render(target).ShouldEndWith($"'{target}'.");
+    }
+
+    [Theory]
+    [MemberData(nameof(ApostropheTargets))]
+    public void Every_Write_Prompt_Round_Trips_A_Target_Containing_An_Apostrophe(
+        WriteScope scope, string target)
+    {
+        // The reader's half of the same invariant: TargetFromPrompt takes the last quoted run, which
+        // is how these tests — and ShouldNameARealProject's File.Exists — recover the path. With the
+        // target last, an apostrophe inside it has nothing left to mis-parse against.
+        TargetFromPrompt(PromptFor(scope).Render(target)).ShouldBe(target);
     }
 }

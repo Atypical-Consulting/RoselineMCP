@@ -19,7 +19,9 @@ public static class SearchSymbolsTool
     /// or returns a file's outline.
     /// </summary>
     [McpServerTool(Title = "Search Symbols", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Locate C# symbols by name (wildcard/substring), or outline a whole file, WITHOUT opening it. Prefer this over Read/Grep to find or survey code in an existing solution — it returns compact signatures + locations and costs far fewer tokens than reading files, especially large ones. Read-only: never modifies any files on disk.")]
+    [Description("Locate C# symbols by name (wildcard/substring), or outline a whole file, WITHOUT opening it. Prefer this over Read/Grep to find or survey code in an existing solution — it returns compact signatures + locations and costs far fewer tokens than reading files, especially large ones. Read-only: never modifies any files on disk. Limitations: capped by max (default 50); truncated says results were cut, not that none exist."
+        + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+        + " Example: search_symbols{query:'*Service', kinds:['class'], max:20} -> resolvedPath + symbol summaries.")]
     public static async Task<ToolResult<SymbolSearchResponse>> SearchSymbols(
         ICodeNavigationService navigationService,
         [Description("Name pattern to match (substring, or wildcard with * and ?, e.g. '*Service' or 'Get*'). Omit to outline a single file via the 'file' parameter.")]

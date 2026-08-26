@@ -5,6 +5,7 @@ Complete API reference for RoselineMCP tools and services.
 ## Table of Contents
 
 - [MCP Tools](#mcp-tools)
+  - [Tool description contract](#tool-description-contract)
   - [Compile Verification](#compile-verification)
   - [Write Confirmation](#write-confirmation)
   - [AnalyzeSolution](#analyzesolution)
@@ -58,6 +59,38 @@ All tools are exposed via the Model Context Protocol and return JSON responses.
 Each tool's **Response** schema shown below describes the shape of the `data` object (the success
 payload), not the envelope. The tools set `UseStructuredContent = true`, so the same object is also
 delivered as MCP `structuredContent` alongside an advertised `outputSchema`.
+
+### Tool description contract
+
+Every tool's `description` in `tools/list` is written to a fixed six-component rubric
+(arXiv:2602.14878, which scored 856 tools across 103 MCP servers and found 97.1% of descriptions
+defective in at least one component):
+
+| Component | Where it comes from | Enforced by |
+|---|---|---|
+| Purpose | the opening sentence | review |
+| Guidelines — when to prefer this tool | the "Prefer this over Read/Grep…" / rule-of-thumb sentences | review |
+| Parameter explanation | the `[Description]` on each parameter | review |
+| **Limitations** | a `Limitations:` clause naming the failure mode a caller cannot infer | **test** |
+| **Examples** | a single `Example: tool{arg:'value'} -> what comes back.` line | **test** |
+| Length & completeness | the whole description | **test** (≤ 165 words) |
+
+The mechanical three are pinned by `ToolDescriptionContractTests`, which discovers tools by
+reflection — so a **new** tool inherits the contract rather than relying on anyone remembering it,
+and the suite's tool-count guard fails until the new tool is opted in deliberately.
+
+The word ceiling is the point, not an afterthought: the same study measured *full* six-component
+enrichment at **+67.46% steps** with a **16.67% regression rate**, while compact variants preserved
+the reliability without the overhead. So the two missing components were added compactly and the
+four already-present ones were left byte-for-byte alone.
+
+The twelve tools whose `project` is optional all end their limitations with one shared sentence,
+composed from a single constant (`RoselineToolDescriptions.ProjectAutoDiscoveryLimit`) and asserted
+verbatim by the same suite, so the wording cannot drift apart across twelve files. It states the
+most expensive unwritten limitation this API has — auto-discovery is anchored to the **server's**
+working directory, so inside a git worktree an omitted `project` silently answers from the main
+checkout. See **Working in a git worktree** in the navigation-tools preamble below (before
+[`SearchSymbols`](#searchsymbols)) for the full explanation and `resolvedPath`'s role in detecting it.
 
 ### Compile Verification
 
@@ -162,7 +195,7 @@ was never going to happen spends the one thing the elicitation costs — their a
 The prompt **names the concrete `.sln` or `.csproj` the write resolved to** — an absolute path, never
 a placeholder — whether the caller passed `project`, left it out, or passed an empty string:
 
-> Rename 'Foo' to 'Bar' across the solution of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
+> Rename 'Foo' to 'Bar' and write the changes to disk? The write can reach any project in the solution of '/Users/me/src/Acme/Acme.sln'.
 
 The path is resolved by the same function, against the same base directory, that the loader uses —
 and the **resolved path is what the write is then performed against**, rather than the argument the
@@ -179,7 +212,7 @@ anchor `ProjectLoader` selects (the C# project whose file name matches the `.sln
 first C# project Roslyn enumerated) — and only that project's documents are rewritten. Its prompt
 says so rather than implying a solution-wide write:
 
-> Apply code fixes for 2 diagnostic ID(s) to the primary project of '/Users/me/src/Acme/Acme.sln' and write the changes to disk?
+> Apply code fixes for 2 diagnostic ID(s) and write the changes to disk? The write reaches the primary project of '/Users/me/src/Acme/Acme.sln'.
 
 When the resolved target is already a `.csproj`, that project *is* the whole scope and the sentence
 names it directly, with no qualifier. The prompt deliberately does not name *which* project the
@@ -220,10 +253,14 @@ and the member being added is declared nowhere yet:
 
 > Write the 'add' of a member to type 'Acme.OrderService' to disk? Exactly one file is rewritten — the declaration it resolves to, anywhere in the code loaded from '/Users/me/src/Acme/Acme.sln'.
 
-[`RenameSymbol`](#renamesymbol) carries no scope qualifier at all — it is a genuinely solution-wide
-Roslyn operation that can rewrite files across every project in the loaded solution, so naming the
-solution is already exact. (`ApplyFixes` also drops its qualifier when the target is a `.csproj`, for
-the same reason: there the target *is* the scope.)
+[`RenameSymbol`](#renamesymbol) carries no *narrowing* qualifier at all — it is a genuinely
+solution-wide Roslyn operation that can rewrite files across every project in the loaded solution.
+It says "**can** reach any project" rather than "reaches every project" because the latter would be
+false for the ordinary rename: `Renamer.RenameSymbolAsync` rewrites only the files that actually
+reference the symbol, so renaming a `private` helper in a five-project solution touches one. Stating
+the *reachable* scope is exact; stating it as what *will* happen would be a fresh inaccuracy of the
+family #149/#154 closed. (`ApplyFixes` drops its qualifier entirely when the target is a `.csproj`,
+for the same reason: there the target *is* the scope.)
 
 All three sentences above are rendered in **one place**, from structured inputs: a tool names its
 scope from a closed vocabulary (`WriteScope` — `PrimaryProjectOf`, `SingleFile`, `WholeSolution`) and
@@ -243,8 +280,17 @@ elision (`Acme.…Service`). Whitelisting rather than escaping is deliberate —
 and the set of characters that *look* like a space or a quote is open-ended (U+2800 and U+3164 render
 blank without being whitespace; a caller-supplied U+2019 reads as the frame's own quote). An ordinary
 C# symbol contains none of them and renders unchanged. The **target** is deliberately left verbatim,
-because it has to stay checkable against the file system; see
-[SECURITY.md](../SECURITY.md) for the one residual that follows from that.
+because it has to stay checkable against the file system — and what makes leaving it verbatim
+*safer* is that **every prompt ends on it**. That is why all three sentences above put the scope
+statement *after* the question mark: no frame text of the server's own sits behind the path, so a
+checkout path that legitimately contains an apostrophe (`~/Bob's Projects`) closes its quoted run
+early without leaving one of **our** clauses for it to counterfeit.
+
+Read that as the bounded claim it is. Ordering removes the *frame's* tail, not the *path's*: a
+directory named `Bob' — already approved` still closes the quote at `Bob` and renders its own
+remainder as bare prose before the sentence ends. That residue is the operator's own filesystem —
+already trusted input per SECURITY.md's *No dedicated path-traversal sanitization* — and a caller
+cannot reach it. See [SECURITY.md](../SECURITY.md) for the full write-up.
 
 Resolution is pure path work — no MSBuild workspace is loaded — and is far cheaper than the load
 that follows, but it is not free: a bare project **name** that matches neither a file nor a directory
@@ -525,7 +571,7 @@ analyzer that reports X never loaded".
   resolvedPath: string;      // Absolute .sln/.csproj that was actually loaded
   fixedCount: number;        // Total number of individual fixes applied across all requested IDs
   fixersApplied: string[];   // Diagnostic IDs that were successfully fixed at least once
-  changedFiles: string[];    // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln) of files that were modified
+  changedFiles: string[];    // Relative to resolvedPath's directory, forward slashes, of files that were modified
   patch: string;             // Unified diff across all changed files (headers use the same relative paths)
   notes: string[];           // Scope entries (which project was fixed, which were skipped; linked files written) + per-ID status messages: skipped (no provider/no diagnostics), errors, or "applied N fixes to M files" / "Preview mode - no changes were saved to disk"
   previewOnly: boolean;      // Echoes back whether the caller asked for a preview
@@ -657,15 +703,32 @@ solution is loaded and symbol search/resolution spans **every project in it** �
 a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
 project) is still found — so cross-project references and renames are complete.
 `ListDiagnostics` and `ApplyFixes` resolve and load their `project` through this same mechanism, so
-every tool accepts the same references and reports the same solution-root-relative paths.
+every tool accepts the same references and anchors its relative paths the same way (see **Relative
+file paths** below).
 
 **Working in a git worktree.** Auto-discovery is anchored to **the server's** working directory —
 the directory the MCP client launched RoselineMCP in — not the agent's. They differ whenever work
 happens in a git worktree (e.g. `.claude/worktrees/<name>`): the worktree sits below the level
 walk's reach, so an omitted `project` resolves the main checkout instead. Two checkouts of the same
-repository are otherwise indistinguishable in a response — same project name, same
-solution-root-relative paths — so pass an absolute `.sln`/`.csproj` path to target a specific
-checkout, and check `resolvedPath` in the response to confirm which one answered.
+repository are otherwise indistinguishable in a response — same project name, same relative
+paths — so pass an absolute `.sln`/`.csproj` path to target a specific checkout, and check
+`resolvedPath` in the response to confirm which one answered.
+
+**Relative file paths.** The seven navigation tools' `file`/`definitionFile`, `ApplyFixes`',
+`EditMember`' and `RenameSymbol`' `changedFiles` **and unified-diff `a/`…`b/` headers**, and the
+`verification.errors[]`/`CheckCompilation` `errors[]` `file` fields, are relative
+to the directory containing that response's own `resolvedPath`, with forward slashes. So
+`dirname(resolvedPath)` joined with such a path is the real file on disk — the point of the field.
+Concretely that directory is the solution's when the `.sln` answered (the usual case, and why these
+paths read as solution-root-relative), and the project's own whenever the `.csproj` answered
+directly — including a project that exists on disk but is not listed in its nearest ancestor `.sln`.
+Apply a returned `patch` from that same directory (`git apply -p1` there), not from the repository
+root, which only coincide in the `.sln` case.
+
+One carve-out, so the rule is not read wider than it holds:
+
+- **`ListDiagnostics` and `AnalyzeSolution` report `file` as an absolute path**, not a relative one.
+  Nothing needs joining; they are unaffected by the anchor.
 
 **Symbol references.** Wherever a tool takes a `symbol`/`method`/`type`, you may pass a simple name
 (e.g. `GetUser`) or a fully-qualified name (e.g. `Acme.Users.UserService.GetUser`) to
@@ -706,7 +769,7 @@ At least one of `query` or `file` is required (otherwise `ValidationError`).
     fullName: string;
     kind: string;             // e.g. "class", "method", "property"
     signature: string;        // Already carries the accessibility keyword
-    file: string | null;      // Solution-root-relative, forward slashes (e.g. "RoselineMCP/Services/Foo.cs")
+    file: string | null;      // Relative to resolvedPath's directory, forward slashes (e.g. "RoselineMCP/Services/Foo.cs")
     line: number | null;      // 1-based
   }>;
 }
@@ -747,7 +810,7 @@ Declaration metadata, signature, and (optionally) the source of a single symbol.
   baseTypes?: string[];        // Base-class chain (types only); omitted when empty
   interfaces?: string[];       // Directly-implemented interfaces (types only); omitted when empty
   documentation?: string;      // XML <summary> text, whitespace-collapsed; omitted when absent
-  definitionFile?: string;     // Solution-root-relative, forward slashes; omitted when unknown
+  definitionFile?: string;     // Relative to resolvedPath's directory, forward slashes; omitted when unknown
   definitionLine?: number;     // 1-based; omitted when unknown
   source?: string;             // Present only when includeSource is true
 }
@@ -782,7 +845,7 @@ Every use site of a symbol across the solution. **Read-only.**
   totalReferences: number;   // Count before `max`
   truncated?: boolean;       // Present (and `true`) only when capped; omitted when not truncated
   references: Array<{
-    file: string;    // Solution-root-relative, forward slashes
+    file: string;    // Relative to resolvedPath's directory, forward slashes
     line: number;    // 1-based
     snippet: string; // Trimmed source line
   }>;
@@ -852,7 +915,7 @@ A depth-bounded caller and/or callee graph for a method, with cycle detection. *
   fullName: string;            // Parameter-qualified, with parameter TYPES as simple names
                                // (e.g. "RoselineMCP.Services.Foo.Bar(string, CancellationToken)"),
                                // so overloads stay distinct. Call get_symbol_info for the full signature.
-  file: string | null;         // Solution-root-relative, forward slashes
+  file: string | null;         // Relative to resolvedPath's directory, forward slashes
   line: number | null;
   truncated?: boolean;         // Present (and `true`) only when a cycle or depth/budget stopped expansion; omitted otherwise
   children?: CallGraphNode[];  // Next level, when expanded
@@ -927,7 +990,7 @@ with no symbol (e.g. a blank or comment line), is a `NotFoundError`.
   containingType?: string;    // Simple (unqualified) container name; omitted for top-level symbols
   isDeclaration: boolean;     // True when the position sits on the symbol's own declaration
   documentation?: string;     // XML <summary> text, whitespace-collapsed; omitted when absent
-  definitionFile?: string;    // Solution-root-relative, forward slashes; omitted when metadata-only
+  definitionFile?: string;    // Relative to resolvedPath's directory, forward slashes; omitted when metadata-only
   definitionLine?: number;    // 1-based; omitted when metadata-only
 }
 ```
@@ -961,7 +1024,7 @@ subject to the [Write Confirmation](#write-confirmation) gate.
   resolvedPath: string;    // Absolute .sln/.csproj that was actually loaded
   operation: string;
   target: string;          // Fully-qualified name of the member/type edited
-  changedFiles: string[];  // Solution-root-relative path(s) modified (or that would be); forward slashes, project-dir-relative when no .sln
+  changedFiles: string[];  // Path(s) modified (or that would be), relative to resolvedPath's directory, forward slashes
   patch: string;           // Unified diff
   previewOnly: boolean;
   applied: boolean;        // True only when previewOnly was false, there were changes, and verification did not refuse
@@ -998,7 +1061,7 @@ call is subject to the [Write Confirmation](#write-confirmation) gate.
   resolvedPath: string;    // Absolute .sln/.csproj that was actually loaded
   symbol: string;          // Fully-qualified name that was renamed
   newName: string;
-  changedFiles: string[];  // Solution-root-relative paths (forward slashes; project-dir-relative when no .sln)
+  changedFiles: string[];  // Relative to resolvedPath's directory, forward slashes
   patch: string;           // Unified diff across all changed files
   previewOnly: boolean;
   applied: boolean;        // True only when previewOnly was false, there were changes, and verification did not refuse
@@ -1279,8 +1342,9 @@ diagnostics only, by design.
 public interface IVerificationService
 {
     Task<VerificationVerdict> VerifyAsync(
-        Solution? baseline,   // null → absolute verdict (check_compilation)
+        Solution? baseline,       // null → absolute verdict (check_compilation)
         Solution candidate,
+        string? baseDirectory,    // required: LoadedProject.BaseDirectory of the same response
         int max = 20,
         CancellationToken cancellationToken = default);
 }
@@ -1289,6 +1353,11 @@ public interface IVerificationService
 `touched` is deliberately **not** a parameter: the changed-project set is derived internally from
 `candidate.GetChanges(baseline)`, because a caller that under-reported it would silently narrow the
 scope and let the gate pass broken code.
+
+`baseDirectory` is deliberately **required** (no default), for the same reason read the other way:
+it is the anchor every reported `errors[].file` hangs off, and a default would silently reinstate a
+re-derived one. Without a default, a call site that forgets it does not compile. `null` is legal and
+means "no path to anchor on" (an in-memory workspace), leaving the paths absolute.
 
 The production registration passes `DiagnosticComputationService.CompilerOnly`, never the
 analyzer-aware implementation. Per-project results are cached, keyed by the project's **file path**
@@ -1465,7 +1534,7 @@ public class SymbolSummary
     public string? FullName { get; set; }       // Omitted in the single-file outline
     public string Kind { get; set; }            // "class", "method", ...
     public string Signature { get; set; }       // Already carries the accessibility keyword
-    public string? File { get; set; }           // Solution-root-relative; omitted in the outline
+    public string? File { get; set; }           // Relative to resolvedPath's directory; omitted in the outline
     public int? Line { get; set; }              // 1-based
     public string? ContainingType { get; set; } // Emitted ONLY in the single-file outline, as the simple type name
 }
@@ -1535,7 +1604,7 @@ A failure is reported as the envelope's `ok: false` branch, with everything nest
 #### Which checkout answered?
 
 Two checkouts of one repository — a git worktree and its main checkout — are otherwise reported
-identically: same project name, same solution-root-relative file paths. When `project` is omitted,
+identically: same project name, same relative file paths. When `project` is omitted,
 RoselineMCP auto-discovers from **the server process's** working directory, which is not the
 agent's; a worktree under `.claude/worktrees/<name>` sits below the discovery walk's reach, so the
 main checkout answers instead.
@@ -1544,6 +1613,11 @@ main checkout answers instead.
 project's solution was loaded and lists it, and the `.csproj` when the project was opened directly
 — including when a `.csproj` exists on disk but is not listed in its nearest ancestor `.sln`, in
 which case the `.sln` never contributed the loaded project and reporting it would be wrong.
+
+The navigation, `ApplyFixes`, edit and verification tools all anchor their relative file paths on
+that same `resolvedPath`'s directory, so joining the two yields a real path. See **Relative file
+paths** above for the one carve-out where that does not apply (`ListDiagnostics`/`AnalyzeSolution`
+report absolute paths, so there is nothing to join).
 
 On the success path that mismatch surfaces as a `resolvedPath` you did not expect. On the failure
 path it surfaces as `NotFoundError: Symbol not found: 'X'` — and without this field there is nothing

@@ -106,4 +106,78 @@ public class CheckCompilationToolTests
         result.Error.Type.ShouldBe("NotFoundError");
         result.Error.CorrelationId.ShouldNotBeNullOrEmpty();
     }
+
+    /// <summary>
+    /// Regression for #199, the end-to-end shape of it: <c>errors[].file</c> must hang off the
+    /// directory <c>resolvedPath</c> names, so joining the two lands on the real file. They diverged
+    /// for a <c>.csproj</c> its ancestor <c>.sln</c> does not list — #151 made <c>resolvedPath</c>
+    /// report the <c>.csproj</c> while the verification path still relativized against
+    /// <c>Solution.FilePath</c>, the <c>.sln</c> Roslyn grafted the project onto. That produced
+    /// <c>Scratch/Program.cs</c> under an anchor already ending in <c>Scratch</c>, i.e. a path to a
+    /// file that does not exist — in the tool an agent leans on hardest in its edit loop.
+    /// </summary>
+    [Fact]
+    public async Task Error_Paths_Hang_Off_ResolvedPath_When_The_Project_Is_Not_In_The_Sln()
+    {
+        var baseDirectory = Path.Combine(Path.GetTempPath(), "roseline-checkcomp-tests", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(baseDirectory);
+
+        try
+        {
+            var (workspace, scratch, scratchCsproj) = AdhocProjectBuilder.CreateUnlistedProjectSolutionOnDisk(
+                baseDirectory,
+                [("MainWidget.cs", "namespace MainNs { public class MainWidget { } }")],
+                [("Program.cs", "public class Program { public int Nope() => Missing.Thing(); }")]);
+            using var _ = workspace;
+            var loader = AdhocProjectBuilder.FakeLoaderFor(workspace, scratch, scratchCsproj);
+
+            var result = await CheckCompilationTool.CheckCompilation(
+                loader, TestVerification.New(), scratchCsproj,
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            result.Ok.ShouldBeTrue();
+            result.Data!.ResolvedPath.ShouldBe(scratchCsproj);
+            result.Data.Compiles.ShouldBe(false);
+            result.Data.Errors.ShouldNotBeNull();
+
+            var error = result.Data.Errors.First(e => e.Project == "Scratch");
+            error.File.ShouldBe("Program.cs");
+
+            var reconstructed = Path.Combine(Path.GetDirectoryName(result.Data.ResolvedPath)!, error.File);
+            File.Exists(reconstructed).ShouldBeTrue(
+                $"'{reconstructed}' should be the real file on disk, but resolvedPath and the "
+                + "errors[].file anchor disagree");
+        }
+        finally
+        {
+            Directory.Delete(baseDirectory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The other half of #199: in the common case — the project <em>is</em> in the solution, so the
+    /// <c>.sln</c> answers — paths must stay solution-root-relative. The fix moves the anchor to the
+    /// caller's <c>resolvedPath</c>; here the two coincide, and a change in this case would be a
+    /// wire-shape regression rather than a fix.
+    /// </summary>
+    [Fact]
+    public async Task Error_Paths_Stay_Solution_Root_Relative_When_The_Solution_Answers()
+    {
+        var (workspace, anchor) = AdhocProjectBuilder.CreateSolution(
+            [("Listed", [("Program.cs", "public class Program { public int Nope() => Missing.Thing(); }")])],
+            solutionFileName: "Repo.sln");
+        using var _ = workspace;
+
+        // No explicit resolvedPath: the handle falls back to Solution.FilePath, the .sln — exactly
+        // what the real loader reports for a project its solution lists.
+        var result = await CheckCompilationTool.CheckCompilation(
+            AdhocProjectBuilder.FakeLoaderFor(workspace, anchor),
+            TestVerification.New(),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        result.Ok.ShouldBeTrue();
+        result.Data!.ResolvedPath.ShouldBe(anchor.Solution.FilePath);
+        result.Data.Errors.ShouldNotBeNull();
+        result.Data.Errors.First(e => e.Project == "Listed").File.ShouldBe("Listed/Program.cs");
+    }
 }

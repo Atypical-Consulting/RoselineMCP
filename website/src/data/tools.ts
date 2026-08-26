@@ -3,7 +3,7 @@ export type ToolKind = 'read' | 'write' | 'diagnostics';
 export interface Tool {
   name: string;        // MCP wire name (snake_case)
   title: string;       // human-readable Title advertised to clients (v1.4.0)
-  group: string;
+  group: ToolGroup;    // one of `groups` — typed, so a typo is a compile error, not a missing card
   kind: ToolKind;
   summary: string;
   params: string;
@@ -87,7 +87,7 @@ export const tools: Tool[] = [
     name: 'apply_fixes', title: 'Apply Fixes', group: 'Diagnostics & fixes', kind: 'write', confirms: true, progress: true, verifies: true,
     summary: 'Apply automated code fixes for diagnostic IDs to one project — a .sln target fixes its primary project and names the ones it skipped. Preview by default, and refused if the fixes would not compile.',
     params: 'ids, project?, previewOnly?, allowIntroducedErrors?, max?',
-    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (solution-root-relative), patch, notes[] (scope: fixed/skipped projects, linked files; per-ID status), previewOnly, applied, verification?, analyzerLoad? (omitted when every analyzer reference contributed)',
+    returns: 'project, resolvedPath, fixedCount, fixersApplied[], changedFiles[] (relative to the resolvedPath directory), patch, notes[] (scope: fixed/skipped projects, linked files; per-ID status), previewOnly, applied, verification?, analyzerLoad? (omitted when every analyzer reference contributed)',
   },
   {
     name: 'check_compilation', title: 'Check Compilation', group: 'Diagnostics & fixes', kind: 'diagnostics',
@@ -103,4 +103,46 @@ export const tools: Tool[] = [
   },
 ];
 
-export const groups = ['Code navigation', 'Code editing', 'Diagnostics & fixes'];
+// `as const` so `ToolGroup` is the union of these three literals rather than `string`. Both pages
+// render their grids with `tools.filter((t) => t.group === g)` over this list, so an entry whose
+// group is not in it would render no card at all while still counting towards `toolCount` — "N tools"
+// above N-1 cards, i.e. #197 again. Typing `Tool.group` makes that a compile error.
+export const groups = ['Code navigation', 'Code editing', 'Diagnostics & fixes'] as const;
+
+export type ToolGroup = (typeof groups)[number];
+
+// ── The tool count, derived ──
+// The headings on tools.astro and index.astro used to restate this number in prose, and drifted
+// (they still said "Thirteen" after check_compilation landed as tool 14). Both now read it from the
+// array above, so the count cannot go stale when a tool is added.
+
+/** How many tools the array holds. */
+export const toolCount = tools.length;
+
+// Capitalised, because every heading that uses one opens a sentence with it. Module-private: a
+// public Capitalised word invites a mid-sentence use that reads wrong.
+const numberWords = [
+  'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen',
+  'Nineteen', 'Twenty',
+];
+
+// A count as an English word, falling back to digits outside the mapped range rather than rendering
+// nothing (the spec's validation rule).
+const numberWord = (n: number): string => numberWords[n] ?? String(n);
+
+const plural = (n: number) => (n === 1 ? 'tool' : 'tools');
+
+/** The noun phrase both headings open with: "Fourteen tools" — and "One tool" if it ever is. */
+export const toolCountPhrase = `${numberWord(toolCount)} ${plural(toolCount)}`;
+
+// The home page's blurb counts only the code-intelligence surface — everything that is not the
+// original diagnostics group — so it needs its own derived count rather than `toolCount`. Naming the
+// group through `ToolGroup` rather than a second literal list keeps a rename a compile error; a
+// stale copy of the group names here would silently count zero.
+const diagnosticsGroup: ToolGroup = 'Diagnostics & fixes';
+const codeIntelligenceToolCount = tools.filter((t) => t.group !== diagnosticsGroup).length;
+
+/** "Nine code-intelligence tools" — and the singular if it ever comes to that. */
+export const codeIntelligenceToolPhrase =
+  `${numberWord(codeIntelligenceToolCount)} code-intelligence ${plural(codeIntelligenceToolCount)}`;

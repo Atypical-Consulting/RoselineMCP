@@ -1,6 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
-import { tools, groups } from '../data/tools.ts';
+import { tools, groups, toolCountPhrase, codeIntelligenceToolPhrase } from '../data/tools.ts';
 import data from '../data/benchmark-results.json';
 
 const base = import.meta.env.BASE_URL;
@@ -73,12 +73,12 @@ const groupBlurb: Record<string, string> = {
       <div class="showcase-head">
         <span class="eyebrow">The idea</span>
         <p>One <code>search_symbols</code> call returns the <em>shape</em> of a file. Real numbers from
-          this repo: <strong>1,638 tokens become 71</strong> — the agent gets what it needs, you skip the wall.</p>
+          this repo: <strong>2,093 tokens become 120</strong> — the agent gets what it needs, you skip the wall.</p>
       </div>
 
-      <figure class="transform" aria-label="RoselineMCP turns a 1,638-token file into a 71-token outline.">
+      <figure class="transform" aria-label="RoselineMCP turns a 2,093-token file into a 120-token outline.">
         <div class="tpanel file">
-          <div class="tp-head"><span class="mono">Program.cs · the whole file</span><span class="tp-cost mono">1,638 tokens</span></div>
+          <div class="tp-head"><span class="mono">Program.cs · the whole file</span><span class="tp-cost mono">2,093 tokens</span></div>
           <pre class="mono">{`var host = CreateHostBuilder(args).Build();
 var logger = host.Services
     .GetRequiredService<ILogger<Program>>();
@@ -106,7 +106,7 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
 
         <div class="tpanel struct">
           <div class="tp-head"><span class="mono">the outline it returns</span>
-            <span class="tp-save mono">71&nbsp;tokens</span><span class="pill write">−96%</span></div>
+            <span class="tp-save mono">120&nbsp;tokens</span><span class="pill write">−94%</span></div>
           <div class="outrows">
             <div class="orow"><span class="okind">class</span><span class="osig mono">Program</span></div>
             <div class="orow"><span class="okind">method</span><span class="osig mono">CreateHostBuilder(string[]) : IHostBuilder</span><span class="oline mono">:53</span></div>
@@ -286,8 +286,8 @@ static IHostBuilder CreateHostBuilder(string[] a) =>
     <div class="wrap">
       <div class="sec-head">
         <span class="eyebrow">The surface</span>
-        <h2>Thirteen tools. Structure in, tokens down.</h2>
-        <p>Nine code-intelligence tools on top of the original diagnostics surface.
+        <h2>{toolCountPhrase}. Structure in, tokens down.</h2>
+        <p>{codeIntelligenceToolPhrase} on top of the original diagnostics surface.
           <a href={base + 'tools'}>Full reference →</a></p>
       </div>
       {groups.map((g) => (

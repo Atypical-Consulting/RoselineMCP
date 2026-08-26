@@ -41,7 +41,7 @@ public class ReferencesResponse
 /// <summary>A single reference (use site) of a symbol.</summary>
 public class ReferenceLocation
 {
-    /// <summary>File (solution-root-relative) containing the reference.</summary>
+    /// <summary>File (relative to <c>resolvedPath</c>'s directory) containing the reference.</summary>
     [JsonPropertyName("file")]
     public string File { get; set; } = string.Empty;
 

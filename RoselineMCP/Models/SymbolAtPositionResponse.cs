@@ -49,7 +49,7 @@ public class SymbolAtPositionResponse
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Documentation { get; set; }
 
-    /// <summary>Source file (solution-root-relative) declaring the symbol. Omitted if only available from metadata.</summary>
+    /// <summary>Source file (relative to <c>resolvedPath</c>'s directory) declaring the symbol. Omitted if only available from metadata.</summary>
     [JsonPropertyName("definitionFile")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DefinitionFile { get; set; }

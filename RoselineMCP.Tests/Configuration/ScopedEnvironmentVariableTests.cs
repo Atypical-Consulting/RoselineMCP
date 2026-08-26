@@ -7,16 +7,23 @@ namespace RoselineMCP.Tests.Configuration;
 /// returned to the value the scope found, not unconditionally cleared.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The keys below carry no <c>ROSELINE_</c> prefix at all, which is the strongest form of the rule
 /// this file follows: <b>a class that mutates process-wide environment state must pick names no
-/// other parallel collection touches.</b> <see cref="RoselineMcpOptionsBindingTests"/> is a separate
-/// xUnit collection — so it runs in parallel with this one by default — and it both ingests every
+/// other collection touches.</b> <see cref="RoselineMcpOptionsBindingTests"/> both ingests every
 /// <c>ROSELINE_</c>-prefixed variable through <c>AddEnvironmentVariables(prefix: "ROSELINE_")</c> and
-/// now clears every one of them that falls under <c>RoselineMCP:</c>. Staying outside the prefix
-/// entirely puts these keys beyond the reach of both. <see cref="ScopedEnvironmentNamespaceTests"/>
-/// below cannot do that — the prefix is the thing it tests — so it satisfies the same rule the other
+/// clears every one of them that falls under <c>RoselineMCP:</c>. Staying outside the prefix entirely
+/// puts these keys beyond the reach of both. <see cref="ScopedEnvironmentNamespaceTests"/> below
+/// cannot do that — the prefix is the thing it tests — so it satisfies the same rule the other
 /// available way, by staying out of the section that class clears.
+/// </para>
+/// <para>
+/// Disjoint names are a first line, not the guarantee: because these classes mutate process-global
+/// state at all, they share <see cref="ProcessEnvironmentCollection"/> and so never run concurrently
+/// with one another (#189).
+/// </para>
 /// </remarks>
+[Collection(ProcessEnvironmentCollection.Name)]
 public class ScopedEnvironmentVariableTests
 {
     private const string UnsetKey = "ScopedEnvTests_Unset";
@@ -105,10 +112,10 @@ public class ScopedEnvironmentVariableTests
 /// The keys below carry the real <c>ROSELINE_</c> prefix — how that prefix is matched is the thing
 /// under test, so faking it would test something else — but they sit in a <b>probe section</b>
 /// (<c>ScopedNsProbe:</c>), never <c>RoselineMCP:</c>. That is deliberate and load-bearing.
-/// <see cref="RoselineMcpOptionsBindingTests"/> is a separate xUnit collection, so it runs in
-/// parallel with this one, and it now scopes the whole <c>ROSELINE_</c> → <c>RoselineMCP:</c>
-/// namespace. Two classes clearing and restoring the same variables concurrently is a race
-/// whichever way it lands; disjoint sections is what keeps them independent. The probe keys are
+/// <see cref="RoselineMcpOptionsBindingTests"/> scopes the whole <c>ROSELINE_</c> →
+/// <c>RoselineMCP:</c> namespace. Two classes clearing and restoring the same variables concurrently
+/// is a race whichever way it lands; disjoint sections keep them independent even before
+/// <see cref="ProcessEnvironmentCollection"/> stops them overlapping in time. The probe keys are
 /// still ingested by that class's <c>AddEnvironmentVariables(prefix: "ROSELINE_")</c>, but they
 /// land under <c>ScopedNsProbe:</c>, which its <c>GetSection("RoselineMCP")</c> never reads.
 /// </para>
@@ -118,6 +125,7 @@ public class ScopedEnvironmentVariableTests
 /// under a case-insensitive configuration stack — is exactly what this type exists to absorb.
 /// </para>
 /// </remarks>
+[Collection(ProcessEnvironmentCollection.Name)]
 public class ScopedEnvironmentNamespaceTests
 {
     private const string Prefix = "ROSELINE_";

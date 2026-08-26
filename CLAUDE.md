@@ -19,7 +19,14 @@ review and update every surface that mirrors it:
 - `CLAUDE.md` — the "MCP Tools Available" list and the "Adding New MCP Tools" example/pattern
 - `README.md` — the tool list and any usage snippets
 - `website/src/data/tools.ts` and `website/src/pages/tools.astro` — the public tools reference
-  (name, title, kind, params, `data` payload, capability pills)
+  (name, title, kind, params, `data` payload, capability pills). Both pages **derive their counts**
+  from that array — `toolCountPhrase` (the two headings) and `codeIntelligenceToolPhrase`
+  (`index.astro`'s blurb), plus `toolCount` in `tools.astro`'s meta description — so a tool added to
+  an existing group needs no page edit and the copy cannot go stale. A tool in a **new group**, or
+  with a new `ToolKind`, still does: `groupBlurb` is kept in `index.astro` *and* `tools.astro`, and
+  `kindLabel` in `tools.astro`; a missing key renders as nothing rather than failing. Never restate a
+  count in a page's prose — that is how `tools.astro` came to announce "Thirteen tools" above
+  fourteen cards (#197)
 - `mcpb/manifest.json` — the `tools[]` array (names + descriptions)
 - `CHANGELOG.md` — **nothing to edit by hand.** release-please generates each release's entries
   from Conventional Commits, so a user-facing change is described by your PR *title*; write it to
@@ -67,7 +74,10 @@ The application uses a dependency injection-based service architecture with clea
      `check_compilation`. Compiler-only by design (`DiagnosticComputationService.CompilerOnly`);
      caches per-project results keyed by **file path + both** the dependent semantic version and the
      dependent version (the semantic version alone is blind to method-body edits), storing detached
-     `DiagnosticDetail` values only
+     `DiagnosticDetail` values only — with **absolute** file paths, because the anchor is not part
+     of the key: relativization against the caller's `baseDirectory` happens on the way *out* of the
+     cache, so one warm entry serves a `.sln`-anchored call and a `.csproj`-anchored one without
+     handing the second caller the first's anchor (#199)
    - `DiagnosticFilterService`: Filtering and categorization of diagnostics
    - `CodeFixProviderFactory`: Dynamic loading of Roslyn and Roslynator fix providers. Two layers:
      a **process-wide map** built once in the constructor (the Roslyn built-ins, then the
@@ -228,7 +238,7 @@ was fixed and which of the solution's were skipped — only when the caller's ta
 never when they named a `.csproj` — plus any linked file whose write reaches a sibling), on every
 path including preview.
 - **Parameters**: ids[], project (optional), previewOnly, allowIntroducedErrors, max
-- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (solution-root-relative, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`, `analyzerLoad` (from the first diagnostics pass — so "no diagnostics found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are resolved through the same three layers as `ListDiagnostics`' fixable IDs
+- **Returns**: `resolvedPath` (the absolute `.sln`/`.csproj` actually loaded), changed files (relative to `resolvedPath`'s directory, forward slashes), unified diff patch, applied fixers list, `notes[]` (scope + per-ID status), `applied`, `verification`, `analyzerLoad` (from the first diagnostics pass — so "no diagnostics found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are resolved through the same three layers as `ListDiagnostics`' fixable IDs
 
 ### 14. CheckCompilation
 Answers "does this compile right now, and what broke" against on-disk state — the replacement for a
@@ -269,6 +279,30 @@ its nearest ancestor `.sln`). Pass an absolute path as `project` to target a
 specific checkout. (`AnalyzeSolution` is excluded: `pathOrGit` is required, so it never
 auto-discovers.)
 
+**Relative paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`,
+`ApplyFixes`/`EditMember`/`RenameSymbol`'s `changedFiles` **and unified-diff headers**, and
+`verification.errors[]`/`CheckCompilation`'s `errors[]`, are all
+relativized against the directory of *that same response's* `resolvedPath` —
+`LoadedProject.BaseDirectory`, the one authoritative anchor. Four services used to each
+re-derive `Solution.FilePath ?? Project.FilePath`, which stopped agreeing with `resolvedPath` once
+#151 fixed it (#181 fixed three, #199 the fourth). Concretely: the solution's directory when the
+`.sln` answered, the project's own when the `.csproj` did — including a project absent from its
+nearest ancestor `.sln`. So `Path.GetDirectoryName(resolvedPath)` joined with such a path is a real
+file on disk, and a returned `patch` applies from that directory rather than from the repo root.
+
+The anchor reaches `VerificationService` as the **required** `baseDirectory` parameter on
+`IVerificationService.VerifyAsync`, threaded from each of its five call sites (`CodeEditService` ×2,
+`CodeFixService`, `CheckCompilationTool`, `GuardService`). Required, with no default, deliberately:
+a default would silently reinstate the re-derived anchor, so forgetting it is a compile error rather
+than a wrong path. `null` is the legal in-memory case and leaves paths absolute. No shipped code
+re-derives the anchor any more — `Solution.FilePath ?? …` survives only as
+`LoadedProject.ResolvedPath`'s own definition.
+
+⚠️ **One thing this does *not* cover**, so don't state the rule more widely than it holds:
+`ListDiagnostics`/`AnalyzeSolution` report `file` as an **absolute** path (`DiagnosticDetail.File =
+location.Path`) — pre-existing, unrelated to the anchor, and a wire-shape change if touched.
+
+
 That remedy covers **failures too**, and they are the common shape of this mistake: querying the
 wrong checkout usually produces `NotFoundError: Symbol not found: 'X'`, not a wrong-but-successful
 answer. The failure envelope's `error.resolvedPath` names the checkout that was searched, so
@@ -307,11 +341,18 @@ When implementing new tools:
 3. Accept required services as first parameters (injected automatically)
 4. Return a `ToolResult<T>` envelope — the payload on success, a classified failure envelope on error
 5. Handle exceptions and return the failure envelope (never throw to the MCP layer)
+6. State one `Limitations:` clause and one `Example:` line in the `[Description]`, reusing
+   `RoselineToolDescriptions.ProjectAutoDiscoveryLimit` when `project` is optional. Keep the whole
+   description ≤ 165 words — `ToolDescriptionContractTests` enforces all three (and the tool count,
+   so a new tool trips it until you opt it in deliberately)
 
 Example:
 ```csharp
 [McpServerTool(UseStructuredContent = true)]
-[Description("Tool description")]
+[Description("Tool description — what it does, and when to prefer it over Read/Grep. "
+    + "Limitations: the failure mode a caller cannot infer (capped by max, not atomic, preview-only, …)."
+    + RoselineToolDescriptions.ProjectAutoDiscoveryLimit
+    + " Example: new_tool{param:'value'} -> what comes back.")]
 public static async Task<ToolResult<Result>> NewTool(
     IRequiredService service,
     [Description("Parameter description")] string param,

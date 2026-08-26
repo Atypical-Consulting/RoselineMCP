@@ -102,9 +102,11 @@ public class CodeFixService : ICodeFixService
                     response.Notes.Add(skippedNote);
                 }
 
-                // Emitted paths are solution-root-relative (falling back to the project directory when
-                // no .sln was loaded), matching the navigation and edit tools.
-                var baseDirectory = Path.GetDirectoryName(loaded.Solution.FilePath ?? msProject.FilePath);
+                // Emitted paths hang off the directory of resolvedPath — the file that actually
+                // answered — so combining the two lands on the real file. Usually the solution root;
+                // the project's own directory when no .sln answered, including the .csproj its
+                // nearest ancestor .sln doesn't list (#181). Same rule as the navigation/edit tools.
+                var baseDirectory = loaded.BaseDirectory;
 
                 // Get the original solution text for diff generation
                 var originalSolution = loaded.Solution;
@@ -273,7 +275,7 @@ public class CodeFixService : ICodeFixService
                 if (changedDocuments.Any())
                 {
                     var verdict = await _verificationService.VerifyAsync(
-                        originalSolution, currentSolution, max, cancellationToken);
+                        originalSolution, currentSolution, baseDirectory, max, cancellationToken);
                     response.Verification = verdict;
 
                     if (verdict.Introduced is { Count: > 0 } introduced && !allowIntroducedErrors)

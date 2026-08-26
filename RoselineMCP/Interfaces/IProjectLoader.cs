@@ -80,12 +80,28 @@ public sealed class LoadedProject : IDisposable
     /// The absolute path that was actually resolved and loaded — the file the loader opened to
     /// answer the call. This is the only thing that distinguishes two checkouts of the same
     /// repository (a git worktree from its main checkout), which are otherwise reported
-    /// identically: same project name, same solution-root-relative file paths. Reports the value
+    /// identically: same project name, same relative file paths. Reports the value
     /// the loader supplied when it knows which file answered; otherwise falls back to
     /// <c>Solution.FilePath ?? Project.FilePath ?? string.Empty</c> — the only signal available for
     /// handles built without that knowledge (e.g. in-memory <c>AdhocWorkspace</c> handles in tests).
     /// </summary>
     public string ResolvedPath => _resolvedPath ?? Solution.FilePath ?? Project.FilePath ?? string.Empty;
+
+    /// <summary>
+    /// The directory every relative file path in a response hangs off — always the directory
+    /// containing <see cref="ResolvedPath"/>, so a caller can combine
+    /// <c>Path.GetDirectoryName(resolvedPath)</c> with any returned path and land on the real file.
+    /// That is the whole promise of <see cref="ResolvedPath"/>, and it only holds while the two are
+    /// computed from the same value: the navigation tools, <c>ApplyFixes</c>, the edit tools and the
+    /// verification path each derived this directory from <c>Solution.FilePath ?? Project.FilePath</c>
+    /// instead, which diverges from <see cref="ResolvedPath"/> for a <c>.csproj</c> not listed in its
+    /// nearest ancestor <c>.sln</c> — Roslyn grafts such a project onto the already-open solution, so
+    /// <c>Solution.FilePath</c> keeps naming the <c>.sln</c> that never contributed it (issues #181
+    /// and #199; this is now the only place that expression survives).
+    /// <see langword="null"/> when there is no path to anchor on at all (an in-memory workspace),
+    /// which leaves paths absolute — the same fallback those call sites had before.
+    /// </summary>
+    public string? BaseDirectory => Path.GetDirectoryName(ResolvedPath);
 
     /// <summary>
     /// The absolute <c>.sln</c> or <c>.csproj</c> the caller's <c>project</c> reference resolved

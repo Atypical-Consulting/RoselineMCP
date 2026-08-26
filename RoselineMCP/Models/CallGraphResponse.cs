@@ -53,7 +53,7 @@ public class CallGraphNode
     [JsonPropertyName("fullName")]
     public string FullName { get; set; } = string.Empty;
 
-    /// <summary>Source path (solution-root-relative) declaring the method, or <c>null</c> for metadata-only methods.</summary>
+    /// <summary>Source path (relative to <c>resolvedPath</c>'s directory) declaring the method, or <c>null</c> for metadata-only methods.</summary>
     [JsonPropertyName("file")]
     public string? File { get; set; }
 

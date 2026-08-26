@@ -45,6 +45,19 @@ public class CodeFixServiceIntegrationTests : IDisposable
         try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
     }
 
+    /// <summary>One CS0219 (assigned but never used local) — the fixture most of these tests fix.</summary>
+    private const string OneUnusedLocal =
+        """
+        class Program
+        {
+            static void Main()
+            {
+                int unused = 1;
+                System.Console.WriteLine("hi");
+            }
+        }
+        """;
+
     private const string MinimalCsprojXml =
         """
         <Project Sdk="Microsoft.NET.Sdk">
@@ -145,16 +158,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             // Arrange — one CS0219 (assigned but never used local)
             var csprojPath = CreateProject("Single.csproj",
-                ("Program.cs", """
-                 class Program
-                 {
-                     static void Main()
-                     {
-                         int unused = 1;
-                         System.Console.WriteLine("hi");
-                     }
-                 }
-                 """));
+                ("Program.cs", OneUnusedLocal));
 
             // Capture progress reports emitted while fixes are applied.
             var reports = new List<ProgressNotificationValue>();
@@ -187,16 +191,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             // Arrange
             var csprojPath = CreateProject("Preview.csproj",
-                ("Program.cs", """
-                 class Program
-                 {
-                     static void Main()
-                     {
-                         int unused = 1;
-                         System.Console.WriteLine("hi");
-                     }
-                 }
-                 """));
+                ("Program.cs", OneUnusedLocal));
             var programPath = Path.Combine(Path.GetDirectoryName(csprojPath)!, "Program.cs");
             var originalContent = await File.ReadAllTextAsync(programPath);
 
@@ -388,9 +383,12 @@ public class CodeFixServiceIntegrationTests : IDisposable
 
     /// <summary>
     /// With the shared <see cref="ProjectLoader"/>, ApplyFixes opens the containing solution when
-    /// one exists, and emitted paths (<c>changedFiles</c> + patch headers) are solution-root-relative
-    /// with forward slashes — the same base the navigation and edit tools use — instead of the old
-    /// project-directory-relative paths.
+    /// one exists, so <c>resolvedPath</c> is the <c>.sln</c> and emitted paths (<c>changedFiles</c> +
+    /// patch headers) come out solution-root-relative with forward slashes — the same base the
+    /// navigation and edit tools use — instead of the old project-directory-relative paths. That is
+    /// this rule's usual outcome, not its definition: the base is the directory of
+    /// <c>resolvedPath</c>, which is the project's own directory when a <c>.csproj</c> answered
+    /// (see <see cref="ResolvedPathAnchorTests"/>, #181).
     /// </summary>
     public class SolutionRootRelativePathTests : CodeFixServiceIntegrationTests
     {
@@ -399,16 +397,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             // Arrange — two projects under one solution; the fix target is App.
             var appCsproj = CreateProject("App.csproj",
-                ("Program.cs", """
-                 class Program
-                 {
-                     static void Main()
-                     {
-                         int unused = 1;
-                         System.Console.WriteLine("hi");
-                     }
-                 }
-                 """));
+                ("Program.cs", OneUnusedLocal));
             CreateProject("Lib.csproj",
                 ("Thing.cs", "public class Thing { }"));
             CreateSolutionFile("Fix.sln", "App", "Lib");
@@ -432,16 +421,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         public async Task ApplyFixes_Reports_The_Absolute_Resolved_Solution_Path()
         {
             var appCsproj = CreateProject("App.csproj",
-                ("Program.cs", """
-                 class Program
-                 {
-                     static void Main()
-                     {
-                         int unused = 1;
-                         System.Console.WriteLine("hi");
-                     }
-                 }
-                 """));
+                ("Program.cs", OneUnusedLocal));
             CreateProject("Lib.csproj",
                 ("Thing.cs", "public class Thing { }"));
             var slnPath = CreateSolutionFile("Resolved.sln", "App", "Lib");
@@ -786,5 +766,40 @@ public class CodeFixServiceIntegrationTests : IDisposable
             fileA.ShouldContain("System.Console.WriteLine(\"a\");");
             fileB.ShouldContain("System.Console.WriteLine(\"b\");");
         }
+    }
+
+    /// <summary>
+    /// <c>changedFiles</c> and <c>resolvedPath</c> must be anchored to the same directory, so a
+    /// caller can combine <c>Path.GetDirectoryName(resolvedPath)</c> with a returned entry and land
+    /// on the real file — the documented purpose of <c>resolvedPath</c>. They diverged for a
+    /// <c>.csproj</c> not listed in its nearest ancestor <c>.sln</c> (#181): #151 made
+    /// <c>resolvedPath</c> report the <c>.csproj</c>, while <c>ApplyFixes</c> still relativized
+    /// against <c>Solution.FilePath</c> — the <c>.sln</c> Roslyn grafted the project onto.
+    /// </summary>
+    public class ResolvedPathAnchorTests : CodeFixServiceIntegrationTests
+    {
+        [Fact]
+        public async Task ChangedFiles_Hang_Off_ResolvedPath_When_Project_Is_Not_In_The_Sln()
+        {
+            CreateProject("Main.csproj", ("MainProgram.cs", "class MainProgram { static void Main() { } }"));
+            var scratchCsproj = CreateProject("Scratch.csproj", ("Program.cs", OneUnusedLocal));
+            CreateSolutionFile("Repo.sln", "Main"); // Scratch is on disk but deliberately NOT listed.
+
+            var result = await _sut.ApplyFixesAsync(scratchCsproj, ["CS0219"], previewOnly: true);
+
+            result.ResolvedPath.ShouldBe(scratchCsproj);
+            result.ChangedFiles.ShouldBe(["Program.cs"]);
+            result.Patch.ShouldContain("a/Program.cs");
+
+            var reconstructed = Path.Combine(Path.GetDirectoryName(result.ResolvedPath)!, result.ChangedFiles[0]);
+            File.Exists(reconstructed).ShouldBeTrue(
+                $"'{reconstructed}' should be the real file on disk, but resolvedPath and the "
+                + "changedFiles anchor disagree");
+        }
+
+        // The "project listed in its solution" case is already pinned, against a two-project
+        // solution, by SolutionRootRelativePathTests above — changedFiles, patch headers and
+        // resolvedPath alike. A second copy here would buy nothing and cost another MSBuild
+        // design-time load, the slowest thing in this suite.
     }
 }
