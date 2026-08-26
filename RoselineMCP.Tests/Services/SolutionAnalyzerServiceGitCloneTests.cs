@@ -83,9 +83,7 @@ public class SolutionAnalyzerServiceGitCloneTests : IDisposable
         Directory.CreateDirectory(repoDir);
 
         RunGit(repoDir, "init");
-        File.WriteAllText(
-            Path.Combine(repoDir, "Fixture.sln"),
-            "Microsoft Visual Studio Solution File, Format Version 12.00");
+        SolutionFileBuilder.Write(Path.Combine(repoDir, "Fixture.sln"), "Fixture");
         RunGit(repoDir, "add -A");
         RunGit(repoDir, "-c user.email=test@example.com -c user.name=Test commit -m init");
 

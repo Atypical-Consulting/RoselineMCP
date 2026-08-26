@@ -120,37 +120,6 @@ public class CodeFixServiceIntegrationTests : IDisposable
         return path;
     }
 
-    /// <summary>Writes a hand-rolled .sln in <c>_testDirectory</c> referencing the given (already created) projects.</summary>
-    private string CreateSolutionFile(string solutionFileName, params string[] projectNames)
-    {
-        var guids = projectNames
-            .Select((name, i) => (Name: name, Guid: $"{{1111111{i + 1}-1111-1111-1111-111111111111}}"))
-            .ToList();
-        var entries = string.Join("\n", guids.Select(p =>
-            $"Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{p.Name}\", \"{p.Name}\\{p.Name}.csproj\", \"{p.Guid}\"\nEndProject"));
-        var configs = string.Join("\n", guids.Select(p =>
-            $"\t\t{p.Guid}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{p.Guid}.Debug|Any CPU.Build.0 = Debug|Any CPU"));
-
-        var slnPath = Path.Combine(_testDirectory, solutionFileName);
-        File.WriteAllText(slnPath,
-            $"""
-             Microsoft Visual Studio Solution File, Format Version 12.00
-             # Visual Studio Version 17
-             VisualStudioVersion = 17.0.31903.59
-             MinimumVisualStudioVersion = 10.0.40219.1
-             {entries}
-             Global
-             	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-             		Debug|Any CPU = Debug|Any CPU
-             	EndGlobalSection
-             	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-             {configs}
-             	EndGlobalSection
-             EndGlobal
-             """);
-        return slnPath;
-    }
-
     public class SingleDiagnosticTests : CodeFixServiceIntegrationTests
     {
         [Fact]
@@ -400,7 +369,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                 ("Program.cs", OneUnusedLocal));
             CreateProject("Lib.csproj",
                 ("Thing.cs", "public class Thing { }"));
-            CreateSolutionFile("Fix.sln", "App", "Lib");
+            SolutionFileBuilder.Write(Path.Combine(_testDirectory, "Fix.sln"), "App", "Lib");
 
             // Act — reference the project by its .csproj path; the loader opens the containing solution.
             var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
@@ -424,7 +393,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                 ("Program.cs", OneUnusedLocal));
             CreateProject("Lib.csproj",
                 ("Thing.cs", "public class Thing { }"));
-            var slnPath = CreateSolutionFile("Resolved.sln", "App", "Lib");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "Resolved.sln"), "App", "Lib");
 
             var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
 
@@ -470,7 +439,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
                      }
                  }
                  """));
-            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App", "Lib");
 
             var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
 
@@ -565,7 +534,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
             CreateSharedFile("Shared/Config.cs", UnusedLocalInShared);
             CreateProject("App.csproj", linkedFiles: ["Shared/Config.cs"], ("Program.cs", UnusedLocalInApp));
             CreateProject("Lib.csproj", linkedFiles: ["Shared/Config.cs"], ("Thing.cs", UnusedLocalInLib));
-            var slnPath = CreateSolutionFile("App.sln", firstInSolution, secondInSolution);
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), firstInSolution, secondInSolution);
             var before = SnapshotSources();
 
             var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: false);
@@ -605,7 +574,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
             CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
             CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
             CreateProject("Other.csproj", ("Widget.cs", "public class Widget { }"));
-            var slnPath = CreateSolutionFile("App.sln", "App", "Lib", "Other");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App", "Lib", "Other");
 
             var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly);
 
@@ -641,7 +610,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             var appCsproj = CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
             CreateProject("Lib.csproj", ("Thing.cs", UnusedLocalInLib));
-            var slnPath = CreateSolutionFile("App.sln", "App", "Lib");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App", "Lib");
 
             var result = await _sut.ApplyFixesAsync(appCsproj, ["CS0219"], previewOnly: true);
 
@@ -655,7 +624,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         public async Task ApplyFixes_On_A_Single_Project_Solution_Emits_No_Skipped_Project_Note()
         {
             CreateProject("App.csproj", ("Program.cs", UnusedLocalInApp));
-            var slnPath = CreateSolutionFile("App.sln", "App");
+            var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App");
 
             var result = await _sut.ApplyFixesAsync(slnPath, ["CS0219"], previewOnly: true);
 
@@ -783,7 +752,7 @@ public class CodeFixServiceIntegrationTests : IDisposable
         {
             CreateProject("Main.csproj", ("MainProgram.cs", "class MainProgram { static void Main() { } }"));
             var scratchCsproj = CreateProject("Scratch.csproj", ("Program.cs", OneUnusedLocal));
-            CreateSolutionFile("Repo.sln", "Main"); // Scratch is on disk but deliberately NOT listed.
+            SolutionFileBuilder.Write(Path.Combine(_testDirectory, "Repo.sln"), "Main"); // Scratch is on disk but deliberately NOT listed.
 
             var result = await _sut.ApplyFixesAsync(scratchCsproj, ["CS0219"], previewOnly: true);
 

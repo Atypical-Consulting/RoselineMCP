@@ -192,28 +192,8 @@ public class ProjectLoaderFileAnchorTests : IDisposable
         var sourcePath = Path.Combine(projectDir, "Widget.cs");
         File.WriteAllText(sourcePath, "namespace App { public class Widget { } }");
 
-        var slnPath = Path.Combine(_baseDir, "App.sln");
-        File.WriteAllText(slnPath,
-            """
-            Microsoft Visual Studio Solution File, Format Version 12.00
-            # Visual Studio Version 17
-            VisualStudioVersion = 17.0.31903.59
-            MinimumVisualStudioVersion = 10.0.40219.1
-            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
-            EndProject
-            Global
-            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-            		Debug|Any CPU = Debug|Any CPU
-            		Release|Any CPU = Release|Any CPU
-            	EndGlobalSection
-            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.ActiveCfg = Release|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.Build.0 = Release|Any CPU
-            	EndGlobalSection
-            EndGlobal
-            """);
+        var slnPath = SolutionFileBuilder.Write(
+            Path.Combine(_baseDir, "App.sln"), ("App", "App\\App.csproj"));
 
         return (slnPath, sourcePath);
     }
