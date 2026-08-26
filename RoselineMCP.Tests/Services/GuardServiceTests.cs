@@ -241,8 +241,16 @@ public class GuardServiceTests : IDisposable
 
         await service.VerifyFileAsync(sourcePath);          // baseline
 
-        // First edit; hold the verification open and write again while it is in flight.
-        File.WriteAllText(sourcePath, "public class Thing { public int Value() => 2; }");
+        // First edit; hold the verification open and write again while it is in flight. The text
+        // is deliberately a DIFFERENT LENGTH than GreenSource ("=> 1;" -> "=> 22;", not "=> 2;"):
+        // GuardService.TryAdvance detects a change purely from a (LastWriteTimeUtc.Ticks, Length)
+        // stamp, and on a coarse-grained OS clock (observed on windows-latest CI, ~15.6ms ticks)
+        // two same-length writes this close together can land in the same tick and be
+        // indistinguishable, so TryAdvance reports Unchanged and never calls VerifyAsync at all —
+        // Entered then never completes and WaitForEntered below times out deterministically, no
+        // matter how generous the ceiling (#233). A different Length makes the stamp differ
+        // unconditionally, regardless of clock resolution.
+        File.WriteAllText(sourcePath, "public class Thing { public int Value() => 22; }");
         counting.Hold();
         var inFlight = service.VerifyFileAsync(sourcePath);
         await WaitForEntered(counting, "the verification call");
