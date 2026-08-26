@@ -7,6 +7,7 @@ using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
 using RoselineMCP.Services;
+using RoselineMCP.Tests.Services;
 using Shouldly;
 
 namespace RoselineMCP.Tests.Protocol;
@@ -75,6 +76,17 @@ public class ElicitationTests : IDisposable
         catch { /* ignored */ }
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Ceiling for the <c>Task.WhenAny(call, Task.Delay(CallCompletionWaitTimeout))</c> races below,
+    /// each of which waits for an in-flight <c>apply_fixes</c> call to return after its write
+    /// confirmation times out. Its only job is "don't hang the suite forever if the call genuinely
+    /// never returns" — it is not a correctness assertion, so it is deliberately generous (90s, not
+    /// the original 15s/20s) to stay clear of CI-runner scheduling jitter, mirroring
+    /// <c>GuardServiceTests.EnteredWaitTimeout</c> (#219) for the same shape found here at a tighter
+    /// ceiling (#224).
+    /// </summary>
+    private static readonly TimeSpan CallCompletionWaitTimeout = TimeSpan.FromSeconds(90);
 
     /// <summary>
     /// The write target named by a confirmation prompt — the last quoted segment, which is where
@@ -301,10 +313,7 @@ public class ElicitationTests : IDisposable
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
         }, TestContext.Current.CancellationToken);
 
-        var finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(15)));
-        finished.ShouldBeSameAs(call, "the tool call did not return after the confirmation timed out");
-
-        var result = await call;
+        var result = await AsyncWaitHelpers.WaitForCompletion(call, CallCompletionWaitTimeout, "the tool call");
         await release;
         captured.ShouldBe(true);
 
@@ -393,10 +402,7 @@ public class ElicitationTests : IDisposable
             });
 
         var call = CallApplyFixesAsync();
-        var finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(20)));
-        finished.ShouldBeSameAs(call, "the tool call did not return after the confirmation timed out");
-
-        var result = await call;
+        var result = await AsyncWaitHelpers.WaitForCompletion(call, CallCompletionWaitTimeout, "the tool call");
         await release;
 
         // The service ran — with an analysis budget that had NOT already been spent on think-time.
