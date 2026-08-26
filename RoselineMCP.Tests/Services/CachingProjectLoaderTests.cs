@@ -49,7 +49,7 @@ public class CachingProjectLoaderTests : IDisposable
         return csproj;
     }
 
-    private CachingProjectLoader CreateLoader(FakeInnerLoader inner, bool workspaceCache = true) =>
+    private CachingProjectLoader CreateLoader(FakeInnerLoader inner, bool workspaceCache = true, Func<DateTime>? utcNowProvider = null) =>
         new(
             inner,
             Options.Create(new RoselineMcpOptions { WorkspaceCache = workspaceCache }),
@@ -58,7 +58,8 @@ public class CachingProjectLoaderTests : IDisposable
             {
                 var name = project ?? "App";
                 return Path.Combine(_root, name, $"{name}.csproj");
-            });
+            },
+            utcNowProvider);
 
     [Fact]
     public async Task Second_Load_Is_A_Cache_Hit_Returning_The_Same_Solution()
@@ -125,6 +126,79 @@ public class CachingProjectLoaderTests : IDisposable
         ReferenceEquals(second.Solution, first.Solution).ShouldBeFalse();
         inner.Workspaces[0].Disposed.ShouldBeTrue();
         inner.Workspaces[1].Disposed.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Issue #235 / prior art #233: <c>(LastWriteTimeUtc, Length)</c> alone cannot distinguish a
+    /// same-length edit whose new timestamp rounds into the same filesystem-granularity bucket as
+    /// the one captured for the cache entry. Widget.cs is overwritten immediately before the first
+    /// load — its mtime is therefore still fresh (racy) relative to that load's own capture — then a
+    /// same-length rewrite is forced to collide with the exact captured stamp via
+    /// <see cref="File.SetLastWriteTimeUtc(string, DateTime)"/>, deterministically reproducing the
+    /// collision rather than racing the real OS clock. Pre-fix, <c>IsCurrent()</c> trusts the bare
+    /// stat match and this test fails (<c>inner.LoadCount</c> stays 1); the fix must force a reload
+    /// whenever the fingerprint was captured while a tracked file's write was still fresh.
+    /// </summary>
+    [Fact]
+    public async Task Same_Length_Edit_Colliding_With_The_Captured_Stamp_Invalidates()
+    {
+        CreateProjectOnDisk("App");
+        var widgetPath = Path.Combine(_root, "App", "Widget.cs");
+        File.WriteAllText(widgetPath, "class Widget { int A() => 1; }"); // freshly written -> racy at capture
+        var inner = new FakeInnerLoader(_root);
+        using var loader = CreateLoader(inner);
+
+        using var first = await loader.LoadAsync("App", Ct);
+        var capturedStamp = File.GetLastWriteTimeUtc(widgetPath);
+
+        // Different content, same byte length, then force the mtime back to the exact captured
+        // value — a deterministic stand-in for two writes landing in the same OS timestamp tick.
+        File.WriteAllText(widgetPath, "class Widget { int A() => 2; }");
+        File.SetLastWriteTimeUtc(widgetPath, capturedStamp);
+        File.GetLastWriteTimeUtc(widgetPath).ShouldBe(capturedStamp, "the forced collision must actually be observed back");
+
+        using var second = await loader.LoadAsync("App", Ct);
+
+        inner.LoadCount.ShouldBe(2, "a fingerprint captured while Widget.cs was still fresh must never be trusted on a bare stat match");
+        ReferenceEquals(second.Solution, first.Solution).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Distinguishes the *correct* predicate (raciness decided once, at capture, from the tracked
+    /// file's own mtime against the capture timestamp) from an *incorrect* one an earlier design
+    /// draft used (trusting a stat match once enough wall-clock time has passed since capture,
+    /// regardless of how fresh the captured mtime itself was). Simulates "the next check arrives long
+    /// after capture" via the injectable clock rather than a real delay — under the incorrect,
+    /// check-time-relative predicate this collision would be (wrongly) trusted once <c>now -
+    /// CapturedAtUtc</c> exceeds the racy window; under the correct, capture-time-relative one, how
+    /// long the check waits is irrelevant, because the flag was already decided at capture.
+    /// </summary>
+    [Fact]
+    public async Task Same_Length_Edit_Colliding_With_The_Captured_Stamp_Invalidates_Even_When_The_Next_Check_Is_Much_Later()
+    {
+        CreateProjectOnDisk("App");
+        var widgetPath = Path.Combine(_root, "App", "Widget.cs");
+        File.WriteAllText(widgetPath, "class Widget { int A() => 1; }");
+        var writeStamp = File.GetLastWriteTimeUtc(widgetPath);
+
+        var fakeNow = writeStamp; // capture happens essentially at the write itself -> maximally racy
+        var inner = new FakeInnerLoader(_root);
+        using var loader = CreateLoader(inner, utcNowProvider: () => fakeNow);
+
+        using var first = await loader.LoadAsync("App", Ct);
+
+        File.WriteAllText(widgetPath, "class Widget { int A() => 2; }");
+        File.SetLastWriteTimeUtc(widgetPath, writeStamp);
+        File.GetLastWriteTimeUtc(widgetPath).ShouldBe(writeStamp, "the forced collision must actually be observed back");
+
+        // Simulate the second check arriving 5 minutes later — far past any reasonable
+        // check-time-relative racy window — with no real delay.
+        fakeNow = writeStamp.AddMinutes(5);
+
+        using var second = await loader.LoadAsync("App", Ct);
+
+        inner.LoadCount.ShouldBe(2, "raciness is decided once at capture; a later check must not start trusting an already-racy fingerprint");
+        ReferenceEquals(second.Solution, first.Solution).ShouldBeFalse();
     }
 
     [Fact]

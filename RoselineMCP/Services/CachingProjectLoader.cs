@@ -41,6 +41,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     private readonly ILogger<CachingProjectLoader> _logger;
     private readonly bool _enabled;
     private readonly Func<string?, string> _resolveCacheKey;
+    private readonly Func<DateTime> _utcNow;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, CacheEntry> _entries;
     private long _accessCounter;
@@ -55,17 +56,24 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     /// loader's own resolution (<see cref="ProjectLoader.ResolveTargetPath"/> against the current
     /// working directory).
     /// </param>
+    /// <param name="utcNowProvider">
+    /// Test seam: the clock used to stamp each <see cref="WorkspaceFingerprint"/> capture and decide
+    /// its raciness (see the class's own remarks and issue #235). Defaults to
+    /// <see cref="DateTime.UtcNow"/>.
+    /// </param>
     public CachingProjectLoader(
         IProjectLoader inner,
         IOptions<RoselineMcpOptions> options,
         ILogger<CachingProjectLoader> logger,
-        Func<string?, string>? resolveCacheKey = null)
+        Func<string?, string>? resolveCacheKey = null,
+        Func<DateTime>? utcNowProvider = null)
     {
         _inner = inner;
         _logger = logger;
         _enabled = options.Value.WorkspaceCache;
         _resolveCacheKey = resolveCacheKey
             ?? (project => ProjectLoader.ResolveTargetPath(project, Directory.GetCurrentDirectory()));
+        _utcNow = utcNowProvider ?? (() => DateTime.UtcNow);
         _entries = new Dictionary<string, CacheEntry>(PathComparer);
     }
 
@@ -127,7 +135,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             }
 
             var loaded = await _inner.LoadAsync(project, cancellationToken);
-            var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution);
+            var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution, _utcNow());
 
             EvictLeastRecentlyUsedIfFull();
             _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, loaded.TargetPath, fingerprint)
@@ -223,17 +231,44 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     /// </summary>
     internal sealed class WorkspaceFingerprint
     {
+        /// <summary>
+        /// How close a tracked file/directory's own last write may be to the moment its fingerprint
+        /// was captured before that capture is flagged racy (see <see cref="IsRacy"/>). 2 seconds is
+        /// comfortably above NTFS's measured ~15.6&#160;ms granularity (#233) and FAT32/exFAT's
+        /// documented ~2&#160;s granularity, with margin for network filesystems.
+        /// </summary>
+        private static readonly TimeSpan RacyWindow = TimeSpan.FromSeconds(2);
+
         private readonly List<FileStamp> _files;
         private readonly List<DirectoryStamp> _directories;
 
-        private WorkspaceFingerprint(List<FileStamp> files, List<DirectoryStamp> directories)
+        private WorkspaceFingerprint(List<FileStamp> files, List<DirectoryStamp> directories, bool isRacy)
         {
             _files = files;
             _directories = directories;
+            IsRacy = isRacy;
         }
 
-        /// <summary>Captures the fingerprint for <paramref name="solution"/> as currently on disk.</summary>
-        public static WorkspaceFingerprint Capture(string targetPath, Solution solution)
+        /// <summary>
+        /// <see langword="true"/> when this fingerprint was captured while some tracked file or
+        /// directory's own last write was still fresher than <see cref="RacyWindow"/> relative to the
+        /// capture itself — i.e. a further write landing in the same OS timestamp-granularity bucket
+        /// as that write would be indistinguishable from no write at all (issue #235, modeled on
+        /// git's "racily clean index" handling). Decided once, here, at capture time — never
+        /// re-evaluated against how long ago that capture happened, so a fingerprint captured racy
+        /// stays flagged until the next capture, however long the next check takes to arrive.
+        /// </summary>
+        internal bool IsRacy { get; }
+
+        /// <summary>
+        /// Captures the fingerprint for <paramref name="solution"/> as currently on disk.
+        /// </summary>
+        /// <param name="capturedAtUtc">
+        /// The wall-clock time of this capture, used to decide whether any tracked file/directory's
+        /// own last write was still fresh relative to capture itself (see issue #235's remarks
+        /// above) — not re-evaluated later against how long ago the capture happened.
+        /// </param>
+        public static WorkspaceFingerprint Capture(string targetPath, Solution solution, DateTime capturedAtUtc)
         {
             var paths = new HashSet<string>(PathComparer) { targetPath };
 
@@ -268,9 +303,14 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
                 }
             }
 
-            return new WorkspaceFingerprint(
-                paths.Select(FileStamp.Capture).ToList(),
-                directories.Select(DirectoryStamp.Capture).ToList());
+            var fileStamps = paths.Select(FileStamp.Capture).ToList();
+            var directoryStamps = directories.Select(DirectoryStamp.Capture).ToList();
+
+            var isRacy =
+                fileStamps.Any(stamp => stamp.Exists && capturedAtUtc - stamp.LastWriteTimeUtc < RacyWindow)
+                || directoryStamps.Any(stamp => stamp.Exists && capturedAtUtc - stamp.LastWriteTimeUtc < RacyWindow);
+
+            return new WorkspaceFingerprint(fileStamps, directoryStamps, isRacy);
         }
 
         /// <summary>Re-stats every tracked file/directory; <see langword="false"/> means stale.</summary>
