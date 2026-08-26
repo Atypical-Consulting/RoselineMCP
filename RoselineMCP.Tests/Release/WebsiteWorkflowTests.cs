@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Shouldly;
 
 namespace RoselineMCP.Tests.Release;
@@ -23,7 +24,7 @@ public class WebsiteWorkflowTests
     [Fact]
     public void Deploy_Docs_Installs_With_npm_ci_And_Has_No_npm_install_Fallback()
     {
-        var workflow = ReadRepositoryFile(DeployDocsWorkflowPath);
+        var workflow = ReadRepoFile(DeployDocsWorkflowPath);
 
         workflow.ShouldContain("run: npm ci");
         workflow.ShouldNotContain("npm install");
@@ -38,36 +39,22 @@ public class WebsiteWorkflowTests
     [Fact]
     public void Ci_Builds_The_Website_With_npm_ci()
     {
-        var workflow = ReadRepositoryFile(CiWorkflowPath);
+        var workflow = ReadRepoFile(CiWorkflowPath);
 
         workflow.ShouldContain("working-directory: website");
         workflow.ShouldContain("run: npm ci");
         workflow.ShouldContain("run: npm run build");
     }
 
+    private static string ReadRepoFile(string relativePath) => File.ReadAllText(RepoPath(relativePath));
+
     /// <summary>
-    /// Walks up from the test assembly's output directory to the repository root — the directory
-    /// holding <c>RoselineMCP.sln</c> — and resolves <paramref name="relativePath"/> against it.
-    /// Independent of the current working directory the test runner was launched from.
+    /// Resolves a repository-relative path from this source file's compile-time location, the same
+    /// idiom <see cref="ReleaseWorkflowTests"/> and <see cref="MedianFigureContractTests"/> use
+    /// (both in this same directory) rather than walking up from the test assembly's output
+    /// directory at runtime looking for <c>RoselineMCP.sln</c>. This file lives at
+    /// <c>RoselineMCP.Tests/Release/</c>, so the repository root is two levels up.
     /// </summary>
-    internal static string FindRepositoryFile(string relativePath)
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "RoselineMCP.sln")))
-        {
-            directory = directory.Parent;
-        }
-
-        if (directory is null)
-        {
-            throw new InvalidOperationException(
-                $"Could not locate RoselineMCP.sln by walking up from {AppContext.BaseDirectory}.");
-        }
-
-        return Path.Combine(directory.FullName, relativePath);
-    }
-
-    private static string ReadRepositoryFile(string relativePath) =>
-        File.ReadAllText(FindRepositoryFile(relativePath));
+    private static string RepoPath(string relativePath, [CallerFilePath] string sourceFile = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", "..", relativePath));
 }
