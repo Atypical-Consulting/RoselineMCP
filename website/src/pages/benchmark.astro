@@ -75,8 +75,8 @@ const reproduce = 'git clone https://github.com/Atypical-Consulting/RoselineMCP\
       <span class="eyebrow">Measured · reproducible</span>
       <h1 style="margin:1rem 0">How many tokens does it save?</h1>
       <p class="lede">Every figure is a real string — the tool's actual JSON output versus the source
-        an agent would otherwise read, tokenized with a real BPE tokenizer. The suites are
-        <strong>systematic sweeps</strong> over RoselineMCP's own source, so the distribution is
+        an agent would otherwise read, tokenized with a real BPE tokenizer. The suites
+        are <strong>systematic sweeps</strong> over RoselineMCP's own source, so the distribution is
         representative. Weak cases included.</p>
 
       <div class="bstats">
@@ -122,8 +122,8 @@ const reproduce = 'git clone https://github.com/Atypical-Consulting/RoselineMCP\
       <div class="sec-head">
         <span class="eyebrow">Full results</span>
         <h2>Two baselines, honestly</h2>
-        <p><strong>B1 (whole-file)</strong> = the file(s) an agent must open — realistic but generous.
-          <strong>B2 (targeted)</strong> = only the relevant lines ±3 (a <code>grep -C3</code> model) —
+        <p><strong>B1 (whole-file)</strong> = the file(s) an agent must open — realistic but
+          generous. <strong>B2 (targeted)</strong> = only the relevant lines ±3 (a <code>grep -C3</code> model) —
           a conservative floor. “Weak” = tasks that saved under 25% vs B1.</p>
       </div>
       <div class="tablewrap">
@@ -164,8 +164,8 @@ const reproduce = 'git clone https://github.com/Atypical-Consulting/RoselineMCP\
       {editSuite && (
         <div class="note" style="margin-top:1.1rem">
           <h3>Output tokens: a diff, not a rewrite</h3>
-          <p style="margin-bottom:0">A different axis — the tokens an agent must <em>emit</em>.
-            <code>rename_symbol</code> returns a unified diff instead of the full text of every file it
+          <p style="margin-bottom:0">A different axis — the tokens an agent must <em>emit</em>. <code>rename_symbol</code> returns a
+            unified diff instead of the full text of every file it
             touches: a pooled <span class="save-ink">{pct(editSuite.aggregate.pooledSavingsVsWholeFile)}</span>
             reduction across {editSuite.aggregate.count} illustrative renames.</p>
         </div>
