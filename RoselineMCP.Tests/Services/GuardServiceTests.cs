@@ -40,6 +40,29 @@ public class GuardServiceTests : IDisposable
     private const string BrokenSource = "public class Thing { public int Value() => nope; }";
 
     /// <summary>
+    /// Ceiling for <c>Task.WhenAny(counting.Entered, Task.Delay(EnteredWaitTimeout))</c> below.
+    /// Its only job is "don't hang the suite forever if the fake genuinely never reaches
+    /// <c>VerifyAsync</c>" — it is not a correctness assertion, so it is deliberately generous
+    /// (90s, not 30s) to stay clear of CI-runner scheduling jitter observed under load (#219).
+    /// </summary>
+    private static readonly TimeSpan EnteredWaitTimeout = TimeSpan.FromSeconds(90);
+
+    /// <summary>
+    /// Waits for <paramref name="counting"/>'s held call to reach <c>VerifyAsync</c>, bounded by
+    /// <see cref="EnteredWaitTimeout"/>, and asserts it did. Shared by both tests that hold a call
+    /// open and need a second one to race it — the wait and its diagnostic message are identical at
+    /// both sites; only what to call the waited-for call in the failure message differs.
+    /// </summary>
+    private static async Task WaitForEntered(CountingVerificationService counting, string label)
+    {
+        await Task.WhenAny(counting.Entered, Task.Delay(EnteredWaitTimeout));
+        counting.Entered.IsCompleted.ShouldBeTrue(
+            $"{label} did not enter VerifyAsync within {EnteredWaitTimeout} — this is a " +
+            "scheduling-latency safety net, not the test's real assertion; if this trips " +
+            "repeatedly under CI load, raise the timeout further before suspecting GuardService.");
+    }
+
+    /// <summary>
     /// Builds a one-project solution whose document paths point at real files on disk, writes those
     /// files, and returns a loader that hands the solution out for any file inside it.
     /// </summary>
@@ -223,8 +246,7 @@ public class GuardServiceTests : IDisposable
         File.WriteAllText(sourcePath, "public class Thing { public int Value() => 2; }");
         counting.Hold();
         var inFlight = service.VerifyFileAsync(sourcePath);
-        await Task.WhenAny(counting.Entered, Task.Delay(TimeSpan.FromSeconds(30)));
-        counting.Entered.IsCompleted.ShouldBeTrue();
+        await WaitForEntered(counting, "the verification call");
 
         File.WriteAllText(sourcePath, BrokenSource);        // lands mid-verification
         counting.Release();
@@ -304,8 +326,7 @@ public class GuardServiceTests : IDisposable
 
         // Bounded on purpose: if the guard never reaches VerifyAsync, this test must FAIL rather
         // than hang the whole suite — which is exactly what an unbounded wait did here once.
-        await Task.WhenAny(counting.Entered, Task.Delay(TimeSpan.FromSeconds(30)));
-        counting.Entered.IsCompleted.ShouldBeTrue("the first call never reached VerifyAsync");
+        await WaitForEntered(counting, "the first call");
 
         var second = service.VerifyFileAsync(sourcePath); // arrives while it is still in flight
         counting.Release();
