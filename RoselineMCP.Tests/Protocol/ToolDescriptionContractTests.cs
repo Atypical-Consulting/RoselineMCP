@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using ModelContextProtocol.Server;
+using RoselineMCP.Tests.Support;
 using Shouldly;
 
 namespace RoselineMCP.Tests.Protocol;
@@ -40,14 +41,12 @@ public class ToolDescriptionContractTests
 
     /// <summary>
     /// Every <c>[McpServerTool]</c> method in the server assembly, as
-    /// <c>(methodName, description, hasOptionalProject)</c>.
+    /// <c>(methodName, description, hasOptionalProject)</c>. Reflected once, in
+    /// <see cref="ReflectedTools"/>, so this contract and <c>WebsiteToolsDataContractTests</c>'
+    /// pin of <c>website/src/data/tools.ts</c> can never disagree about what a tool is (#208).
     /// </summary>
     public static IEnumerable<object[]> ToolDescriptions() =>
-        typeof(RoselineServerInfo).Assembly.GetTypes()
-            .Where(t => t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static))
-            .Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null)
-            .OrderBy(m => m.Name, StringComparer.Ordinal)
+        ReflectedTools.Methods()
             .Select(m => new object[]
             {
                 m.Name,
