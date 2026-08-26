@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 import {
   tools, groups, toolCount, toolCountPhrase, readToolPhrase, writeToolPhrase,
-  analyzerLoadTools, analyzerLoadToolPhrase,
+  writeTools, writeToolAgreement, analyzerLoadTools, analyzerLoadToolPhrase, analyzerLoadAgreement,
 } from '../data/tools.ts';
 const base = import.meta.env.BASE_URL;
 const kindLabel: Record<string, string> = { read: 'read-only', write: 'write · preview', diagnostics: 'read-only' };
@@ -43,10 +43,9 @@ const groupBlurb: Record<string, string> = {
 
       <div class="note" style="margin:1.6rem 0">
         <p style="margin:0"><strong>Read-only by default.</strong> The {readToolPhrase} and the
-          diagnostics/patch tools never touch disk. The {writeToolPhrase}
-          (<code>edit_member</code>, <code>rename_symbol</code>, <code>apply_fixes</code>) default to
-          <code>previewOnly: true</code> — they return a diff and write nothing unless you pass
-          <code>previewOnly: false</code>, and even then they <strong>ask your client to confirm</strong>
+          diagnostics/patch tools never touch disk. The {writeToolPhrase} ({writeTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
+          default{writeToolAgreement.s} to <code>previewOnly: true</code> — {writeToolAgreement.pronoun} return{writeToolAgreement.s} a diff and write nothing unless
+          you pass <code>previewOnly: false</code>, and even then {writeToolAgreement.pronoun} <strong>ask{writeToolAgreement.s} your client to confirm</strong>
           via MCP elicitation before writing (declining downgrades the call to a preview). So does
           leaving the prompt unanswered: the round-trip is bounded by
           <code>RoselineMCP:ConfirmDestructiveWritesTimeout</code> (default 5 minutes), after which
@@ -61,8 +60,8 @@ const groupBlurb: Record<string, string> = {
           an analyzer reference it cannot load — one built against a newer
           <code>Microsoft.CodeAnalysis</code> than the server's, the .NET SDK's own analyzers being
           the universal case — by contributing <em>zero</em> analyzers, not by failing. The {analyzerLoadToolPhrase} that
-          report <code>analyzerLoad</code> ({analyzerLoadTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
-          therefore return that block naming every reference that contributed nothing and why
+          report{analyzerLoadAgreement.s} <code>analyzerLoad</code> ({analyzerLoadTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
+          therefore return{analyzerLoadAgreement.s} that block naming every reference that contributed nothing and why
           (<code>load-failure</code> with Roslyn's
           <code>errorCode</code> and message, <code>no C# analyzers</code>, or <code>exception</code>).
           It is <strong>omitted when every reference contributed</strong>, so a present block always

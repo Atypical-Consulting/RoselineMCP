@@ -139,8 +139,22 @@ const numberWord = (n: number, opts: { lower?: boolean } = {}): string => {
 
 const plural = (n: number) => (n === 1 ? 'tool' : 'tools');
 
+// One builder for every "<count> [noun] tool(s)" phrase below, so a sixth one can't re-spell the
+// template slightly wrong (code-review finding on #207: five call sites were each inlining
+// `${numberWord(...)} ${noun} ${plural(...)}` by hand). `noun` is the optional adjective/qualifier
+// between the number and "tool(s)" ("navigation", "write-capable", "code-intelligence" — omit for a
+// bare "<count> tools").
+const phrase = (count: number, opts: { lower?: boolean; noun?: string } = {}): string =>
+  `${numberWord(count, opts)} ${opts.noun ? `${opts.noun} ` : ''}${plural(count)}`;
+
+// Subject-verb agreement to pair with a `phrase()`-driven subject: English pluralises the *noun*
+// with "-s" but the *verb* the other way around ("tools default" vs. "a tool defaults"), so a bare
+// plural noun cannot drive both. `s` is the verb suffix, `pronoun` the one to keep sentences from
+// saying "they" about a single tool if a count ever drops to one.
+const agreement = (n: number) => ({ pronoun: n === 1 ? 'it' : 'they', s: n === 1 ? 's' : '' });
+
 /** The noun phrase both headings open with: "Fourteen tools" — and "One tool" if it ever is. */
-export const toolCountPhrase = `${numberWord(toolCount)} ${plural(toolCount)}`;
+export const toolCountPhrase = phrase(toolCount);
 
 // The home page's blurb counts only the code-intelligence surface — everything that is not the
 // original diagnostics group — so it needs its own derived count rather than `toolCount`. Naming the
@@ -150,22 +164,27 @@ const diagnosticsGroup: ToolGroup = 'Diagnostics & fixes';
 const codeIntelligenceToolCount = tools.filter((t) => t.group !== diagnosticsGroup).length;
 
 /** "Nine code-intelligence tools" — and the singular if it ever comes to that. */
-export const codeIntelligenceToolPhrase =
-  `${numberWord(codeIntelligenceToolCount)} code-intelligence ${plural(codeIntelligenceToolCount)}`;
+export const codeIntelligenceToolPhrase = phrase(codeIntelligenceToolCount, { noun: 'code-intelligence' });
 
-// ── Per-kind counts, derived ──
+// ── Per-kind counts and tool lists, derived ──
 // tools.astro used to hand-restate these two mid-sentence ("The seven navigation tools…", "The three
 // write-capable tools…") — correct only until a tool moves in or out of the kind, exactly #197's
 // shape. `kind: 'read'` is entirely the Code navigation group; `kind: 'write'` is Code editing plus
 // apply_fixes. Lowercase because both sentences use the count mid-clause, not at the sentence start.
+// `writeTools` is exported (not just the count) so the page can render the member list — the three
+// names in parentheses — from the same filter instead of hand-naming them a second time next to it.
 const readToolCount = tools.filter((t) => t.kind === 'read').length;
-const writeToolCount = tools.filter((t) => t.kind === 'write').length;
+export const writeTools = tools.filter((t) => t.kind === 'write');
+const writeToolCount = writeTools.length;
 
 /** "seven navigation tools" — mid-sentence, lowercase. */
-export const readToolPhrase = `${numberWord(readToolCount, { lower: true })} navigation ${plural(readToolCount)}`;
+export const readToolPhrase = phrase(readToolCount, { lower: true, noun: 'navigation' });
 
 /** "three write-capable tools" — mid-sentence, lowercase. */
-export const writeToolPhrase = `${numberWord(writeToolCount, { lower: true })} write-capable ${plural(writeToolCount)}`;
+export const writeToolPhrase = phrase(writeToolCount, { lower: true, noun: 'write-capable' });
+
+/** Verb/pronoun agreement for the `writeToolPhrase` sentence's subject. */
+export const writeToolAgreement = agreement(writeToolCount);
 
 // ── The analyzerLoad-reporting tools, derived ──
 // tools.astro used to name these three inline and call them "the three diagnostics tools" — but that
@@ -177,5 +196,7 @@ export const writeToolPhrase = `${numberWord(writeToolCount, { lower: true })} w
 export const analyzerLoadTools = tools.filter((t) => t.analyzerLoad);
 
 /** "three tools" — the count of `analyzerLoad`-reporting tools, mid-sentence, lowercase. */
-export const analyzerLoadToolPhrase =
-  `${numberWord(analyzerLoadTools.length, { lower: true })} ${plural(analyzerLoadTools.length)}`;
+export const analyzerLoadToolPhrase = phrase(analyzerLoadTools.length, { lower: true });
+
+/** Verb agreement for the `analyzerLoadToolPhrase` sentence's subject. */
+export const analyzerLoadAgreement = agreement(analyzerLoadTools.length);
