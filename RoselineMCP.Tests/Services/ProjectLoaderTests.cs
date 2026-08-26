@@ -587,6 +587,76 @@ public class ProjectLoaderTests : IDisposable
     }
 
     /// <summary>
+    /// The pin that keeps dot-<em>directories</em> discoverable (<c>AttributesToSkip = 0</c>, the
+    /// test above) un-hides dot-prefixed <em>files</em> just the same. macOS writes an AppleDouble
+    /// shadow (<c>._App.sln</c>) beside a file whenever a tree passes through a filesystem without
+    /// native extended attributes — exFAT, SMB, some zip tools — and #158 turned that shadow into a
+    /// second "solution": a repository that resolved cleanly became ambiguous. A shadow is never a
+    /// candidate, so the real file resolves alone. Deliberately cross-platform: on Windows nothing
+    /// ever hid the shadow by attribute, so the name is the only thing there is to filter on.
+    /// </summary>
+    [Fact]
+    public void AutoDiscover_IgnoresAnAppleDoubleShadow_BesideTheRealSolution()
+    {
+        var sln = Touch("App.sln");
+        Touch("._App.sln");
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(sln);
+    }
+
+    /// <summary>The same shadow beside a project, on auto-discovery's <c>.csproj</c> fallback.</summary>
+    [Fact]
+    public void AutoDiscover_IgnoresAnAppleDoubleShadow_BesideTheRealProject()
+    {
+        var csproj = Touch("App.csproj");
+        Touch("._App.csproj");
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(csproj);
+    }
+
+    /// <summary>
+    /// A shadow with no real file beside it is not a candidate either: the level reads as empty
+    /// and discovery reports nothing found, rather than handing MSBuild a resource fork to open.
+    /// </summary>
+    [Fact]
+    public void AutoDiscover_AnAppleDoubleShadowAlone_IsNothingFound()
+    {
+        Touch("._App.sln");
+
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+        ex.Message.ShouldContain("Could not auto-discover");
+    }
+
+    /// <summary>
+    /// Shadows are filtered <em>before</em> the ambiguity check, so a genuinely ambiguous level
+    /// lists only the real candidates — the message is what the caller acts on.
+    /// </summary>
+    [Fact]
+    public void AutoDiscover_AmbiguityMessage_ListsRealCandidatesOnly_NeverShadows()
+    {
+        var a = Touch("A.sln");
+        var b = Touch("B.sln");
+        Touch("._A.sln");
+
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+        ex.Message.ShouldContain(a);
+        ex.Message.ShouldContain(b);
+        ex.Message.ShouldNotContain("._A.sln");
+    }
+
+    /// <summary>
+    /// The bare-name sweep is filtered the same way: a shadow never resolves, even when the name
+    /// asked for is spelled to match it exactly.
+    /// </summary>
+    [Fact]
+    public void RecursiveSweep_NeverResolvesToAnAppleDoubleShadow()
+    {
+        Touch(Path.Combine("Src", "._Acme.csproj"));
+
+        Should.Throw<FileNotFoundException>(() => ResolveTargetPath("._Acme", _baseDir));
+    }
+
+    /// <summary>
     /// Auto-discovery's final level — the base directory's immediate subdirectories — must not
     /// abort over one it cannot read. An unreadable sibling here has nothing to do with the
     /// request; a readable subdirectory holding the only <c>.sln</c> must still resolve.
@@ -658,6 +728,40 @@ public class ProjectLoaderTests : IDisposable
         using var _ = new LockedDirectory(intermediateDir);
 
         FindSolutionFile(csproj).ShouldBe(sln);
+    }
+
+    /// <summary>
+    /// The ancestor walk reads the same directories as auto-discovery and is filtered the same
+    /// way: an AppleDouble shadow beside the real solution is never the file handed to
+    /// <c>OpenSolutionAsync</c>. Dot-prefixed names often list first, so the shadow was exactly
+    /// what <c>slnFiles[0]</c> tended to return — a failure about a resource fork, on a call that
+    /// never asked about one.
+    /// </summary>
+    [Fact]
+    public void FindSolutionFile_IgnoresAnAppleDoubleShadow_BesideTheRealSolution()
+    {
+        var sln = Touch("App.sln");
+        Touch("._App.sln");
+        var csproj = Touch(Path.Combine("Src", "App.csproj"));
+
+        FindSolutionFile(csproj).ShouldBe(sln);
+    }
+
+    /// <summary>
+    /// Two real solutions on one rung is the ambiguity auto-discovery already refuses; the walk
+    /// refuses it the same way instead of silently taking whichever the OS listed first. The
+    /// message names both, so the caller can pass the one they meant.
+    /// </summary>
+    [Fact]
+    public void FindSolutionFile_RefusesAnAmbiguousDirectory_InsteadOfGuessing()
+    {
+        var a = Touch("A.sln");
+        var b = Touch("B.sln");
+        var csproj = Touch(Path.Combine("Src", "App.csproj"));
+
+        var ex = Should.Throw<ArgumentException>(() => FindSolutionFile(csproj));
+        ex.Message.ShouldContain(a);
+        ex.Message.ShouldContain(b);
     }
 
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>

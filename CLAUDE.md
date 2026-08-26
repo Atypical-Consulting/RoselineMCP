@@ -260,7 +260,11 @@ These return precise structure instead of whole files (backed by `ICodeNavigatio
 solution/project from its working directory, nearest level first — the cwd itself wins when it has
 exactly one candidate, then each parent directory (up to 3) in order, then immediate
 subdirectories — failing with an actionable message only when nothing is found or a single level
-itself has multiple candidates. The containing solution is loaded when present, and symbol search/resolution spans
+itself has multiple candidates. AppleDouble shadow files (`._App.sln`, `._App.csproj` — what macOS
+leaves beside a file after an exFAT/SMB/zip round-trip) are never candidates, at any level or in the
+bare-name sweep. The containing solution is loaded when present — found by walking up from the
+resolved `.csproj`; an ancestor directory holding more than one `.sln` is refused with the same
+ambiguity error rather than guessed at — and symbol search/resolution spans
 every project in it — a symbol declared only in a sibling project the anchor doesn't reference
 (e.g. the Tests project) is still found, and references/renames span projects.
 
