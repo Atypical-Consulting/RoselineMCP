@@ -104,9 +104,12 @@ public sealed record WritePrompt
     /// extension (#149). <c>CodeFixService</c> narrows a solution to a single anchor project and
     /// fixes only that project's documents, so naming the solution outright would have the human
     /// authorise a write broader than the one about to happen — on a three-project solution, two are
-    /// left untouched. A <c>.csproj</c> target <em>is</em> its own write scope, so it takes no
-    /// qualifier. The anchor is deliberately not resolved and named: that costs an MSBuildWorkspace
-    /// load before the human has been asked, and it would reopen the window PR #142 closed.
+    /// left untouched. A <c>.csproj</c> target <em>is</em> its own write scope, so its qualifier
+    /// carries no <em>narrowing</em> — but it still names the noun ("the project"), the same as the
+    /// <c>.sln</c> arm's "the primary project of", so neither reads like a promise to rewrite the
+    /// target path itself rather than the project's documents (#203). The anchor is deliberately not
+    /// resolved and named: that costs an MSBuildWorkspace load before the human has been asked, and
+    /// it would reopen the window PR #142 closed.
     /// </item>
     /// <item>
     /// <see cref="WriteScope.SingleFile"/> does <em>not</em> branch on the extension, because this
