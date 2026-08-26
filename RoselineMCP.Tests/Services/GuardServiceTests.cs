@@ -31,7 +31,9 @@ public class GuardServiceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_root, true); }
+        catch { /* ignored */ }
 
         GC.SuppressFinalize(this);
     }
@@ -51,16 +53,13 @@ public class GuardServiceTests : IDisposable
     /// Waits for <paramref name="counting"/>'s held call to reach <c>VerifyAsync</c>, bounded by
     /// <see cref="EnteredWaitTimeout"/>, and asserts it did. Shared by both tests that hold a call
     /// open and need a second one to race it — the wait and its diagnostic message are identical at
-    /// both sites; only what to call the waited-for call in the failure message differs.
+    /// both sites; only what to call the waited-for call in the failure message differs. Delegates
+    /// to <see cref="AsyncWaitHelpers.WaitForSignal"/>, the mechanism extracted for reuse by
+    /// <c>ElicitationTests</c>' own ceiling-vs-completion race (#224) rather than duplicated a
+    /// second time.
     /// </summary>
-    private static async Task WaitForEntered(CountingVerificationService counting, string label)
-    {
-        await Task.WhenAny(counting.Entered, Task.Delay(EnteredWaitTimeout));
-        counting.Entered.IsCompleted.ShouldBeTrue(
-            $"{label} did not enter VerifyAsync within {EnteredWaitTimeout} — this is a " +
-            "scheduling-latency safety net, not the test's real assertion; if this trips " +
-            "repeatedly under CI load, raise the timeout further before suspecting GuardService.");
-    }
+    private static Task WaitForEntered(CountingVerificationService counting, string label) =>
+        AsyncWaitHelpers.WaitForSignal(counting.Entered, EnteredWaitTimeout, label, "enter VerifyAsync");
 
     /// <summary>
     /// Builds a one-project solution whose document paths point at real files on disk, writes those
