@@ -83,41 +83,71 @@ public class ElicitationTests : IDisposable
     /// assertions from re-implementing the resolution they are supposed to be checking.
     /// </summary>
     /// <remarks>
-    /// Derived from two invariants rather than guessed at. #173 made the target the LAST thing in
-    /// every sentence, so its <em>closing</em> quote is always the message's last apostrophe — that
-    /// half was already exact. What used to be ambiguous is the <em>opening</em> quote, because a
-    /// resolved path may itself contain an apostrophe (<c>C:\Users\O'Brien\src</c>,
-    /// <c>~/Bob's Projects</c>) and the target is the one value <see cref="WritePrompt.Sanitize"/>
-    /// deliberately does not touch — so it is also the only quoted run that can contain one. Every
-    /// <em>other</em> quoted run in the sentence wraps a <c>Sanitize</c>d caller value, and
-    /// <c>Sanitize</c>'s whitelist admits neither an apostrophe nor a space, so each of those runs is
-    /// a clean, self-contained pair and always contributes an <em>even</em> number of quotes to the
-    /// message — regardless of how many precede the target for a given <see cref="WriteScope"/>
-    /// (zero for <c>apply_fixes</c>, two for <c>edit_member</c> and <c>rename_symbol</c>). That means
-    /// the <em>parity</em> of the message's total quote count says, on its own and without knowing
-    /// the scope or the frame's wording, whether the target's run swallowed one such internal
-    /// apostrophe: an even total means it holds none, so its opening quote is the one immediately
-    /// before the close; an odd total means it holds one, so the real opening quote sits one quote
-    /// further back still. This replaces the old "the opening quote is the last one preceded by a
-    /// space" guess, which read an apostrophe as opening the target's run whenever it happened to
-    /// follow a space too — mis-parsing a target like <c>/repo/x 'y/App.sln</c> into a truncated
-    /// tail (#204).
+    /// Derived from two invariants rather than guessed at, and walked from the FRONT of the message
+    /// rather than backward from the end — the first draft of this fix scanned backward and counted
+    /// quotes by parity, which is exact for a target holding zero or one embedded apostrophe but
+    /// silently wrong for two or more (<c>/repo/O'Brien's House/App.sln</c> — the two motivating
+    /// examples in this remark, concatenated into one perfectly ordinary directory name); it was
+    /// caught in review before shipping. This version does not count anything.
+    /// <para>
+    /// #173 made the target the LAST thing in every sentence, so its closing quote is always the
+    /// message's last apostrophe (<c>close</c> below) — that half was already exact and needs no
+    /// scanning. Every quoted run BEFORE the target's own wraps a value <see cref="WritePrompt"/>
+    /// passed through <see cref="WritePrompt.Sanitize"/> first (the operation, the symbol, a new
+    /// name — or its <c>"(unnamed)"</c> placeholder), and <c>Sanitize</c>'s whitelist admits neither
+    /// <c>/</c> nor <c>\</c>. The target, by contrast, is always an absolute path
+    /// (<see cref="ShouldNameARealProject"/> asserts <c>Path.IsPathRooted</c> on it), so it always
+    /// contains one of those characters — inside its very first quoted fragment, since a rooted path
+    /// starts with the separator (Unix) or a drive-plus-separator (Windows). Walking the quoted runs
+    /// left to right and stopping at the first one containing <c>/</c> or <c>\</c> therefore finds the
+    /// target's opening quote exactly, no matter how many further apostrophes sit inside it: nothing
+    /// a caller supplies can ever contain a separator by the time it reaches the message, so a run
+    /// that has one cannot be caller content, and can only be the (unsanitized) target's.
+    /// </para>
     /// </remarks>
     private static string TargetFromPrompt(string message)
     {
         var close = message.LastIndexOf('\'');
         close.ShouldBeGreaterThanOrEqualTo(0, $"the prompt names no target at all: {message}");
 
-        var totalQuotes = message.Count(c => c == '\'');
-        var beforeClose = close > 0 ? message.LastIndexOf('\'', close - 1) : -1;
-        var open = totalQuotes % 2 == 0
-            ? beforeClose
-            : (beforeClose > 0 ? message.LastIndexOf('\'', beforeClose - 1) : -1);
+        var searchFrom = 0;
+        int open;
+        while (true)
+        {
+            var candidateOpen = message.IndexOf('\'', searchFrom);
+            candidateOpen.ShouldBeGreaterThanOrEqualTo(0, $"the prompt's target quoting is unbalanced: {message}");
 
-        open.ShouldBeGreaterThanOrEqualTo(0, $"the prompt's target quoting is unbalanced: {message}");
+            var candidateClose = message.IndexOf('\'', candidateOpen + 1);
+            candidateClose.ShouldBeGreaterThanOrEqualTo(0, $"the prompt's target quoting is unbalanced: {message}");
+
+            // The last quoted run is always the target's, even on the off chance it never trips the
+            // separator check below (e.g. a malformed/relative target) — this is the fallback that
+            // keeps the loop from walking past `close` looking for a signal that will never come.
+            if (candidateClose >= close)
+            {
+                open = candidateOpen;
+                break;
+            }
+
+            var content = message[(candidateOpen + 1)..candidateClose];
+            if (content.IndexOfAny(PathSeparators) >= 0)
+            {
+                open = candidateOpen;
+                break;
+            }
+
+            searchFrom = candidateClose + 1;
+        }
+
         close.ShouldBeGreaterThan(open, $"the prompt's target quoting is unbalanced: {message}");
         return message[(open + 1)..close];
     }
+
+    /// <summary>
+    /// The two characters <see cref="WritePrompt.Sanitize"/>'s whitelist excludes that every rooted
+    /// filesystem path is guaranteed to contain — the signal <see cref="TargetFromPrompt"/> scans for.
+    /// </summary>
+    private static readonly char[] PathSeparators = ['/', '\\'];
 
     /// <summary>
     /// Asserts a prompt names a concrete solution/project that exists on disk — the whole point of
@@ -1791,6 +1821,16 @@ public class ElicitationTests : IDisposable
     private const string SpacedApostropheSolution = "/repo/x 'y/App.sln";
 
     /// <summary>
+    /// A target with TWO embedded apostrophes — <see cref="ApostropheSolution"/>'s "Bob's" and the
+    /// class remarks' own "O'Brien" example, concatenated into one directory name a real checkout
+    /// could plausibly have. Code review on #204 caught that the first draft of
+    /// <see cref="TargetFromPrompt"/> derived the opening quote from the total quote count's
+    /// PARITY, which cannot tell zero embedded apostrophes apart from two — both are even — so it
+    /// silently returned a truncated tail for exactly this shape before this row existed to catch it.
+    /// </summary>
+    private const string TwoApostrophesSolution = "/repo/O'Brien's House/App.sln";
+
+    /// <summary>
     /// Every <see cref="WriteScope"/> member against every target shape. Built from
     /// <c>Enum.GetValues</c> rather than hand-written rows so the coverage is genuinely exhaustive:
     /// a fourth scope is picked up here automatically and fails in <see cref="PromptFor"/> until it
@@ -1807,6 +1847,7 @@ public class ElicitationTests : IDisposable
             data.Add(scope, ApostropheProject);
             data.Add(scope, ForgedProseSolution);
             data.Add(scope, SpacedApostropheSolution);
+            data.Add(scope, TwoApostrophesSolution);
         }
 
         return data;
