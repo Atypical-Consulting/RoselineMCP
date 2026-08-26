@@ -13,9 +13,14 @@
 //      direction 1/2 was rebuilt and re-grepped (see the PR's Findings for the list)
 //   4. a `}` (closing an `{expression}`) immediately followed by a word character
 //
-// This is a text-pattern match, not a semantic one (see the issue's Validation rule): it is scoped
-// to these specific shapes so it doesn't fire on deliberate tight markup (e.g. `<code>foo</code>bar`
-// where `bar` is a genuine suffix) or on non-prose adjacency (script/style content, JSX code).
+// This is a text-pattern match, not a semantic one (see the issue's Validation rule) — it cannot
+// tell a collapsed line-wrap boundary apart from deliberately-written tight markup with genuinely
+// no space (e.g. `<code>foo</code>bar` where `bar` is a real suffix): both render identically. It
+// narrows that risk by excluding non-prose regions (script/style content, and <pre> blocks — e.g.
+// the fenced code samples releases.astro renders from GitHub release notes via `marked` +
+// `set:html`), but a legitimate no-space suffix in ordinary prose would still be a false positive
+// and would need a targeted exclusion added here if one ever shows up (none does today — verified
+// by grep across all 4 pages' current output).
 //
 // Run after `npm run build`; exits non-zero and prints every offending file/snippet, or exits 0
 // silently. Not wired into `npm run build`/`package.json` yet — see the PR's Follow-ups.
@@ -38,15 +43,26 @@ function listHtmlFiles(dir) {
   return out;
 }
 
-// Excludes <script>/<style> bodies, which routinely contain minified JS/CSS whose own syntax
-// legitimately glues a `}` or `>` against a following word/letter (template literals, selectors) —
-// none of that is prose, so it's not this bug.
-function stripScriptsAndStyles(html) {
-  return html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ');
+// Excludes <script>/<style> bodies (minified JS/CSS whose own syntax legitimately glues a `}` or
+// `>` against a following word/letter — template literals, selectors) and <pre> blocks (fenced
+// code samples, e.g. from GitHub release notes rendered through `marked` + `set:html`) — none of
+// that is prose, so it's not this bug.
+function stripNonProse(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<pre[\s\S]*?<\/pre>/gi, ' ');
 }
 
+// The character before a wrapped tag-open isn't always a bare word — a sentence-ending "generous."
+// immediately before a wrapped <strong> loses its space exactly like a bare word does (confirmed:
+// reverting benchmark.astro's "generous." fix and rebuilding reproduces "generous.<strong…" with no
+// space) — so the trigger class covers common sentence-ending/quoting punctuation too, not just
+// [A-Za-z0-9].
+const TEXT_END = `[A-Za-z0-9.,;:!?'")]`;
+
 const PATTERNS = [
-  { name: 'word before inline tag-open', re: /[A-Za-z0-9](\(<code|<code[ >]|<em[ >]|<strong[ >]|<a[ >])/g },
+  { name: 'text before inline tag-open', re: new RegExp(`${TEXT_END}(\\(<code|<code[ >]|<em[ >]|<strong[ >]|<a[ >])`, 'g') },
   { name: 'inline tag-close before word or (', re: /(<\/code>|<\/em>|<\/strong>|<\/a>)[A-Za-z0-9(]/g },
   { name: 'expression-close before word', re: /\}[A-Za-z0-9]/g },
 ];
@@ -64,7 +80,7 @@ try {
 
 for (const file of htmlFiles) {
   const raw = readFileSync(file, 'utf8');
-  const text = stripScriptsAndStyles(raw);
+  const text = stripNonProse(raw);
   const rel = relative(process.cwd(), file);
   for (const { name, re } of PATTERNS) {
     for (const m of text.matchAll(re)) {
