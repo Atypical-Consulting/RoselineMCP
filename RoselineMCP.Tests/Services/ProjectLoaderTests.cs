@@ -34,7 +34,9 @@ public class ProjectLoaderTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_root, true); }
+        catch { /* ignored */ }
     }
 
     /// <summary>Invokes the private static <c>ResolveTargetPath</c>, unwrapping reflection's exception wrapper.</summary>

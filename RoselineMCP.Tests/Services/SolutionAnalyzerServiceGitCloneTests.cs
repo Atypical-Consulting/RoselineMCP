@@ -36,7 +36,9 @@ public class SolutionAnalyzerServiceGitCloneTests : IDisposable
 
     public void Dispose()
     {
-        try { ForceDeleteDirectory(_testDirectory); } catch { /* ignored */ }
+        try
+        { ForceDeleteDirectory(_testDirectory); }
+        catch { /* ignored */ }
     }
 
     /// <summary>

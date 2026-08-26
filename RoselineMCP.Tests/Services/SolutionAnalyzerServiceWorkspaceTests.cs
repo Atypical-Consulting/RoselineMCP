@@ -36,7 +36,9 @@ public class SolutionAnalyzerServiceWorkspaceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
     }
 
     /// <summary>
@@ -163,7 +165,9 @@ public class ListDiagnosticsProjectLoaderIntegrationTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
     }
 
     [Fact]
@@ -188,7 +192,7 @@ public class ListDiagnosticsProjectLoaderIntegrationTests : IDisposable
         var slnPath = SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App");
 
         // Act — pass the .sln path directly.
-        var result = await _sut.ListDiagnosticsAsync(slnPath, ids: ["CS0219"]);
+        var result = await _sut.ListDiagnosticsAsync(slnPath, ids: ["CS0219"], cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert — the primary project was analyzed and the expected diagnostic reported.
         result.Project.ShouldBe("App");

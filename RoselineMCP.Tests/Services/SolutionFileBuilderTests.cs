@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Logging;
 using FakeItEasy;
+using Microsoft.Extensions.Logging;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -18,7 +18,9 @@ public class SolutionFileBuilderTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
     }
 
     private const string MinimalCsprojXml =
