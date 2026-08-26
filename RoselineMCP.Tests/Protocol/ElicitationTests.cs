@@ -78,13 +78,15 @@ public class ElicitationTests : IDisposable
     }
 
     /// <summary>
-    /// Ceiling for the <c>Task.WhenAny(call, Task.Delay(CallCompletionWaitTimeout))</c> races below,
-    /// each of which waits for an in-flight <c>apply_fixes</c> call to return after its write
-    /// confirmation times out. Its only job is "don't hang the suite forever if the call genuinely
-    /// never returns" — it is not a correctness assertion, so it is deliberately generous (90s, not
-    /// the original 15s/20s) to stay clear of CI-runner scheduling jitter, mirroring
-    /// <c>GuardServiceTests.EnteredWaitTimeout</c> (#219) for the same shape found here at a tighter
-    /// ceiling (#224).
+    /// Ceiling for every <c>AsyncWaitHelpers</c> race below in this file: the two waits for an
+    /// in-flight <c>apply_fixes</c> call to return after its write confirmation times out, AND the
+    /// two background waits for the elicitation handler to fire before injecting a fallback
+    /// "decline" answer. All four exist purely as hang-guards — "don't hang the suite forever if
+    /// the thing being waited on genuinely never happens" — not correctness assertions, so one
+    /// deliberately generous ceiling (90s, not the original 15s/20s) covers all of them rather than
+    /// four near-identical constants, staying clear of CI-runner scheduling jitter and mirroring
+    /// <c>GuardServiceTests.EnteredWaitTimeout</c> (#219) for the same shape found here at a
+    /// tighter ceiling (#224).
     /// </summary>
     private static readonly TimeSpan CallCompletionWaitTimeout = TimeSpan.FromSeconds(90);
 
@@ -308,7 +310,7 @@ public class ElicitationTests : IDisposable
         // the server would have taken that answer and the note below would read "declined".
         var release = Task.Run(async () =>
         {
-            await Task.WhenAny(elicited.Task, Task.Delay(TimeSpan.FromSeconds(15)));
+            await AsyncWaitHelpers.WaitForSignal(elicited.Task, CallCompletionWaitTimeout, "the elicitation handler", "fire");
             await Task.Delay(ConfirmTimeoutMs * 8);
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
         }, TestContext.Current.CancellationToken);
@@ -388,7 +390,7 @@ public class ElicitationTests : IDisposable
         // "timed out".
         var release = Task.Run(async () =>
         {
-            await Task.WhenAny(elicited.Task, Task.Delay(TimeSpan.FromSeconds(15)));
+            await AsyncWaitHelpers.WaitForSignal(elicited.Task, CallCompletionWaitTimeout, "the elicitation handler", "fire");
             await Task.Delay(ConfirmTimeoutMs * 3);
             neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
         }, TestContext.Current.CancellationToken);
