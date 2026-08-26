@@ -282,6 +282,20 @@ public sealed class GuardService : IGuardService, IDisposable
     /// Rebuilds the snapshot from disk, reporting what kind of change was found and carrying the
     /// stamps observed <em>at read time</em>.
     /// </summary>
+    /// <remarks>
+    /// <b>Known corner case (#233).</b> A document's stamp is <c>(LastWriteTimeUtc.Ticks, Length)</c>
+    /// — cheap, but not a content hash. Two writes whose <c>Length</c> happens to match can produce
+    /// an identical stamp if they also land inside the OS's file-timestamp update granularity
+    /// (observed on Windows CI runners; NTFS/Win32 file-time updates are commonly ~15.6&#160;ms
+    /// ticks, not per-write), and such a write is then silently treated as unchanged — never read,
+    /// never verified. This is an accepted trade-off of the fast stat-only path, not something this
+    /// method guards against: a full content read/hash on every pass would remove the collision but
+    /// also the reason this path exists. In practice a real MCP tool call is separated from the
+    /// previous one by an IPC round trip far larger than any OS clock granularity, so the risk is
+    /// theoretical for actual agent writes; it is exercised deliberately (and deterministically, via
+    /// <c>File.SetLastWriteTimeUtc</c>) by
+    /// <c>GuardServiceTests.TryAdvance_Skips_Verification_When_A_Same_Length_Edit_Forces_An_Identical_Stamp</c>.
+    /// </remarks>
     private static AdvanceResult TryAdvance(Entry entry)
     {
         var solution = entry.Snapshot;

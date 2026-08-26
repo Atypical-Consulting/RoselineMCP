@@ -241,8 +241,16 @@ public class GuardServiceTests : IDisposable
 
         await service.VerifyFileAsync(sourcePath);          // baseline
 
-        // First edit; hold the verification open and write again while it is in flight.
-        File.WriteAllText(sourcePath, "public class Thing { public int Value() => 2; }");
+        // First edit; hold the verification open and write again while it is in flight. The text
+        // is deliberately a DIFFERENT LENGTH than GreenSource ("=> 1;" -> "=> 22;", not "=> 2;"):
+        // GuardService.TryAdvance detects a change purely from a (LastWriteTimeUtc.Ticks, Length)
+        // stamp, and on a coarse-grained OS clock (observed on windows-latest CI, ~15.6ms ticks)
+        // two same-length writes this close together can land in the same tick and be
+        // indistinguishable, so TryAdvance reports Unchanged and never calls VerifyAsync at all —
+        // Entered then never completes and WaitForEntered below times out deterministically, no
+        // matter how generous the ceiling (#233). A different Length makes the stamp differ
+        // unconditionally, regardless of clock resolution.
+        File.WriteAllText(sourcePath, "public class Thing { public int Value() => 22; }");
         counting.Hold();
         var inFlight = service.VerifyFileAsync(sourcePath);
         await WaitForEntered(counting, "the verification call");
@@ -256,6 +264,45 @@ public class GuardServiceTests : IDisposable
 
         report.Silent.ShouldBeFalse("the write that landed during verification was never re-read");
         report.Verdict.ShouldNotBeNull().Introduced.ShouldNotBeNull().ShouldNotBeEmpty();
+    }
+
+    /// <summary>
+    /// Documents the mechanism behind #233, deterministically rather than by racing a real OS
+    /// clock: <see cref="GuardService"/>'s <c>TryAdvance</c> detects a change purely from a
+    /// <c>(LastWriteTimeUtc.Ticks, Length)</c> stamp per document. If two writes to the same file
+    /// produce an identical stamp — plausible when their <c>Length</c> matches and they land inside
+    /// the OS's timestamp-update granularity (observed on <c>windows-latest</c> CI; NTFS/Win32
+    /// file-time updates are commonly ~15.6&#160;ms ticks, not per-write) — the second write is
+    /// silently treated as unchanged and <see cref="IVerificationService.VerifyAsync"/> is never
+    /// called at all. This test forces that exact collision with
+    /// <see cref="File.SetLastWriteTimeUtc(string, DateTime)"/> so the assertion holds on every
+    /// platform/filesystem, not only on one with coarse enough timestamps to reproduce it by luck.
+    /// It is a regression guard for the <em>mechanism</em>, not a claim that this is desired
+    /// behavior — see <see cref="A_Write_During_Verification_Is_Not_Recorded_As_Already_Seen"/>'s
+    /// fixture, which now avoids the collision by construction instead of relying on the OS clock.
+    /// </summary>
+    [Fact]
+    public async Task TryAdvance_Skips_Verification_When_A_Same_Length_Edit_Forces_An_Identical_Stamp()
+    {
+        var (loader, workspace, sourcePath) = CreateSolution(GreenSource);
+        using var _ = workspace;
+
+        var counting = new CountingVerificationService();
+        using var service = CreateService(loader, counting);
+
+        var stampBefore = File.GetLastWriteTimeUtc(sourcePath);
+        await service.VerifyFileAsync(sourcePath); // baseline
+
+        // Same length as GreenSource ("=> 1;" -> "=> 2;"), then force the mtime back to exactly
+        // what it was before this write — simulating what a coarse OS file-timestamp clock can do
+        // to two back-to-back writes.
+        File.WriteAllText(sourcePath, "public class Thing { public int Value() => 2; }");
+        File.SetLastWriteTimeUtc(sourcePath, stampBefore);
+        File.GetLastWriteTimeUtc(sourcePath).ShouldBe(stampBefore, "the forced collision must actually be observed back");
+
+        await service.VerifyFileAsync(sourcePath);
+
+        counting.Calls.ShouldBe(0, "an identical (Ticks, Length) stamp is indistinguishable from no edit at all");
     }
 
     /// <summary>
