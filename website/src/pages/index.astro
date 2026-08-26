@@ -94,6 +94,11 @@ try
     await host.RunAsync();
     return 0;
 }
+catch (Exception ex)
+{
+    await Console.Error.WriteLineAsync($"Fatal error: {ex.Message}");
+    return 1;
+}
 
 static IHostBuilder CreateHostBuilder(string[] args) =>
   Host.CreateDefaultBuilder(args)
@@ -105,7 +110,7 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
       services.AddSingleton<IMSBuildService, …>();
       services.AddSingleton<IDiffService, …>();
       services.AddSingleton<IProjectLoader, …>();
-      // …10 more registrations…
+      // …11 more registrations…
     })
     .ConfigureLogging(…);`}</pre>
         </div>
@@ -119,10 +124,8 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
           <div class="tp-head"><span class="mono">the outline it returns</span>
             <span class="tp-save mono">120&nbsp;tokens</span><span class="pill write">−94%</span></div>
           <div class="outrows">
-            <div class="orow"><span class="okind">class</span><span class="osig mono">Program</span></div>
-            <div class="orow"><span class="okind">method</span><span class="osig mono">ReadGuardOptions() : RoselineMcpOptions</span><span class="oline mono">:93</span></div>
-            <div class="orow"><span class="okind">method</span><span class="osig mono">CreateHostBuilder(string[]) : IHostBuilder</span><span class="oline mono">:123</span></div>
-            <div class="orow"><span class="okind">ctor</span><span class="osig mono">static Program()</span><span class="oline mono">:255</span></div>
+            <div class="orow"><span class="okind">class</span><span class="osig mono">Program</span><span class="oline mono">:252</span></div>
+            <div class="orow"><span class="okind">method</span><span class="osig mono">private static Program()</span><span class="oline mono">:255</span></div>
           </div>
           <p class="tp-note">Signatures and locations — no method bodies, no using directives, no wall.</p>
         </div>
