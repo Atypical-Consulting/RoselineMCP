@@ -326,6 +326,16 @@ public class CodeFixService : ICodeFixService
                 {
                     response.Notes.Add("Preview mode - no changes were saved to disk");
                 }
+                else if (changedDocuments.Any())
+                {
+                    // Documents were touched (fixCount > 0) but every one of them netted a blank
+                    // diff (formatting undid the only textual change) — the same case the write
+                    // loop above guards against, just with nothing left to write. Without this note
+                    // the response would report applied=false and an empty changedFiles with no
+                    // explanation, even though fixedCount/fixersApplied are non-zero.
+                    response.Notes.Add(
+                        "Fixes were applied but produced no visible changes after formatting; nothing was written.");
+                }
 
                 return response;
             }
