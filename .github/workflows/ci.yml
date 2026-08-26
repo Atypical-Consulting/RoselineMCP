@@ -101,3 +101,22 @@ jobs:
         with:
           name: coverage-report
           path: RoselineMCP.Tests/TestResults/coverage.cobertura.xml
+
+  website:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Install dependencies (lockfile must be in sync)
+        run: npm ci
+      - name: Build with Astro
+        run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
