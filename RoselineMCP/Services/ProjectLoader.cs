@@ -313,7 +313,7 @@ public class ProjectLoader : IProjectLoader
 
             if (candidates.Count > 1)
             {
-                throw new ArgumentException(BuildAmbiguityMessage(kind, candidates));
+                throw new ArgumentException(BuildAmbiguityMessage(kind, candidates, "near the working directory"));
             }
         }
 
@@ -327,7 +327,10 @@ public class ProjectLoader : IProjectLoader
     /// <see cref="SearchOption"/> overloads pass <see cref="EnumerationOptions.Compatible"/>
     /// (<c>false</c>). The other two properties are pinned back to <c>Compatible</c>'s values:
     /// <c>AttributesToSkip = 0</c> because the default (<c>Hidden | System</c>) hides every
-    /// dot-directory on Unix, and <see cref="MatchType.Win32"/> for pattern parity. Scans where the
+    /// dot-directory on Unix, and <see cref="MatchType.Win32"/> for pattern parity. That pin
+    /// un-hides dot-<em>files</em> along with the directories — one attribute cannot tell the two
+    /// apart — so the shadow files it lets through are filtered by NAME in
+    /// <see cref="IncidentalFiles"/>, which every incidental file scan goes through. Scans where the
     /// CALLER NAMED the directory (<see cref="ResolveProjectPath"/>'s first branch) deliberately do
     /// NOT use this. One factory rather than two independently-maintained property lists, so a
     /// property added here can never silently diverge between the non-recursive and recursive scan.
@@ -345,6 +348,29 @@ public class ProjectLoader : IProjectLoader
 
     /// <summary>Recursive incidental scan — the bare-name sweep in <see cref="ResolveProjectPath"/>.</summary>
     private static readonly EnumerationOptions IncidentalRecursiveScan = CreateIncidentalScan(recurseSubdirectories: true);
+
+    /// <summary>
+    /// Whether <paramref name="path"/> names an AppleDouble shadow — the <c>._&lt;name&gt;</c> file
+    /// macOS writes beside <c>&lt;name&gt;</c> to carry its extended attributes through a filesystem
+    /// that has none (exFAT, SMB, some zip tools), and which then travels back with the tree. .NET
+    /// infers <c>Hidden</c> from the leading dot on Unix for files exactly as it does for
+    /// directories, so the <c>AttributesToSkip = 0</c> pin that keeps dot-directories discoverable
+    /// un-hides these too; and on Windows nothing ever hid them by attribute. The name is the only
+    /// thing that tells a shadow from a real file on every platform, so the name is what is tested.
+    /// </summary>
+    private static bool IsAppleDoubleShadow(string path) =>
+        Path.GetFileName(path.AsSpan()).StartsWith("._", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The one incidental FILE enumeration:
+    /// <see cref="Directory.EnumerateFiles(string, string, EnumerationOptions)"/> under
+    /// <paramref name="options"/>, minus AppleDouble shadows. Every incidental scan of files goes
+    /// through here, so the filter can never apply at one call site and not another — a shadow that
+    /// slips through is either a spurious ambiguity (two "solutions" where there is one) or a silent
+    /// wrong pick (a resource fork handed to MSBuild), and both were measured before this existed.
+    /// </summary>
+    private static IEnumerable<string> IncidentalFiles(string directory, string pattern, EnumerationOptions options) =>
+        Directory.EnumerateFiles(directory, pattern, options).Where(f => !IsAppleDoubleShadow(f));
 
     /// <summary>
     /// The levels auto-discovery inspects, nearest first: the base directory; each parent
@@ -381,14 +407,15 @@ public class ProjectLoader : IProjectLoader
 
     /// <summary>
     /// Collects distinct files matching <paramref name="pattern"/> across <paramref name="directories"/>
-    /// (top level of each). A directory this process cannot read is skipped, not aborted over.
+    /// (top level of each), AppleDouble shadows excluded. A directory this process cannot read is
+    /// skipped, not aborted over.
     /// </summary>
     private static List<string> FindFilesAcross(IEnumerable<string> directories, string pattern)
     {
         var found = new List<string>();
         foreach (var directory in directories)
         {
-            foreach (var file in Directory.GetFiles(directory, pattern, IncidentalScan))
+            foreach (var file in IncidentalFiles(directory, pattern, IncidentalScan))
             {
                 var full = Path.GetFullPath(file);
                 if (!found.Any(f => PathsEqual(f, full)))
@@ -401,10 +428,15 @@ public class ProjectLoader : IProjectLoader
         return found;
     }
 
-    private static string BuildAmbiguityMessage(string kind, IReadOnlyList<string> candidates)
+    /// <summary>
+    /// The one wording for "more than one candidate": <paramref name="where"/> says which scan
+    /// found them (auto-discovery looks near the working directory; the ancestor walk looks above a
+    /// resolved project), and the remedy is the same for both.
+    /// </summary>
+    private static string BuildAmbiguityMessage(string kind, IReadOnlyList<string> candidates, string where)
     {
         var list = string.Join(", ", candidates.Select(c => $"'{c}'"));
-        return $"Found multiple candidate {kind} files near the working directory: {list}. " +
+        return $"Found multiple candidate {kind} files {where}: {list}. " +
             "Pass an explicit 'project' — a project name, a directory, or a path to a .csproj or .sln file — to disambiguate.";
     }
 
@@ -464,12 +496,13 @@ public class ProjectLoader : IProjectLoader
         // nothing to do with resolving a project NAME — so aborting the whole lookup over one was
         // wrong regardless of how the resulting exception was labelled. IncidentalRecursiveScan
         // (see CreateIncidentalScan's doc) is the same settings as every other incidental scan here,
-        // recursive.
+        // recursive — and IncidentalFiles applies the same shadow filter, so a name that happens to
+        // spell a shadow's stem can never resolve to the shadow.
         //
-        // EnumerateFiles, not GetFiles: this streams and stops at the first name match instead of
-        // materializing every .csproj in the tree first. The scan runs on the write-confirmation
-        // path before a human is prompted, so the early exit is worth the one-word difference.
-        var match = Directory.EnumerateFiles(baseDirectory, "*.csproj", IncidentalRecursiveScan)
+        // IncidentalFiles streams (EnumerateFiles, not GetFiles) and stops at the first name match
+        // instead of materializing every .csproj in the tree first. The scan runs on the
+        // write-confirmation path before a human is prompted, so the early exit is worth keeping.
+        var match = IncidentalFiles(baseDirectory, "*.csproj", IncidentalRecursiveScan)
             .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(project, StringComparison.OrdinalIgnoreCase));
         if (match != null)
         {
@@ -482,7 +515,12 @@ public class ProjectLoader : IProjectLoader
     /// <summary>
     /// Walks from <paramref name="startPath"/> up through its ancestors looking for a <c>.sln</c>.
     /// An unreadable rung is skipped, not fatal: <see cref="Directory.GetParent(string)"/> needs no
-    /// read permission on the child it is leaving, so the climb continues past it.
+    /// read permission on the child it is leaving, so the climb continues past it. A rung holding
+    /// MORE than one solution is refused with the same <see cref="ArgumentException"/>
+    /// <see cref="FindNearest"/> raises: which of two solutions to open a project through is not a
+    /// guess this walk gets to make, and "whichever the OS listed first" — what <c>slnFiles[0]</c>
+    /// used to answer — is exactly that guess. Shadows are filtered by <see cref="IncidentalFiles"/>
+    /// before the count, so they neither win a rung nor make a real pair look like three.
     /// </summary>
     private static string? FindSolutionFile(string startPath)
     {
@@ -490,10 +528,16 @@ public class ProjectLoader : IProjectLoader
 
         while (!string.IsNullOrEmpty(directory))
         {
-            var slnFiles = Directory.GetFiles(directory, "*.sln", IncidentalScan);
-            if (slnFiles.Length > 0)
+            var candidates = IncidentalFiles(directory, "*.sln", IncidentalScan).ToList();
+            if (candidates.Count == 1)
             {
-                return slnFiles[0];
+                return candidates[0];
+            }
+
+            if (candidates.Count > 1)
+            {
+                throw new ArgumentException(
+                    BuildAmbiguityMessage("solution (.sln)", candidates, $"above '{startPath}'"));
             }
 
             directory = Directory.GetParent(directory)?.FullName;
