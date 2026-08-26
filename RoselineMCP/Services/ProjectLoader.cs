@@ -55,7 +55,23 @@ public class ProjectLoader : IProjectLoader
             {
                 primary = null;
                 resolvedPath = targetPath;
-                var solutionPath = FindSolutionFile(targetPath);
+                string? solutionPath;
+                try
+                {
+                    solutionPath = FindSolutionFile(targetPath);
+                }
+                catch (ArgumentException) when (IsExplicitCsprojPath(project))
+                {
+                    // The caller named this exact project — there is nothing to guess about WHICH
+                    // project they mean, only which solution to wrap it in for cross-project
+                    // context. Degrade to the same standalone fallback already taken below when a
+                    // resolved .sln simply doesn't list the target project, rather than refusing the
+                    // whole call over an ambiguity the caller's own request already settled. Every
+                    // INFERRED target (auto-discovery, a bare name, a directory) still propagates —
+                    // guessing between ambiguous solutions there is the actual bug #172 fixed. See #213.
+                    solutionPath = null;
+                }
+
                 if (solutionPath != null)
                 {
                     _logger.LogInformation("Loading solution for navigation: {Path}", solutionPath);
@@ -511,6 +527,20 @@ public class ProjectLoader : IProjectLoader
 
         throw new FileNotFoundException($"Project not found: {project}");
     }
+
+    /// <summary>
+    /// Whether <paramref name="project"/> is the exact, unambiguous <c>.csproj</c> path the caller
+    /// passed in — the same condition <see cref="ResolveProjectPath"/>'s own first branch tests.
+    /// Used only to decide whether <see cref="FindSolutionFile"/>'s ambiguity refusal should degrade
+    /// to a standalone project load (an explicitly-named target) or propagate (every INFERRED
+    /// target: auto-discovery, a bare name, or a directory) — see #213. A bare name or a directory
+    /// that happens to resolve to a <c>.csproj</c> does not count: the caller did not name that exact
+    /// file, so which project they meant is still an open question there, unlike here.
+    /// </summary>
+    private static bool IsExplicitCsprojPath(string? project) =>
+        !string.IsNullOrWhiteSpace(project)
+        && project.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+        && File.Exists(project);
 
     /// <summary>
     /// Walks from <paramref name="startPath"/> up through its ancestors looking for a <c>.sln</c>.
