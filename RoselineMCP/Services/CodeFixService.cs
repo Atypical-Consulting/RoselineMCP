@@ -291,14 +291,28 @@ public class CodeFixService : ICodeFixService
                     }
                 }
 
-                // Apply changes if not preview only
-                if (!previewOnly && changedDocuments.Any())
+                // Apply changes if not preview only. Iterate response.ChangedFiles (diff-filtered,
+                // populated above) rather than the raw changedDocuments set: Roslyn's
+                // changed-document tracking is version-based, not content-based, so a fixer whose
+                // edit nets out to the original text (or is undone by the formatting pass above)
+                // still appears in changedDocuments even though its diff is blank. Writing from the
+                // raw set would rewrite that file's bytes for nothing — bumping its mtime and
+                // invalidating the workspace cache's fingerprint with no actual change on disk.
+                if (!previewOnly && response.HasChanges)
                 {
-                    _logger.LogInformation("Applying changes to {Count} files", changedDocuments.Count);
+                    _logger.LogInformation("Applying changes to {Count} files", response.ChangedFiles.Count);
+
+                    var changedRelativePaths = new HashSet<string>(response.ChangedFiles, StringComparer.Ordinal);
 
                     foreach (var document in ChangedDocumentsByPath(currentSolution, changedDocuments))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
+
+                        var relativePath = SymbolResolver.Relativize(document.FilePath!, baseDirectory) ?? document.FilePath!;
+                        if (!changedRelativePaths.Contains(relativePath))
+                        {
+                            continue;
+                        }
 
                         var text = await document.GetTextAsync(cancellationToken);
                         // Write with the file's original encoding (BOM included) — see SourceTextWriter.
@@ -306,11 +320,21 @@ public class CodeFixService : ICodeFixService
                     }
 
                     response.Applied = true;
-                    response.Notes.Add($"Applied {fixCount} fixes to {changedDocuments.Count} files");
+                    response.Notes.Add($"Applied {fixCount} fixes to {response.ChangedFiles.Count} files");
                 }
                 else if (previewOnly)
                 {
                     response.Notes.Add("Preview mode - no changes were saved to disk");
+                }
+                else if (changedDocuments.Any())
+                {
+                    // Documents were touched (fixCount > 0) but every one of them netted a blank
+                    // diff (formatting undid the only textual change) — the same case the write
+                    // loop above guards against, just with nothing left to write. Without this note
+                    // the response would report applied=false and an empty changedFiles with no
+                    // explanation, even though fixedCount/fixersApplied are non-zero.
+                    response.Notes.Add(
+                        "Fixes were applied but produced no visible changes after formatting; nothing was written.");
                 }
 
                 return response;
