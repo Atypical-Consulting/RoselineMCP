@@ -26,7 +26,11 @@ review and update every surface that mirrors it:
   with a new `ToolKind`, still does: `groupBlurb` is kept in `index.astro` *and* `tools.astro`, and
   `kindLabel` in `tools.astro`; a missing key renders as nothing rather than failing. Never restate a
   count in a page's prose — that is how `tools.astro` came to announce "Thirteen tools" above
-  fourteen cards (#197)
+  fourteen cards (#197). Forgetting `tools.ts` itself is now **machine-checked**, not just swept for:
+  `RoselineMCP.Tests/Release/WebsiteToolsDataContractTests.cs` pins the array's wire names against
+  the reflected `[McpServerTool]` set (the same reflection `ToolDescriptionContractTests` uses), so
+  adding, removing or renaming a tool without updating `tools.ts` is a red test naming the file, not
+  a page that quietly drifts (#208)
 - `mcpb/manifest.json` — the `tools[]` array (names + descriptions)
 - `CHANGELOG.md` — **nothing to edit by hand.** release-please generates each release's entries
   from Conventional Commits, so a user-facing change is described by your PR *title*; write it to
