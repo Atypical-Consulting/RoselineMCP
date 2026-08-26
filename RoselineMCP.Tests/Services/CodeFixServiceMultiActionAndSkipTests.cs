@@ -264,6 +264,143 @@ public class CodeFixServiceMultiActionAndSkipTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Registers a real, content-changing fix for every document except one designated "no-op"
+    /// document (matched by name). For that one, it registers an edit that IS textually different
+    /// at apply time (so it survives Roslyn's own reference/content-equality short-circuit and
+    /// really lands in <c>changedDocuments</c>) but only in indentation — which the
+    /// <c>Formatter.FormatAsync</c> pass that runs before diffing fully undoes, leaving the final
+    /// diff blank. This is the precise "undone by the formatting pass" case #175 describes: a
+    /// document that legitimately entered <c>changedDocuments</c> but nets out to the original text.
+    /// </summary>
+    private sealed class MixedRealAndNoOpCodeFixProvider(string noOpFileName, string noOpMangledContent, string realFixedContent) : CodeFixProvider
+    {
+        private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
+
+        public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create("CS0219");
+
+        public override FixAllProvider? GetFixAllProvider() => null;
+
+        public override Task RegisterCodeFixesAsync(CodeFixContext context)
+        {
+            var name = context.Document.Name;
+            if (!_attempted.Add(name))
+            {
+                // Already offered a fix for this document once; refuse the retry so the
+                // occurrence-by-occurrence loop can move on instead of looping forever.
+                return Task.CompletedTask;
+            }
+
+            var diagnostic = context.Diagnostics[0];
+
+            if (string.Equals(name, noOpFileName, StringComparison.Ordinal))
+            {
+                context.RegisterCodeFix(
+                    CodeAction.Create(
+                        "No-op fix (formatting-reverted)",
+                        _ => Task.FromResult(context.Document.WithText(SourceText.From(noOpMangledContent)))),
+                    diagnostic);
+            }
+            else
+            {
+                context.RegisterCodeFix(
+                    CodeAction.Create(
+                        "Remove unused variable",
+                        _ => Task.FromResult(context.Document.WithText(SourceText.From(realFixedContent)))),
+                    diagnostic);
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    public class WriteLoopOnlyRewritesDiffFilteredFilesTests : CodeFixServiceMultiActionAndSkipTests
+    {
+        [Fact]
+        public async Task A_No_Op_Files_Diff_Is_Blank_So_It_Is_Never_Rewritten_To_Disk()
+        {
+            // Regression for #175: the write loop iterated Roslyn's raw changed-document set
+            // (version-based tracking) rather than the diff-filtered response.ChangedFiles, so a
+            // no-op fix in the same batch as a real one still got rewritten to disk byte-for-byte —
+            // bumping its mtime for nothing and invalidating the workspace cache's fingerprint.
+            const string noOpOriginalContent = """
+                class NoOpTarget
+                {
+                    static void MethodB()
+                    {
+                        int unusedB = 2;
+                        System.Console.WriteLine("b");
+                    }
+                }
+                """;
+            // Same code, differently indented on one line — a real textual difference at apply
+            // time (so it survives Roslyn's own content-equality short-circuit and really lands in
+            // changedDocuments), which Formatter.FormatAsync fully undoes before the diff is taken.
+            const string noOpMangledContent = """
+                class NoOpTarget
+                {
+                    static void MethodB()
+                    {
+                            int unusedB = 2;
+                        System.Console.WriteLine("b");
+                    }
+                }
+                """;
+            const string realFixedContent = """
+                class RealFixTarget
+                {
+                    static void MethodA()
+                    {
+                        System.Console.WriteLine("a");
+                    }
+                }
+                """;
+
+            var csprojPath = CreateProject("MixedRealAndNoOp.csproj",
+                ("NoOpTarget.cs", noOpOriginalContent),
+                ("RealFixTarget.cs", """
+                 class RealFixTarget
+                 {
+                     static void MethodA()
+                     {
+                         int unusedA = 1;
+                         System.Console.WriteLine("a");
+                     }
+                 }
+                 """));
+
+            var factory = A.Fake<ICodeFixProviderFactory>();
+            A.CallTo(() => factory.GetProviderForDiagnostic("CS0219", A<Project?>._))
+                .Returns(new MixedRealAndNoOpCodeFixProvider("NoOpTarget.cs", noOpMangledContent, realFixedContent));
+
+            var sut = CreateSut(factory);
+
+            var projectDir = Path.GetDirectoryName(csprojPath)!;
+            var noOpFilePath = Path.Combine(projectDir, "NoOpTarget.cs");
+            var realFilePath = Path.Combine(projectDir, "RealFixTarget.cs");
+
+            var noOpMTimeBefore = File.GetLastWriteTimeUtc(noOpFilePath);
+
+            // Give the filesystem's mtime clock room to show a delta if the bug regresses —
+            // some filesystems have coarse (~1-2s) mtime resolution.
+            await Task.Delay(1100, TestContext.Current.CancellationToken);
+
+            var result = await sut.ApplyFixesAsync(
+                csprojPath, ["CS0219"], previewOnly: false, cancellationToken: TestContext.Current.CancellationToken);
+
+            var noOpMTimeAfter = File.GetLastWriteTimeUtc(noOpFilePath);
+
+            // The real fix landed and is reported as changed...
+            result.ChangedFiles.ShouldContain("RealFixTarget.cs");
+            var realOnDisk = await File.ReadAllTextAsync(realFilePath, TestContext.Current.CancellationToken);
+            realOnDisk.ShouldBe(realFixedContent);
+
+            // ...but the no-op file's diff is blank, so it must be reported AND left untouched.
+            result.ChangedFiles.ShouldNotContain("NoOpTarget.cs");
+            noOpMTimeAfter.ShouldBe(noOpMTimeBefore, "a file whose diff turned out blank must never be rewritten");
+        }
+    }
+
     public class UnfixableOccurrenceDoesNotAbortOthersTests : CodeFixServiceMultiActionAndSkipTests
     {
         [Fact]
