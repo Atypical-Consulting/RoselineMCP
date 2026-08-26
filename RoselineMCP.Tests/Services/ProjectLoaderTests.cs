@@ -34,7 +34,9 @@ public class ProjectLoaderTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_root, true); }
+        catch { /* ignored */ }
     }
 
     /// <summary>Invokes the private static <c>ResolveTargetPath</c>, unwrapping reflection's exception wrapper.</summary>
@@ -293,30 +295,7 @@ public class ProjectLoaderTests : IDisposable
         File.WriteAllText(Path.Combine(projectDir, "App.csproj"), MinimalCsprojXml);
         File.WriteAllText(Path.Combine(projectDir, "Widget.cs"), "namespace App { public class Widget { } }");
 
-        var slnPath = Path.Combine(_baseDir, "App.sln");
-        File.WriteAllText(slnPath,
-            """
-            Microsoft Visual Studio Solution File, Format Version 12.00
-            # Visual Studio Version 17
-            VisualStudioVersion = 17.0.31903.59
-            MinimumVisualStudioVersion = 10.0.40219.1
-            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
-            EndProject
-            Global
-            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-            		Debug|Any CPU = Debug|Any CPU
-            		Release|Any CPU = Release|Any CPU
-            	EndGlobalSection
-            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.ActiveCfg = Release|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.Build.0 = Release|Any CPU
-            	EndGlobalSection
-            EndGlobal
-            """);
-
-        return slnPath;
+        return SolutionFileBuilder.Write(Path.Combine(_baseDir, "App.sln"), "App");
     }
 
     /// <summary>
@@ -339,28 +318,7 @@ public class ProjectLoaderTests : IDisposable
         File.WriteAllText(scratchCsprojPath, MinimalCsprojXml);
         File.WriteAllText(Path.Combine(scratchDir, "ScratchWidget.cs"), "namespace Scratch { public class ScratchWidget { } }");
 
-        var slnPath = Path.Combine(_baseDir, "Repo.sln");
-        File.WriteAllText(slnPath,
-            """
-            Microsoft Visual Studio Solution File, Format Version 12.00
-            # Visual Studio Version 17
-            VisualStudioVersion = 17.0.31903.59
-            MinimumVisualStudioVersion = 10.0.40219.1
-            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Main", "Main\Main.csproj", "{22222222-2222-2222-2222-222222222222}"
-            EndProject
-            Global
-            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-            		Debug|Any CPU = Debug|Any CPU
-            		Release|Any CPU = Release|Any CPU
-            	EndGlobalSection
-            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.Build.0 = Debug|Any CPU
-            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.ActiveCfg = Release|Any CPU
-            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.Build.0 = Release|Any CPU
-            	EndGlobalSection
-            EndGlobal
-            """);
+        var slnPath = SolutionFileBuilder.Write(Path.Combine(_baseDir, "Repo.sln"), "Main");
 
         return (slnPath, mainCsprojPath, scratchCsprojPath);
     }
