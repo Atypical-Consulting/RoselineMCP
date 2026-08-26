@@ -69,7 +69,7 @@ On RoselineMCP's own source, the read-only navigation tools returned a **median 
 per task** (pooled, size-weighted: 93%) than reading the corresponding files —
 [measured honestly, weak cases included](https://atypical-consulting.github.io/RoselineMCP/benchmark).
 
-> `search_symbols` on `Program.cs`: **1,638 tokens → 71** (−96%). The agent gets the shape of the
+> `search_symbols` on `Program.cs`: **2,093 tokens → 120** (−94%). The agent gets the shape of the
 > file; you skip the wall.
 
 ## Quick Start
