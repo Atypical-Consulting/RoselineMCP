@@ -28,6 +28,16 @@ internal static class SolutionFileBuilder
     /// </summary>
     public static string Write(string slnPath, params (string Name, string RelativeCsprojPath)[] projects)
     {
+        if (projects.Length > 9)
+        {
+            // The GUID scheme below packs the 1-based index into a single hex digit after a fixed
+            // 7-digit "1111111" prefix; a 10th project would overflow that digit and emit a
+            // malformed (9-hex-digit) GUID segment instead of failing loudly.
+            throw new ArgumentException(
+                $"{nameof(SolutionFileBuilder)} supports at most 9 projects per solution (deterministic single-digit GUID scheme); got {projects.Length}.",
+                nameof(projects));
+        }
+
         var entries = projects
             .Select((p, i) => (
                 Name: p.Name,
