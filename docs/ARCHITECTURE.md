@@ -425,7 +425,13 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    path. Each entry stores a disk fingerprint — last-write-time + length of the `.sln`, every
    `.csproj`, and every document, plus the last-write-time of their containing directories (which
    catches added/removed files) — that is re-stat'd on every load; any mismatch disposes the
-   cached workspace and reloads fresh. Roslyn `Solution` snapshots are immutable, so a cache hit
+   cached workspace and reloads fresh. A bare stat match on its own is not trusted as proof of
+   "unchanged": the fingerprint also decides, once at capture, whether any tracked file/directory's
+   own last write was still fresher than a short window (2s) relative to the capture itself — a
+   fingerprint captured that way forces exactly one more reload before a later stat match is trusted
+   again, closing a same-length-write blind spot a bare timestamp+size comparison alone would miss
+   (issue #235, modeled on git's "racily clean index" handling; the same defect class #233 found in
+   `GuardService`). Roslyn `Solution` snapshots are immutable, so a cache hit
    can never observe another call's in-flight state, and RoselineMCP's own disk writes
    (`ApplyFixes`/`EditMember`/`RenameSymbol`) self-invalidate the entry on the next call. Disable
    with `RoselineMCP:WorkspaceCache = false` (every call then loads a fresh workspace, the

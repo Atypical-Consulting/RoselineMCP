@@ -113,6 +113,16 @@ The application uses a dependency injection-based service architecture with clea
   on disk disposes the cached workspace and reloads fresh, so RoselineMCP's own
   `ApplyFixes`/`EditMember`/`RenameSymbol` writes self-invalidate it. Bounded (4 entries, LRU);
   disable with `RoselineMCP:WorkspaceCache = false` to load a fresh workspace per call.
+  A bare stat match is not on its own trusted as proof of "unchanged": two writes whose length
+  happens to match can produce an identical `(LastWriteTimeUtc, Length)` stamp if they land inside
+  the OS's file-timestamp update granularity — the same defect class #233 found in `GuardService`,
+  and a real trigger here (`rename_symbol` swapping a same-length identifier). Rather than hashing
+  file content, `WorkspaceFingerprint` decides once, at capture, whether any tracked file/directory's
+  own last write was still fresher than a short window (`RacyWindow`, 2 seconds) relative to the
+  capture itself — modeled on git's "racily clean index" handling. A fingerprint captured that way is
+  never trusted on a later stat match and forces exactly one more reload, however long the next call
+  takes to arrive; that reload's own fresh capture settles back to the ordinary cheap stat-only path
+  once the tracked files have genuinely aged past the window (#235).
   ⚠️ That switch is for isolation/debugging only — **it does not save memory**. Measured
   2026-07-25: disposing per call costs +26% resident memory and ~45× second-call latency, because
   a disposed workspace's memory is never returned to the OS. Releasing cached workspaces on idle
