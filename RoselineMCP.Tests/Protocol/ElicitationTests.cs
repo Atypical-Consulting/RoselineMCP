@@ -83,23 +83,40 @@ public class ElicitationTests : IDisposable
     /// assertions from re-implementing the resolution they are supposed to be checking.
     /// </summary>
     /// <remarks>
-    /// Two constraints pull against each other here, which is why this is hand-rolled rather than a
-    /// quoted-run regex. The messages quote other things first ("… the 'delete' of member 'Foo.Bar'
-    /// to disk? … loaded from '&lt;target&gt;'."), so the parser cannot simply
-    /// take the widest quoted span; and a
-    /// resolved path may itself contain an apostrophe — <c>C:\Users\O'Brien\src</c>,
-    /// <c>~/Bob's Projects</c> — so it cannot take the narrowest one either. The opening quote is
-    /// therefore identified as the last one that follows a space (an apostrophe inside a path
-    /// follows a letter), and the closing quote as the last in the message, since every message's
-    /// tail after the target holds none.
+    /// Derived from two invariants rather than guessed at. #173 made the target the LAST thing in
+    /// every sentence, so its <em>closing</em> quote is always the message's last apostrophe — that
+    /// half was already exact. What used to be ambiguous is the <em>opening</em> quote, because a
+    /// resolved path may itself contain an apostrophe (<c>C:\Users\O'Brien\src</c>,
+    /// <c>~/Bob's Projects</c>) and the target is the one value <see cref="WritePrompt.Sanitize"/>
+    /// deliberately does not touch — so it is also the only quoted run that can contain one. Every
+    /// <em>other</em> quoted run in the sentence wraps a <c>Sanitize</c>d caller value, and
+    /// <c>Sanitize</c>'s whitelist admits neither an apostrophe nor a space, so each of those runs is
+    /// a clean, self-contained pair and always contributes an <em>even</em> number of quotes to the
+    /// message — regardless of how many precede the target for a given <see cref="WriteScope"/>
+    /// (zero for <c>apply_fixes</c>, two for <c>edit_member</c> and <c>rename_symbol</c>). That means
+    /// the <em>parity</em> of the message's total quote count says, on its own and without knowing
+    /// the scope or the frame's wording, whether the target's run swallowed one such internal
+    /// apostrophe: an even total means it holds none, so its opening quote is the one immediately
+    /// before the close; an odd total means it holds one, so the real opening quote sits one quote
+    /// further back still. This replaces the old "the opening quote is the last one preceded by a
+    /// space" guess, which read an apostrophe as opening the target's run whenever it happened to
+    /// follow a space too — mis-parsing a target like <c>/repo/x 'y/App.sln</c> into a truncated
+    /// tail (#204).
     /// </remarks>
     private static string TargetFromPrompt(string message)
     {
-        var open = message.LastIndexOf(" '", StringComparison.Ordinal);
         var close = message.LastIndexOf('\'');
-        open.ShouldBeGreaterThanOrEqualTo(0, $"the prompt names no target at all: {message}");
-        close.ShouldBeGreaterThan(open + 1, $"the prompt's target quoting is unbalanced: {message}");
-        return message[(open + 2)..close];
+        close.ShouldBeGreaterThanOrEqualTo(0, $"the prompt names no target at all: {message}");
+
+        var totalQuotes = message.Count(c => c == '\'');
+        var beforeClose = close > 0 ? message.LastIndexOf('\'', close - 1) : -1;
+        var open = totalQuotes % 2 == 0
+            ? beforeClose
+            : (beforeClose > 0 ? message.LastIndexOf('\'', beforeClose - 1) : -1);
+
+        open.ShouldBeGreaterThanOrEqualTo(0, $"the prompt's target quoting is unbalanced: {message}");
+        close.ShouldBeGreaterThan(open, $"the prompt's target quoting is unbalanced: {message}");
+        return message[(open + 1)..close];
     }
 
     /// <summary>
