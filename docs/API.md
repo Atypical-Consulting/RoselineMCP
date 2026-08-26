@@ -706,7 +706,11 @@ tree, e.g. in a git worktree nested inside its main checkout). AppleDouble shado
 are never candidates, at any level or in the bare-name sweep. Local paths
 only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
 solution — the nearest ancestor `.sln` of the resolved `.csproj`; an ancestor directory holding
-more than one `.sln` is refused with the same ambiguity error rather than guessed at — the whole
+more than one `.sln` is refused with the same ambiguity error rather than guessed at, but only when
+the `.csproj` itself was **inferred** (auto-discovery, a bare name, or a directory) — an
+**explicitly-named** `.csproj` path is never refused over that ambiguity: the caller already said
+which project they mean, so it loads standalone instead (the same fallback already used when a
+resolved `.sln` simply doesn't list the project; #213) — the whole
 solution is loaded and symbol search/resolution spans **every project in it** —
 a symbol declared only in a sibling project the requested project doesn't reference (e.g. a Tests
 project) is still found — so cross-project references and renames are complete.

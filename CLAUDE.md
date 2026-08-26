@@ -264,7 +264,11 @@ itself has multiple candidates. AppleDouble shadow files (`._App.sln`, `._App.cs
 leaves beside a file after an exFAT/SMB/zip round-trip) are never candidates, at any level or in the
 bare-name sweep. The containing solution is loaded when present — found by walking up from the
 resolved `.csproj`; an ancestor directory holding more than one `.sln` is refused with the same
-ambiguity error rather than guessed at — and symbol search/resolution spans
+ambiguity error rather than guessed at — but only for an **inferred** target (auto-discovery, a bare
+name, or a directory). An **explicitly-named** `.csproj` path never fails over that ambiguity: the
+caller already said which project they mean, so `LoadAsync` degrades to loading it standalone (the
+same fallback already used when a resolved `.sln` simply doesn't list the project) instead of
+refusing the call (#213) — and symbol search/resolution spans
 every project in it — a symbol declared only in a sibling project the anchor doesn't reference
 (e.g. the Tests project) is still found, and references/renames span projects.
 
