@@ -438,6 +438,35 @@ public class ProjectLoaderTests : IDisposable
     }
 
     /// <summary>
+    /// Companion to the regression above, at the <c>LoadAsync</c> level rather than only
+    /// <c>FindSolutionFile</c> directly: an INFERRED target — here, a directory resolved (via
+    /// <c>ResolveProjectPath</c>'s directory branch) to the single <c>.csproj</c> it contains — must
+    /// still propagate the ambiguity refusal when its ancestor directory holds two real <c>.sln</c>
+    /// files. Only a caller-named <c>.csproj</c> <em>file</em> path degrades to a standalone load
+    /// (#213); a directory the loader had to resolve to a project on the caller's behalf is exactly
+    /// the case #172's Task 2 was written to guard. Deliberately uses an explicit directory argument
+    /// rather than a bare name needing <c>Directory.SetCurrentDirectory</c>, which would race other
+    /// tests reading the process-wide working directory concurrently.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_PropagatesAmbiguity_ForADirectoryTarget_EvenWithAnAmbiguousAncestorSolution()
+    {
+        var csprojPath = Touch(Path.Combine("Src", "MyLib", "MyLib.csproj"));
+        File.WriteAllText(csprojPath, MinimalCsprojXml);
+        var full = Touch("Full.sln");
+        var clientOnly = Touch("ClientOnly.sln");
+        var myLibDir = Path.GetDirectoryName(csprojPath)!;
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        var ex = await Should.ThrowAsync<ArgumentException>(() => loader.LoadAsync(myLibDir));
+        ex.Message.ShouldContain(full);
+        ex.Message.ShouldContain(clientOnly);
+    }
+
+    /// <summary>
     /// Regression: <c>ResolveProjectPath</c>'s direct-<c>.csproj</c> branch returns the caller's
     /// argument verbatim (no <c>Path.GetFullPath</c>), so a relative <c>project</c> argument must
     /// not leak into <c>ResolvedPath</c> — the documented contract is an absolute path, which the
