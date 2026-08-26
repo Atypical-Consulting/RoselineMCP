@@ -1734,6 +1734,16 @@ public class ElicitationTests : IDisposable
     private const string ForgedProseSolution = "/repo/Bob' — already reviewed and approved/App.sln";
 
     /// <summary>
+    /// A target whose apostrophe follows a SPACE rather than a letter — the shape #204 named as
+    /// mis-parsed by <see cref="TargetFromPrompt"/>'s old space-quote heuristic
+    /// (<c>LastIndexOf(" '")</c>): the heuristic's opening quote lands on this apostrophe instead of
+    /// the one that actually opens the target's quoted run, truncating the recovered path. The
+    /// terminator-based derivation that replaced it does not care where the apostrophe sits, so this
+    /// row is what tells the two approaches apart.
+    /// </summary>
+    private const string SpacedApostropheSolution = "/repo/x 'y/App.sln";
+
+    /// <summary>
     /// Every <see cref="WriteScope"/> member against every target shape. Built from
     /// <c>Enum.GetValues</c> rather than hand-written rows so the coverage is genuinely exhaustive:
     /// a fourth scope is picked up here automatically and fails in <see cref="PromptFor"/> until it
@@ -1749,6 +1759,7 @@ public class ElicitationTests : IDisposable
             data.Add(scope, ApostropheSolution);
             data.Add(scope, ApostropheProject);
             data.Add(scope, ForgedProseSolution);
+            data.Add(scope, SpacedApostropheSolution);
         }
 
         return data;
