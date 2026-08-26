@@ -60,7 +60,7 @@ public class ProjectLoader : IProjectLoader
                 {
                     solutionPath = FindSolutionFile(targetPath);
                 }
-                catch (ArgumentException) when (IsExplicitCsprojPath(project))
+                catch (AmbiguousSolutionException) when (IsExplicitCsprojPath(project))
                 {
                     // The caller named this exact project — there is nothing to guess about WHICH
                     // project they mean, only which solution to wrap it in for cross-project
@@ -69,6 +69,11 @@ public class ProjectLoader : IProjectLoader
                     // whole call over an ambiguity the caller's own request already settled. Every
                     // INFERRED target (auto-discovery, a bare name, a directory) still propagates —
                     // guessing between ambiguous solutions there is the actual bug #172 fixed. See #213.
+                    //
+                    // Catches the dedicated AmbiguousSolutionException, not a bare ArgumentException:
+                    // anything else in FindSolutionFile's call chain that happens to throw
+                    // ArgumentException (e.g. a hypothetical Directory.GetParent failure) must still
+                    // propagate instead of being silently reinterpreted as this case. See #226.
                     solutionPath = null;
                 }
 
@@ -546,11 +551,13 @@ public class ProjectLoader : IProjectLoader
     /// Walks from <paramref name="startPath"/> up through its ancestors looking for a <c>.sln</c>.
     /// An unreadable rung is skipped, not fatal: <see cref="Directory.GetParent(string)"/> needs no
     /// read permission on the child it is leaving, so the climb continues past it. A rung holding
-    /// MORE than one solution is refused with the same <see cref="ArgumentException"/>
-    /// <see cref="FindNearest"/> raises: which of two solutions to open a project through is not a
-    /// guess this walk gets to make, and "whichever the OS listed first" — what <c>slnFiles[0]</c>
-    /// used to answer — is exactly that guess. Shadows are filtered by <see cref="IncidentalFiles"/>
-    /// before the count, so they neither win a rung nor make a real pair look like three.
+    /// MORE than one solution is refused with the dedicated <see cref="AmbiguousSolutionException"/>
+    /// (a subtype of <see cref="ArgumentException"/>, so it still satisfies the same contract
+    /// <see cref="FindNearest"/>'s callers rely on): which of two solutions to open a project
+    /// through is not a guess this walk gets to make, and "whichever the OS listed first" — what
+    /// <c>slnFiles[0]</c> used to answer — is exactly that guess. Shadows are filtered by
+    /// <see cref="IncidentalFiles"/> before the count, so they neither win a rung nor make a real
+    /// pair look like three.
     /// </summary>
     private static string? FindSolutionFile(string startPath)
     {
@@ -566,7 +573,7 @@ public class ProjectLoader : IProjectLoader
 
             if (candidates.Count > 1)
             {
-                throw new ArgumentException(
+                throw new AmbiguousSolutionException(
                     BuildAmbiguityMessage("solution (.sln)", candidates, $"above '{startPath}'"));
             }
 
@@ -575,4 +582,18 @@ public class ProjectLoader : IProjectLoader
 
         return null;
     }
+
+    /// <summary>
+    /// Signals precisely the "ancestor walk found more than one <c>.sln</c>" outcome from
+    /// <see cref="FindSolutionFile"/> — the one case <see cref="LoadAsync"/>'s explicit-<c>.csproj</c>
+    /// fallback degrades to a standalone project load for (see #213). A subtype of
+    /// <see cref="ArgumentException"/>, so every existing caller that catches or propagates the
+    /// ambiguity refusal as an <see cref="ArgumentException"/> keeps working unchanged — but narrow
+    /// enough that the fallback's catch clause can react to this outcome specifically, instead of
+    /// any <see cref="ArgumentException"/> that happens to propagate from the same call chain (e.g.
+    /// a hypothetical <see cref="Directory.GetParent(string)"/> failure) being silently
+    /// reinterpreted as the ambiguity case (see #226). Private to <see cref="ProjectLoader"/> —
+    /// not part of any public contract.
+    /// </summary>
+    private sealed class AmbiguousSolutionException(string message) : ArgumentException(message);
 }

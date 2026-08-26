@@ -777,6 +777,34 @@ public class ProjectLoaderTests : IDisposable
         ex.Message.ShouldContain(b);
     }
 
+    /// <summary>
+    /// Regression for #226: <c>FindSolutionFile</c>'s ambiguity refusal is a dedicated, private
+    /// exception type — not a bare <see cref="ArgumentException"/> — so <c>LoadAsync</c>'s
+    /// explicit-<c>.csproj</c> fallback (<c>catch (AmbiguousSolutionException) when (...)</c>) can
+    /// react to this outcome specifically. It is still an <see cref="ArgumentException"/> subtype
+    /// (so this test, and every #213/#218 caller that catches or propagates it as one, keeps
+    /// working), but it is not the base <see cref="ArgumentException"/> type itself, and an
+    /// unrelated <see cref="ArgumentException"/> instance — standing in for anything else in
+    /// <c>FindSolutionFile</c>'s call chain that happens to throw one, e.g. a hypothetical
+    /// <see cref="Directory.GetParent(string)"/> failure — is not an instance of it either. Before
+    /// this fix, the fallback caught bare <see cref="ArgumentException"/>, so any such unrelated
+    /// instance would have been silently reinterpreted as the ambiguity case instead of propagating.
+    /// </summary>
+    [Fact]
+    public void FindSolutionFile_ThrowsADedicatedAmbiguitySignal_NotMatchedByAnUnrelatedArgumentException()
+    {
+        var a = Touch("A.sln");
+        var b = Touch("B.sln");
+        var csproj = Touch(Path.Combine("Src", "App.csproj"));
+
+        var ambiguity = Should.Throw<ArgumentException>(() => FindSolutionFile(csproj));
+        var signalType = ambiguity.GetType();
+
+        signalType.ShouldNotBe(typeof(ArgumentException));
+        signalType.IsInstanceOfType(new ArgumentException("unrelated failure, unconnected to the ambiguous walk"))
+            .ShouldBeFalse();
+    }
+
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
     [Fact]
     public void ResolvedPath_FallsBackToTheProjectFile_WhenTheSolutionHasNoPath()
