@@ -34,7 +34,9 @@ public class ProjectLoaderTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_root, true); }
+        catch { /* ignored */ }
     }
 
     /// <summary>Invokes the private static <c>ResolveTargetPath</c>, unwrapping reflection's exception wrapper.</summary>
@@ -293,30 +295,7 @@ public class ProjectLoaderTests : IDisposable
         File.WriteAllText(Path.Combine(projectDir, "App.csproj"), MinimalCsprojXml);
         File.WriteAllText(Path.Combine(projectDir, "Widget.cs"), "namespace App { public class Widget { } }");
 
-        var slnPath = Path.Combine(_baseDir, "App.sln");
-        File.WriteAllText(slnPath,
-            """
-            Microsoft Visual Studio Solution File, Format Version 12.00
-            # Visual Studio Version 17
-            VisualStudioVersion = 17.0.31903.59
-            MinimumVisualStudioVersion = 10.0.40219.1
-            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
-            EndProject
-            Global
-            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-            		Debug|Any CPU = Debug|Any CPU
-            		Release|Any CPU = Release|Any CPU
-            	EndGlobalSection
-            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Debug|Any CPU.Build.0 = Debug|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.ActiveCfg = Release|Any CPU
-            		{11111111-1111-1111-1111-111111111111}.Release|Any CPU.Build.0 = Release|Any CPU
-            	EndGlobalSection
-            EndGlobal
-            """);
-
-        return slnPath;
+        return SolutionFileBuilder.Write(Path.Combine(_baseDir, "App.sln"), "App");
     }
 
     /// <summary>
@@ -339,28 +318,7 @@ public class ProjectLoaderTests : IDisposable
         File.WriteAllText(scratchCsprojPath, MinimalCsprojXml);
         File.WriteAllText(Path.Combine(scratchDir, "ScratchWidget.cs"), "namespace Scratch { public class ScratchWidget { } }");
 
-        var slnPath = Path.Combine(_baseDir, "Repo.sln");
-        File.WriteAllText(slnPath,
-            """
-            Microsoft Visual Studio Solution File, Format Version 12.00
-            # Visual Studio Version 17
-            VisualStudioVersion = 17.0.31903.59
-            MinimumVisualStudioVersion = 10.0.40219.1
-            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Main", "Main\Main.csproj", "{22222222-2222-2222-2222-222222222222}"
-            EndProject
-            Global
-            	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-            		Debug|Any CPU = Debug|Any CPU
-            		Release|Any CPU = Release|Any CPU
-            	EndGlobalSection
-            	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-            		{22222222-2222-2222-2222-222222222222}.Debug|Any CPU.Build.0 = Debug|Any CPU
-            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.ActiveCfg = Release|Any CPU
-            		{22222222-2222-2222-2222-222222222222}.Release|Any CPU.Build.0 = Release|Any CPU
-            	EndGlobalSection
-            EndGlobal
-            """);
+        var slnPath = SolutionFileBuilder.Write(Path.Combine(_baseDir, "Repo.sln"), "Main");
 
         return (slnPath, mainCsprojPath, scratchCsprojPath);
     }
@@ -409,6 +367,61 @@ public class ProjectLoaderTests : IDisposable
 
         loaded.Project.Name.ShouldBe("Main");
         loaded.ResolvedPath.ShouldBe(slnPath);
+    }
+
+    /// <summary>
+    /// Regression for #213: an explicitly-named <c>.csproj</c> must not fail to load merely because
+    /// some ancestor directory holds two real, unrelated <c>.sln</c> files. The caller already named
+    /// the exact project — only its solution context is ambiguous, not the project itself — so
+    /// <c>LoadAsync</c> degrades to the same standalone-project fallback it already takes when a
+    /// resolved <c>.sln</c> simply doesn't list the target project, rather than propagating
+    /// <c>FindSolutionFile</c>'s ambiguity refusal.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_FallsBackToStandalone_WhenAnExplicitCsprojHitsAnAmbiguousAncestorSolution()
+    {
+        var csprojPath = Touch(Path.Combine("Src", "MyLib", "MyLib.csproj"));
+        File.WriteAllText(csprojPath, MinimalCsprojXml);
+        Touch("Full.sln");
+        Touch("ClientOnly.sln");
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(csprojPath);
+
+        loaded.Project.Name.ShouldBe("MyLib");
+        loaded.ResolvedPath.ShouldBe(csprojPath);
+    }
+
+    /// <summary>
+    /// Companion to the regression above, at the <c>LoadAsync</c> level rather than only
+    /// <c>FindSolutionFile</c> directly: an INFERRED target — here, a directory resolved (via
+    /// <c>ResolveProjectPath</c>'s directory branch) to the single <c>.csproj</c> it contains — must
+    /// still propagate the ambiguity refusal when its ancestor directory holds two real <c>.sln</c>
+    /// files. Only a caller-named <c>.csproj</c> <em>file</em> path degrades to a standalone load
+    /// (#213); a directory the loader had to resolve to a project on the caller's behalf is exactly
+    /// the case #172's Task 2 was written to guard. Deliberately uses an explicit directory argument
+    /// rather than a bare name needing <c>Directory.SetCurrentDirectory</c>, which would race other
+    /// tests reading the process-wide working directory concurrently.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_PropagatesAmbiguity_ForADirectoryTarget_EvenWithAnAmbiguousAncestorSolution()
+    {
+        var csprojPath = Touch(Path.Combine("Src", "MyLib", "MyLib.csproj"));
+        File.WriteAllText(csprojPath, MinimalCsprojXml);
+        var full = Touch("Full.sln");
+        var clientOnly = Touch("ClientOnly.sln");
+        var myLibDir = Path.GetDirectoryName(csprojPath)!;
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        var ex = await Should.ThrowAsync<ArgumentException>(() => loader.LoadAsync(myLibDir));
+        ex.Message.ShouldContain(full);
+        ex.Message.ShouldContain(clientOnly);
     }
 
     /// <summary>
@@ -587,6 +600,76 @@ public class ProjectLoaderTests : IDisposable
     }
 
     /// <summary>
+    /// The pin that keeps dot-<em>directories</em> discoverable (<c>AttributesToSkip = 0</c>, the
+    /// test above) un-hides dot-prefixed <em>files</em> just the same. macOS writes an AppleDouble
+    /// shadow (<c>._App.sln</c>) beside a file whenever a tree passes through a filesystem without
+    /// native extended attributes — exFAT, SMB, some zip tools — and #158 turned that shadow into a
+    /// second "solution": a repository that resolved cleanly became ambiguous. A shadow is never a
+    /// candidate, so the real file resolves alone. Deliberately cross-platform: on Windows nothing
+    /// ever hid the shadow by attribute, so the name is the only thing there is to filter on.
+    /// </summary>
+    [Fact]
+    public void AutoDiscover_IgnoresAnAppleDoubleShadow_BesideTheRealSolution()
+    {
+        var sln = Touch("App.sln");
+        Touch("._App.sln");
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(sln);
+    }
+
+    /// <summary>The same shadow beside a project, on auto-discovery's <c>.csproj</c> fallback.</summary>
+    [Fact]
+    public void AutoDiscover_IgnoresAnAppleDoubleShadow_BesideTheRealProject()
+    {
+        var csproj = Touch("App.csproj");
+        Touch("._App.csproj");
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(csproj);
+    }
+
+    /// <summary>
+    /// A shadow with no real file beside it is not a candidate either: the level reads as empty
+    /// and discovery reports nothing found, rather than handing MSBuild a resource fork to open.
+    /// </summary>
+    [Fact]
+    public void AutoDiscover_AnAppleDoubleShadowAlone_IsNothingFound()
+    {
+        Touch("._App.sln");
+
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+        ex.Message.ShouldContain("Could not auto-discover");
+    }
+
+    /// <summary>
+    /// Shadows are filtered <em>before</em> the ambiguity check, so a genuinely ambiguous level
+    /// lists only the real candidates — the message is what the caller acts on.
+    /// </summary>
+    [Fact]
+    public void AutoDiscover_AmbiguityMessage_ListsRealCandidatesOnly_NeverShadows()
+    {
+        var a = Touch("A.sln");
+        var b = Touch("B.sln");
+        Touch("._A.sln");
+
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+        ex.Message.ShouldContain(a);
+        ex.Message.ShouldContain(b);
+        ex.Message.ShouldNotContain("._A.sln");
+    }
+
+    /// <summary>
+    /// The bare-name sweep is filtered the same way: a shadow never resolves, even when the name
+    /// asked for is spelled to match it exactly.
+    /// </summary>
+    [Fact]
+    public void RecursiveSweep_NeverResolvesToAnAppleDoubleShadow()
+    {
+        Touch(Path.Combine("Src", "._Acme.csproj"));
+
+        Should.Throw<FileNotFoundException>(() => ResolveTargetPath("._Acme", _baseDir));
+    }
+
+    /// <summary>
     /// Auto-discovery's final level — the base directory's immediate subdirectories — must not
     /// abort over one it cannot read. An unreadable sibling here has nothing to do with the
     /// request; a readable subdirectory holding the only <c>.sln</c> must still resolve.
@@ -658,6 +741,40 @@ public class ProjectLoaderTests : IDisposable
         using var _ = new LockedDirectory(intermediateDir);
 
         FindSolutionFile(csproj).ShouldBe(sln);
+    }
+
+    /// <summary>
+    /// The ancestor walk reads the same directories as auto-discovery and is filtered the same
+    /// way: an AppleDouble shadow beside the real solution is never the file handed to
+    /// <c>OpenSolutionAsync</c>. Dot-prefixed names often list first, so the shadow was exactly
+    /// what <c>slnFiles[0]</c> tended to return — a failure about a resource fork, on a call that
+    /// never asked about one.
+    /// </summary>
+    [Fact]
+    public void FindSolutionFile_IgnoresAnAppleDoubleShadow_BesideTheRealSolution()
+    {
+        var sln = Touch("App.sln");
+        Touch("._App.sln");
+        var csproj = Touch(Path.Combine("Src", "App.csproj"));
+
+        FindSolutionFile(csproj).ShouldBe(sln);
+    }
+
+    /// <summary>
+    /// Two real solutions on one rung is the ambiguity auto-discovery already refuses; the walk
+    /// refuses it the same way instead of silently taking whichever the OS listed first. The
+    /// message names both, so the caller can pass the one they meant.
+    /// </summary>
+    [Fact]
+    public void FindSolutionFile_RefusesAnAmbiguousDirectory_InsteadOfGuessing()
+    {
+        var a = Touch("A.sln");
+        var b = Touch("B.sln");
+        var csproj = Touch(Path.Combine("Src", "App.csproj"));
+
+        var ex = Should.Throw<ArgumentException>(() => FindSolutionFile(csproj));
+        ex.Message.ShouldContain(a);
+        ex.Message.ShouldContain(b);
     }
 
     /// <summary>Falls back to the primary project's <c>.csproj</c> when no <c>.sln</c> was loaded.</summary>
