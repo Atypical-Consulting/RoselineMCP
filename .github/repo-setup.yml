@@ -109,3 +109,9 @@ settings:
   allow_squash_merge: true
   allow_merge_commit: false
   allow_rebase_merge: false
+  # PR_TITLE (not the default COMMIT_OR_PR_TITLE) so the reviewed PR title is always what lands on
+  # `dev`, regardless of how many commits the PR carries — COMMIT_OR_PR_TITLE falls back to the
+  # sole commit's message on a single-commit PR, which release-please may not be able to parse
+  # (#164). The `PR title` workflow (.github/workflows/pr-title.yml) enforces that the title itself
+  # is a Conventional Commit; this setting is what makes that title the one that ships.
+  squash_merge_commit_title: PR_TITLE

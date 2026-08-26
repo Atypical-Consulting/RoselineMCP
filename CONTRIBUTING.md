@@ -101,11 +101,13 @@ dotnet test
    Follow commit message conventions. **These are not cosmetic:** the repository squash-merges, so
    your PR title becomes the commit on `dev`, and release-please parses it to decide the next
    version *and* which changelog section the change appears under. A title without a type produces
-   no changelog entry at all.
+   no changelog entry at all — and this is enforced, not conventional: the `PR title` workflow
+   (`.github/workflows/pr-title.yml`) fails the PR outright if its title doesn't match the type
+   table below.
 
-   ⚠️ **If your PR has exactly one commit, that commit's message is used instead of the PR title**
-   (the repo's squash setting is `COMMIT_OR_PR_TITLE`). So write the *commit* conventionally too —
-   a lone `wip` commit under a `feat: …` PR title lands on `dev` as `wip`, and nothing fails.
+   It is the PR title itself that always lands: `squash_merge_commit_title` is `PR_TITLE`, so the
+   reviewed title is what release-please parses regardless of how many commits the PR has — an
+   individual commit's message (e.g. a `wip` you never got around to cleaning up) is never used.
 
    | Type | Version bump | Changelog section |
    |------|--------------|-------------------|
