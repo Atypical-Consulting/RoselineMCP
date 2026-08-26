@@ -412,6 +412,32 @@ public class ProjectLoaderTests : IDisposable
     }
 
     /// <summary>
+    /// Regression for #213: an explicitly-named <c>.csproj</c> must not fail to load merely because
+    /// some ancestor directory holds two real, unrelated <c>.sln</c> files. The caller already named
+    /// the exact project — only its solution context is ambiguous, not the project itself — so
+    /// <c>LoadAsync</c> degrades to the same standalone-project fallback it already takes when a
+    /// resolved <c>.sln</c> simply doesn't list the target project, rather than propagating
+    /// <c>FindSolutionFile</c>'s ambiguity refusal.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_FallsBackToStandalone_WhenAnExplicitCsprojHitsAnAmbiguousAncestorSolution()
+    {
+        var csprojPath = Touch(Path.Combine("Src", "MyLib", "MyLib.csproj"));
+        File.WriteAllText(csprojPath, MinimalCsprojXml);
+        Touch("Full.sln");
+        Touch("ClientOnly.sln");
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(csprojPath);
+
+        loaded.Project.Name.ShouldBe("MyLib");
+        loaded.ResolvedPath.ShouldBe(csprojPath);
+    }
+
+    /// <summary>
     /// Regression: <c>ResolveProjectPath</c>'s direct-<c>.csproj</c> branch returns the caller's
     /// argument verbatim (no <c>Path.GetFullPath</c>), so a relative <c>project</c> argument must
     /// not leak into <c>ResolvedPath</c> — the documented contract is an absolute path, which the
