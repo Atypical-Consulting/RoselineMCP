@@ -59,7 +59,7 @@ public class GuardServiceTests : IDisposable
     /// second time.
     /// </summary>
     private static Task WaitForEntered(CountingVerificationService counting, string label) =>
-        AsyncWaitHelpers.WaitForSignal(counting.Entered, EnteredWaitTimeout, label);
+        AsyncWaitHelpers.WaitForSignal(counting.Entered, EnteredWaitTimeout, label, "enter VerifyAsync");
 
     /// <summary>
     /// Builds a one-project solution whose document paths point at real files on disk, writes those

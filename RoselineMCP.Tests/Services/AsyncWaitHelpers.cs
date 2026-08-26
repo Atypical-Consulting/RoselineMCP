@@ -16,13 +16,16 @@ internal static class AsyncWaitHelpers
     /// <summary>
     /// Awaits <paramref name="signal"/> up to <paramref name="timeout"/> and asserts it completed.
     /// For a bare hang-guard on a signal task whose result is not needed — e.g. "did this
-    /// background continuation get scheduled".
+    /// background continuation get scheduled". <paramref name="verb"/> names what the signal was
+    /// waited on to do (default <c>"complete"</c>) — e.g. <c>"enter VerifyAsync"</c> — so the
+    /// failure message stays as precise as a call site's own hand-written wait was, rather than
+    /// genericizing every caller's diagnostic to the same word.
     /// </summary>
-    public static async Task WaitForSignal(Task signal, TimeSpan timeout, string label)
+    public static async Task WaitForSignal(Task signal, TimeSpan timeout, string label, string verb = "complete")
     {
         await Task.WhenAny(signal, Task.Delay(timeout));
         signal.IsCompleted.ShouldBeTrue(
-            $"{label} did not complete within {timeout} — this is a scheduling-latency safety " +
+            $"{label} did not {verb} within {timeout} — this is a scheduling-latency safety " +
             "net, not the test's real assertion; if this trips repeatedly under CI load, raise " +
             "the timeout further before suspecting a real regression.");
     }
