@@ -425,7 +425,19 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    path. Each entry stores a disk fingerprint — last-write-time + length of the `.sln`, every
    `.csproj`, and every document, plus the last-write-time of their containing directories (which
    catches added/removed files) — that is re-stat'd on every load; any mismatch disposes the
-   cached workspace and reloads fresh. Roslyn `Solution` snapshots are immutable, so a cache hit
+   cached workspace and reloads fresh. A bare stat match on its own is not trusted as proof of
+   "unchanged": each stamp — per file/directory, not the fingerprint as a whole — decides for
+   itself, once at capture, whether its own last write was still fresher than a short window (2s)
+   relative to the capture itself (modeled on git's "racily clean index" handling), and only a
+   stamp captured that way also records a content signature (a file's SHA-256; a directory's sorted
+   listing). A later check trusts a bare stat match for every stamp captured outside the window,
+   exactly as before, and falls back to comparing that signature for the rare stamp captured inside
+   it — cheap (one small file, not a full workspace reload) and, unlike forcing a reload on every
+   check for as long as the file stays inside the window, it terminates rather than cascades: a
+   matching signature is a genuine cache hit, so a burst of calls right after a write pays exactly
+   one reload, not one per call, closing a same-length-write blind spot a bare timestamp+size
+   comparison alone would miss (issue #235, the same defect class #233 found in `GuardService`).
+   Roslyn `Solution` snapshots are immutable, so a cache hit
    can never observe another call's in-flight state, and RoselineMCP's own disk writes
    (`ApplyFixes`/`EditMember`/`RenameSymbol`) self-invalidate the entry on the next call. Disable
    with `RoselineMCP:WorkspaceCache = false` (every call then loads a fresh workspace, the

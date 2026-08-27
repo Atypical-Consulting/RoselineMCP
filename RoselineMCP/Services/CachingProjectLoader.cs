@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,6 +23,23 @@ namespace RoselineMCP.Services;
 /// workspace and reloads fresh. This also self-invalidates after RoselineMCP's own
 /// <c>ApplyFixes</c>/<c>EditMember</c>/<c>RenameSymbol</c> disk writes.
 ///
+/// A bare stat match is not, by itself, proof that nothing changed: two writes whose length happens
+/// to match can produce an identical <c>(LastWriteTimeUtc, Length)</c> stamp if they land inside the
+/// OS's file-timestamp update granularity (issue #235, the same defect class #233 found in
+/// <c>GuardService</c>) — a same-length <c>rename_symbol</c> is the realistic trigger. Rather than
+/// hashing every document on every load (the steady-state cost the stat-only fast path exists to
+/// avoid), each tracked file/directory stamp decides for itself, once at capture, whether its own
+/// last write was still fresher than a short window relative to the capture itself — modeled on
+/// git's "racily clean index" handling — and only a stamp captured that way also records a content
+/// signature (a file's hash; a directory's sorted listing). A later check trusts a bare stat match
+/// for every stamp captured outside the window, exactly as before, and falls back to comparing that
+/// signature for the rare stamp captured inside it — cheap (one small file, not a full workspace
+/// reload) and, unlike forcing a reload on every check for as long as the file stays inside the
+/// window, terminates rather than cascades: a matching signature is a genuine cache hit, so a burst
+/// of calls right after a write (the common `rename_symbol` → `check_compilation` sequence) pays
+/// exactly one reload — for the write itself — not one per call. See
+/// <see cref="WorkspaceFingerprint.FileStamp"/> and <see cref="WorkspaceFingerprint.DirectoryStamp"/>.
+///
 /// The cache is bounded (<see cref="MaxEntries"/> entries, least-recently-used eviction, evicted
 /// workspaces disposed) and guarded by a <see cref="SemaphoreSlim"/>. Handles returned from the
 /// cache do not own the shared workspace (<c>ownsWorkspace: false</c>), so disposing them — as all
@@ -41,6 +59,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     private readonly ILogger<CachingProjectLoader> _logger;
     private readonly bool _enabled;
     private readonly Func<string?, string> _resolveCacheKey;
+    private readonly Func<DateTime> _utcNow;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, CacheEntry> _entries;
     private long _accessCounter;
@@ -55,17 +74,24 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     /// loader's own resolution (<see cref="ProjectLoader.ResolveTargetPath"/> against the current
     /// working directory).
     /// </param>
+    /// <param name="utcNowProvider">
+    /// Test seam: the clock used to stamp each <see cref="WorkspaceFingerprint"/> capture and decide
+    /// its raciness (see the class's own remarks and issue #235). Defaults to
+    /// <see cref="DateTime.UtcNow"/>.
+    /// </param>
     public CachingProjectLoader(
         IProjectLoader inner,
         IOptions<RoselineMcpOptions> options,
         ILogger<CachingProjectLoader> logger,
-        Func<string?, string>? resolveCacheKey = null)
+        Func<string?, string>? resolveCacheKey = null,
+        Func<DateTime>? utcNowProvider = null)
     {
         _inner = inner;
         _logger = logger;
         _enabled = options.Value.WorkspaceCache;
         _resolveCacheKey = resolveCacheKey
             ?? (project => ProjectLoader.ResolveTargetPath(project, Directory.GetCurrentDirectory()));
+        _utcNow = utcNowProvider ?? (() => DateTime.UtcNow);
         _entries = new Dictionary<string, CacheEntry>(PathComparer);
     }
 
@@ -127,7 +153,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             }
 
             var loaded = await _inner.LoadAsync(project, cancellationToken);
-            var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution);
+            var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution, _utcNow());
 
             EvictLeastRecentlyUsedIfFull();
             _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, loaded.TargetPath, fingerprint)
@@ -223,6 +249,15 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     /// </summary>
     internal sealed class WorkspaceFingerprint
     {
+        /// <summary>
+        /// How close a tracked file/directory's own last write may be to the moment its stamp is
+        /// captured before that stamp is flagged racy and grows a content signature (see
+        /// <see cref="FileStamp"/>/<see cref="DirectoryStamp"/>). 2 seconds is comfortably above
+        /// NTFS's measured ~15.6&#160;ms granularity (#233) and FAT32/exFAT's documented ~2&#160;s
+        /// granularity, with margin for network filesystems.
+        /// </summary>
+        private static readonly TimeSpan RacyWindow = TimeSpan.FromSeconds(2);
+
         private readonly List<FileStamp> _files;
         private readonly List<DirectoryStamp> _directories;
 
@@ -232,8 +267,16 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             _directories = directories;
         }
 
-        /// <summary>Captures the fingerprint for <paramref name="solution"/> as currently on disk.</summary>
-        public static WorkspaceFingerprint Capture(string targetPath, Solution solution)
+        /// <summary>
+        /// Captures the fingerprint for <paramref name="solution"/> as currently on disk.
+        /// </summary>
+        /// <param name="capturedAtUtc">
+        /// The wall-clock time of this capture, used to decide whether any tracked file/directory's
+        /// own last write was still fresh relative to capture itself — a stamp captured that way also
+        /// records a content signature (see <see cref="FileStamp"/>/<see cref="DirectoryStamp"/>'s own
+        /// remarks and issue #235) so a later check has real evidence instead of a fresh suspicion.
+        /// </param>
+        public static WorkspaceFingerprint Capture(string targetPath, Solution solution, DateTime capturedAtUtc)
         {
             var paths = new HashSet<string>(PathComparer) { targetPath };
 
@@ -268,17 +311,20 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
                 }
             }
 
-            return new WorkspaceFingerprint(
-                paths.Select(FileStamp.Capture).ToList(),
-                directories.Select(DirectoryStamp.Capture).ToList());
+            var fileStamps = paths.Select(path => FileStamp.Capture(path, capturedAtUtc)).ToList();
+            var directoryStamps = directories.Select(path => DirectoryStamp.Capture(path, capturedAtUtc)).ToList();
+
+            return new WorkspaceFingerprint(fileStamps, directoryStamps);
         }
 
-        /// <summary>Re-stats every tracked file/directory; <see langword="false"/> means stale.</summary>
+        /// <summary>
+        /// Re-stats every tracked file/directory; <see langword="false"/> means stale.
+        /// </summary>
         public bool IsCurrent()
         {
             foreach (var stamp in _files)
             {
-                if (FileStamp.Capture(stamp.Path) != stamp)
+                if (!stamp.IsStillCurrent())
                 {
                     return false;
                 }
@@ -286,7 +332,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
 
             foreach (var stamp in _directories)
             {
-                if (DirectoryStamp.Capture(stamp.Path) != stamp)
+                if (!stamp.IsStillCurrent())
                 {
                     return false;
                 }
@@ -295,25 +341,144 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             return true;
         }
 
-        private readonly record struct FileStamp(string Path, bool Exists, DateTime LastWriteTimeUtc, long Length)
+        /// <summary>
+        /// A tracked file's stamp. <c>(LastWriteTimeUtc, Length)</c> alone cannot tell "unchanged"
+        /// apart from "changed again inside the same OS timestamp-granularity bucket" for a file
+        /// whose write was already that fresh when this stamp was captured (issue #235, the same
+        /// defect class #233 found in <c>GuardService</c>) — so a stamp captured while the file's own
+        /// last write was still fresher than <see cref="RacyWindow"/> relative to the capture also
+        /// records a <see cref="ContentHash"/>, and <see cref="IsStillCurrent"/> falls back to it
+        /// instead of trusting a bare stat match. A stamp captured outside the window never computes
+        /// or checks a hash — the steady-state, by-far-common case stays exactly as cheap as a plain
+        /// stat comparison.
+        /// </summary>
+        private readonly record struct FileStamp(string Path, bool Exists, DateTime LastWriteTimeUtc, long Length, string? ContentHash)
         {
-            public static FileStamp Capture(string path)
+            public static FileStamp Capture(string path, DateTime capturedAtUtc)
             {
                 var info = new FileInfo(path);
-                return info.Exists
-                    ? new FileStamp(path, true, info.LastWriteTimeUtc, info.Length)
-                    : new FileStamp(path, false, default, 0);
+                if (!info.Exists)
+                {
+                    return new FileStamp(path, false, default, 0, null);
+                }
+
+                var isRacy = capturedAtUtc - info.LastWriteTimeUtc < RacyWindow;
+                return new FileStamp(path, true, info.LastWriteTimeUtc, info.Length, isRacy ? Hash(path) : null);
+            }
+
+            /// <summary>
+            /// True when the file on disk still matches this stamp. A stamp captured non-racy
+            /// (<see cref="ContentHash"/> is <see langword="null"/>) trusts an exact stat match, as
+            /// before. A stamp captured racy re-hashes the current file and compares — cheap (one
+            /// small file, not a full workspace reload) and, unlike forcing a reload on every check
+            /// for as long as the file stays inside the window, terminates rather than cascades: once
+            /// the hash matches, the entry is a genuine cache hit and nothing re-triggers on the next
+            /// call.
+            /// </summary>
+            public bool IsStillCurrent()
+            {
+                var info = new FileInfo(Path);
+                if (info.Exists != Exists)
+                {
+                    return false;
+                }
+
+                if (!Exists)
+                {
+                    return true;
+                }
+
+                if (info.LastWriteTimeUtc != LastWriteTimeUtc || info.Length != Length)
+                {
+                    return false;
+                }
+
+                return ContentHash is null || ContentHash == Hash(Path);
+            }
+
+            /// <summary>
+            /// SHA-256 of the file's current bytes, hex-encoded. A read failure (deleted/locked
+            /// between the <see cref="FileInfo"/> check and this read) is treated as "changed" —
+            /// safe by construction, since <see cref="IsStillCurrent"/> only ever compares this
+            /// against another call to the same method, never against a stat-only value.
+            /// </summary>
+            private static string Hash(string path)
+            {
+                try
+                {
+                    using var stream = File.OpenRead(path);
+                    return Convert.ToHexString(SHA256.HashData(stream));
+                }
+                catch (IOException)
+                {
+                    return Guid.NewGuid().ToString("N");
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return Guid.NewGuid().ToString("N");
+                }
             }
         }
 
-        private readonly record struct DirectoryStamp(string Path, bool Exists, DateTime LastWriteTimeUtc)
+        /// <summary>
+        /// A tracked directory's stamp. Mirrors <see cref="FileStamp"/>'s racy handling: a directory
+        /// whose own last write (an entry added/removed/renamed) was still fresh relative to capture
+        /// also records a <see cref="ListingSignature"/> — the sorted immediate child names — so a
+        /// same-tick second change is caught by comparing the listing rather than by forcing a reload
+        /// on every subsequent check.
+        /// </summary>
+        private readonly record struct DirectoryStamp(string Path, bool Exists, DateTime LastWriteTimeUtc, string? ListingSignature)
         {
-            public static DirectoryStamp Capture(string path)
+            public static DirectoryStamp Capture(string path, DateTime capturedAtUtc)
             {
                 var info = new DirectoryInfo(path);
-                return info.Exists
-                    ? new DirectoryStamp(path, true, info.LastWriteTimeUtc)
-                    : new DirectoryStamp(path, false, default);
+                if (!info.Exists)
+                {
+                    return new DirectoryStamp(path, false, default, null);
+                }
+
+                var isRacy = capturedAtUtc - info.LastWriteTimeUtc < RacyWindow;
+                return new DirectoryStamp(path, true, info.LastWriteTimeUtc, isRacy ? Listing(path) : null);
+            }
+
+            public bool IsStillCurrent()
+            {
+                var info = new DirectoryInfo(Path);
+                if (info.Exists != Exists)
+                {
+                    return false;
+                }
+
+                if (!Exists)
+                {
+                    return true;
+                }
+
+                if (info.LastWriteTimeUtc != LastWriteTimeUtc)
+                {
+                    return false;
+                }
+
+                return ListingSignature is null || ListingSignature == Listing(Path);
+            }
+
+            /// <summary>Sorted immediate child names, joined — cheap enough for a racy recheck, and a read failure is treated as "changed" for the same reason <see cref="FileStamp.Hash"/> is.</summary>
+            private static string Listing(string path)
+            {
+                try
+                {
+                    return string.Join('', Directory.EnumerateFileSystemEntries(path)
+                        .Select(System.IO.Path.GetFileName)
+                        .OrderBy(name => name, StringComparer.Ordinal));
+                }
+                catch (IOException)
+                {
+                    return Guid.NewGuid().ToString("N");
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return Guid.NewGuid().ToString("N");
+                }
             }
         }
     }

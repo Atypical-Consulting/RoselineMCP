@@ -851,7 +851,12 @@ RoselineMCP/
   across calls, cutting hundreds of milliseconds of reload off every call after the first. Cached
   entries are fingerprinted (last-write-time + size of the `.sln`, every `.csproj`, and every
   source file, plus their directories) and re-checked on each call, so any change on disk —
-  including RoselineMCP's own edits — triggers a fresh reload. Disable with
+  including RoselineMCP's own edits — triggers a fresh reload. A file/directory whose own last
+  write was still fresh when its stamp was captured also gets a content signature (a hash, or a
+  directory listing) recorded alongside it, so a same-length write landing in the same
+  filesystem-timestamp bucket is still caught by comparing that signature rather than trusted on a
+  bare stat match — cheaply, without forcing a reload on every call while the file stays fresh.
+  Disable with
   `RoselineMCP:WorkspaceCache = false` — but note that this is an isolation/debugging switch, **not**
   a way to reduce memory: a disposed workspace's memory is not returned to the OS, so disabling the
   cache measures ~26% *worse* on resident memory as well as ~45× slower. The measured profile — and
