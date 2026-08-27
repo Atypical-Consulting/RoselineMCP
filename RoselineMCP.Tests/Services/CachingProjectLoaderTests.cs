@@ -39,7 +39,9 @@ public class CachingProjectLoaderTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_root, true); }
+        catch { /* ignored */ }
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -378,8 +380,10 @@ public class CachingProjectLoaderTests : IDisposable
         CreateProjectOnDisk("B");
         var inner = new FakeInnerLoader(_root);
         var loader = CreateLoader(inner);
-        using (await loader.LoadAsync("A", Ct)) { }
-        using (await loader.LoadAsync("B", Ct)) { }
+        using (await loader.LoadAsync("A", Ct))
+        { }
+        using (await loader.LoadAsync("B", Ct))
+        { }
 
         loader.Dispose();
 
@@ -397,8 +401,10 @@ public class CachingProjectLoaderTests : IDisposable
             A.Fake<ILogger<CachingProjectLoader>>(),
             _ => throw new FileNotFoundException("cannot resolve"));
 
-        using (await loader.LoadAsync("App", Ct)) { }
-        using (await loader.LoadAsync("App", Ct)) { }
+        using (await loader.LoadAsync("App", Ct))
+        { }
+        using (await loader.LoadAsync("App", Ct))
+        { }
 
         // Never cached: the inner loader is consulted every time (and would surface its own error).
         inner.LoadCount.ShouldBe(2);
