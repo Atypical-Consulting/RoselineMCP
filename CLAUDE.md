@@ -116,13 +116,19 @@ The application uses a dependency injection-based service architecture with clea
   A bare stat match is not on its own trusted as proof of "unchanged": two writes whose length
   happens to match can produce an identical `(LastWriteTimeUtc, Length)` stamp if they land inside
   the OS's file-timestamp update granularity — the same defect class #233 found in `GuardService`,
-  and a real trigger here (`rename_symbol` swapping a same-length identifier). Rather than hashing
-  file content, `WorkspaceFingerprint` decides once, at capture, whether any tracked file/directory's
-  own last write was still fresher than a short window (`RacyWindow`, 2 seconds) relative to the
-  capture itself — modeled on git's "racily clean index" handling. A fingerprint captured that way is
-  never trusted on a later stat match and forces exactly one more reload, however long the next call
-  takes to arrive; that reload's own fresh capture settles back to the ordinary cheap stat-only path
-  once the tracked files have genuinely aged past the window (#235).
+  and a real trigger here (`rename_symbol` swapping a same-length identifier). Each **stamp**
+  (per file/directory, not the fingerprint as a whole) decides for itself, once at capture, whether
+  its own last write was still fresher than a short window (`RacyWindow`, 2 seconds) relative to the
+  capture itself — modeled on git's "racily clean index" handling — and only a stamp captured that
+  way also records a content signature (a file's SHA-256; a directory's sorted listing). A later
+  check trusts a bare stat match for every stamp captured outside the window, exactly as before —
+  the steady-state cost is unchanged — and falls back to comparing that signature for the rare stamp
+  captured inside it: cheap (one small file, not a full workspace reload) and, unlike forcing a
+  reload on every check for as long as the file stays inside the window, it terminates rather than
+  cascades — a matching signature is a genuine cache hit, so a burst of calls right after a write
+  (the `rename_symbol` → `check_compilation` sequence this server exists to serve) pays exactly one
+  reload, for the write itself, not one per call (#235; the reload-every-time design was reviewed and
+  rejected during the same fix for exactly this cascade).
   ⚠️ That switch is for isolation/debugging only — **it does not save memory**. Measured
   2026-07-25: disposing per call costs +26% resident memory and ~45× second-call latency, because
   a disposed workspace's memory is never returned to the OS. Releasing cached workspaces on idle

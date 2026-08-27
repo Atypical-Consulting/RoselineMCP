@@ -225,13 +225,19 @@ public class CachingProjectLoaderTests : IDisposable
     }
 
     /// <summary>
-    /// The racy flag is not a standing penalty: a fingerprint captured racy forces exactly one more
-    /// reload, and that reload's own fresh capture — taken once the tracked file's mtime is genuinely
-    /// older than *that* new capture time — comes back non-racy, so the entry settles back into
-    /// ordinary cache hits rather than reloading forever.
+    /// Proves the fix does not merely bound the reload cascade — it eliminates it for the case that
+    /// matters most: <c>rename_symbol</c> writes, then an immediate follow-up call
+    /// (<c>check_compilation</c>, <c>list_diagnostics</c>, ...) is the exact agent sequence this
+    /// server exists to serve. Every load below happens WITHOUT ever advancing the injected clock —
+    /// so every one of them lands strictly inside <c>RacyWindow</c> of Widget.cs's own last write, the
+    /// scenario the code review on this issue found was silently untested (the other tests all
+    /// fast-forward the clock between loads). If a racy capture forced a reload on every subsequent
+    /// check regardless of content, this would assert <c>LoadCount == 4</c>; the content-hash
+    /// fallback means only the genuine content change (write 2) pays a reload — the rest are cache
+    /// hits, with no cascade at all, however soon they land inside the window.
     /// </summary>
     [Fact]
-    public async Task A_Fingerprint_Captured_Racy_Settles_Into_A_Cache_Hit_Once_Its_Reload_Is_No_Longer_Racy()
+    public async Task Consecutive_Calls_Inside_The_Racy_Window_Do_Not_Each_Force_A_Reload()
     {
         CreateProjectOnDisk("App");
         var widgetPath = Path.Combine(_root, "App", "Widget.cs");
@@ -240,19 +246,35 @@ public class CachingProjectLoaderTests : IDisposable
         var inner = new FakeInnerLoader(_root);
         using var loader = CreateLoader(inner, utcNowProvider: () => fakeNow);
 
+        // Load 1: cold load. Its own capture is racy (Widget.cs was just written).
         using var first = await loader.LoadAsync("App", Ct);
         inner.LoadCount.ShouldBe(1);
 
-        // Widget.cs is untouched from here on. Advance the simulated clock well past the racy
-        // window (no real delay) before the next two loads.
-        fakeNow = fakeNow.AddSeconds(5);
-
+        // Loads 2 and 3: nothing on disk has changed, the clock has NOT advanced, and the cached
+        // fingerprint is still racy — this is exactly the case a forced-reload-while-racy design
+        // would cascade on. Both must be cache hits.
         using var second = await loader.LoadAsync("App", Ct);
-        inner.LoadCount.ShouldBe(2, "the racy first capture must still force exactly one more reload");
+        inner.LoadCount.ShouldBe(1, "unchanged content under a racy fingerprint must be a cache hit, not a forced reload");
+        ReferenceEquals(second.Solution, first.Solution).ShouldBeTrue();
 
         using var third = await loader.LoadAsync("App", Ct);
-        inner.LoadCount.ShouldBe(2, "the second capture, taken 5s after Widget.cs's own last write, must not itself be racy — this must be a cache hit");
-        ReferenceEquals(third.Solution, second.Solution).ShouldBeTrue();
+        inner.LoadCount.ShouldBe(1, "a second consecutive call inside the same racy window must not cascade into another reload either");
+        ReferenceEquals(third.Solution, first.Solution).ShouldBeTrue();
+
+        // Now a genuine content change, same length, mtime forced back to collide — still with no
+        // clock advance at all. This is the one call that must reload.
+        File.WriteAllText(widgetPath, "class Widget { int A() => 2; }");
+        File.SetLastWriteTimeUtc(widgetPath, fakeNow);
+
+        using var fourth = await loader.LoadAsync("App", Ct);
+        inner.LoadCount.ShouldBe(2, "a real content change colliding with the captured stamp must still be caught and reloaded exactly once");
+        ReferenceEquals(fourth.Solution, first.Solution).ShouldBeFalse();
+
+        // And the call right after THAT reload, still inside the window, still with no clock
+        // advance, must again be a hit rather than cascading a second time.
+        using var fifth = await loader.LoadAsync("App", Ct);
+        inner.LoadCount.ShouldBe(2, "the reload that just happened must not itself cascade into a further reload");
+        ReferenceEquals(fifth.Solution, fourth.Solution).ShouldBeTrue();
     }
 
     [Fact]
