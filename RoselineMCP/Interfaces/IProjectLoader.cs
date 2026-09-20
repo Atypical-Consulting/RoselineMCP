@@ -116,6 +116,22 @@ public sealed class LoadedProject : IDisposable
 
     private readonly string? _targetPath;
 
+    /// <summary>
+    /// The analyzer references removed at load because Roslyn cannot checksum them — carried so the
+    /// diagnostics tools can still name them. Each entry is the reference's full path (its display
+    /// name when it has none), deduplicated across the solution's projects, in first-seen order.
+    /// Empty in the universal case.
+    /// </summary>
+    /// <remarks>
+    /// Roslyn's project-state checksum rejects any <see cref="Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference"/>
+    /// that is not a file or image reference, which aborts every relationship query and every rename
+    /// over the solution carrying it (issue #242). The loader removes those references before handing
+    /// the solution out; removal is semantics-free — such a reference carries no analyzers and no
+    /// generators — but it must not be <em>silent</em>, so the paths travel here and reach the
+    /// <c>analyzerLoad</c> block as <c>AnalyzerLoadNote.Unresolved</c> notes.
+    /// </remarks>
+    public IReadOnlyList<string> UnresolvedAnalyzerReferences { get; }
+
     /// <summary>Initializes a new <see cref="LoadedProject"/>.</summary>
     /// <param name="workspace">The workspace the project/solution was loaded into.</param>
     /// <param name="solution">The loaded solution snapshot.</param>
@@ -137,8 +153,14 @@ public sealed class LoadedProject : IDisposable
     /// it — see <see cref="TargetPath"/>. <see langword="null"/> (the default) defers to
     /// <see cref="ResolvedPath"/>.
     /// </param>
+    /// <param name="unresolvedAnalyzerReferences">
+    /// The analyzer references the loader removed because Roslyn cannot checksum them — see
+    /// <see cref="UnresolvedAnalyzerReferences"/>. <see langword="null"/> (the default) means none
+    /// were removed, which is the universal case.
+    /// </param>
     public LoadedProject(
-        Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true, string? resolvedPath = null, string? targetPath = null)
+        Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true, string? resolvedPath = null, string? targetPath = null,
+        IReadOnlyList<string>? unresolvedAnalyzerReferences = null)
     {
         Workspace = workspace;
         Solution = solution;
@@ -146,6 +168,7 @@ public sealed class LoadedProject : IDisposable
         _ownsWorkspace = ownsWorkspace;
         _resolvedPath = resolvedPath;
         _targetPath = targetPath;
+        UnresolvedAnalyzerReferences = unresolvedAnalyzerReferences ?? [];
     }
 
     /// <summary>Disposes the underlying workspace when this handle owns it; otherwise a no-op.</summary>
