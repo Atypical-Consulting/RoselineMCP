@@ -263,6 +263,7 @@ public class ElicitationTests : IDisposable
         var error = payload.GetProperty("error");
         error.GetProperty("type").GetString().ShouldBe("ValidationError");
         error.GetProperty("message").GetString()
+            .ShouldNotBeNull()
             .ShouldContain(
                 "Refusing to write with an omitted 'project'",
                 Case.Sensitive,
