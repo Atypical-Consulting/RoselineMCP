@@ -302,6 +302,17 @@ public class DiagnosticComputationService : IDiagnosticComputationService
             return analyzers;
         }
 
+        if (!AnalyzerReferenceFilter.IsSerializable(reference))
+        {
+            // The assembly is not on disk at all, so Roslyn handed back a sentinel. "No C# analyzers"
+            // would say it loaded and declared none, which is a different — and wrong — diagnosis.
+            // Reached on the analyze_solution path, whose own workspace is never stripped (#242).
+            var path = reference.FullPath ?? reference.Display ?? reference.GetType().Name;
+            _logger.LogWarning("Analyzer reference {Reference} could not be resolved on disk", path);
+            note = AnalyzerLoadNote.ForUnresolved(path);
+            return ImmutableArray<DiagnosticAnalyzer>.Empty;
+        }
+
         _logger.LogDebug("Analyzer reference {Reference} declares no C# analyzers", reference.Display);
         note = new AnalyzerLoadNote { Reference = reference.Display, Reason = AnalyzerLoadNote.NoCSharpAnalyzers };
         return ImmutableArray<DiagnosticAnalyzer>.Empty;

@@ -88,6 +88,29 @@ public class AnalyzerLoadReport
         report.HasSomethingToReport ? report : null;
 
     /// <summary>
+    /// Names the analyzer references the <b>loader</b> removed before the diagnostics pass ever saw
+    /// them — <c>LoadedProject.UnresolvedAnalyzerReferences</c> (issue #242). Each distinct path
+    /// becomes one <see cref="AnalyzerLoadNote.Unresolved"/> note and counts as one more reference
+    /// <em>consulted</em> (it was on the project) but never as one contributing (it never could).
+    /// An empty list is a no-op, so the clean case moves no counter and adds no note.
+    /// </summary>
+    /// <param name="paths">The removed references' paths, as the loader reported them.</param>
+    public void AddUnresolved(IReadOnlyList<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            var note = AnalyzerLoadNote.ForUnresolved(path);
+            if (Notes.Any(n => n.Reason == AnalyzerLoadNote.Unresolved && n.Message == note.Message))
+            {
+                continue;
+            }
+
+            Notes.Add(note);
+            ReferencesConsulted++;
+        }
+    }
+
+    /// <summary>
     /// Combines the per-project reports of a multi-project analysis (<c>analyze_solution</c>) into
     /// one: the reference counters are summed over the analyzed projects — so they count reference
     /// <em>consultations</em>, not distinct references — <see cref="AnalyzersLoaded"/> is the
@@ -154,6 +177,36 @@ public class AnalyzerLoadNote
     public const string AnalyzerPass = "(analyzer pass)";
 
     /// <summary>
+    /// <see cref="Reason"/> when the reference's analyzer assembly is <b>not on disk</b>, so Roslyn
+    /// resolved it to a sentinel (<c>UnresolvedAnalyzerReference</c>) that carries no analyzers, no
+    /// generators, and that the project-state checksum cannot serialize. Distinct from
+    /// <see cref="NoCSharpAnalyzers"/>, which says the assembly loaded and simply declares none —
+    /// here nothing loaded at all. <see cref="Message"/> names the absent path;
+    /// <see cref="ErrorCode"/> is omitted, because Roslyn raises no load failure for it.
+    /// </summary>
+    /// <remarks>
+    /// Such a reference is removed from the loaded <c>Solution</c> before <c>SymbolFinder</c> or
+    /// <c>Renamer</c> see it (issue #242) — removal is semantics-free, and this note is what keeps
+    /// it from also being silent.
+    /// </remarks>
+    public const string Unresolved = "unresolved";
+
+    /// <summary>
+    /// The <see cref="Unresolved"/> note for an analyzer reference at <paramref name="path"/> — the
+    /// single authority for that note's shape, used both by the loader pass-through
+    /// (<see cref="AnalyzerLoadReport.AddUnresolved"/>) and by the diagnostics pass, which meets
+    /// such a reference directly on the <c>analyze_solution</c> path (that workspace is never
+    /// stripped).
+    /// </summary>
+    /// <param name="path">The absent assembly's path, as the project referenced it.</param>
+    public static AnalyzerLoadNote ForUnresolved(string path) => new()
+    {
+        Reference = Path.GetFileName(path) is { Length: > 0 } name ? name : path,
+        Reason = Unresolved,
+        Message = $"Analyzer assembly not found on disk: {path}"
+    };
+
+    /// <summary>
     /// The reference's display name (<c>AnalyzerReference.Display</c> — the assembly's simple name
     /// for a file reference).
     /// </summary>
@@ -162,7 +215,7 @@ public class AnalyzerLoadNote
 
     /// <summary>
     /// Why the reference contributed nothing: <see cref="LoadFailure"/>,
-    /// <see cref="NoCSharpAnalyzers"/> or <see cref="Exception"/>.
+    /// <see cref="NoCSharpAnalyzers"/>, <see cref="Unresolved"/> or <see cref="Exception"/>.
     /// </summary>
     [JsonPropertyName("reason")]
     public string Reason { get; set; } = string.Empty;

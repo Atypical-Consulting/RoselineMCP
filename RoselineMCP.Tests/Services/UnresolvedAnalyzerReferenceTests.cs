@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RoselineMCP.Configuration;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -40,6 +41,7 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
     private readonly CodeNavigationService _navigation;
     private readonly CodeEditService _edit;
     private readonly CodeFixService _codeFix;
+    private readonly SolutionAnalyzerService _analyzerService;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -60,11 +62,11 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
             Options.Create(new RoselineMcpOptions()),
             catalog);
         var factory = new CodeFixProviderFactory(A.Fake<ILogger<CodeFixProviderFactory>>(), catalog);
-        var analyzerService = new SolutionAnalyzerService(
+        _analyzerService = new SolutionAnalyzerService(
             A.Fake<ILogger<SolutionAnalyzerService>>(), msBuildService,
             new DiagnosticFilterService(factory), _loader, computation);
         _codeFix = new CodeFixService(
-            A.Fake<ILogger<CodeFixService>>(), analyzerService, factory,
+            A.Fake<ILogger<CodeFixService>>(), _analyzerService, factory,
             new DiffService(), _loader, TestVerification.New(), computation);
     }
 
@@ -273,5 +275,26 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
         onMiss.ShouldNotBeEmpty();
         onMiss.ShouldContain(p => p.EndsWith(MissingAnalyzerFileName, StringComparison.Ordinal));
         second.UnresolvedAnalyzerReferences.ShouldBe(onMiss);
+    }
+
+    /// <summary>
+    /// The removal must not be silent: a reference the loader took out is still named in the
+    /// <c>analyzerLoad</c> block, with a reason of its own rather than the misleading
+    /// "no C# analyzers" (which says the assembly loaded and declared none).
+    /// </summary>
+    [Fact]
+    public async Task List_Diagnostics_Names_The_Removed_Reference_As_Unresolved()
+    {
+        var csproj = CreateFixtureProject();
+
+        var response = await _analyzerService.ListDiagnosticsAsync(csproj, cancellationToken: Ct);
+
+        var analyzerLoad = response.AnalyzerLoad.ShouldNotBeNull();
+        var note = analyzerLoad.Notes
+            .FirstOrDefault(n => n.Reason == AnalyzerLoadNote.Unresolved)
+            .ShouldNotBeNull();
+        note.Reference.ShouldEndWith(MissingAnalyzerFileName);
+        note.Message.ShouldNotBeNull().ShouldContain(MissingAnalyzerFileName);
+        analyzerLoad.ReferencesConsulted.ShouldBeGreaterThan(analyzerLoad.ReferencesContributing);
     }
 }
