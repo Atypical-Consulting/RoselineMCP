@@ -1481,7 +1481,7 @@ public class AnalyzerLoadReport
 public class AnalyzerLoadNote
 {
     public string Reference { get; set; }   // JSON: "reference" — the reference's display name
-    public string Reason { get; set; }      // JSON: "reason" — "load-failure" | "no C# analyzers" | "exception"
+    public string Reason { get; set; }      // JSON: "reason" — "load-failure" | "no C# analyzers" | "unresolved" | "exception"
     public string? ErrorCode { get; set; }  // JSON: "errorCode" — Roslyn's FailureErrorCode for a load-failure
                                             // (ReferencesNewerCompiler, UnableToLoadAnalyzer, UnableToCreateAnalyzer, …); omitted otherwise
     public string? Message { get; set; }    // JSON: "message" — Roslyn's or the exception's message; omitted when there is none
@@ -1492,11 +1492,21 @@ public class AnalyzerLoadNote
 |---|---|---|
 | `load-failure` | Roslyn raised `AnalyzerLoadFailed` — the assembly or one of its analyzer types could not be loaded. The universal case is an analyzer built against a **newer** `Microsoft.CodeAnalysis` than the server's (`ReferencesNewerCompiler`; the message names both versions). A reference that lost only *some* of its analyzer types keeps the rest running, counts as contributing, and is still named — its message starts with `partial —` and says how many loaded. | present |
 | `no C# analyzers` | the reference loaded and declares no C# analyzer — a source-generator-only assembly, a code-fix-only assembly, an analyzer's support library. Accurate, not alarming. | omitted |
+| `unresolved` | the reference's analyzer assembly is **not on disk**, so Roslyn resolved it to a sentinel that carries no analyzers and no generators. Distinct from `no C# analyzers`, which says the assembly loaded and declared none. Routine in a git worktree whose `obj/` was populated elsewhere, or after a partial restore. | `message` only (the absent path) |
 | `exception` | `GetAnalyzers` itself threw — or, for the one entry whose `reference` is `(analyzer pass)`, the analyzer pass as a whole failed after every reference loaded and the response fell back to compiler diagnostics: every analyzer diagnostic is missing, whatever the counters say. | `message` only |
 
 A failure is remembered per reference object: Roslyn raises the event only on its first attempt
 and caches the empty answer, and the workspace cache hands the same references to every later
 call — so the second `ListDiagnostics` against a cached project still names the failure.
+
+An `unresolved` reference is **removed from the loaded `Solution`** before `SymbolFinder` or
+`Renamer` ever see it, because Roslyn's own project-state checksum cannot serialize it: it throws
+`Unexpected value '…UnresolvedAnalyzerReference'`, which used to abort `find_references`,
+`find_implementations`, `get_call_graph`, `get_type_hierarchy` and `rename_symbol` outright (#242).
+The removal is semantics-free — such a reference carries no analyzers and no generators, so no
+diagnostic and no generated type is lost — and it is not silent either: the paths travel on the
+loaded handle and are reported here, as one `unresolved` note per reference, counted in
+`referencesConsulted` but never in `referencesContributing`.
 
 ### VerificationVerdict
 

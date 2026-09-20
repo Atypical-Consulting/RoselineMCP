@@ -665,7 +665,8 @@ built against a newer `Microsoft.CodeAnalysis` than RoselineMCP's, a corrupt fil
 contributing *zero* analyzers, not by failing. The three diagnostics responses carry an
 `analyzerLoad` block (`analyzersRan`, `referencesConsulted`, `referencesContributing`, `analyzersLoaded`, and a
 `notes[]` entry per reference that contributed nothing: its name, the reason — `load-failure`
-with Roslyn's `errorCode` and message, `no C# analyzers`, or `exception`). The block is omitted
+with Roslyn's `errorCode` and message, `no C# analyzers`, `unresolved` (the assembly is not on
+disk, so it was removed from the loaded solution before Roslyn choked on it), or `exception`). The block is omitted
 when every reference contributed, so a present one always says something; see
 [`docs/API.md`](docs/API.md#analyzerloadreport).
 
