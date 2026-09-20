@@ -155,7 +155,13 @@ spawns `git`, so a stale entry left by a hand-deleted worktree (cleared by
 `git worktree prune`) can over-refuse; that costs one explicit `project`, while
 the miss it replaces costs a file. It consults no configuration, `previewOnly`
 previews are untouched, reads are untouched, and an **explicit** `project` is
-never refused — naming the checkout is the answer the refusal asks for.
+never refused. Note what that last exemption does and does not buy: only an
+**absolute** path names a checkout. A relative path or a bare project name
+resolves against the server's own working directory, so it lands in exactly the
+tree an omitted `project` would have — and is exempted anyway, because a caller
+who supplies one has made a choice and adjudicating which spellings "count"
+would refuse legitimate calls. Operators running one server against several
+checkouts should require absolute paths.
 
 **The confirmation names the target it is about to write.** The prompt carries
 the concrete `.sln`/`.csproj` path — resolved by the same function, against the

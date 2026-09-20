@@ -373,7 +373,11 @@ internal static class ToolExecutionHelper
     /// No MSBuild workspace is loaded, so this is far cheaper than the load that follows — but it is
     /// not free. A bare project name that matches neither a file nor a directory falls through to a
     /// recursive <c>*.csproj</c> scan of the working directory, which on a large tree is slow. That
-    /// is the main reason every path which will not send a prompt returns before calling this. No
+    /// is the main reason a path which will not send a prompt returns before calling this. One
+    /// exception, and it is exempt from the cost rather than paying it: the linked-worktree refusal
+    /// at the top of <see cref="RunVerifiedWriteAsync{T}"/> calls this on every omitted-<c>project</c>
+    /// write, gate on or off — but only when <paramref name="project"/> is null or whitespace, which
+    /// takes the bounded auto-discovery walk and never the bare-name sweep this paragraph is about. No
     /// discovery scan reached from here — this recursive sweep, or the auto-discovery walk taken
     /// when <paramref name="project"/> is omitted — throws on an unreadable directory it encounters
     /// any more; every one of them skips it (the shared <c>IncidentalScan</c> options,
@@ -542,11 +546,17 @@ internal static class ToolExecutionHelper
             var target = ResolveWriteTarget(project);
             if (ProjectLoader.HasLinkedWorktreeAmbiguity(Path.GetDirectoryName(target)!))
             {
-                throw new ArgumentException(
+                var refusal = new ArgumentException(
                     $"Refusing to write with an omitted 'project': the auto-discovered checkout '{target}' "
                     + "belongs to a repository with linked git worktrees, so an omitted 'project' cannot "
                     + "safely name which checkout to write to. Pass an explicit absolute 'project' path "
                     + "naming the checkout you intend.");
+
+                // A target WAS resolved here, so the envelope reports it: `error.resolvedPath` is
+                // omitted only when nothing resolved, and "the checkout I refused to write to" is
+                // the one fact a caller needs machine-readably rather than scraped from the prose.
+                ResolvedPathStamp.Stamp(refusal, target);
+                throw refusal;
             }
         }
 

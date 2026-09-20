@@ -449,8 +449,10 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > `applyFixes`, `editMember` and `renameSymbol` called with `previewOnly: false` and **no**
 > `project` are refused outright (`ValidationError`, nothing written, no prompt) when the
 > auto-discovered checkout belongs to a repository with linked worktrees — regardless of
-> `RoselineMCP:ConfirmDestructiveWrites`. Pass an explicit `project` naming the checkout you mean;
-> that is never refused. See [docs/API.md](docs/API.md#which-checkout-answered).
+> `RoselineMCP:ConfirmDestructiveWrites`. Any explicit `project` steps past the refusal, but only an
+> **absolute** path actually names a checkout — a relative path or a bare name resolves against the
+> server's working directory, the very thing you don't know. See
+> [docs/API.md](docs/API.md#which-checkout-answered).
 >
 > **Relative file paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`,
 > `applyFixes`/`editMember`/`renameSymbol`'s `changedFiles` **and patch headers**, and

@@ -98,6 +98,13 @@ public class ElicitationTests : IDisposable
         /// <summary>A linked worktree: <c>.git</c> is a FILE holding a <c>gitdir:</c> pointer.</summary>
         LinkedWorktree,
 
+        /// <summary>
+        /// The same, but with the solution one directory down — the ordinary repository layout
+        /// (<c>/repo/src/App.sln</c> beside <c>/repo/.git</c>), and the only shape that exercises the
+        /// predicate's upward walk rather than answering from the target's own directory.
+        /// </summary>
+        LinkedWorktreeAboveTheSolution,
+
         /// <summary>A main checkout that has linked worktrees: <c>.git/worktrees/&lt;name&gt;/</c> exists.</summary>
         MainCheckoutWithLinkedWorktrees,
 
@@ -110,10 +117,12 @@ public class ElicitationTests : IDisposable
 
     /// <summary>
     /// A throwaway checkout: one <c>.sln</c> and one <c>.csproj</c> so auto-discovery resolves on the
-    /// directory itself (its own level wins before any parent is consulted), plus the git metadata
-    /// <paramref name="shape"/> asks for — fabricated with plain file/directory writes rather than a
-    /// real <c>git worktree add</c>, since <c>HasLinkedWorktreeAmbiguity</c> reads nothing but the
-    /// presence and kind of those entries and a subprocess would only make the test slower.
+    /// directory it returns (that directory's own level wins before any parent is consulted), plus
+    /// the git metadata <paramref name="shape"/> asks for — fabricated with plain file/directory
+    /// writes rather than a real <c>git worktree add</c>, since <c>HasLinkedWorktreeAmbiguity</c>
+    /// reads nothing but the presence and kind of those entries and a subprocess would only make the
+    /// test slower. Returns the directory to run from, which is the checkout root except for
+    /// <see cref="CheckoutShape.LinkedWorktreeAboveTheSolution"/>.
     /// </summary>
     private string CreateCheckoutFixture(CheckoutShape shape)
     {
@@ -121,17 +130,22 @@ public class ElicitationTests : IDisposable
         Directory.CreateDirectory(root);
         _checkoutFixtures.Add(root);
 
+        var solutionDirectory = shape == CheckoutShape.LinkedWorktreeAboveTheSolution
+            ? Directory.CreateDirectory(Path.Combine(root, "src")).FullName
+            : root;
+
         File.WriteAllText(
-            Path.Combine(root, "Checkout.csproj"),
+            Path.Combine(solutionDirectory, "Checkout.csproj"),
             "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
         File.WriteAllText(
-            Path.Combine(root, "Checkout.sln"),
+            Path.Combine(solutionDirectory, "Checkout.sln"),
             "Microsoft Visual Studio Solution File, Format Version 12.00\n");
 
         var dotGit = Path.Combine(root, ".git");
         switch (shape)
         {
             case CheckoutShape.LinkedWorktree:
+            case CheckoutShape.LinkedWorktreeAboveTheSolution:
                 File.WriteAllText(dotGit, "gitdir: /somewhere/.git/worktrees/fixture\n");
                 break;
             case CheckoutShape.MainCheckoutWithLinkedWorktrees:
@@ -147,7 +161,7 @@ public class ElicitationTests : IDisposable
                 break;
         }
 
-        return root;
+        return solutionDirectory;
     }
 
     /// <summary>
@@ -166,13 +180,20 @@ public class ElicitationTests : IDisposable
     /// that *some* real project came back — and both now run through here themselves, on a fixture
     /// checkout rather than on whatever the runner's output directory happens to sit inside.
     /// </remarks>
-    private static async Task InDirectoryAsync(string directory, Func<Task> body)
+    /// <param name="directory">The directory to run from.</param>
+    /// <param name="body">
+    /// Receives the directory as the process now reports it, which is not always what was passed:
+    /// on macOS <c>Path.GetTempPath()</c> is a symlink (<c>/var/…</c> → <c>/private/var/…</c>), and
+    /// every path the server resolves comes back in the second form. Comparing against the argument
+    /// instead would fail there for a reason that has nothing to do with what is under test.
+    /// </param>
+    private static async Task InDirectoryAsync(string directory, Func<string, Task> body)
     {
         var original = Directory.GetCurrentDirectory();
         Directory.SetCurrentDirectory(directory);
         try
         {
-            await body();
+            await body(Directory.GetCurrentDirectory());
         }
         finally
         {
@@ -220,6 +241,36 @@ public class ElicitationTests : IDisposable
     /// <summary>The parsed response envelope of a tool call.</summary>
     private static JsonElement EnvelopeOf(CallToolResult result) =>
         JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
+
+    /// <summary>
+    /// Asserts that a response is the #240 worktree refusal specifically — not merely *a*
+    /// <c>ValidationError</c>.
+    /// </summary>
+    /// <remarks>
+    /// The type alone proves nothing here: auto-discovery finding nothing, and auto-discovery
+    /// finding several candidates, are both <c>ArgumentException</c> → <c>ValidationError</c> with
+    /// no elicitation sent — so a test that checked only the type would stay green if the guard were
+    /// deleted and the fixture merely stopped resolving. The message is what tells the two apart.
+    /// <c>resolvedPath</c> is asserted alongside it because a target *was* resolved before the
+    /// refusal, and <c>docs/API.md</c> § Which checkout answered promises the field on every failure
+    /// that got that far — naming the checkout that was refused, machine-readably.
+    /// </remarks>
+    private static void ShouldBeTheWorktreeRefusal(JsonElement payload, string expectedCheckout)
+    {
+        payload.GetProperty("ok").GetBoolean()
+            .ShouldBeFalse("an omitted 'project' cannot name which of several checkouts to write to");
+
+        var error = payload.GetProperty("error");
+        error.GetProperty("type").GetString().ShouldBe("ValidationError");
+        error.GetProperty("message").GetString()
+            .ShouldContain(
+                "Refusing to write with an omitted 'project'",
+                Case.Sensitive,
+                "a bare ValidationError is also what a failed auto-discovery produces — the message "
+                + "is what proves the worktree guard is the thing that fired");
+        error.GetProperty("resolvedPath").GetString()
+            .ShouldBe(Path.Combine(expectedCheckout, "Checkout.sln"));
+    }
 
     /// <summary>
     /// Ceiling for every <c>AsyncWaitHelpers</c> race below in this file: the two waits for an
@@ -1390,7 +1441,7 @@ public class ElicitationTests : IDisposable
         // a plain single checkout, so the guard is silent and these assertions keep testing the
         // prompt rather than the tree they happen to be run from.
         var plain = CreateCheckoutFixture(CheckoutShape.PlainCheckout);
-        await InDirectoryAsync(plain, async () =>
+        await InDirectoryAsync(plain, async _ =>
         {
             await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
             {
@@ -1449,7 +1500,7 @@ public class ElicitationTests : IDisposable
         // an empty string IS the omitted case to both the prompt and the loader, so it meets #240's
         // worktree guard too and must be judged on a tree the guard has no quarrel with.
         var plain = CreateCheckoutFixture(CheckoutShape.PlainCheckout);
-        await InDirectoryAsync(plain, async () =>
+        await InDirectoryAsync(plain, async _ =>
         {
             await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
             {
@@ -1539,10 +1590,12 @@ public class ElicitationTests : IDisposable
             .ShouldBeOneOf("NotFoundError", "ValidationError");
     }
     [Theory]
-    [InlineData("apply_fixes")]
-    [InlineData("edit_member")]
-    [InlineData("rename_symbol")]
-    public async Task Omitted_Project_Write_Is_Refused_When_The_Checkout_Is_A_Linked_Worktree(string tool)
+    [InlineData("apply_fixes", CheckoutShape.LinkedWorktree)]
+    [InlineData("edit_member", CheckoutShape.LinkedWorktree)]
+    [InlineData("rename_symbol", CheckoutShape.LinkedWorktree)]
+    [InlineData("edit_member", CheckoutShape.LinkedWorktreeAboveTheSolution)]
+    public async Task Omitted_Project_Write_Is_Refused_When_The_Checkout_Is_A_Linked_Worktree(
+        string tool, CheckoutShape shape)
     {
         // #240. One MCP server process, several sibling worktrees of one repository, and a caller
         // that omitted `project`: auto-discovery answers from the SERVER's working directory, and
@@ -1551,26 +1604,25 @@ public class ElicitationTests : IDisposable
         // nothing about it is a miss: the write succeeds. `resolvedPath` discloses the checkout in
         // the response to the call that already wrote the file, which is disclosure, not a guard.
         //
-        // So the omitted-`project` write is refused before anything is resolved for real, and before
-        // anyone is asked. All three write tools, because the check lives in the shared helper and
-        // each tool routes through it independently.
+        // So the omitted-`project` write is refused before anything is written, and before anyone is
+        // asked. All three write tools, because the check lives in the shared helper and each tool
+        // routes through it independently; and one case with the `.git` marker an ancestor above the
+        // solution — the ordinary repository layout, and the only one that walks rather than
+        // answering from the target's own directory.
         var elicited = false;
-        var worktree = CreateCheckoutFixture(CheckoutShape.LinkedWorktree);
+        var worktree = CreateCheckoutFixture(shape);
 
         await using var host = await StartHostAsync(
             FakeCodeFixCapturingPreviewOnly(_ => { }),
             (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
             editService: FakeCodeEditReportingAChange());
 
-        await InDirectoryAsync(worktree, async () =>
+        await InDirectoryAsync(worktree, async resolved =>
         {
             var result = await host.Client.CallToolAsync(
                 tool, WriteArguments(tool, previewOnly: false), cancellationToken: TestContext.Current.CancellationToken);
 
-            var payload = EnvelopeOf(result);
-            payload.GetProperty("ok").GetBoolean()
-                .ShouldBeFalse("an omitted 'project' cannot name which of several checkouts to write to");
-            payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("ValidationError");
+            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), resolved);
         });
 
         elicited.ShouldBeFalse("the refusal must land before a human is asked to approve the write");
@@ -1594,14 +1646,12 @@ public class ElicitationTests : IDisposable
             (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
             editService: FakeCodeEditReportingAChange());
 
-        await InDirectoryAsync(main, async () =>
+        await InDirectoryAsync(main, async resolved =>
         {
             var result = await host.Client.CallToolAsync(
                 tool, WriteArguments(tool, previewOnly: false), cancellationToken: TestContext.Current.CancellationToken);
 
-            var payload = EnvelopeOf(result);
-            payload.GetProperty("ok").GetBoolean().ShouldBeFalse();
-            payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("ValidationError");
+            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), resolved);
         });
 
         elicited.ShouldBeFalse();
@@ -1625,17 +1675,14 @@ public class ElicitationTests : IDisposable
             options => options.ConfirmDestructiveWrites = false,
             editService: FakeCodeEditReportingAChange());
 
-        await InDirectoryAsync(worktree, async () =>
+        await InDirectoryAsync(worktree, async resolved =>
         {
             var result = await host.Client.CallToolAsync(
                 "edit_member",
                 WriteArguments("edit_member", previewOnly: false),
                 cancellationToken: TestContext.Current.CancellationToken);
 
-            var payload = EnvelopeOf(result);
-            payload.GetProperty("ok").GetBoolean()
-                .ShouldBeFalse("the worktree refusal must not depend on the operator switch the incident had turned off");
-            payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("ValidationError");
+            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), resolved);
         });
 
         elicited.ShouldBeFalse("with the gate off the elicitation path is not even reachable");
@@ -1658,7 +1705,7 @@ public class ElicitationTests : IDisposable
             (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
             editService: FakeCodeEditReportingAChange());
 
-        await InDirectoryAsync(plain, async () =>
+        await InDirectoryAsync(plain, async _ =>
         {
             var result = await host.Client.CallToolAsync(
                 "edit_member",
@@ -1683,7 +1730,7 @@ public class ElicitationTests : IDisposable
             (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
             editService: FakeCodeEditReportingAChange());
 
-        await InDirectoryAsync(worktree, async () =>
+        await InDirectoryAsync(worktree, async _ =>
         {
             var arguments = WriteArguments("edit_member", previewOnly: false);
             arguments["project"] = Path.Combine(worktree, "Checkout.csproj");
@@ -1710,7 +1757,7 @@ public class ElicitationTests : IDisposable
             (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
             editService: FakeCodeEditReportingAChange());
 
-        await InDirectoryAsync(worktree, async () =>
+        await InDirectoryAsync(worktree, async _ =>
         {
             var result = await host.Client.CallToolAsync(
                 "edit_member",
