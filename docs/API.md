@@ -311,7 +311,7 @@ send a prompt pays that cost, since none of them resolve at all.
 | Client **declines** | The call is downgraded to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write declined via client confirmation; returned a preview only (no files were modified)."` |
 | Client is asked and **never answers** | After `RoselineMCP:ConfirmDestructiveWritesTimeout` (default `300000`, 5 minutes) the server stops waiting and downgrades the call to a preview — nothing is written, `previewOnly` comes back `true`, and `notes[]` gains `"Write confirmation timed out; returned a preview only (no files were modified). Set RoselineMCP:ConfirmDestructiveWrites=false on unattended hosts that should write without a human, or raise RoselineMCP:ConfirmDestructiveWritesTimeout."` |
 | Client does not support elicitation, or the round-trip fails | No confirmation is possible, so the explicit opt-in stands and the write proceeds. A client that never negotiated elicitation is detected from its capabilities, so no prompt is built and no target is resolved. |
-| `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. The prompt is not even built, so no target is resolved. |
+| `RoselineMCP:ConfirmDestructiveWrites` is `false` | **No elicitation is sent at all** (as opposed to one being auto-accepted); the write proceeds. The prompt is not even built, so no target is resolved *for it*. One check still runs first, on this row as on every other: an omitted `project` resolves its target (cheaply — no MSBuild load) so the [worktree-ambiguity refusal](#which-checkout-answered) can see it. That refusal is the one pre-write gate this switch does not turn off. |
 | The write target **cannot be resolved** — auto-discovery finds nothing or several candidates, an explicit `project` matches nothing, or a named directory cannot be read | **No elicitation is sent**; the call returns its ordinary failure envelope (`ok: false`, a `ValidationError`, `NotFoundError` or `AnalysisError` — see [Error Handling](#error-handling)). A write that cannot be targeted fails before a human is asked, rather than spending their answer on a call that was going to fail anyway. |
 
 Silence is deliberately *not* consent: a client that **cannot** be asked justifies honoring the
@@ -719,12 +719,16 @@ every tool accepts the same references and anchors its relative paths the same w
 file paths** below).
 
 **Working in a git worktree.** Auto-discovery is anchored to **the server's** working directory —
-the directory the MCP client launched RoselineMCP in — not the agent's. They differ whenever work
-happens in a git worktree (e.g. `.claude/worktrees/<name>`): the worktree sits below the level
-walk's reach, so an omitted `project` resolves the main checkout instead. Two checkouts of the same
+the directory the MCP client launched RoselineMCP in, fixed for the life of the process — not the
+agent's. All that matters is that the two differ, whether the agent walked into another checkout or
+was started in one: a worktree (e.g. `.claude/worktrees/<name>`) sits below the level walk's reach,
+so an omitted `project` resolves the main checkout instead. Two checkouts of the same
 repository are otherwise indistinguishable in a response — same project name, same relative
 paths — so pass an absolute `.sln`/`.csproj` path to target a specific checkout, and check
-`resolvedPath` in the response to confirm which one answered.
+`resolvedPath` in the response to confirm which one answered. For the three **write** tools that is
+not left to the caller: an omitted `project` with `previewOnly: false` is refused outright when the
+auto-discovered checkout belongs to a repository with linked worktrees — see
+[Which checkout answered?](#which-checkout-answered).
 
 **Relative file paths.** The seven navigation tools' `file`/`definitionFile`, `ApplyFixes`',
 `EditMember`' and `RenameSymbol`' `changedFiles` **and unified-diff `a/`…`b/` headers**, and the
@@ -1635,6 +1639,41 @@ On the success path that mismatch surfaces as a `resolvedPath` you did not expec
 path it surfaces as `NotFoundError: Symbol not found: 'X'` — and without this field there is nothing
 in the response to tell that apart from "the symbol does not exist". Compare `error.resolvedPath`
 against the checkout you meant, and pass an absolute path as `project` to target a specific one.
+
+**For the write tools that is not the primary outcome, because disclosure comes too late.**
+`ApplyFixes`, `EditMember` and `RenameSymbol` change a file; `resolvedPath` reaches you in the
+response to the call that already changed it, and there is no earlier turn at which you could have
+read it and stopped. Nor is `NotFoundError` the likely shape: two checkouts of one repository mostly
+hold the *same* code, so the symbol exists in both, resolution succeeds, the edit applies, and the
+response is an ordinary `ok: true` with real `changedFiles` — in the tree you did not mean. So those
+three tools, called with `previewOnly: false` and `project` omitted (or blank), are **refused before
+anything is resolved or written** when the auto-discovered checkout belongs to a repository with
+linked worktrees — detected from the on-disk metadata: a `.git` *file* (a linked worktree, or a
+submodule checkout) or a `.git` directory whose `worktrees/` has entries (a main checkout that has
+them):
+
+```jsonc
+{
+  "ok": false,
+  "error": {
+    "type": "ValidationError",
+    "message": "Refusing to write with an omitted 'project': the auto-discovered checkout '/…/RoselineMCP.sln' belongs to a repository with linked git worktrees, so an omitted 'project' cannot safely name which checkout to write to. Pass an explicit absolute 'project' path naming the checkout you intend.",
+    "correlationId": "…"
+  }
+}
+```
+
+Three things this refusal deliberately does **not** do. It does not consult
+`RoselineMCP:ConfirmDestructiveWrites` — the incident it exists to prevent happened with that switch
+off, which is the supported setting for unattended hosts. It does not touch **reads**, which keep
+warning through `resolvedPath` alone: a wrong-checkout read is wrong information, not lost data, and
+refusing them would break navigating a worktree's own code. And it never refuses an **explicit**
+`project` — absolute path, relative path, bare name or `.sln` — because naming the checkout is
+exactly the answer the refusal is asking for.
+
+One accepted cost: `git worktree prune`, not deleting the directory, is what clears a
+`.git/worktrees/<name>` entry, so a repository that *once* had worktrees can be refused until it is
+pruned. A false positive costs one explicit `project`; the false negative it replaces costs a file.
 
 A `TimeoutError` carries the field for the same reason: being pointed at an unexpectedly large
 checkout is a leading cause of one, so the answer to "why did that take 120 s?" is often the path

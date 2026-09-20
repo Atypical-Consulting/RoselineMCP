@@ -89,8 +89,11 @@ public class ElicitationTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>The git-metadata shape a <see cref="CreateCheckoutFixture"/> directory is given.</summary>
-    private enum CheckoutShape
+    /// <summary>
+    /// The git-metadata shape a <see cref="CreateCheckoutFixture"/> directory is given. Public only
+    /// because it appears in a <c>[Theory]</c> parameter, which xUnit requires to be public.
+    /// </summary>
+    public enum CheckoutShape
     {
         /// <summary>A linked worktree: <c>.git</c> is a FILE holding a <c>gitdir:</c> pointer.</summary>
         LinkedWorktree,
@@ -100,6 +103,9 @@ public class ElicitationTests : IDisposable
 
         /// <summary>An ordinary single checkout: <c>.git</c> is a directory with no <c>worktrees/</c>.</summary>
         PlainCheckout,
+
+        /// <summary>No git metadata at all — the walk reaches the filesystem root without finding a <c>.git</c>.</summary>
+        NotARepository,
     }
 
     /// <summary>
@@ -132,8 +138,12 @@ public class ElicitationTests : IDisposable
                 Directory.CreateDirectory(Path.Combine(dotGit, "worktrees", "some-worktree-name"));
                 File.WriteAllText(Path.Combine(dotGit, "worktrees", "some-worktree-name", "HEAD"), "ref: refs/heads/wt\n");
                 break;
-            default:
+            case CheckoutShape.PlainCheckout:
                 Directory.CreateDirectory(dotGit);
+                break;
+            default:
+                // NotARepository — nothing to create. The temp directory has no `.git` above it
+                // either, so the upward walk runs out rather than answering from an entry.
                 break;
         }
 
@@ -1631,14 +1641,17 @@ public class ElicitationTests : IDisposable
         elicited.ShouldBeFalse("with the gate off the elicitation path is not even reachable");
     }
 
-    [Fact]
-    public async Task Omitted_Project_Write_Succeeds_From_A_Plain_Non_Worktree_Checkout()
+    [Theory]
+    [InlineData(CheckoutShape.PlainCheckout)]
+    [InlineData(CheckoutShape.NotARepository)]
+    public async Task Omitted_Project_Write_Succeeds_From_A_Plain_Non_Worktree_Checkout(CheckoutShape shape)
     {
-        // The regression guard on the other side: a `.git` DIRECTORY with no `worktrees/` entries is
-        // one working tree, so an omitted `project` names it unambiguously and nothing changes. Most
-        // repositories are this, and refusing them would turn a data-loss fix into a usability
-        // regression for everyone it does not protect.
-        var plain = CreateCheckoutFixture(CheckoutShape.PlainCheckout);
+        // The regression guard on the other side, for both unambiguous shapes: a `.git` DIRECTORY
+        // with no `worktrees/` entries is one working tree, and no `.git` at all is not a repository
+        // to have two checkouts of. Either way an omitted `project` names the tree unambiguously and
+        // nothing changes. Most repositories are the first, and refusing them would turn a data-loss
+        // fix into a usability regression for everyone it does not protect.
+        var plain = CreateCheckoutFixture(shape);
 
         await using var host = await StartHostAsync(
             FakeCodeFixCapturingPreviewOnly(_ => { }),
