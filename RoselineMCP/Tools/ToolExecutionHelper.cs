@@ -525,6 +525,31 @@ internal static class ToolExecutionHelper
         CancellationToken cancellationToken)
         where T : IWriteToolResponse
     {
+        // #240 — the one pre-write check that holds whether the operator switch is on or off, which
+        // is why it sits ABOVE the short-circuit below rather than inside ConfirmDestructiveWriteAsync:
+        // with ConfirmDestructiveWrites=false nothing beneath that line ever resolves a target, so an
+        // omitted `project` went straight to the loader and wrote into whichever checkout the SERVER's
+        // working directory happened to auto-discover. Between sibling worktrees of one repository
+        // that is not a miss a caller could notice — the symbol exists in both trees, so the write
+        // succeeds, plausibly, in the wrong one. An explicit `project` is never refused here: it is
+        // the documented way to name a checkout, and the caller has already named one.
+        //
+        // The exception is deliberately NOT caught: it reaches the tool's own handler as the standard
+        // ValidationError envelope with no elicitation sent, exactly like ResolveWriteTarget's
+        // unresolvable-target throw.
+        if (!previewOnly && string.IsNullOrWhiteSpace(project))
+        {
+            var target = ResolveWriteTarget(project);
+            if (ProjectLoader.HasLinkedWorktreeAmbiguity(Path.GetDirectoryName(target)!))
+            {
+                throw new ArgumentException(
+                    $"Refusing to write with an omitted 'project': the auto-discovered checkout '{target}' "
+                    + "belongs to a repository with linked git worktrees, so an omitted 'project' cannot "
+                    + "safely name which checkout to write to. Pass an explicit absolute 'project' path "
+                    + "naming the checkout you intend.");
+            }
+        }
+
         // When nobody can be asked — a preview, the operator switch off, or a client that cannot
         // elicit — there is no prompt to keep a refusal away from, and the service verifies and
         // refuses on its own regardless. Running phase 1 anyway would execute the whole operation

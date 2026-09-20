@@ -69,13 +69,147 @@ public class ElicitationTests : IDisposable
         File.WriteAllText(_fixtureSolution, "Microsoft Visual Studio Solution File, Format Version 12.00\n");
     }
 
+    /// <summary>
+    /// Extra throwaway checkouts built by <see cref="CreateCheckoutFixture"/>, deleted together at
+    /// the end of the test. They live OUTSIDE <see cref="_fixtureRoot"/> deliberately: auto-discovery
+    /// walks parent directories, so a fixture nested under a root that already holds a <c>.sln</c>
+    /// would resolve to the parent's solution and be judged on the parent's (absent) git metadata.
+    /// </summary>
+    private readonly List<string> _checkoutFixtures = [];
+
     public void Dispose()
     {
-        try
-        { Directory.Delete(_fixtureRoot, true); }
-        catch { /* ignored */ }
+        foreach (var directory in _checkoutFixtures.Append(_fixtureRoot))
+        {
+            try
+            { Directory.Delete(directory, true); }
+            catch { /* ignored */ }
+        }
+
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>The git-metadata shape a <see cref="CreateCheckoutFixture"/> directory is given.</summary>
+    private enum CheckoutShape
+    {
+        /// <summary>A linked worktree: <c>.git</c> is a FILE holding a <c>gitdir:</c> pointer.</summary>
+        LinkedWorktree,
+
+        /// <summary>A main checkout that has linked worktrees: <c>.git/worktrees/&lt;name&gt;/</c> exists.</summary>
+        MainCheckoutWithLinkedWorktrees,
+
+        /// <summary>An ordinary single checkout: <c>.git</c> is a directory with no <c>worktrees/</c>.</summary>
+        PlainCheckout,
+    }
+
+    /// <summary>
+    /// A throwaway checkout: one <c>.sln</c> and one <c>.csproj</c> so auto-discovery resolves on the
+    /// directory itself (its own level wins before any parent is consulted), plus the git metadata
+    /// <paramref name="shape"/> asks for — fabricated with plain file/directory writes rather than a
+    /// real <c>git worktree add</c>, since <c>HasLinkedWorktreeAmbiguity</c> reads nothing but the
+    /// presence and kind of those entries and a subprocess would only make the test slower.
+    /// </summary>
+    private string CreateCheckoutFixture(CheckoutShape shape)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"RoselineCheckout_{shape}_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        _checkoutFixtures.Add(root);
+
+        File.WriteAllText(
+            Path.Combine(root, "Checkout.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(
+            Path.Combine(root, "Checkout.sln"),
+            "Microsoft Visual Studio Solution File, Format Version 12.00\n");
+
+        var dotGit = Path.Combine(root, ".git");
+        switch (shape)
+        {
+            case CheckoutShape.LinkedWorktree:
+                File.WriteAllText(dotGit, "gitdir: /somewhere/.git/worktrees/fixture\n");
+                break;
+            case CheckoutShape.MainCheckoutWithLinkedWorktrees:
+                Directory.CreateDirectory(Path.Combine(dotGit, "worktrees", "some-worktree-name"));
+                File.WriteAllText(Path.Combine(dotGit, "worktrees", "some-worktree-name", "HEAD"), "ref: refs/heads/wt\n");
+                break;
+            default:
+                Directory.CreateDirectory(dotGit);
+                break;
+        }
+
+        return root;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="body"/> with the process working directory at <paramref name="directory"/>,
+    /// restoring the original in a <c>finally</c>.
+    /// </summary>
+    /// <remarks>
+    /// The only lever on "the caller omitted <c>project</c>" is the real process cwd — that is what
+    /// auto-discovery is anchored to — so a test of the omitted case has to move it. Process-global
+    /// state, therefore only safe because every class in
+    /// <see cref="McpProtocolCollection"/> is <c>DisableParallelization</c>'d against every other
+    /// collection as well as against each other. #240's plan asked for a grep confirming no test
+    /// omits <c>project</c> while depending on a *specific* directory's contents; the two that omit
+    /// it (<see cref="Write_Confirmation_Prompts_Name_The_Project_When_It_Is_Omitted"/> and
+    /// <see cref="Write_Confirmation_Names_The_Project_When_It_Is_An_Empty_String"/>) asserted only
+    /// that *some* real project came back — and both now run through here themselves, on a fixture
+    /// checkout rather than on whatever the runner's output directory happens to sit inside.
+    /// </remarks>
+    private static async Task InDirectoryAsync(string directory, Func<Task> body)
+    {
+        var original = Directory.GetCurrentDirectory();
+        Directory.SetCurrentDirectory(directory);
+        try
+        {
+            await body();
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(original);
+        }
+    }
+
+    /// <summary>Arguments for <paramref name="tool"/> with no <c>project</c> and the given preview mode.</summary>
+    private static Dictionary<string, object?> WriteArguments(string tool, bool previewOnly)
+    {
+        var arguments = new Dictionary<string, object?> { ["previewOnly"] = previewOnly };
+        switch (tool)
+        {
+            case "apply_fixes":
+                arguments["ids"] = new[] { "RCS1213" };
+                break;
+            case "edit_member":
+                arguments["symbol"] = "Foo.Bar";
+                arguments["operation"] = "delete";
+                break;
+            default:
+                arguments["symbol"] = "Foo";
+                arguments["newName"] = "Bar";
+                break;
+        }
+
+        return arguments;
+    }
+
+    /// <summary>An <see cref="ICodeEditService"/> that reports a change for both write operations.</summary>
+    private static ICodeEditService FakeCodeEditReportingAChange()
+    {
+        var edit = A.Fake<ICodeEditService>();
+        A.CallTo(() => edit.EditMemberAsync(
+                A<string>._, A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, string _, bool previewOnly, bool _, int _, CancellationToken _) =>
+                Task.FromResult(new EditMemberResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
+        A.CallTo(() => edit.RenameSymbolAsync(
+                A<string>._, A<string>._, A<string>._, A<bool>._, A<bool>._, A<int>._, A<IProgress<ProgressNotificationValue>?>._, A<CancellationToken>._))
+            .ReturnsLazily((string _, string _, string _, bool previewOnly, bool _, int _, IProgress<ProgressNotificationValue>? _, CancellationToken _) =>
+                Task.FromResult(new RenameSymbolResponse { PreviewOnly = previewOnly, ChangedFiles = { "src/Foo.cs" } }));
+        return edit;
+    }
+
+    /// <summary>The parsed response envelope of a tool call.</summary>
+    private static JsonElement EnvelopeOf(CallToolResult result) =>
+        JsonDocument.Parse((result.Content[0] as TextContentBlock)!.Text).RootElement;
 
     /// <summary>
     /// Ceiling for every <c>AsyncWaitHelpers</c> race below in this file: the two waits for an
@@ -1238,34 +1372,40 @@ public class ElicitationTests : IDisposable
             },
             editService: edit);
 
-        // `project` is deliberately absent from all three calls — the shape that broke.
-        await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+        // `project` is deliberately absent from all three calls — the shape that broke. They run
+        // from a fixture checkout rather than the ambient working directory: an omitted `project`
+        // resolves against the server's cwd, and #240 now refuses that for a write when the cwd
+        // belongs to a repository with linked git worktrees — which the test runner's own output
+        // directory does, whenever this suite is run from one (the `auto-dev` shape). The fixture is
+        // a plain single checkout, so the guard is silent and these assertions keep testing the
+        // prompt rather than the tree they happen to be run from.
+        var plain = CreateCheckoutFixture(CheckoutShape.PlainCheckout);
+        await InDirectoryAsync(plain, async () =>
         {
-            ["ids"] = new[] { "RCS1213" },
-            ["previewOnly"] = false,
-        }, cancellationToken: TestContext.Current.CancellationToken);
-        await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
-        {
-            ["symbol"] = "Foo.Bar",
-            ["operation"] = "delete",
-            ["previewOnly"] = false,
-        }, cancellationToken: TestContext.Current.CancellationToken);
-        await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
-        {
-            ["symbol"] = "Foo",
-            ["newName"] = "Bar",
-            ["previewOnly"] = false,
-        }, cancellationToken: TestContext.Current.CancellationToken);
+            await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+            {
+                ["ids"] = new[] { "RCS1213" },
+                ["previewOnly"] = false,
+            }, cancellationToken: TestContext.Current.CancellationToken);
+            await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+            {
+                ["symbol"] = "Foo.Bar",
+                ["operation"] = "delete",
+                ["previewOnly"] = false,
+            }, cancellationToken: TestContext.Current.CancellationToken);
+            await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
+            {
+                ["symbol"] = "Foo",
+                ["newName"] = "Bar",
+                ["previewOnly"] = false,
+            }, cancellationToken: TestContext.Current.CancellationToken);
+        });
 
         messages.Count.ShouldBe(
             3,
-            "every write tool must ask before writing. If this is zero, auto-discovery found nothing "
-            + "from the test runner's working directory and all three calls failed before eliciting: "
-            + "these two omitted/empty-project facts rely on the ambient cwd resolving to a real "
-            + "project, which holds because the output directory sits within ProjectLoader's "
-            + "parent-walk depth of the test project's .csproj. A deeper output layout (a "
-            + "RID-specific folder, an artifacts/ layout) breaks that assumption — the prompt is "
-            + "fine, the fixture is not.");
+            "every write tool must ask before writing. If this is zero, all three calls failed before "
+            + "eliciting — auto-discovery found nothing in the fixture checkout, or the #240 "
+            + "worktree guard refused them: the prompt is fine, the fixture is not.");
         foreach (var message in messages)
         {
             ShouldNameARealProject(message);
@@ -1295,13 +1435,20 @@ public class ElicitationTests : IDisposable
             (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); },
             editService: edit);
 
-        await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+        // From a plain fixture checkout, for the same reason as the omitted-`project` fact above:
+        // an empty string IS the omitted case to both the prompt and the loader, so it meets #240's
+        // worktree guard too and must be judged on a tree the guard has no quarrel with.
+        var plain = CreateCheckoutFixture(CheckoutShape.PlainCheckout);
+        await InDirectoryAsync(plain, async () =>
         {
-            ["project"] = "",
-            ["symbol"] = "Foo.Bar",
-            ["operation"] = "delete",
-            ["previewOnly"] = false,
-        }, cancellationToken: TestContext.Current.CancellationToken);
+            await host.Client.CallToolAsync("edit_member", new Dictionary<string, object?>
+            {
+                ["project"] = "",
+                ["symbol"] = "Foo.Bar",
+                ["operation"] = "delete",
+                ["previewOnly"] = false,
+            }, cancellationToken: TestContext.Current.CancellationToken);
+        });
 
         message.ShouldNotBeNull();
         ShouldNameARealProject(message);
@@ -1381,6 +1528,188 @@ public class ElicitationTests : IDisposable
         payload.GetProperty("error").GetProperty("type").GetString()
             .ShouldBeOneOf("NotFoundError", "ValidationError");
     }
+    [Theory]
+    [InlineData("apply_fixes")]
+    [InlineData("edit_member")]
+    [InlineData("rename_symbol")]
+    public async Task Omitted_Project_Write_Is_Refused_When_The_Checkout_Is_A_Linked_Worktree(string tool)
+    {
+        // #240. One MCP server process, several sibling worktrees of one repository, and a caller
+        // that omitted `project`: auto-discovery answers from the SERVER's working directory, and
+        // because every checkout holds the same project at the same relative path it answers with a
+        // real, plausible target — in the wrong tree. Nothing about the response says so, because
+        // nothing about it is a miss: the write succeeds. `resolvedPath` discloses the checkout in
+        // the response to the call that already wrote the file, which is disclosure, not a guard.
+        //
+        // So the omitted-`project` write is refused before anything is resolved for real, and before
+        // anyone is asked. All three write tools, because the check lives in the shared helper and
+        // each tool routes through it independently.
+        var elicited = false;
+        var worktree = CreateCheckoutFixture(CheckoutShape.LinkedWorktree);
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
+            editService: FakeCodeEditReportingAChange());
+
+        await InDirectoryAsync(worktree, async () =>
+        {
+            var result = await host.Client.CallToolAsync(
+                tool, WriteArguments(tool, previewOnly: false), cancellationToken: TestContext.Current.CancellationToken);
+
+            var payload = EnvelopeOf(result);
+            payload.GetProperty("ok").GetBoolean()
+                .ShouldBeFalse("an omitted 'project' cannot name which of several checkouts to write to");
+            payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("ValidationError");
+        });
+
+        elicited.ShouldBeFalse("the refusal must land before a human is asked to approve the write");
+    }
+
+    [Theory]
+    [InlineData("apply_fixes")]
+    [InlineData("edit_member")]
+    [InlineData("rename_symbol")]
+    public async Task Omitted_Project_Write_Is_Refused_From_A_Main_Checkout_With_Linked_Worktrees(string tool)
+    {
+        // The other side of the same ambiguity, and the side the reported incident actually wrote
+        // into: the server's cwd was the MAIN checkout, and the sub-agent that meant its own worktree
+        // got the main one. A main checkout with `.git/worktrees/` entries is exactly as unable to
+        // stand for "the checkout the caller meant" as a linked worktree is.
+        var elicited = false;
+        var main = CreateCheckoutFixture(CheckoutShape.MainCheckoutWithLinkedWorktrees);
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
+            editService: FakeCodeEditReportingAChange());
+
+        await InDirectoryAsync(main, async () =>
+        {
+            var result = await host.Client.CallToolAsync(
+                tool, WriteArguments(tool, previewOnly: false), cancellationToken: TestContext.Current.CancellationToken);
+
+            var payload = EnvelopeOf(result);
+            payload.GetProperty("ok").GetBoolean().ShouldBeFalse();
+            payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("ValidationError");
+        });
+
+        elicited.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Omitted_Project_Write_Is_Refused_Even_When_ConfirmDestructiveWrites_Is_False()
+    {
+        // The incident verbatim. `ROSELINE_RoselineMCP__ConfirmDestructiveWrites=false` is documented
+        // and supported for unattended hosts, and with it off RunVerifiedWriteAsync used to hand the
+        // caller's raw, unresolved `project` straight to the service — no prompt was built, so no
+        // target was ever named, so nothing stood between an omitted `project` and a write into
+        // whichever checkout the server's cwd found. That is why this guard sits ABOVE the
+        // gate-on/gate-off branch rather than inside the gate the switch turns off.
+        var elicited = false;
+        var worktree = CreateCheckoutFixture(CheckoutShape.LinkedWorktree);
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
+            options => options.ConfirmDestructiveWrites = false,
+            editService: FakeCodeEditReportingAChange());
+
+        await InDirectoryAsync(worktree, async () =>
+        {
+            var result = await host.Client.CallToolAsync(
+                "edit_member",
+                WriteArguments("edit_member", previewOnly: false),
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            var payload = EnvelopeOf(result);
+            payload.GetProperty("ok").GetBoolean()
+                .ShouldBeFalse("the worktree refusal must not depend on the operator switch the incident had turned off");
+            payload.GetProperty("error").GetProperty("type").GetString().ShouldBe("ValidationError");
+        });
+
+        elicited.ShouldBeFalse("with the gate off the elicitation path is not even reachable");
+    }
+
+    [Fact]
+    public async Task Omitted_Project_Write_Succeeds_From_A_Plain_Non_Worktree_Checkout()
+    {
+        // The regression guard on the other side: a `.git` DIRECTORY with no `worktrees/` entries is
+        // one working tree, so an omitted `project` names it unambiguously and nothing changes. Most
+        // repositories are this, and refusing them would turn a data-loss fix into a usability
+        // regression for everyone it does not protect.
+        var plain = CreateCheckoutFixture(CheckoutShape.PlainCheckout);
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
+            editService: FakeCodeEditReportingAChange());
+
+        await InDirectoryAsync(plain, async () =>
+        {
+            var result = await host.Client.CallToolAsync(
+                "edit_member",
+                WriteArguments("edit_member", previewOnly: false),
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            EnvelopeOf(result).GetProperty("ok").GetBoolean()
+                .ShouldBeTrue("a single-working-tree repository is not ambiguous and must be unaffected");
+        });
+    }
+
+    [Fact]
+    public async Task Explicit_Project_Write_Is_Never_Refused_By_The_Worktree_Guard()
+    {
+        // The documented escape hatch, asserted from inside the ambiguous checkout: a caller who
+        // names the checkout has already answered the only question the refusal asks, so the guard
+        // has nothing left to protect them from — worktree or not.
+        var worktree = CreateCheckoutFixture(CheckoutShape.LinkedWorktree);
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
+            editService: FakeCodeEditReportingAChange());
+
+        await InDirectoryAsync(worktree, async () =>
+        {
+            var arguments = WriteArguments("edit_member", previewOnly: false);
+            arguments["project"] = Path.Combine(worktree, "Checkout.csproj");
+
+            var result = await host.Client.CallToolAsync(
+                "edit_member", arguments, cancellationToken: TestContext.Current.CancellationToken);
+
+            EnvelopeOf(result).GetProperty("ok").GetBoolean()
+                .ShouldBeTrue("an explicit 'project' is how a caller names a checkout — it must never be refused");
+        });
+    }
+
+    [Fact]
+    public async Task Preview_Call_From_A_Worktree_Checkout_Is_Not_Refused()
+    {
+        // A preview writes nothing, so there is no wrong checkout to write into and nothing for the
+        // guard to prevent. It also resolves nothing today — the property
+        // Preview_Call_Never_Builds_The_Confirmation_Message pins — and this guard must not become
+        // the thing that reintroduces a resolution on the read-only path.
+        var worktree = CreateCheckoutFixture(CheckoutShape.LinkedWorktree);
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }),
+            editService: FakeCodeEditReportingAChange());
+
+        await InDirectoryAsync(worktree, async () =>
+        {
+            var result = await host.Client.CallToolAsync(
+                "edit_member",
+                WriteArguments("edit_member", previewOnly: true),
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            var payload = EnvelopeOf(result);
+            payload.GetProperty("ok").GetBoolean().ShouldBeTrue("a preview writes nothing and must stay unrefused");
+            payload.GetProperty("data").GetProperty("previewOnly").GetBoolean().ShouldBeTrue();
+        });
+    }
+
     /// <summary>
     /// The crafted <c>symbol</c> from #161, verbatim: a complete, plausible sentence that closes the
     /// quoted run, names a scratch project, and leaves the real one trailing behind as apparent
