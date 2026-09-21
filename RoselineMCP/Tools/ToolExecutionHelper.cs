@@ -380,8 +380,8 @@ internal static class ToolExecutionHelper
     /// bare name does reach the sweep this paragraph is about. Accepted: the sweep streams
     /// (<c>EnumerateFiles</c>) and stops at the first name match, and on the default gate-on path
     /// <c>ResolveWriteModeAsync</c> already pays it — so the new cost is one extra sweep per write
-    /// call, and only on gate-off hosts, which previously resolved nothing at all. It buys the
-    /// refusal. No
+    /// call in either configuration, and a wholly new one only on gate-off hosts, which previously
+    /// resolved nothing at all. It buys the refusal. No
     /// discovery scan reached from here — this recursive sweep, or the auto-discovery walk taken
     /// when <paramref name="project"/> is omitted — throws on an unreadable directory it encounters
     /// any more; every one of them skips it (the shared <c>IncidentalScan</c> options,

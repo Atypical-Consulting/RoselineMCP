@@ -170,7 +170,9 @@ would have, and are refused on the same terms; the predicate is
 `Path.IsPathFullyQualified`, so Windows' root-relative `\src\App.csproj` and
 drive-relative `C:App.csproj` are refused too. An operator running one server
 against several checkouts no longer has to *require* absolute paths for writes —
-the server enforces them.
+the server enforces them in any checkout carrying linked-worktree metadata. Two
+plain clones side by side carry none, so there the rule is still the operator's
+to impose.
 
 **The confirmation names the target it is about to write.** The prompt carries
 the concrete `.sln`/`.csproj` path — resolved by the same function, against the

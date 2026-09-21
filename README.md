@@ -342,12 +342,13 @@ Applies automated code fixes for specified diagnostics. **Defaults to preview mo
 `previewOnly` defaults to `true`, so calling this tool without setting it never writes to disk —
 you must pass `previewOnly: false` explicitly to apply changes. `project` is **optional** and
 accepts the same references as the navigation tools (name, directory, `.csproj`, or `.sln` path);
-when omitted, the solution/project is auto-discovered from the working directory.
+when omitted, the solution/project is auto-discovered from the working directory. For a **write**
+(`previewOnly: false`) make it an **absolute** path — see the worktree note below.
 
 ```typescript
 applyFixes({
   ids: ["CS0168", "RCS1001"],   // Diagnostic IDs to fix
-  project: "MyProject.csproj",  // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
+  project: "/repo/src/MyProject/MyProject.csproj",  // Optional; absolute for a write (see the worktree note)
   previewOnly: false             // Optional (default: true). Set false to write changes to disk.
 })
 ```
@@ -582,7 +583,7 @@ Replace, add, or delete a single type member; returns a unified diff.
 
 ```typescript
 editMember({
-  project: "MyApp.Core",
+  project: "/repo/src/MyApp.Core/MyApp.Core.csproj",
   symbol: "Acme.UserService.GetUser",  // The member (replace/delete), or the container type (add)
   operation: "replace",                 // "replace" | "add" | "delete"
   newSource: "public User GetUser(int id) => _repo.Find(id);",  // Required for replace/add
@@ -597,7 +598,7 @@ editMember({
 Rename a symbol and update every reference across the solution (Roslyn rename); returns a unified diff.
 
 ```typescript
-renameSymbol({ project: "MyApp.Core", symbol: "GetUser", newName: "GetUserById", previewOnly: false })
+renameSymbol({ project: "/repo/src/MyApp.Core/MyApp.Core.csproj", symbol: "GetUser", newName: "GetUserById", previewOnly: false })
 ```
 
 **Returns:** symbol, newName, `changedFiles`, `patch`, `previewOnly`, `applied`, `verification`, `notes`.
