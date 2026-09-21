@@ -68,8 +68,10 @@ The application uses a dependency injection-based service architecture with clea
      Reasons: `load-failure` (with Roslyn's `errorCode` — `ReferencesNewerCompiler` names both
      versions; a *partial* failure keeps the analyzers that loaded and is still named),
      `no C# analyzers` (generator-only, fixer-only and support assemblies — accurate, not
-     alarming), `exception` (also the `(analyzer pass)` entry when the whole pass failed and the
-     response fell back to compiler diagnostics). `analyzersRan: false` is the off state.
+     alarming), `unresolved` (the analyzer assembly is not on disk at all, so Roslyn handed back a
+     sentinel carrying no analyzers and no generators — the reference `ProjectLoader` removes; see
+     the `Unified project loading` bullet), `exception` (also the `(analyzer pass)` entry when the
+     whole pass failed and the response fell back to compiler diagnostics). `analyzersRan: false` is the off state.
      `DescribeAnalyzerLoad(project)` yields the same report without a diagnostics pass — what
      `ApplyFixes` uses when none of its IDs had a fixer, so "no fixer" and "the reference carrying
      it never loaded" stay distinguishable
@@ -105,7 +107,13 @@ The application uses a dependency injection-based service architecture with clea
   operation to prevent state pollution
 - **Unified project loading**: `ListDiagnostics`, `ApplyFixes`, and all navigation/edit tools load
   their `project` through the single shared `IProjectLoader` (`ProjectLoader`) — one resolution
-  behavior (auto-discovery, `.sln` support, exact-name project selection) everywhere
+  behavior (auto-discovery, `.sln` support, exact-name project selection) everywhere. Being that
+  single point is also what makes it the right place for one guard: `LoadAsync` removes the analyzer
+  references Roslyn cannot checksum (`AnalyzerReferenceFilter`) — an `<Analyzer Include>` whose dll
+  is absent resolves to a sentinel whose checksum throws, aborting all four relationship tools *and*
+  `rename_symbol` (#242) — and carries their paths on `LoadedProject.UnresolvedAnalyzerReferences`,
+  which is what keeps the removal named rather than silent (`analyzerLoad`'s `unresolved` reason).
+  `CachingProjectLoader` passes the list through `CacheEntry`/`WrapShared` like `resolvedPath`
 - **Workspace Cache (IProjectLoader-backed tools)**: `IProjectLoader` resolves to
   `CachingProjectLoader`, which reuses the loaded MSBuildWorkspace across tool calls. Each entry is
   fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, plus

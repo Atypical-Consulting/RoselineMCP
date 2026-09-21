@@ -1480,7 +1480,8 @@ count), `analyzersRan` is true if any project's pass ran, and each reference is 
 public class AnalyzerLoadReport
 {
     public bool AnalyzersRan { get; set; }            // JSON: "analyzersRan" — false when the analyzer pass did not run
-    public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when off, or when the project carries none
+    public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when off, or when the project carries none;
+                                                      // a reference the loader removed (reason "unresolved") still counts, even when off
     public int ReferencesContributing { get; set; }   // JSON: "referencesContributing" — yielded ≥ 1 analyzer (partial loads count)
     public int AnalyzersLoaded { get; set; }          // JSON: "analyzersLoaded" — distinct analyzers that ran (bundled + project); max across projects
     public List<AnalyzerLoadNote> Notes { get; set; } // JSON: "notes" — one per reference that contributed nothing or only partially
@@ -1489,7 +1490,7 @@ public class AnalyzerLoadReport
 public class AnalyzerLoadNote
 {
     public string Reference { get; set; }   // JSON: "reference" — the reference's display name
-    public string Reason { get; set; }      // JSON: "reason" — "load-failure" | "no C# analyzers" | "exception"
+    public string Reason { get; set; }      // JSON: "reason" — "load-failure" | "no C# analyzers" | "unresolved" | "exception"
     public string? ErrorCode { get; set; }  // JSON: "errorCode" — Roslyn's FailureErrorCode for a load-failure
                                             // (ReferencesNewerCompiler, UnableToLoadAnalyzer, UnableToCreateAnalyzer, …); omitted otherwise
     public string? Message { get; set; }    // JSON: "message" — Roslyn's or the exception's message; omitted when there is none
@@ -1500,11 +1501,21 @@ public class AnalyzerLoadNote
 |---|---|---|
 | `load-failure` | Roslyn raised `AnalyzerLoadFailed` — the assembly or one of its analyzer types could not be loaded. The universal case is an analyzer built against a **newer** `Microsoft.CodeAnalysis` than the server's (`ReferencesNewerCompiler`; the message names both versions). A reference that lost only *some* of its analyzer types keeps the rest running, counts as contributing, and is still named — its message starts with `partial —` and says how many loaded. | present |
 | `no C# analyzers` | the reference loaded and declares no C# analyzer — a source-generator-only assembly, a code-fix-only assembly, an analyzer's support library. Accurate, not alarming. | omitted |
+| `unresolved` | the reference's analyzer assembly is **not on disk**, so Roslyn resolved it to a sentinel that carries no analyzers and no generators. Distinct from `no C# analyzers`, which says the assembly loaded and declared none. Routine in a git worktree whose `obj/` was populated elsewhere, or after a partial restore. | `message` only (the absent path) |
 | `exception` | `GetAnalyzers` itself threw — or, for the one entry whose `reference` is `(analyzer pass)`, the analyzer pass as a whole failed after every reference loaded and the response fell back to compiler diagnostics: every analyzer diagnostic is missing, whatever the counters say. | `message` only |
 
 A failure is remembered per reference object: Roslyn raises the event only on its first attempt
 and caches the empty answer, and the workspace cache hands the same references to every later
 call — so the second `ListDiagnostics` against a cached project still names the failure.
+
+An `unresolved` reference is **removed from the loaded `Solution`** before `SymbolFinder` or
+`Renamer` ever see it, because Roslyn's own project-state checksum cannot serialize it: it throws
+`Unexpected value '…UnresolvedAnalyzerReference'`, which used to abort `find_references`,
+`find_implementations`, `get_call_graph`, `get_type_hierarchy` and `rename_symbol` outright (#242).
+The removal is semantics-free — such a reference carries no analyzers and no generators, so no
+diagnostic and no generated type is lost — and it is not silent either: the paths travel on the
+loaded handle and are reported here, as one `unresolved` note per reference, counted in
+`referencesConsulted` but never in `referencesContributing`.
 
 ### VerificationVerdict
 

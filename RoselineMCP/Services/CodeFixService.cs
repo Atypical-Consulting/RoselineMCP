@@ -185,8 +185,11 @@ public class CodeFixService : ICodeFixService
                 // When no requested ID had a fixer, no diagnostics pass ran and nothing was captured —
                 // yet that is the headline case to explain: the reference carrying both the analyzer
                 // and its fixer may be the one that failed to load. Describe the load anyway.
-                response.AnalyzerLoad = AnalyzerLoadReport.ForResponse(
-                    analyzerLoad.Report ?? _diagnosticComputation.DescribeAnalyzerLoad(msProject));
+                var loadReport = analyzerLoad.Report ?? _diagnosticComputation.DescribeAnalyzerLoad(msProject);
+                // References the loader removed never reach either path above, so neither can name
+                // them — see SolutionAnalyzerService's own AddUnresolved call (#242).
+                loadReport.AddUnresolved(loaded.UnresolvedAnalyzerReferences);
+                response.AnalyzerLoad = AnalyzerLoadReport.ForResponse(loadReport);
 
                 // Format the changed documents
                 if (changedDocuments.Any())

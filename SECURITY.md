@@ -89,6 +89,13 @@ along with the generators, and every symbol that resolves through generated
 code would then be reported as a compile error. Semantic analysis of a modern
 .NET project requires running its generators.
 
+(The loader does remove one narrow class of analyzer reference — the ones whose
+assembly is **not on disk**, which Roslyn's project-state checksum refuses and
+which therefore aborted every relationship query and rename, issue #242. Those
+carry no analyzers and no generators, so removing them executes no less code
+and loses no generated type; it is not a suppression mechanism and cannot be
+used as one. The removed paths are named in `analyzerLoad` as `unresolved`.)
+
 `RunAnalyzers=false` therefore **narrows** the code-execution surface of an
 untrusted repository; it does not close it. MSBuild evaluation and source
 generators both remain. Isolation — not the switch — is the mitigation.
