@@ -40,7 +40,10 @@ public class ElicitationTests : IDisposable
     /// concrete project it will write to, which means resolving the caller's <c>project</c> argument
     /// against the file system — so every case that expects to be <em>asked</em> has to point at
     /// something that actually resolves. A bare name like "TestProject" no longer does, and is kept
-    /// deliberately in the two cases that must never resolve at all (see below).
+    /// deliberately in <see cref="Preview_Call_Never_Builds_The_Confirmation_Message"/>, the one case
+    /// left that must never resolve at all. The two gate-off cases need the same "resolves to
+    /// nothing" property but spell it as an ABSOLUTE unresolvable path under this root, because
+    /// #245's worktree guard resolves a non-absolute <c>project</c> even with the gate off.
     /// </summary>
     private readonly string _fixtureRoot;
 
