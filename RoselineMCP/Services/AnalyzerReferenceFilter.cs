@@ -46,12 +46,24 @@ internal static class AnalyzerReferenceFilter
         reference is AnalyzerFileReference or AnalyzerImageReference;
 
     /// <summary>
-    /// Returns <paramref name="solution"/> with every non-serializable analyzer reference removed,
-    /// plus the removed references' paths (deduplicated, first-seen order). A solution with nothing
-    /// to remove is handed back <b>unchanged</b> — the same instance, no fork — so the universal
-    /// clean case costs one predicate call per reference and nothing else.
+    /// Returns <paramref name="solution"/> with every non-serializable analyzer reference removed
+    /// from <b>every</b> project, plus the paths of those removed from <paramref name="anchor"/>
+    /// alone (deduplicated, first-seen order). A solution with nothing to remove is handed back
+    /// <b>unchanged</b> — the same instance, no fork — so the universal clean case costs one
+    /// predicate call per reference and nothing else.
     /// </summary>
-    internal static (Solution Solution, IReadOnlyList<string> Removed) Strip(Solution solution)
+    /// <param name="solution">The solution to strip.</param>
+    /// <param name="anchor">The project the caller asked about — the one the report is about.</param>
+    /// <remarks>
+    /// The two scopes differ on purpose. Removal must span the solution, because the checksum that
+    /// throws is asked for across it: a sibling project's unresolved reference breaks a relationship
+    /// query on the anchor just as its own would. Reporting must not, because <c>analyzerLoad</c>'s
+    /// counters are defined over <b>the target project's</b> references
+    /// (<c>AnalyzerLoadReport.ReferencesConsulted</c>) — attributing a sibling's stale reference to
+    /// the caller's project would inflate that count and make a clean project read as degraded.
+    /// Nothing is lost by the silence: the removal is semantics-free either way.
+    /// </remarks>
+    internal static (Solution Solution, IReadOnlyList<string> Removed) Strip(Solution solution, ProjectId anchor)
     {
         List<string>? removed = null;
         HashSet<string>? seen = null;
@@ -72,6 +84,12 @@ internal static class AnalyzerReferenceFilter
                 if (IsSerializable(reference))
                 {
                     kept.Add(reference);
+                    continue;
+                }
+
+                if (projectId != anchor)
+                {
+                    // Removed all the same — just not the caller's to hear about. See the remarks.
                     continue;
                 }
 

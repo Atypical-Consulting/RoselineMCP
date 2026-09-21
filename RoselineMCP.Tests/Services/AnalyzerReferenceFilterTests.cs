@@ -42,15 +42,15 @@ public class AnalyzerReferenceFilterTests
         (bool)Invoke("IsSerializable", reference)!;
 
     /// <summary>Invokes the internal static <c>AnalyzerReferenceFilter.Strip</c>.</summary>
-    internal static (Solution Solution, IReadOnlyList<string> Removed) Strip(Solution solution) =>
-        ((Solution, IReadOnlyList<string>))Invoke("Strip", solution)!;
+    internal static (Solution Solution, IReadOnlyList<string> Removed) Strip(Solution solution, ProjectId anchor) =>
+        ((Solution, IReadOnlyList<string>))Invoke("Strip", solution, anchor)!;
 
-    private static object? Invoke(string name, object argument)
+    private static object? Invoke(string name, params object[] arguments)
     {
         var method = FilterType.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static)!;
         try
         {
-            return method.Invoke(null, [argument]);
+            return method.Invoke(null, arguments);
         }
         catch (TargetInvocationException ex) when (ex.InnerException != null)
         {
@@ -82,7 +82,7 @@ public class AnalyzerReferenceFilterTests
         var before = loaded.Solution.Projects.Sum(p => p.AnalyzerReferences.Count);
 
         // Act
-        var (stripped, removed) = Strip(loaded.Solution);
+        var (stripped, removed) = Strip(loaded.Solution, loaded.Project.Id);
 
         // Assert — the clean case costs nothing and forks no solution: same instance, same counts.
         removed.ShouldBeEmpty();

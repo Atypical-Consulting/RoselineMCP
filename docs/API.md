@@ -1472,7 +1472,8 @@ count), `analyzersRan` is true if any project's pass ran, and each reference is 
 public class AnalyzerLoadReport
 {
     public bool AnalyzersRan { get; set; }            // JSON: "analyzersRan" — false when the analyzer pass did not run
-    public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when off, or when the project carries none
+    public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when off, or when the project carries none;
+                                                      // a reference the loader removed (reason "unresolved") still counts, even when off
     public int ReferencesContributing { get; set; }   // JSON: "referencesContributing" — yielded ≥ 1 analyzer (partial loads count)
     public int AnalyzersLoaded { get; set; }          // JSON: "analyzersLoaded" — distinct analyzers that ran (bundled + project); max across projects
     public List<AnalyzerLoadNote> Notes { get; set; } // JSON: "notes" — one per reference that contributed nothing or only partially

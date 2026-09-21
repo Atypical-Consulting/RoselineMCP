@@ -39,6 +39,13 @@ public class AnalyzerLoadReport
     /// How many of the target project's analyzer references were asked for C# analyzers. Zero when
     /// the analyzer pass is disabled (<c>RoselineMCP:RunAnalyzers = false</c>) or the project
     /// carries none — <see cref="AnalyzersRan"/> tells the two apart.
+    /// <para>
+    /// One exception, and it is deliberate: a reference the <em>loader</em> removed
+    /// (<see cref="AnalyzerLoadNote.Unresolved"/>, added by <see cref="AddUnresolved"/>) counts here
+    /// even when the pass is off, because the strip happens at load regardless of
+    /// <c>RunAnalyzers</c>. So <c>analyzersRan: false</c> with a non-zero count is a real state:
+    /// analyzers were not run, and one reference could not have run anyway.
+    /// </para>
     /// </summary>
     [JsonPropertyName("referencesConsulted")]
     public int ReferencesConsulted { get; set; }

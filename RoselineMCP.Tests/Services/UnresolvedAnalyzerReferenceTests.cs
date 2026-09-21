@@ -96,6 +96,19 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
         </Project>
         """;
 
+    /// <summary>The same project without the stale analyzer item — the sibling-scoping test's anchor.</summary>
+    private const string CsprojWithoutAnalyzer =
+        """
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <OutputType>Library</OutputType>
+            <TargetFramework>net10.0</TargetFramework>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <Nullable>enable</Nullable>
+          </PropertyGroup>
+        </Project>
+        """;
+
     /// <summary>
     /// An interface, an implementation, an override and a caller — one of each relationship the four
     /// navigation tools traverse. <c>Unused</c> raises CS0219, the diagnostic every case in
@@ -133,13 +146,20 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
         }
         """;
 
-    private string CreateFixtureProject()
+    private string CreateFixtureProject() => CreateProject("App", CsprojWithMissingAnalyzer, FixtureSource);
+
+    /// <summary>
+    /// Writes <paramref name="name"/><c>/</c><paramref name="name"/><c>.csproj</c> plus one source
+    /// file under this test's own temp directory, and returns the <c>.csproj</c> path. Each project
+    /// gets its own subdirectory so SDK-style implicit globbing never pulls a sibling's sources.
+    /// </summary>
+    private string CreateProject(string name, string csprojXml, string source)
     {
-        var projectDir = Path.Combine(_testDirectory, "App");
+        var projectDir = Path.Combine(_testDirectory, name);
         Directory.CreateDirectory(projectDir);
-        var csproj = Path.Combine(projectDir, "App.csproj");
-        File.WriteAllText(csproj, CsprojWithMissingAnalyzer);
-        File.WriteAllText(Path.Combine(projectDir, "App.cs"), FixtureSource);
+        var csproj = Path.Combine(projectDir, $"{name}.csproj");
+        File.WriteAllText(csproj, csprojXml);
+        File.WriteAllText(Path.Combine(projectDir, $"{name}.cs"), source);
         return csproj;
     }
 
@@ -275,6 +295,37 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
         onMiss.ShouldNotBeEmpty();
         onMiss.ShouldContain(p => p.EndsWith(MissingAnalyzerFileName, StringComparison.Ordinal));
         second.UnresolvedAnalyzerReferences.ShouldBe(onMiss);
+    }
+
+    /// <summary>
+    /// Removal spans the solution; reporting does not. A sibling project's stale analyzer item
+    /// breaks a relationship query on the anchor just as the anchor's own would, so it has to go —
+    /// but <c>analyzerLoad</c>'s counters are defined over the <b>target</b> project, so attributing
+    /// it to the caller would inflate <c>referencesConsulted</c> and make a clean project read as
+    /// degraded.
+    /// </summary>
+    [Fact]
+    public async Task A_Siblings_Missing_Analyzer_Is_Removed_But_Not_Attributed_To_The_Target()
+    {
+        // Arrange — two projects in one solution; only the sibling carries the absent analyzer.
+        var appCsproj = CreateProject("App", CsprojWithoutAnalyzer, FixtureSource);
+        CreateProject("Lib", CsprojWithMissingAnalyzer, "namespace Lib;\n\npublic class Thing;\n");
+        SolutionFileBuilder.Write(Path.Combine(_testDirectory, "App.sln"), "App", "Lib");
+
+        // Act
+        using var loaded = await _loader.LoadAsync(appCsproj, Ct);
+
+        // Assert — nothing attributed to App, and nothing left anywhere for the checksum to choke on.
+        loaded.ResolvedPath.ShouldEndWith("App.sln");
+        loaded.UnresolvedAnalyzerReferences.ShouldBeEmpty(
+            "the stale reference is Lib's — App's own reference count must not move");
+        loaded.Solution.Projects
+            .SelectMany(p => p.AnalyzerReferences)
+            .Any(r => r is UnresolvedAnalyzerReference)
+            .ShouldBeFalse("removal still spans the solution — the checksum is asked for across it");
+
+        var response = await _navigation.FindReferencesAsync(appCsproj, "IThing.Do", includeDefinition: false, max: 50, Ct);
+        response.References.ShouldNotBeEmpty();
     }
 
     /// <summary>

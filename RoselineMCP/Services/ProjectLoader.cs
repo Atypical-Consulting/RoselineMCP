@@ -106,16 +106,20 @@ public class ProjectLoader : IProjectLoader
             // Solution.FilePath/Project.FilePath fallback, which MSBuildWorkspace always
             // normalizes internally. Normalize here so the documented "absolute path" contract on
             // LoadedProject.ResolvedPath holds regardless of how the caller spelled `project`.
+
             // #242: Roslyn's project-state checksum throws on an analyzer reference it cannot
             // serialize, which aborts every relationship query and every rename over the solution.
             // This is the one point all five affected tools load through. See AnalyzerReferenceFilter.
-            var (stripped, unresolved) = AnalyzerReferenceFilter.Strip(primary.Solution);
-            if (unresolved.Count > 0)
+            // Removal spans the solution (a sibling's unresolved reference breaks the anchor's query
+            // too); what is *reported* is the anchor's alone, since analyzerLoad's counters are
+            // defined over the target project. See AnalyzerReferenceFilter.Strip's remarks.
+            var (stripped, unresolved) = AnalyzerReferenceFilter.Strip(primary.Solution, primary.Id);
+            if (!ReferenceEquals(stripped, primary.Solution))
             {
                 primary = stripped.GetProject(primary.Id)!;
                 _logger.LogWarning(
-                    "Removed {Count} unserializable analyzer reference(s) from {Path}: {References}",
-                    unresolved.Count, resolvedPath, string.Join(", ", unresolved));
+                    "Removed analyzer references Roslyn cannot checksum while loading {Path}; on the target project: {References}",
+                    resolvedPath, unresolved.Count > 0 ? string.Join(", ", unresolved) : "(none)");
             }
 
             return new LoadedProject(
