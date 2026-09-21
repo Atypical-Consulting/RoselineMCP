@@ -510,9 +510,10 @@ Logging levels adjust automatically:
   gate outright with `RoselineMCP:ConfirmDestructiveWrites = false` — after which the explicit
   `previewOnly: false`, plus the write-target ambiguity refusal below (which that switch does not
   reach), is what stands between a tool call and a disk write. See `SECURITY.md`.
-- **Write-target ambiguity is refused, unconditionally** (#240): a write tool called with
-  `previewOnly: false` and `project` omitted or blank fails with `ValidationError` — nothing
-  resolved for real, nothing elicited, nothing written — when the auto-discovered checkout carries
+- **Write-target ambiguity is refused, unconditionally** (#240, #245): a write tool called with
+  `previewOnly: false` and a `project` that is not an absolute path — omitted, blank, `"."`, a bare
+  project name, a relative `.sln` — fails with `ValidationError` — nothing
+  resolved for real, nothing elicited, nothing written — when the resolved checkout carries
   linked-worktree metadata (`ProjectLoader.HasLinkedWorktreeAmbiguity`: a `.git` *file*, i.e. a
   linked worktree or a submodule; or a `.git` directory whose `worktrees/` has entries, i.e. a main
   checkout that has them). Sibling checkouts of one repo hold the same projects at the same relative
@@ -521,7 +522,10 @@ Logging levels adjust automatically:
   the file. The check lives in `ToolExecutionHelper.RunVerifiedWriteAsync` **above** the
   `previewOnly || !CanAskHuman(...)` short-circuit, which is the whole point: below that line is
   exactly what `ConfirmDestructiveWrites = false` turns off. Reads are untouched (warn-only via
-  `resolvedPath`), previews are untouched, and an **explicit** `project` is never refused.
+  `resolvedPath`), previews are untouched, and an **absolute** `project` is never refused — the one
+  spelling that names a checkout. The predicate is `Path.IsPathFullyQualified`, not
+  `Path.IsPathRooted`: Windows' `\src\App.csproj` and `C:App.csproj` are rooted yet still resolve
+  against a current directory, which is the property the guard exists to detect.
 - **Compile-verified writes**: before any write tool touches disk, the candidate change is compiled
   in memory and refused if it introduces compiler errors. The guarantee is precise and deliberately
   narrow: **the verified change set compiles, and no refused edit is ever written** — *not* that the

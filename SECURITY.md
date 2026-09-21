@@ -136,8 +136,8 @@ which the switch does not reach — between a tool call and a disk write. So
 leave it enabled (the default) on any interactive install, and treat disabling
 it as a decision about a specific deployment.
 
-**One pre-write refusal is unconditional: an omitted `project` in a repository
-with linked worktrees.** Auto-discovery is anchored to the *server process's*
+**One pre-write refusal is unconditional: a `project` that does not name a
+checkout, in a repository with linked worktrees.** Auto-discovery is anchored to the *server process's*
 working directory, fixed at spawn. When several checkouts of one repository are
 in play — sibling git worktrees, the shape an agent fleet produces, where one
 server process serves callers working in different trees — they hold the same
@@ -146,22 +146,24 @@ plausible target in whichever checkout the *server* was started in. For a read
 that is wrong information, disclosed after the fact by `resolvedPath`. For a
 write it is a file changed in a tree nobody named, disclosed only in the
 response to the call that already changed it. So `ApplyFixes`, `EditMember` and
-`RenameSymbol` called with `previewOnly: false` and `project` omitted or blank
-are refused (`ValidationError`, nothing written, no elicitation) when the
-auto-discovered checkout carries linked-worktree metadata — a `.git` *file* (a
+`RenameSymbol` called with `previewOnly: false` and a `project` that is not an
+absolute path — omitted, blank, relative, a bare project name, a relative
+`.sln` — are refused (`ValidationError`, nothing written, no elicitation) when
+the resolved checkout carries linked-worktree metadata — a `.git` *file* (a
 linked worktree, or a submodule checkout) or a `.git` directory whose
 `worktrees/` has entries. The check reads that metadata directly and never
 spawns `git`, so a stale entry left by a hand-deleted worktree (cleared by
-`git worktree prune`) can over-refuse; that costs one explicit `project`, while
+`git worktree prune`) can over-refuse; that costs one absolute `project`, while
 the miss it replaces costs a file. It consults no configuration, `previewOnly`
-previews are untouched, reads are untouched, and an **explicit** `project` is
-never refused. Note what that last exemption does and does not buy: only an
-**absolute** path names a checkout. A relative path or a bare project name
-resolves against the server's own working directory, so it lands in exactly the
-tree an omitted `project` would have — and is exempted anyway, because a caller
-who supplies one has made a choice and adjudicating which spellings "count"
-would refuse legitimate calls. Operators running one server against several
-checkouts should require absolute paths.
+previews are untouched, reads are untouched, and an **absolute** `project` is
+never refused — that being the one spelling which names a checkout. A relative
+path, a bare project name and a relative `.sln` all resolve against the server's
+own working directory, so they land in exactly the tree an omitted `project`
+would have, and are refused on the same terms; the predicate is
+`Path.IsPathFullyQualified`, so Windows' root-relative `\src\App.csproj` and
+drive-relative `C:App.csproj` are refused too. An operator running one server
+against several checkouts no longer has to *require* absolute paths for writes —
+the server enforces them.
 
 **The confirmation names the target it is about to write.** The prompt carries
 the concrete `.sln`/`.csproj` path — resolved by the same function, against the

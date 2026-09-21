@@ -446,12 +446,13 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > A **write** is not left to that: two checkouts of one repository mostly hold the *same* code, so a
 > wrong-checkout write resolves, applies and returns an ordinary success in the tree you did not
 > mean — disclosure that arrives only in the response to the call that already changed the file. So
-> `applyFixes`, `editMember` and `renameSymbol` called with `previewOnly: false` and **no**
-> `project` are refused outright (`ValidationError`, nothing written, no prompt) when the
-> auto-discovered checkout belongs to a repository with linked worktrees — regardless of
-> `RoselineMCP:ConfirmDestructiveWrites`. Any explicit `project` steps past the refusal, but only an
-> **absolute** path actually names a checkout — a relative path or a bare name resolves against the
-> server's working directory, the very thing you don't know. See
+> `applyFixes`, `editMember` and `renameSymbol` called with `previewOnly: false` and a `project`
+> that is **not an absolute path** — omitted, blank, `"."`, a bare project name, a relative
+> `"App.sln"` — are refused outright (`ValidationError`, nothing written, no prompt) when the
+> resolved checkout belongs to a repository with linked worktrees — regardless of
+> `RoselineMCP:ConfirmDestructiveWrites`. Only an **absolute** `project` steps past the refusal,
+> because only an absolute path names a checkout: every other spelling resolves against the server's
+> working directory, the very thing you don't know. See
 > [docs/API.md](docs/API.md#which-checkout-answered).
 >
 > **Relative file paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`,

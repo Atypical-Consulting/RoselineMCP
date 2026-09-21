@@ -729,9 +729,10 @@ so an omitted `project` resolves the main checkout instead. Two checkouts of the
 repository are otherwise indistinguishable in a response — same project name, same relative
 paths — so pass an absolute `.sln`/`.csproj` path to target a specific checkout, and check
 `resolvedPath` in the response to confirm which one answered. For the three **write** tools that is
-not left to the caller: an omitted `project` with `previewOnly: false` is refused outright when the
-auto-discovered checkout belongs to a repository with linked worktrees — see
-[Which checkout answered?](#which-checkout-answered).
+not left to the caller: with `previewOnly: false`, a `project` that is not an **absolute** path —
+omitted, blank, `"."`, `"src/App"`, a bare project name, a relative `"App.sln"` — is refused outright
+when the resolved checkout belongs to a repository with linked worktrees, because only an absolute
+path names a checkout — see [Which checkout answered?](#which-checkout-answered).
 
 **Relative file paths.** The seven navigation tools' `file`/`definitionFile`, `ApplyFixes`',
 `EditMember`' and `RenameSymbol`' `changedFiles` **and unified-diff `a/`…`b/` headers**, and the
@@ -1649,9 +1650,10 @@ response to the call that already changed it, and there is no earlier turn at wh
 read it and stopped. Nor is `NotFoundError` the likely shape: two checkouts of one repository mostly
 hold the *same* code, so the symbol exists in both, resolution succeeds, the edit applies, and the
 response is an ordinary `ok: true` with real `changedFiles` — in the tree you did not mean. So those
-three tools, called with `previewOnly: false` and `project` omitted (or blank), are **refused before
-anything is written and before anyone is asked** — the target is resolved, cheaply and without
-loading MSBuild, precisely so the refusal can name it — when the auto-discovered checkout belongs to a repository with
+three tools, called with `previewOnly: false` and a `project` that is not a **fully-qualified path**
+— omitted, blank, `"."`, `"src/App"`, a bare project name, a relative `"App.sln"` — are **refused
+before anything is written and before anyone is asked** — the target is resolved, cheaply and without
+loading MSBuild, precisely so the refusal can name it — when the resolved checkout belongs to a repository with
 linked worktrees — detected from the on-disk metadata: a `.git` *file* (a linked worktree, or a
 submodule checkout) or a `.git` directory whose `worktrees/` has entries (a main checkout that has
 them):
@@ -1661,7 +1663,7 @@ them):
   "ok": false,
   "error": {
     "type": "ValidationError",
-    "message": "Refusing to write with an omitted 'project': the auto-discovered checkout '/…/RoselineMCP.sln' belongs to a repository with linked git worktrees, so an omitted 'project' cannot safely name which checkout to write to. Pass an explicit absolute 'project' path naming the checkout you intend.",
+    "message": "Refusing to write: 'project' does not name a checkout. The resolved target '/…/RoselineMCP.sln' belongs to a repository with linked git worktrees, and an omitted, relative or bare-name 'project' resolves against the SERVER's working directory — not necessarily yours. Pass an absolute 'project' path naming the checkout you intend.",
     "correlationId": "…"
   }
 }
@@ -1671,25 +1673,26 @@ Three things this refusal deliberately does **not** do. It does not consult
 `RoselineMCP:ConfirmDestructiveWrites` — the incident it exists to prevent happened with that switch
 off, which is the supported setting for unattended hosts. It does not touch **reads**, which keep
 warning through `resolvedPath` alone: a wrong-checkout read is wrong information, not lost data, and
-refusing them would break navigating a worktree's own code. And it never refuses an **explicit**
-`project` — absolute path, relative path, bare name or `.sln` — because supplying one is the caller
-saying they know which tree they mean.
+refusing them would break navigating a worktree's own code. And it never refuses an **absolute**
+`project`, because that is the one spelling that actually names a checkout: a caller who passes one
+has already said which tree they mean.
 
-That last exemption is wider than the protection it grants, so do not read it as one: only an
-**absolute** path actually names a checkout. A relative path (`"."`, `"src/App"`) and a bare project
-name resolve against `Directory.GetCurrentDirectory()` — the *server's* working directory, the one
-fact the caller does not know — so they land in exactly the tree an omitted `project` would have,
-and the refusal steps aside for them. The exemption is deliberately that wide (a caller who names a
-project has made a choice, and second-guessing which spellings "count" would refuse legitimate calls
-that have nothing to do with worktrees), but if your client and the server may be in different
-checkouts, pass an absolute path — nothing else is a checkout.
+That exemption is exactly as wide as the protection it grants, and no wider (#245). A relative path
+(`"."`, `"src/App"`), a bare project name and a relative `"App.sln"` all resolve against
+`Directory.GetCurrentDirectory()` — the *server's* working directory, the one fact the caller does
+not know — so they land in exactly the tree an omitted `project` would have, and are refused on the
+same terms. The predicate is `Path.IsPathFullyQualified`, not `Path.IsPathRooted`: on Windows
+`\src\App.csproj` (root-relative — resolved against the *current drive*) and `C:App.csproj`
+(drive-relative — resolved against *drive C's current directory*) are both rooted and both still
+cwd-dependent. The cost is a caller in a single checkout of a worktree-bearing repository who passes
+bare names; one absolute path fixes it, and the message names that fix.
 
 The refusal's failure envelope carries `error.resolvedPath`, naming the checkout it declined to
 write to, so the tree can be read off the response rather than parsed out of the message.
 
 One accepted cost: `git worktree prune`, not deleting the directory, is what clears a
 `.git/worktrees/<name>` entry, so a repository that *once* had worktrees can be refused until it is
-pruned. A false positive costs one explicit `project`; the false negative it replaces costs a file.
+pruned. A false positive costs one absolute `project`; the false negative it replaces costs a file.
 
 A `TimeoutError` carries the field for the same reason: being pointed at an unexpectedly large
 checkout is a leading cause of one, so the answer to "why did that take 120 s?" is often the path
