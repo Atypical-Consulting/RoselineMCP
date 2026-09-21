@@ -439,7 +439,7 @@ Preview modernization fixes (IDE0017, IDE0028, IDE0090) for MyApp.Legacy to see 
 {
   "tool": "ApplyFixes",
   "parameters": {
-    "project": "MyApp.Core",
+    "project": "/repo/src/MyApp.Core/MyApp.Core.csproj",
     "ids": ["CS0168"],
     "previewOnly": false
   }

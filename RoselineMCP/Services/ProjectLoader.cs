@@ -462,12 +462,13 @@ public class ProjectLoader : IProjectLoader
     /// </para>
     /// <para>
     /// Detected from git's own on-disk metadata, never by spawning <c>git</c>: this runs on every
-    /// omitted-<c>project</c> write call, and a process spawn is a steep price for a question three
+    /// write call whose <c>project</c> is not an absolute path, and a process spawn is a steep
+    /// price for a question three
     /// <see cref="File.Exists(string)"/>-class probes per directory level can answer. The cost is a
     /// possible false positive — <c>git worktree prune</c>, not the deletion itself, is what clears
     /// a <c>.git/worktrees/&lt;name&gt;</c> entry, so a repository that *had* worktrees can read as
     /// ambiguous until it is pruned. Deliberate: an unnecessary refusal is fixed by passing an
-    /// explicit <c>project</c>, while the false negative it replaces is a silent write into the
+    /// absolute <c>project</c>, while the false negative it replaces is a silent write into the
     /// wrong tree. A <c>.git</c> file also marks a submodule checkout, which this therefore treats
     /// as ambiguous too — same escape hatch, same cost.
     /// </para>

@@ -375,7 +375,12 @@ public class NavigationToolsTests
                 .Invokes((string _, string _, string _, string? src, bool preview, bool _, int _, CancellationToken _) => { capturedSource = src; capturedPreview = preview; })
                 .Returns(Task.FromResult(new EditMemberResponse { Applied = true }));
 
-            await EditMemberTool.EditMember(_service, "Foo", "add", "public int X => 1;", previewOnly: false, project: "Demo");
+            // Absolute, because #245's worktree guard resolves a non-absolute `project` on a
+            // previewOnly:false call before the service is reached. It never has to exist: an
+            // absolute path skips the guard, and this test is about what reaches the service.
+            var project = Path.Combine(Path.GetTempPath(), "Demo.csproj");
+
+            await EditMemberTool.EditMember(_service, "Foo", "add", "public int X => 1;", previewOnly: false, project: project);
 
             capturedSource.ShouldBe("public int X => 1;");
             capturedPreview.ShouldBe(false);

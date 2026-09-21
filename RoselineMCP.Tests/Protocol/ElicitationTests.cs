@@ -40,7 +40,10 @@ public class ElicitationTests : IDisposable
     /// concrete project it will write to, which means resolving the caller's <c>project</c> argument
     /// against the file system — so every case that expects to be <em>asked</em> has to point at
     /// something that actually resolves. A bare name like "TestProject" no longer does, and is kept
-    /// deliberately in the two cases that must never resolve at all (see below).
+    /// deliberately in <see cref="Preview_Call_Never_Builds_The_Confirmation_Message"/>, the one case
+    /// left that must never resolve at all. The two gate-off cases need the same "resolves to
+    /// nothing" property but spell it as an ABSOLUTE unresolvable path under this root, because
+    /// #245's worktree guard resolves a non-absolute <c>project</c> even with the gate off.
     /// </summary>
     private readonly string _fixtureRoot;
 
@@ -255,22 +258,21 @@ public class ElicitationTests : IDisposable
     /// refusal, and <c>docs/API.md</c> § Which checkout answered promises the field on every failure
     /// that got that far — naming the checkout that was refused, machine-readably.
     /// </remarks>
-    private static void ShouldBeTheWorktreeRefusal(JsonElement payload, string expectedCheckout)
+    private static void ShouldBeTheWorktreeRefusal(JsonElement payload, string expectedTarget)
     {
         payload.GetProperty("ok").GetBoolean()
-            .ShouldBeFalse("an omitted 'project' cannot name which of several checkouts to write to");
+            .ShouldBeFalse("a 'project' that names no checkout cannot say which of several to write to");
 
         var error = payload.GetProperty("error");
         error.GetProperty("type").GetString().ShouldBe("ValidationError");
         error.GetProperty("message").GetString()
             .ShouldNotBeNull()
             .ShouldContain(
-                "Refusing to write with an omitted 'project'",
+                "Refusing to write: 'project' does not name a checkout",
                 Case.Sensitive,
                 "a bare ValidationError is also what a failed auto-discovery produces — the message "
                 + "is what proves the worktree guard is the thing that fired");
-        error.GetProperty("resolvedPath").GetString()
-            .ShouldBe(Path.Combine(expectedCheckout, "Checkout.sln"));
+        error.GetProperty("resolvedPath").GetString().ShouldBe(expectedTarget);
     }
 
     /// <summary>
@@ -628,7 +630,7 @@ public class ElicitationTests : IDisposable
 
         var result = await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
         {
-            ["project"] = "TestProject",
+            ["project"] = Path.Combine(_fixtureRoot, "NoSuchProjectAnywhere.csproj"),
             ["ids"] = new[] { "RCS1213" },
             ["previewOnly"] = false,
         }, cancellationToken: TestContext.Current.CancellationToken);
@@ -637,10 +639,13 @@ public class ElicitationTests : IDisposable
         // stands. Note the client here DOES advertise elicitation support: this proves the option
         // suppresses the request itself rather than merely auto-accepting an answer.
         //
-        // `project` is deliberately left as a name that resolves to nothing. Building the prompt
+        // `project` is deliberately left as a path that resolves to nothing. Building the prompt
         // resolves the target, so an operator who switched the gate off must not be made to pay
         // for — or fail on — a question that is never asked. Were resolution to creep back in
-        // ahead of that switch, this call would come back as a failure envelope instead.
+        // ahead of that switch, this call would come back as a failure envelope instead. It is
+        // ABSOLUTE-and-unresolvable rather than a bare name because #245's worktree guard does
+        // resolve a non-absolute `project` gate-off — deliberately, and above that switch — so a
+        // bare name here would pin that guard instead of this one.
         elicited.ShouldBeFalse();
         captured.ShouldBe(false);
 
@@ -682,7 +687,7 @@ public class ElicitationTests : IDisposable
     public async Task RenameSymbol_With_PreviewOnly_False_Skips_Elicitation_When_Confirmation_Is_Disabled()
     {
         // The disabled gate lives in the shared helper, not in apply_fixes: prove it through a
-        // second tool, mirroring the decline-path test above — including the unresolvable
+        // second tool, mirroring the decline-path test above — including the absolute, unresolvable
         // `project`, which pins that a suppressed prompt is never built and so never resolved.
         bool? captured = null;
         var elicited = false;
@@ -702,7 +707,7 @@ public class ElicitationTests : IDisposable
 
         await host.Client.CallToolAsync("rename_symbol", new Dictionary<string, object?>
         {
-            ["project"] = "Demo",
+            ["project"] = Path.Combine(_fixtureRoot, "NoSuchProjectAnywhere.csproj"),
             ["symbol"] = "Foo",
             ["newName"] = "Bar",
             ["previewOnly"] = false,
@@ -1329,43 +1334,52 @@ public class ElicitationTests : IDisposable
         // directory sits on a different volume from the checkout (C:\ vs D:\), and
         // Path.GetRelativePath then returns its input unchanged — there is no relative form across
         // drives, so the case being tested would silently not be exercised.
-        var directory = Path.Combine(Directory.GetCurrentDirectory(), $"RoselineRelative_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(directory);
-        try
+        //
+        // It also runs from a PLAIN checkout: #245 refuses a relative `project` on a write whose
+        // resolved target sits in a tree carrying linked-worktree metadata, and this case is about
+        // the PROMPT's path, not about that guard. The fixture checkout is itself a temp directory
+        // and the relative fixture is created inside it, so the cross-volume note above still holds.
+        var plain = CreateCheckoutFixture(CheckoutShape.PlainCheckout);
+        await InDirectoryAsync(plain, async _ =>
         {
-            var csproj = Path.Combine(directory, "Relative.csproj");
-            await File.WriteAllTextAsync(
-                csproj,
-                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>",
-                TestContext.Current.CancellationToken);
-
-            var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), csproj);
-            Path.IsPathRooted(relative).ShouldBeFalse("the argument under test must be a relative path");
-
-            string? message = null;
-            var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
-
-            await using var host = await StartHostAsync(
-                codeFix,
-                (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
-
-            await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
-            {
-                ["project"] = relative,
-                ["ids"] = new[] { "RCS1213" },
-                ["previewOnly"] = false,
-            }, cancellationToken: TestContext.Current.CancellationToken);
-
-            message.ShouldNotBeNull();
-            ShouldNameARealProject(message);
-            TargetFromPrompt(message).ShouldBe(csproj);
-        }
-        finally
-        {
+            var directory = Path.Combine(Directory.GetCurrentDirectory(), $"RoselineRelative_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(directory);
             try
-            { Directory.Delete(directory, true); }
-            catch { /* ignored */ }
-        }
+            {
+                var csproj = Path.Combine(directory, "Relative.csproj");
+                await File.WriteAllTextAsync(
+                    csproj,
+                    "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>",
+                    TestContext.Current.CancellationToken);
+
+                var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), csproj);
+                Path.IsPathRooted(relative).ShouldBeFalse("the argument under test must be a relative path");
+
+                string? message = null;
+                var codeFix = FakeCodeFixCapturingPreviewOnly(_ => { });
+
+                await using var host = await StartHostAsync(
+                    codeFix,
+                    (request, _) => { message = request?.Message; return new ValueTask<ElicitResult>(new ElicitResult { Action = "decline" }); });
+
+                await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+                {
+                    ["project"] = relative,
+                    ["ids"] = new[] { "RCS1213" },
+                    ["previewOnly"] = false,
+                }, cancellationToken: TestContext.Current.CancellationToken);
+
+                message.ShouldNotBeNull();
+                ShouldNameARealProject(message);
+                TargetFromPrompt(message).ShouldBe(csproj);
+            }
+            finally
+            {
+                try
+                { Directory.Delete(directory, true); }
+                catch { /* ignored */ }
+            }
+        });
     }
 
     [Fact]
@@ -1623,7 +1637,45 @@ public class ElicitationTests : IDisposable
             var result = await host.Client.CallToolAsync(
                 tool, WriteArguments(tool, previewOnly: false), cancellationToken: TestContext.Current.CancellationToken);
 
-            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), resolved);
+            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), Path.Combine(resolved, "Checkout.sln"));
+        });
+
+        elicited.ShouldBeFalse("the refusal must land before a human is asked to approve the write");
+    }
+
+    [Theory]
+    [InlineData(".", "Checkout.csproj")]
+    [InlineData("Checkout", "Checkout.csproj")]
+    [InlineData("./Checkout.csproj", "Checkout.csproj")]
+    [InlineData("Checkout.sln", "Checkout.sln")]
+    public async Task Non_Absolute_Project_Write_Is_Refused_When_The_Checkout_Is_A_Linked_Worktree(
+        string project, string expectedFile)
+    {
+        // #245. #243 exempted any non-blank `project`, on the grounds that a caller who supplies one
+        // has named the checkout they mean. Only a fully-qualified path actually does: every spelling
+        // below is resolved by ProjectLoader.ResolveTargetPath against Directory.GetCurrentDirectory()
+        // — the SERVER's working directory, the one fact the caller cannot see — so each lands in
+        // exactly the tree an omitted `project` would, and `project: "."` or a bare project name is
+        // the most natural thing for a model to type. One row per resolution branch: the directory
+        // branch ("." → *.csproj glob), the bare-name recursive sweep, the verbatim .csproj branch,
+        // and the .sln branch, which is the one that resolves to a solution rather than a project.
+        var elicited = false;
+        var worktree = CreateCheckoutFixture(CheckoutShape.LinkedWorktree);
+
+        await using var host = await StartHostAsync(
+            FakeCodeFixCapturingPreviewOnly(_ => { }),
+            (_, _) => { elicited = true; return new ValueTask<ElicitResult>(new ElicitResult { Action = "accept" }); },
+            editService: FakeCodeEditReportingAChange());
+
+        await InDirectoryAsync(worktree, async resolved =>
+        {
+            var arguments = WriteArguments("edit_member", previewOnly: false);
+            arguments["project"] = project;
+
+            var result = await host.Client.CallToolAsync(
+                "edit_member", arguments, cancellationToken: TestContext.Current.CancellationToken);
+
+            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), Path.Combine(resolved, expectedFile));
         });
 
         elicited.ShouldBeFalse("the refusal must land before a human is asked to approve the write");
@@ -1652,7 +1704,7 @@ public class ElicitationTests : IDisposable
             var result = await host.Client.CallToolAsync(
                 tool, WriteArguments(tool, previewOnly: false), cancellationToken: TestContext.Current.CancellationToken);
 
-            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), resolved);
+            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), Path.Combine(resolved, "Checkout.sln"));
         });
 
         elicited.ShouldBeFalse();
@@ -1683,22 +1735,30 @@ public class ElicitationTests : IDisposable
                 WriteArguments("edit_member", previewOnly: false),
                 cancellationToken: TestContext.Current.CancellationToken);
 
-            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), resolved);
+            ShouldBeTheWorktreeRefusal(EnvelopeOf(result), Path.Combine(resolved, "Checkout.sln"));
         });
 
         elicited.ShouldBeFalse("with the gate off the elicitation path is not even reachable");
     }
 
     [Theory]
-    [InlineData(CheckoutShape.PlainCheckout)]
-    [InlineData(CheckoutShape.NotARepository)]
-    public async Task Omitted_Project_Write_Succeeds_From_A_Plain_Non_Worktree_Checkout(CheckoutShape shape)
+    [InlineData(CheckoutShape.PlainCheckout, null)]
+    [InlineData(CheckoutShape.NotARepository, null)]
+    [InlineData(CheckoutShape.PlainCheckout, ".")]
+    [InlineData(CheckoutShape.PlainCheckout, "Checkout")]
+    [InlineData(CheckoutShape.PlainCheckout, "Checkout.sln")]
+    public async Task Write_Is_Never_Refused_From_A_Plain_Non_Worktree_Checkout(
+        CheckoutShape shape, string? project)
     {
         // The regression guard on the other side, for both unambiguous shapes: a `.git` DIRECTORY
         // with no `worktrees/` entries is one working tree, and no `.git` at all is not a repository
         // to have two checkouts of. Either way an omitted `project` names the tree unambiguously and
         // nothing changes. Most repositories are the first, and refusing them would turn a data-loss
         // fix into a usability regression for everyone it does not protect.
+        //
+        // #245 narrowed the exemption to a fully-qualified `project`, so the spellings it now refuses
+        // from a worktree-bearing repository ride along here: what triggers the refusal is the
+        // repository shape, never the spelling on its own.
         var plain = CreateCheckoutFixture(shape);
 
         await using var host = await StartHostAsync(
@@ -1708,10 +1768,14 @@ public class ElicitationTests : IDisposable
 
         await InDirectoryAsync(plain, async _ =>
         {
+            var arguments = WriteArguments("edit_member", previewOnly: false);
+            if (project is not null)
+            {
+                arguments["project"] = project;
+            }
+
             var result = await host.Client.CallToolAsync(
-                "edit_member",
-                WriteArguments("edit_member", previewOnly: false),
-                cancellationToken: TestContext.Current.CancellationToken);
+                "edit_member", arguments, cancellationToken: TestContext.Current.CancellationToken);
 
             EnvelopeOf(result).GetProperty("ok").GetBoolean()
                 .ShouldBeTrue("a single-working-tree repository is not ambiguous and must be unaffected");
@@ -1719,11 +1783,13 @@ public class ElicitationTests : IDisposable
     }
 
     [Fact]
-    public async Task Explicit_Project_Write_Is_Never_Refused_By_The_Worktree_Guard()
+    public async Task Absolute_Project_Write_Is_Never_Refused_By_The_Worktree_Guard()
     {
         // The documented escape hatch, asserted from inside the ambiguous checkout: a caller who
         // names the checkout has already answered the only question the refusal asks, so the guard
-        // has nothing left to protect them from — worktree or not.
+        // has nothing left to protect them from — worktree or not. Since #245 "absolute" is the
+        // exempting property rather than "explicit": an absolute path is the only spelling that
+        // names a checkout at all, which is what the theory above pins from the other side.
         var worktree = CreateCheckoutFixture(CheckoutShape.LinkedWorktree);
 
         await using var host = await StartHostAsync(
@@ -1740,7 +1806,7 @@ public class ElicitationTests : IDisposable
                 "edit_member", arguments, cancellationToken: TestContext.Current.CancellationToken);
 
             EnvelopeOf(result).GetProperty("ok").GetBoolean()
-                .ShouldBeTrue("an explicit 'project' is how a caller names a checkout — it must never be refused");
+                .ShouldBeTrue("an absolute 'project' is how a caller names a checkout — it must never be refused");
         });
     }
 

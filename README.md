@@ -342,12 +342,13 @@ Applies automated code fixes for specified diagnostics. **Defaults to preview mo
 `previewOnly` defaults to `true`, so calling this tool without setting it never writes to disk —
 you must pass `previewOnly: false` explicitly to apply changes. `project` is **optional** and
 accepts the same references as the navigation tools (name, directory, `.csproj`, or `.sln` path);
-when omitted, the solution/project is auto-discovered from the working directory.
+when omitted, the solution/project is auto-discovered from the working directory. For a **write**
+(`previewOnly: false`) make it an **absolute** path — see the worktree note below.
 
 ```typescript
 applyFixes({
   ids: ["CS0168", "RCS1001"],   // Diagnostic IDs to fix
-  project: "MyProject.csproj",  // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
+  project: "/repo/src/MyProject/MyProject.csproj",  // Optional; absolute for a write (see the worktree note)
   previewOnly: false             // Optional (default: true). Set false to write changes to disk.
 })
 ```
@@ -446,12 +447,13 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > A **write** is not left to that: two checkouts of one repository mostly hold the *same* code, so a
 > wrong-checkout write resolves, applies and returns an ordinary success in the tree you did not
 > mean — disclosure that arrives only in the response to the call that already changed the file. So
-> `applyFixes`, `editMember` and `renameSymbol` called with `previewOnly: false` and **no**
-> `project` are refused outright (`ValidationError`, nothing written, no prompt) when the
-> auto-discovered checkout belongs to a repository with linked worktrees — regardless of
-> `RoselineMCP:ConfirmDestructiveWrites`. Any explicit `project` steps past the refusal, but only an
-> **absolute** path actually names a checkout — a relative path or a bare name resolves against the
-> server's working directory, the very thing you don't know. See
+> `applyFixes`, `editMember` and `renameSymbol` called with `previewOnly: false` and a `project`
+> that is **not an absolute path** — omitted, blank, `"."`, a bare project name, a relative
+> `"App.sln"` — are refused outright (`ValidationError`, nothing written, no prompt) when the
+> resolved checkout belongs to a repository with linked worktrees — regardless of
+> `RoselineMCP:ConfirmDestructiveWrites`. Only an **absolute** `project` steps past the refusal,
+> because only an absolute path names a checkout: every other spelling resolves against the server's
+> working directory, the very thing you don't know. See
 > [docs/API.md](docs/API.md#which-checkout-answered).
 >
 > **Relative file paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`,
@@ -581,7 +583,7 @@ Replace, add, or delete a single type member; returns a unified diff.
 
 ```typescript
 editMember({
-  project: "MyApp.Core",
+  project: "/repo/src/MyApp.Core/MyApp.Core.csproj",
   symbol: "Acme.UserService.GetUser",  // The member (replace/delete), or the container type (add)
   operation: "replace",                 // "replace" | "add" | "delete"
   newSource: "public User GetUser(int id) => _repo.Find(id);",  // Required for replace/add
@@ -596,7 +598,7 @@ editMember({
 Rename a symbol and update every reference across the solution (Roslyn rename); returns a unified diff.
 
 ```typescript
-renameSymbol({ project: "MyApp.Core", symbol: "GetUser", newName: "GetUserById", previewOnly: false })
+renameSymbol({ project: "/repo/src/MyApp.Core/MyApp.Core.csproj", symbol: "GetUser", newName: "GetUserById", previewOnly: false })
 ```
 
 **Returns:** symbol, newName, `changedFiles`, `patch`, `previewOnly`, `applied`, `verification`, `notes`.
