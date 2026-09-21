@@ -72,7 +72,9 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_testDirectory, true); } catch { /* ignored */ }
+        try
+        { Directory.Delete(_testDirectory, true); }
+        catch { /* ignored */ }
 
         GC.SuppressFinalize(this);
     }
@@ -231,8 +233,9 @@ public class UnresolvedAnalyzerReferenceTests : IDisposable
     /// <summary>
     /// The open question #242's plan left to measurement: <c>apply_fixes</c> is reached through a
     /// different path (a fixer's own <c>CodeAction</c>), so whether it hits the project-state
-    /// checksum depends on the fixer. CS0219's does not call <c>Renamer</c> — so this case passes
-    /// against the unstripped solution too, and is kept as a pin rather than a regression proof.
+    /// checksum depends on the fixer. CS0219's is not expected to reach it (it never calls
+    /// <c>Renamer</c> and needs no dependent-type index), so this is kept as a pin on the path
+    /// staying open — not as a regression proof that it was ever broken.
     /// </summary>
     [Fact]
     public async Task Apply_Fixes_Answers_Over_The_Same_Project()
