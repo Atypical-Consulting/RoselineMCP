@@ -334,7 +334,10 @@ public class AnalysisToolsTests
         public async Task Should_Pass_Parameters_Correctly()
         {
             // Arrange
-            var project = "TestProject";
+            // Absolute, because #245's worktree guard resolves a non-absolute `project` on a
+            // previewOnly:false call before the service is reached. The same local feeds the
+            // FakeItEasy matcher below, so the two stay consistent.
+            var project = Path.Combine(Path.GetTempPath(), "TestProject.csproj");
             var ids = new[] { "CS0168", "IDE0005" };
             var previewOnly = false;
             List<string>? capturedIds = null;

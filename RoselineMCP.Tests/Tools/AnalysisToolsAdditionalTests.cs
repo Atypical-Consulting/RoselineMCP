@@ -85,7 +85,9 @@ public class AnalysisToolsAdditionalTests
             var result = await ApplyFixesTool.ApplyFixes(
                 _codeFixService,
                 new[] { "CS0168" },
-                "TestProject",
+                // Absolute: #245's worktree guard resolves a non-absolute `project` on a
+                // previewOnly:false call before the service is reached.
+                Path.Combine(Path.GetTempPath(), "TestProject.csproj"),
                 false);
 
             // Assert

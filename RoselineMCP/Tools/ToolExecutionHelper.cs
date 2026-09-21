@@ -374,10 +374,14 @@ internal static class ToolExecutionHelper
     /// not free. A bare project name that matches neither a file nor a directory falls through to a
     /// recursive <c>*.csproj</c> scan of the working directory, which on a large tree is slow. That
     /// is the main reason a path which will not send a prompt returns before calling this. One
-    /// exception, and it is exempt from the cost rather than paying it: the linked-worktree refusal
-    /// at the top of <see cref="RunVerifiedWriteAsync{T}"/> calls this on every omitted-<c>project</c>
-    /// write, gate on or off — but only when <paramref name="project"/> is null or whitespace, which
-    /// takes the bounded auto-discovery walk and never the bare-name sweep this paragraph is about. No
+    /// exception, and since #245 it pays that cost rather than being exempt from it: the
+    /// linked-worktree refusal at the top of <see cref="RunVerifiedWriteAsync{T}"/> calls this on
+    /// every write whose <paramref name="project"/> is not fully qualified, gate on or off — so a
+    /// bare name does reach the sweep this paragraph is about. Accepted: the sweep streams
+    /// (<c>EnumerateFiles</c>) and stops at the first name match, and on the default gate-on path
+    /// <c>ResolveWriteModeAsync</c> already pays it — so the new cost is one extra sweep per write
+    /// call, and only on gate-off hosts, which previously resolved nothing at all. It buys the
+    /// refusal. No
     /// discovery scan reached from here — this recursive sweep, or the auto-discovery walk taken
     /// when <paramref name="project"/> is omitted — throws on an unreadable directory it encounters
     /// any more; every one of them skips it (the shared <c>IncidentalScan</c> options,
@@ -535,22 +539,34 @@ internal static class ToolExecutionHelper
         // omitted `project` went straight to the loader and wrote into whichever checkout the SERVER's
         // working directory happened to auto-discover. Between sibling worktrees of one repository
         // that is not a miss a caller could notice — the symbol exists in both trees, so the write
-        // succeeds, plausibly, in the wrong one. An explicit `project` is never refused here: it is
-        // the documented way to name a checkout, and the caller has already named one.
+        // succeeds, plausibly, in the wrong one. Only an ABSOLUTE `project` is exempt (#245): every
+        // other spelling — a relative path, a bare project name, a relative `.sln` — is resolved by
+        // ResolveTargetPath against Directory.GetCurrentDirectory() too, so it lands in exactly the
+        // tree an omitted one would. #243 exempted any non-blank `project`, which left the incident
+        // reachable through a spelling change in the caller's argument.
+        //
+        // Path.IsPathFullyQualified rather than Path.IsPathRooted: the question is "does this name a
+        // location independent of any current directory", not "does it start at a root". On Windows
+        // `\src\App.csproj` (root-relative: the CURRENT DRIVE) and `C:App.csproj` (drive-relative:
+        // drive C's CURRENT DIRECTORY) are both rooted and both still cwd-dependent, so IsPathRooted
+        // would wave through the exact property this guard exists to detect. IsNullOrWhiteSpace stays
+        // first and is load-bearing twice: it short-circuits the ArgumentNullException the string
+        // overload throws on null, and it keeps the omitted case reading as the primary one it is.
         //
         // The exception is deliberately NOT caught: it reaches the tool's own handler as the standard
         // ValidationError envelope with no elicitation sent, exactly like ResolveWriteTarget's
         // unresolvable-target throw.
-        if (!previewOnly && string.IsNullOrWhiteSpace(project))
+        if (!previewOnly && (string.IsNullOrWhiteSpace(project) || !Path.IsPathFullyQualified(project)))
         {
             var target = ResolveWriteTarget(project);
             if (ProjectLoader.HasLinkedWorktreeAmbiguity(Path.GetDirectoryName(target)!))
             {
                 var refusal = new ArgumentException(
-                    $"Refusing to write with an omitted 'project': the auto-discovered checkout '{target}' "
-                    + "belongs to a repository with linked git worktrees, so an omitted 'project' cannot "
-                    + "safely name which checkout to write to. Pass an explicit absolute 'project' path "
-                    + "naming the checkout you intend.");
+                    "Refusing to write: 'project' does not name a checkout. The resolved target "
+                    + $"'{target}' belongs to a repository with linked git worktrees, and an omitted, "
+                    + "relative or bare-name 'project' resolves against the SERVER's working directory "
+                    + "— not necessarily yours. Pass an absolute 'project' path naming the checkout "
+                    + "you intend.");
 
                 // A target WAS resolved here, so the envelope reports it: `error.resolvedPath` is
                 // omitted only when nothing resolved, and "the checkout I refused to write to" is
