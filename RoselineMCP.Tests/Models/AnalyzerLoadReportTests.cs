@@ -192,4 +192,61 @@ public class AnalyzerLoadReportTests
         result.Diagnostics.ShouldBeEmpty();
         result.AnalyzerLoad.ShouldBeSameAs(report);
     }
+
+    [Fact]
+    public void AddUnresolved_Does_Nothing_For_An_Empty_List()
+    {
+        // Arrange — the universal case: the loader removed nothing.
+        var report = new AnalyzerLoadReport { AnalyzersRan = true, ReferencesConsulted = 2, ReferencesContributing = 2 };
+
+        // Act
+        report.AddUnresolved([]);
+
+        // Assert — no note, no counter moved. ListDiagnosticsToolTests' RunAnalyzers = false case
+        // reads ReferencesConsulted == 0 and must stay green.
+        report.Notes.ShouldBeEmpty();
+        report.ReferencesConsulted.ShouldBe(2);
+        report.ReferencesContributing.ShouldBe(2);
+        report.HasSomethingToReport.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void AddUnresolved_Names_Each_Removed_Reference_And_Counts_It_As_Consulted()
+    {
+        // Arrange
+        var report = new AnalyzerLoadReport { AnalyzersRan = true, ReferencesConsulted = 2, ReferencesContributing = 2 };
+        var missing = Path.Combine("nonexistent", "Missing.Analyzer.dll");
+
+        // Act — the same path twice: a reference the loader removed once per project must be
+        // named once, not once per project.
+        report.AddUnresolved([missing, missing]);
+
+        // Assert — consulted counts the reference the loader removed (it was there); contributing
+        // does not (it never could). The path is what a caller acts on, so it is in the message.
+        var note = report.Notes.ShouldHaveSingleItem();
+        note.Reason.ShouldBe(AnalyzerLoadNote.Unresolved);
+        note.Reference.ShouldBe("Missing.Analyzer.dll");
+        note.Message.ShouldNotBeNull().ShouldContain(missing);
+        note.ErrorCode.ShouldBeNull();
+        report.ReferencesConsulted.ShouldBe(3);
+        report.ReferencesContributing.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Merge_Names_The_Same_Missing_Reference_Once_Across_Projects()
+    {
+        // Arrange — two projects of one solution both reference the same absent analyzer.
+        var missing = Path.Combine("nonexistent", "Missing.Analyzer.dll");
+        var first = new AnalyzerLoadReport { AnalyzersRan = true };
+        first.AddUnresolved([missing]);
+        var second = new AnalyzerLoadReport { AnalyzersRan = true };
+        second.AddUnresolved([missing]);
+
+        // Act
+        var merged = AnalyzerLoadReport.Merge([first, second]);
+
+        // Assert — the counters are consultations (summed); the notes name each reference once.
+        merged.Notes.ShouldHaveSingleItem().Reason.ShouldBe(AnalyzerLoadNote.Unresolved);
+        merged.ReferencesConsulted.ShouldBe(2);
+    }
 }

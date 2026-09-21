@@ -365,6 +365,12 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 }
 
                 var (allDiagnostics, analyzerLoad) = await GetProjectDiagnosticsAsync(msProject, compilation, ids, files, cancellationToken);
+
+                // References the loader removed never reach the diagnostics pass, so the pass cannot
+                // name them — but they were on the project, and a caller must not read their absence
+                // as "every reference contributed" (#242).
+                analyzerLoad.AddUnresolved(loaded.UnresolvedAnalyzerReferences);
+
                 var stats = CollectDiagnosticStatistics(allDiagnostics, msProject);
                 var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
 

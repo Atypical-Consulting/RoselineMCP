@@ -59,7 +59,8 @@ const groupBlurb: Record<string, string> = {
           the universal case — by contributing <em>zero</em> analyzers, not by failing. The {analyzerLoadToolPhrase} that
           report{analyzerLoadAgreement.s} <code>analyzerLoad</code> ({analyzerLoadTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
           therefore return{analyzerLoadAgreement.s} that block naming every reference that contributed nothing and why
-          (<code>load-failure</code> with Roslyn's <code>errorCode</code> and message, <code>no C# analyzers</code>, or <code>exception</code>).
+          (<code>load-failure</code> with Roslyn's <code>errorCode</code> and message, <code>no C# analyzers</code>, <code>unresolved</code>
+          — the analyzer assembly is not on disk, so it is removed from the loaded solution before Roslyn chokes on it — or <code>exception</code>).
           It is <strong>omitted when every reference contributed</strong>, so a present block always
           says something — including <code>analyzersRan: false</code> when analyzers are switched
           off. Code fixers are looked up in the Roslyn built-ins, the bundled Roslynator catalog, and
