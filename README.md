@@ -426,8 +426,9 @@ to a solution, the whole solution is loaded and symbol search/resolution spans e
 projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 
 > **Working in a git worktree?** Auto-discovery is anchored to **the server's** working directory —
-> the one the MCP client launched RoselineMCP in — not yours. They differ whenever work happens in a
-> git worktree (e.g. `.claude/worktrees/<name>`), which sits below the discovery walk's reach, so an
+> the one the MCP client launched RoselineMCP in, fixed for the life of the process — not yours. What
+> matters is only that the two differ, whether you walked into another checkout or were started in
+> one: a worktree (e.g. `.claude/worktrees/<name>`) sits below the discovery walk's reach, so an
 > omitted `project` resolves the **main checkout** instead. Every tool that takes an optional
 > `project` — the seven navigation tools, both edit tools, `listDiagnostics` and `applyFixes` —
 > reports `resolvedPath`, the absolute `.sln`/`.csproj` that actually answered — the `.sln` when the
@@ -436,10 +437,22 @@ projects. Full request/response shapes are in [docs/API.md](docs/API.md).
 > an absolute path as `project` to target a specific checkout. (`analyzeSolution` is the exception:
 > its `pathOrGit` is required, so it auto-discovers nothing.)
 >
-> **Failures report it too**, which is where you will usually meet this: the wrong checkout answers
-> `NotFoundError: Symbol not found: 'X'` rather than a plausible-looking success. The failure
-> envelope's `error.resolvedPath` names the checkout that was searched, and is omitted entirely when
-> the call failed before resolving anything. See [docs/API.md](docs/API.md#which-checkout-answered).
+> **How you meet this depends on whether you are reading or writing.** A **read** for something the
+> other checkout does not have answers `NotFoundError: Symbol not found: 'X'`; a read for something
+> it does answers successfully, with a `resolvedPath` you did not expect. Either way the failure
+> envelope's `error.resolvedPath` names the checkout that was searched (omitted entirely when the
+> call failed before resolving anything), so "not there" stays distinguishable from "wrong tree".
+>
+> A **write** is not left to that: two checkouts of one repository mostly hold the *same* code, so a
+> wrong-checkout write resolves, applies and returns an ordinary success in the tree you did not
+> mean — disclosure that arrives only in the response to the call that already changed the file. So
+> `applyFixes`, `editMember` and `renameSymbol` called with `previewOnly: false` and **no**
+> `project` are refused outright (`ValidationError`, nothing written, no prompt) when the
+> auto-discovered checkout belongs to a repository with linked worktrees — regardless of
+> `RoselineMCP:ConfirmDestructiveWrites`. Any explicit `project` steps past the refusal, but only an
+> **absolute** path actually names a checkout — a relative path or a bare name resolves against the
+> server's working directory, the very thing you don't know. See
+> [docs/API.md](docs/API.md#which-checkout-answered).
 >
 > **Relative file paths hang off `resolvedPath`.** The navigation tools' `file`/`definitionFile`,
 > `applyFixes`/`editMember`/`renameSymbol`'s `changedFiles` **and patch headers**, and
