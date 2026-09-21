@@ -444,6 +444,63 @@ public class ProjectLoader : IProjectLoader
     }
 
     /// <summary>
+    /// Whether <paramref name="directory"/> belongs to a repository that has more than one working
+    /// tree — either <paramref name="directory"/>'s own checkout is a linked git worktree (a
+    /// <c>.git</c> <em>file</em> rather than a directory), or its main checkout's
+    /// <c>.git/worktrees/</c> holds one or more entries. Walks upward from
+    /// <paramref name="directory"/> and answers from the first <c>.git</c> entry it meets;
+    /// <c>false</c> when there is none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the one question an omitted <c>project</c> cannot answer for a write (#240): several
+    /// checkouts of the same repository hold the same project names at the same relative paths, so
+    /// auto-discovery from the server's own working directory resolves a real, plausible target in
+    /// whichever checkout the *server* was started in — not the one the caller meant. A read that
+    /// lands in the wrong checkout returns wrong information, disclosed after the fact by
+    /// <c>resolvedPath</c>; a write that lands there has already changed a file nobody asked it to.
+    /// </para>
+    /// <para>
+    /// Detected from git's own on-disk metadata, never by spawning <c>git</c>: this runs on every
+    /// omitted-<c>project</c> write call, and a process spawn is a steep price for a question three
+    /// <see cref="File.Exists(string)"/>-class probes per directory level can answer. The cost is a
+    /// possible false positive — <c>git worktree prune</c>, not the deletion itself, is what clears
+    /// a <c>.git/worktrees/&lt;name&gt;</c> entry, so a repository that *had* worktrees can read as
+    /// ambiguous until it is pruned. Deliberate: an unnecessary refusal is fixed by passing an
+    /// explicit <c>project</c>, while the false negative it replaces is a silent write into the
+    /// wrong tree. A <c>.git</c> file also marks a submodule checkout, which this therefore treats
+    /// as ambiguous too — same escape hatch, same cost.
+    /// </para>
+    /// </remarks>
+    internal static bool HasLinkedWorktreeAmbiguity(string directory)
+    {
+        var current = directory;
+
+        while (!string.IsNullOrEmpty(current))
+        {
+            var dotGit = Path.Combine(current, ".git");
+
+            // A linked worktree (and a submodule) carries a `.git` FILE holding a `gitdir:` pointer.
+            if (File.Exists(dotGit))
+            {
+                return true;
+            }
+
+            if (Directory.Exists(dotGit))
+            {
+                // The main checkout. It is ambiguous exactly when it has linked worktrees of its own.
+                var worktrees = Path.Combine(dotGit, "worktrees");
+                return Directory.Exists(worktrees)
+                    && Directory.EnumerateFileSystemEntries(worktrees).Any();
+            }
+
+            current = Directory.GetParent(current)?.FullName;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Collects distinct files matching <paramref name="pattern"/> across <paramref name="directories"/>
     /// (top level of each), AppleDouble shadows excluded. A directory this process cannot read is
     /// skipped, not aborted over.

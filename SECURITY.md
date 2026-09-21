@@ -138,9 +138,37 @@ elicitation, or when the round-trip fails — and setting
 no elicitation is sent at all. It exists for unattended hosts (CI, headless
 agents) whose client *can* elicit but has no human to answer, where the prompt
 would otherwise stall the call rather than guarding it. Turning it off leaves
-the explicit `previewOnly: false` opt-in as the only thing between a tool call
-and a disk write — so leave it enabled (the default) on any interactive
-install, and treat disabling it as a decision about a specific deployment.
+the explicit `previewOnly: false` opt-in — plus the worktree refusal below,
+which the switch does not reach — between a tool call and a disk write. So
+leave it enabled (the default) on any interactive install, and treat disabling
+it as a decision about a specific deployment.
+
+**One pre-write refusal is unconditional: an omitted `project` in a repository
+with linked worktrees.** Auto-discovery is anchored to the *server process's*
+working directory, fixed at spawn. When several checkouts of one repository are
+in play — sibling git worktrees, the shape an agent fleet produces, where one
+server process serves callers working in different trees — they hold the same
+projects at the same relative paths, so an omitted `project` resolves a real,
+plausible target in whichever checkout the *server* was started in. For a read
+that is wrong information, disclosed after the fact by `resolvedPath`. For a
+write it is a file changed in a tree nobody named, disclosed only in the
+response to the call that already changed it. So `ApplyFixes`, `EditMember` and
+`RenameSymbol` called with `previewOnly: false` and `project` omitted or blank
+are refused (`ValidationError`, nothing written, no elicitation) when the
+auto-discovered checkout carries linked-worktree metadata — a `.git` *file* (a
+linked worktree, or a submodule checkout) or a `.git` directory whose
+`worktrees/` has entries. The check reads that metadata directly and never
+spawns `git`, so a stale entry left by a hand-deleted worktree (cleared by
+`git worktree prune`) can over-refuse; that costs one explicit `project`, while
+the miss it replaces costs a file. It consults no configuration, `previewOnly`
+previews are untouched, reads are untouched, and an **explicit** `project` is
+never refused. Note what that last exemption does and does not buy: only an
+**absolute** path names a checkout. A relative path or a bare project name
+resolves against the server's own working directory, so it lands in exactly the
+tree an omitted `project` would have — and is exempted anyway, because a caller
+who supplies one has made a choice and adjudicating which spellings "count"
+would refuse legitimate calls. Operators running one server against several
+checkouts should require absolute paths.
 
 **The confirmation names the target it is about to write.** The prompt carries
 the concrete `.sln`/`.csproj` path — resolved by the same function, against the
@@ -320,8 +348,8 @@ it is not a defence you should build on.
 
 **It is a correctness gate, not a security boundary.** `allowIntroducedErrors: true` waives it from
 the tool call, so it constrains mistakes, not an adversarial caller. The guards that constrain a
-caller are the explicit `previewOnly: false` opt-in and the write-confirmation elicitation, both
-unchanged. `scopeComplete: false` in the verdict means the gate could not prove it saw every
+caller are the explicit `previewOnly: false` opt-in, the write-confirmation elicitation and the
+worktree-ambiguity refusal, all three unchanged. `scopeComplete: false` in the verdict means the gate could not prove it saw every
 dependent (a bare `.csproj` with no containing solution) — the write still proceeds, and the caller
 is told the check was partial rather than handed a false green.
 

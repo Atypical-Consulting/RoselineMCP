@@ -301,8 +301,10 @@ every project in it — a symbol declared only in a sibling project the anchor d
 (e.g. the Tests project) is still found, and references/renames span projects.
 
 ⚠️ **The working directory is the *server's*, fixed at spawn — not the agent's.** They diverge
-whenever work happens in a git worktree (`.claude/worktrees/<name>`), which sits below the level
-walk's reach, so an omitted `project` silently resolves the **main checkout**. Two checkouts of the
+whenever the two are different checkouts, whether the agent walked into one or was spawned in one:
+a git worktree (`.claude/worktrees/<name>`) sits below the level walk's reach, so an omitted
+`project` silently resolves the **main checkout** — on a *read*. On a **write** it is now refused
+instead (#240, see *Write-target ambiguity* below). Two checkouts of the
 same repo are otherwise reported identically (same project name, same relative paths), so every
 response from a tool with an optional `project` — tools 2, 3, 5–13 and 14 — carries **`resolvedPath`**,
 the absolute `.sln`/`.csproj` that actually answered — the `.sln` when the solution was loaded and
@@ -514,8 +516,20 @@ Logging levels adjust automatically:
   answers expires after `RoselineMCP:ConfirmDestructiveWritesTimeout` (default 5 minutes) and
   downgrades the call to a preview rather than writing or hanging. An operator can disable the
   gate outright with `RoselineMCP:ConfirmDestructiveWrites = false` — after which the explicit
-  `previewOnly: false` is the only thing standing between a tool call and a disk write. See
-  `SECURITY.md`.
+  `previewOnly: false`, plus the write-target ambiguity refusal below (which that switch does not
+  reach), is what stands between a tool call and a disk write. See `SECURITY.md`.
+- **Write-target ambiguity is refused, unconditionally** (#240): a write tool called with
+  `previewOnly: false` and `project` omitted or blank fails with `ValidationError` — nothing
+  resolved for real, nothing elicited, nothing written — when the auto-discovered checkout carries
+  linked-worktree metadata (`ProjectLoader.HasLinkedWorktreeAmbiguity`: a `.git` *file*, i.e. a
+  linked worktree or a submodule; or a `.git` directory whose `worktrees/` has entries, i.e. a main
+  checkout that has them). Sibling checkouts of one repo hold the same projects at the same relative
+  paths, so an omitted `project` resolves a *plausible* target in the wrong tree and the write
+  succeeds there — `resolvedPath` discloses it only in the response to the call that already changed
+  the file. The check lives in `ToolExecutionHelper.RunVerifiedWriteAsync` **above** the
+  `previewOnly || !CanAskHuman(...)` short-circuit, which is the whole point: below that line is
+  exactly what `ConfirmDestructiveWrites = false` turns off. Reads are untouched (warn-only via
+  `resolvedPath`), previews are untouched, and an **explicit** `project` is never refused.
 - **Compile-verified writes**: before any write tool touches disk, the candidate change is compiled
   in memory and refused if it introduces compiler errors. The guarantee is precise and deliberately
   narrow: **the verified change set compiles, and no refused edit is ever written** — *not* that the
