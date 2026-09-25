@@ -30,7 +30,7 @@
          reads a single cobertura file, and two producers meant two reports in different
          places and a nondeterministic gate. -->
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
-    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.0" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1" />
     <PackageReference Include="FakeItEasy" Version="9.0.1" />
     <!-- MSBuild packages required by Microsoft.Build.Locator (via project reference) -->
     <PackageReference Include="Microsoft.Build" Version="18.10.1" ExcludeAssets="runtime" PrivateAssets="all" />
