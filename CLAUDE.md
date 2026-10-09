@@ -120,7 +120,10 @@ The application uses a dependency injection-based service architecture with clea
   is absent resolves to a sentinel whose checksum throws, aborting all four relationship tools *and*
   `rename_symbol` (#242) — and carries their paths on `LoadedProject.UnresolvedAnalyzerReferences`,
   which is what keeps the removal named rather than silent (`analyzerLoad`'s `unresolved` reason).
-  `CachingProjectLoader` passes the list through `CacheEntry`/`WrapShared` like `resolvedPath`
+  `CachingProjectLoader` passes the list through `CacheEntry`/`WrapShared` like `resolvedPath`.
+  The same point records the `WorkspaceFailed` messages of each load (first 5) on
+  `LoadedProject.WorkspaceFailures`, threaded the same way; the two `File not found in the loaded
+  solution` errors append a bounded summary of them, and only when there are any (#254)
 - **Workspace Cache (IProjectLoader-backed tools)**: `IProjectLoader` resolves to
   `CachingProjectLoader`, which reuses the loaded MSBuildWorkspace across tool calls. Each entry is
   fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, every analyzer reference path — including ones the loader stripped as unresolved, so a DLL that later appears busts the cache (#248) — plus

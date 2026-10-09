@@ -144,7 +144,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
                 {
                     entry.LastAccess = ++_accessCounter;
                     _logger.LogDebug("Workspace cache hit for {Target}", key);
-                    return WrapShared(entry.Workspace, entry.Solution, entry.Project, entry.ResolvedPath, entry.TargetPath, entry.UnresolvedAnalyzerReferences);
+                    return WrapShared(entry.Workspace, entry.Solution, entry.Project, entry.ResolvedPath, entry.TargetPath, entry.UnresolvedAnalyzerReferences, entry.WorkspaceFailures);
                 }
 
                 _logger.LogInformation("Workspace cache invalidated for {Target} — files changed on disk; reloading", key);
@@ -156,14 +156,14 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution, _utcNow(), loaded.UnresolvedAnalyzerReferences);
 
             EvictLeastRecentlyUsedIfFull();
-            _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, loaded.TargetPath, loaded.UnresolvedAnalyzerReferences, fingerprint)
+            _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, loaded.TargetPath, loaded.UnresolvedAnalyzerReferences, fingerprint, loaded.WorkspaceFailures)
             {
                 LastAccess = ++_accessCounter,
             };
 
             // The cache now owns the workspace; hand the caller a non-owning handle so its
             // (existing) `using` disposal doesn't tear down the shared workspace.
-            return WrapShared(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, loaded.TargetPath, loaded.UnresolvedAnalyzerReferences);
+            return WrapShared(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, loaded.TargetPath, loaded.UnresolvedAnalyzerReferences, loaded.WorkspaceFailures);
         }
         finally
         {
@@ -180,9 +180,9 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
     /// </summary>
     private static LoadedProject WrapShared(
         Workspace workspace, Solution solution, Project project, string resolvedPath, string targetPath,
-        IReadOnlyList<string> unresolvedAnalyzerReferences) =>
+        IReadOnlyList<string> unresolvedAnalyzerReferences, IReadOnlyList<string> workspaceFailures) =>
         new(workspace, solution, project, ownsWorkspace: false, resolvedPath: resolvedPath, targetPath: targetPath,
-            unresolvedAnalyzerReferences: unresolvedAnalyzerReferences);
+            unresolvedAnalyzerReferences: unresolvedAnalyzerReferences, workspaceFailures: workspaceFailures);
 
     /// <summary>Evicts (and disposes) least-recently-used entries until an insert fits the bound.</summary>
     private void EvictLeastRecentlyUsedIfFull()
@@ -231,12 +231,14 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
         public string ResolvedPath { get; }
         public string TargetPath { get; }
         public IReadOnlyList<string> UnresolvedAnalyzerReferences { get; }
+        public IReadOnlyList<string> WorkspaceFailures { get; }
         public WorkspaceFingerprint Fingerprint { get; }
         public long LastAccess { get; set; }
 
         public CacheEntry(
             Workspace workspace, Solution solution, Project project, string resolvedPath, string targetPath,
-            IReadOnlyList<string> unresolvedAnalyzerReferences, WorkspaceFingerprint fingerprint)
+            IReadOnlyList<string> unresolvedAnalyzerReferences, WorkspaceFingerprint fingerprint,
+            IReadOnlyList<string> workspaceFailures)
         {
             Workspace = workspace;
             Solution = solution;
@@ -245,6 +247,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             TargetPath = targetPath;
             UnresolvedAnalyzerReferences = unresolvedAnalyzerReferences;
             Fingerprint = fingerprint;
+            WorkspaceFailures = workspaceFailures;
         }
     }
 

@@ -38,6 +38,21 @@ public class ProjectLoader : IProjectLoader
         var targetPath = ResolveTargetPath(project, Directory.GetCurrentDirectory());
         var workspace = _msBuildService.CreateWorkspace();
 
+        // #254: MSBuildWorkspace reports a project or document it could not load through
+        // WorkspaceFailed rather than throwing, so a short document set looks like a clean load.
+        // Keep the messages so a later not-found error can say why. Bounded; first seen wins.
+        var workspaceFailures = new List<string>();
+        workspace.WorkspaceFailed += (_, e) =>
+        {
+            lock (workspaceFailures)
+            {
+                if (workspaceFailures.Count < LoadedProject.MaxWorkspaceFailures)
+                {
+                    workspaceFailures.Add(e.Diagnostic.Message);
+                }
+            }
+        };
+
         try
         {
             Project? primary;
@@ -128,7 +143,8 @@ public class ProjectLoader : IProjectLoader
                 // What the caller named (the .sln, or the .csproj before its ancestor .sln was
                 // opened) — distinct from resolvedPath, which is what answered. See LoadedProject.TargetPath.
                 targetPath: Path.GetFullPath(targetPath),
-                unresolvedAnalyzerReferences: unresolved);
+                unresolvedAnalyzerReferences: unresolved,
+                workspaceFailures: workspaceFailures.ToArray());
         }
         catch
         {

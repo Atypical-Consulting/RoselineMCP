@@ -82,7 +82,7 @@ public class CodeNavigationService : ICodeNavigationService
             var kindFilter = NormalizeKinds(kinds);
 
             var symbols = file != null
-                ? await OutlineFileAsync(loaded.Solution, loaded.Project, file, query, cancellationToken)
+                ? await OutlineFileAsync(loaded.Solution, loaded.Project, file, query, loaded.WorkspaceFailures, cancellationToken)
                 : await SearchSolutionAsync(loaded.Solution, loaded.Project, query!, cancellationToken);
 
             var filtered = symbols.Where(s => MatchesKinds(s, kindFilter)).ToList();
@@ -145,10 +145,27 @@ public class CodeNavigationService : ICodeNavigationService
         return results;
     }
 
-    private async Task<List<ISymbol>> OutlineFileAsync(Solution solution, Project anchor, string file, string? query, CancellationToken cancellationToken)
+    /// <summary>
+    /// The not-found message. Unchanged on a clean load; when the workspace raised load failures
+    /// (#254) appends a bounded summary so a short document set is not mistaken for a bad path.
+    /// </summary>
+    public static string FileNotFoundMessage(string file, IReadOnlyList<string> workspaceFailures)
+    {
+        var message = $"File not found in the loaded solution: {file}";
+        if (workspaceFailures.Count == 0)
+        {
+            return message;
+        }
+
+        const int maxLength = 200;
+        var shown = workspaceFailures.Take(3).Select(m => m.Length <= maxLength ? m : m[..maxLength] + "…");
+        return $"{message} (the workspace reported {workspaceFailures.Count} load failure(s): {string.Join(" | ", shown)})";
+    }
+
+    private async Task<List<ISymbol>> OutlineFileAsync(Solution solution, Project anchor, string file, string? query, IReadOnlyList<string> workspaceFailures, CancellationToken cancellationToken)
     {
         var document = FindDocument(solution, anchor, file)
-            ?? throw new KeyNotFoundException($"File not found in the loaded solution: {file}");
+            ?? throw new KeyNotFoundException(FileNotFoundMessage(file, workspaceFailures));
 
         var model = await document.GetSemanticModelAsync(cancellationToken);
         var root = await document.GetSyntaxRootAsync(cancellationToken);
@@ -295,7 +312,7 @@ public class CodeNavigationService : ICodeNavigationService
         {
 
             var document = FindDocument(loaded.Solution, loaded.Project, file)
-                ?? throw new KeyNotFoundException($"File not found in the loaded solution: {file}");
+                ?? throw new KeyNotFoundException(FileNotFoundMessage(file, loaded.WorkspaceFailures));
 
             var text = await document.GetTextAsync(cancellationToken);
             if (line > text.Lines.Count)
