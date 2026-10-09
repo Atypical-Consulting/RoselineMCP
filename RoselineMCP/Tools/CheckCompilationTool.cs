@@ -38,7 +38,7 @@ public static class CheckCompilationTool
     public static async Task<ToolResult<VerificationVerdict>> CheckCompilation(
         IProjectLoader projectLoader,
         IVerificationService verificationService,
-        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        [Description("Project name, directory, .csproj, .sln, or .slnx path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
         [Description("Maximum number of errors to return (default: 20); the remainder are counted in `omitted`.")]
         int max = 20,

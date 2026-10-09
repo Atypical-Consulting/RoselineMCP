@@ -43,7 +43,7 @@ public class ProjectLoader : IProjectLoader
             Project? primary;
             string resolvedPath;
 
-            if (targetPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
+            if (IsSolutionFile(targetPath))
             {
                 _logger.LogInformation("Loading solution for navigation: {Path}", targetPath);
                 var solution = await workspace.OpenSolutionAsync(targetPath, cancellationToken: cancellationToken);
@@ -289,7 +289,7 @@ public class ProjectLoader : IProjectLoader
             return AutoDiscover(baseDirectory);
         }
 
-        if (project.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) && File.Exists(project))
+        if (IsSolutionFile(project) && File.Exists(project))
         {
             return Path.GetFullPath(project);
         }
@@ -314,7 +314,7 @@ public class ProjectLoader : IProjectLoader
     {
         var levels = DiscoveryLevels(baseDirectory);
 
-        var solution = FindNearest(levels, "*.sln", "solution (.sln)");
+        var solution = FindNearest(levels, SolutionPatterns, "solution (.sln/.slnx)");
         if (solution != null)
         {
             return solution;
@@ -329,7 +329,7 @@ public class ProjectLoader : IProjectLoader
         throw new ArgumentException(
             $"Could not auto-discover a C# solution or project from '{baseDirectory}' " +
             "(searched the working directory first, then up to 3 parent directories, then immediate subdirectories). " +
-            "Pass an explicit 'project' — a project name, a directory, or a path to a .csproj or .sln file.");
+            "Pass an explicit 'project' — a project name, a directory, or a path to a .csproj, .sln or .slnx file.");
     }
 
     /// <summary>
@@ -372,11 +372,15 @@ public class ProjectLoader : IProjectLoader
     /// CALLER NAMED the directory (<see cref="ResolveProjectPath"/>'s first branch) deliberately do
     /// NOT use this. One factory rather than two independently-maintained property lists, so a
     /// property added here can never silently diverge between the non-recursive and recursive scan.
+    /// Only the recursive scan skips symlinks/junctions (the #252 crash); non-recursive discovery follows them.
     /// </summary>
     private static EnumerationOptions CreateIncidentalScan(bool recurseSubdirectories = false) => new()
     {
         IgnoreInaccessible = true,
-        AttributesToSkip = 0,
+        // Only the RECURSIVE sweep skips ReparsePoint (symlinks/junctions): it can otherwise walk into
+        // a link to / (a Wine prefix's dosdevices/z:) and die on a vanished /proc/<pid>/cwd (#252).
+        // Non-recursive scans keep 0 so a symlinked App.sln/App.csproj or project directory is still found.
+        AttributesToSkip = recurseSubdirectories ? FileAttributes.ReparsePoint : 0,
         MatchType = MatchType.Win32,
         RecurseSubdirectories = recurseSubdirectories
     };
@@ -408,7 +412,18 @@ public class ProjectLoader : IProjectLoader
     /// wrong pick (a resource fork handed to MSBuild), and both were measured before this existed.
     /// </summary>
     private static IEnumerable<string> IncidentalFiles(string directory, string pattern, EnumerationOptions options) =>
-        Directory.EnumerateFiles(directory, pattern, options).Where(f => !IsAppleDoubleShadow(f));
+        pattern.Split(';')
+            .SelectMany(p => Directory.EnumerateFiles(directory, p, options))
+            .Distinct(StringComparer.OrdinalIgnoreCase) // Win32 matching may let "*.sln" also match .slnx
+            .Where(f => !IsAppleDoubleShadow(f));
+
+    /// <summary>Solution file patterns, <c>;</c>-separated (see <see cref="IncidentalFiles"/>).</summary>
+    private const string SolutionPatterns = "*.sln;*.slnx";
+
+    /// <summary>Whether <paramref name="path"/> has a solution extension: <c>.sln</c> or <c>.slnx</c>.</summary>
+    internal static bool IsSolutionFile(string path) =>
+        path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The levels auto-discovery inspects, nearest first: the base directory; each parent
@@ -533,7 +548,7 @@ public class ProjectLoader : IProjectLoader
     {
         var list = string.Join(", ", candidates.Select(c => $"'{c}'"));
         return $"Found multiple candidate {kind} files {where}: {list}. " +
-            "Pass an explicit 'project' — a project name, a directory, or a path to a .csproj or .sln file — to disambiguate.";
+            "Pass an explicit 'project' — a project name, a directory, or a path to a .csproj, .sln or .slnx file — to disambiguate.";
     }
 
     /// <summary>
@@ -640,7 +655,7 @@ public class ProjectLoader : IProjectLoader
 
         while (!string.IsNullOrEmpty(directory))
         {
-            var candidates = IncidentalFiles(directory, "*.sln", IncidentalScan).ToList();
+            var candidates = IncidentalFiles(directory, SolutionPatterns, IncidentalScan).ToList();
             if (candidates.Count == 1)
             {
                 return candidates[0];
@@ -649,7 +664,7 @@ public class ProjectLoader : IProjectLoader
             if (candidates.Count > 1)
             {
                 throw new AmbiguousSolutionException(
-                    BuildAmbiguityMessage("solution (.sln)", candidates, $"above '{startPath}'"));
+                    BuildAmbiguityMessage("solution (.sln/.slnx)", candidates, $"above '{startPath}'"));
             }
 
             directory = Directory.GetParent(directory)?.FullName;

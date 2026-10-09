@@ -705,6 +705,115 @@ public class ProjectLoaderTests : IDisposable
         Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
     }
 
+    // ---- #252: .slnx support and symlink-safe sweep -------------------------------------------
+
+    [Fact]
+    public void ExplicitSlnxPath_Resolves()
+    {
+        var slnx = Touch("App.slnx");
+
+        ResolveTargetPath(slnx, _baseDir).ShouldBe(slnx);
+    }
+
+    [Fact]
+    public void AutoDiscover_Finds_A_Lone_Slnx()
+    {
+        var slnx = Touch("App.slnx");
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(slnx);
+    }
+
+    [Fact]
+    public void AutoDiscover_Throws_When_Sln_And_Slnx_Share_A_Level()
+    {
+        Touch("App.sln");
+        Touch("App.slnx");
+
+        var ex = Should.Throw<ArgumentException>(() => ResolveTargetPath(null, _baseDir));
+        ex.Message.ShouldContain("App.sln");
+        ex.Message.ShouldContain("App.slnx");
+    }
+
+#pragma warning disable xUnit1051 // TestContext.Current not needed here
+    [Fact]
+    public async Task LoadAsync_Accepts_A_Slnx_Path()
+    {
+        foreach (var name in new[] { "One", "Two" })
+        {
+            var dir = Path.Combine(_baseDir, name);
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, $"{name}.csproj"), MinimalCsprojXml);
+            File.WriteAllText(Path.Combine(dir, "Widget.cs"), $"namespace {name} {{ public class Widget {{ }} }}");
+        }
+
+        var slnx = Path.Combine(_baseDir, "App.slnx");
+        File.WriteAllText(slnx,
+            "<Solution><Project Path=\"One/One.csproj\" /><Project Path=\"Two/Two.csproj\" /></Solution>");
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(),
+            new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+
+        using var loaded = await loader.LoadAsync(slnx);
+
+        loaded.ResolvedPath.ShouldBe(slnx);
+        loaded.Solution.Projects.Select(p => p.Name).ShouldBe(["One", "Two"], ignoreOrder: true);
+    }
+#pragma warning restore xUnit1051
+
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void RecursiveSweep_DoesNotFollowASymlinkedDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symlinks needs elevation on Windows.");
+        }
+
+        var real = Touch(Path.Combine("Real", "Acme.csproj"));
+        var elsewhere = Path.Combine(_root, "elsewhere");
+        Directory.CreateDirectory(elsewhere);
+        File.WriteAllText(Path.Combine(elsewhere, "Ghost.csproj"), string.Empty);
+        Directory.CreateSymbolicLink(Path.Combine(_baseDir, "Link"), elsewhere);
+
+        ResolveTargetPath("Acme", _baseDir).ShouldBe(real);
+        Should.Throw<FileNotFoundException>(() => ResolveTargetPath("Ghost", _baseDir));
+    }
+
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void RecursiveSweep_SurvivesASymlinkLoop()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symlinks needs elevation on Windows.");
+        }
+
+        var real = Touch(Path.Combine("Real", "Acme.csproj"));
+        Directory.CreateSymbolicLink(Path.Combine(_baseDir, "Loop"), _baseDir);
+
+        ResolveTargetPath("Acme", _baseDir).ShouldBe(real);
+    }
+
+    [Theory]
+    [InlineData("App.sln")]
+    [InlineData("App.csproj")]
+    [UnsupportedOSPlatform("windows")]
+    public void AutoDiscover_FollowsASymlinkedProjectOrSolutionFile(string name)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symlinks needs elevation on Windows.");
+        }
+
+        var target = Path.Combine(_root, "elsewhere", name);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.WriteAllText(target, string.Empty);
+        var link = Path.Combine(_baseDir, name);
+        File.CreateSymbolicLink(link, target);
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(link);
+    }
+
     /// <summary>Invokes the private static <c>FindSolutionFile</c> that walks up from a resolved path to its containing solution.</summary>
     private static string? FindSolutionFile(string startPath)
     {
