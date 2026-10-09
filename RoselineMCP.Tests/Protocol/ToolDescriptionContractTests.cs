@@ -56,7 +56,7 @@ public class ToolDescriptionContractTests
 
     [Fact]
     public void Every_Tool_Is_Covered_By_The_Contract()
-        => ToolDescriptions().Count().ShouldBe(14,
+        => ToolDescriptions().Count().ShouldBe(15,
             "A tool was added or removed. Give the new tool a Limitations clause and an Example, " +
             "then update this count deliberately.");
 
@@ -75,17 +75,17 @@ public class ToolDescriptionContractTests
     }
 
     /// <summary>
-    /// The count of fragment-carrying tools, pinned because five prose surfaces say "twelve"
+    /// The count of fragment-carrying tools, pinned because five prose surfaces say "thirteen"
     /// (README, <c>docs/API.md</c> ×2, the constant's own docs and a failure message below) and
     /// nothing else would notice them going stale. <see cref="Optional_Project_Tools_Carry_The_Shared_Limitation"/>
     /// returns early for a tool without an optional <c>project</c>, so on its own it can never
     /// observe that the population changed size.
     /// </summary>
     [Fact]
-    public void Exactly_Twelve_Tools_Take_An_Optional_Project()
-        => ToolDescriptions().Count(t => (bool)t[2]).ShouldBe(12,
+    public void Exactly_Thirteen_Tools_Take_An_Optional_Project()
+        => ToolDescriptions().Count(t => (bool)t[2]).ShouldBe(13,
             "The number of tools with an optional 'project' changed. Update the count here AND the " +
-            "prose that says \"twelve\": README.md, docs/API.md (twice) and " +
+            "prose that says \"thirteen\": README.md, docs/API.md (twice) and " +
             "RoselineToolDescriptions.ProjectAutoDiscoveryLimit's XML docs.");
 
     [Theory]
@@ -128,6 +128,6 @@ public class ToolDescriptionContractTests
             Case.Sensitive,
             $"{name} takes an optional 'project' but does not state that auto-discovery is anchored " +
             "to the SERVER's cwd. Append RoselineToolDescriptions.ProjectAutoDiscoveryLimit — verbatim, " +
-            "not a paraphrase, so all twelve stay in sync.");
+            "not a paraphrase, so all thirteen stay in sync.");
     }
 }

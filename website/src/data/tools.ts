@@ -97,6 +97,12 @@ export const tools: Tool[] = [
     returns: 'resolvedPath, compiles, errors[], omitted?, scope[], scopeComplete, notes[]',
   },
   {
+    name: 'suggest_fix_examples', title: 'Suggest Fix Examples', group: 'Diagnostics & fixes', kind: 'diagnostics',
+    summary: 'For a diagnostic no code fixer can repair: clean sites in the same solution, in the same syntactic and symbol shape, where it does not fire, plus the rule\'s own description. Evidence for writing the edit yourself; read-only.',
+    params: 'id, project?, file?, line?, maxExamples?, maxCandidates?',
+    returns: 'resolvedPath, rule, hasFixer, alert?, examples[], candidatesScanned, truncated, notes[]',
+  },
+  {
     name: 'create_patch', title: 'Create Patch', group: 'Diagnostics & fixes', kind: 'diagnostics',
     summary: 'Generate a unified diff between two text versions. Pure text, no filesystem.',
     params: 'before, after, fileName?, ignoreWhitespace?, ignoreCase?',

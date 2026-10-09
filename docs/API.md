@@ -12,6 +12,7 @@ Complete API reference for RoselineMCP tools and services.
   - [ListDiagnostics](#listdiagnostics)
   - [ApplyFixes](#applyfixes)
   - [CheckCompilation](#checkcompilation)
+  - [SuggestFixExamples](#suggestfixexamples)
   - [CreatePatch](#createpatch)
   - [SearchSymbols](#searchsymbols)
   - [GetSymbolInfo](#getsymbolinfo)
@@ -84,9 +85,9 @@ enrichment at **+67.46% steps** with a **16.67% regression rate**, while compact
 the reliability without the overhead. So the two missing components were added compactly and the
 four already-present ones were left byte-for-byte alone.
 
-The twelve tools whose `project` is optional all end their limitations with one shared sentence,
+The thirteen tools whose `project` is optional all end their limitations with one shared sentence,
 composed from a single constant (`RoselineToolDescriptions.ProjectAutoDiscoveryLimit`) and asserted
-verbatim by the same suite, so the wording cannot drift apart across twelve files. It states the
+verbatim by the same suite, so the wording cannot drift apart across thirteen files. It states the
 most expensive unwritten limitation this API has — auto-discovery is anchored to the **server's**
 working directory, so inside a git worktree an omitted `project` silently answers from the main
 checkout. See **Working in a git worktree** in the navigation-tools preamble below (before
@@ -653,6 +654,62 @@ there is no before-state to compare against.
 mcp call checkCompilation '{ "max": 20 }'
 ```
 
+### SuggestFixExamples
+
+For a diagnostic no `CodeFixProvider` can repair, returns *key examples*: sites in the same solution,
+in the same syntactic and symbol shape as an occurrence, where that diagnostic does **not** fire,
+plus the rule's own title, description and help link. **Read-only** (`readOnlyHint: true`,
+`destructiveHint: false`): it proposes no edit, builds no candidate solution and sits outside the
+compile-verification and write-confirmation path. The agent writes the edit; `edit_member` /
+`apply_fixes` still compile-verify it and `check_compilation` still answers "did that work".
+
+The analyzer is the predicate: a site satisfies the rule iff the diagnostic does not fire there. The
+tool computes the diagnostics once (exactly as `list_diagnostics` does, honouring
+`RoselineMCP:RunAnalyzers`), derives a *shape key* from the alert (its `SyntaxKind`, its two nearest
+ancestors' kinds, and the declaration key of the symbol referenced there) and keeps the shape-matched
+nodes the diagnostic does not cover. The corpus is the loaded solution only; there is no network and
+no model call.
+
+#### Request
+
+```typescript
+{
+  id: string;              // Required - the diagnostic ID, e.g. "CS0121", "CA1848"
+  project?: string;        // Optional - name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  file?: string;           // Optional - file (name or path suffix) of the occurrence to anchor on
+  line?: number;           // Optional - 1-based line of the occurrence; default: the first occurrence
+  maxExamples?: number;    // Default 3
+  maxCandidates?: number;  // Default 2000 - bound on shape-candidate syntax nodes scanned
+}
+```
+
+#### Response
+
+```typescript
+{
+  resolvedPath: string;
+  rule: { id, title, category, defaultSeverity, description?, helpLinkUri? };
+  hasFixer: boolean;       // true -> apply_fixes may repair it directly
+  alert?: { file, line, snippet, shapeKey };   // absent when the ID does not fire
+  examples: { file, line, snippet, matchedOn }[];  // matchedOn: "kinds+symbol" | "kinds"
+  candidatesScanned: number;
+  truncated: boolean;      // maxCandidates reached, or more clean sites than maxExamples
+  notes?: string[];
+}
+```
+
+Edge cases: an empty `id` is a `ValidationError` before any project is loaded (no `resolvedPath`);
+an ID that never fires returns `ok: true` with no `alert`, no examples and a note; an anchor that
+matches nothing falls back to the first occurrence and says so; a shape with no clean site returns
+no examples but still the `rule`. Paths are relative to the directory of `resolvedPath`, forward
+slashes. Sibling projects are consulted only when the anchor project cannot fill `maxExamples`.
+
+#### Example
+
+```bash
+mcp call suggestFixExamples '{ "id": "CS0121", "maxExamples": 3 }'
+```
+
 ### CreatePatch
 
 Generates a unified diff patch between two text versions. **Read-only** — operates purely on the
@@ -1103,6 +1160,7 @@ Every tool declares the standard MCP annotation hints (`readOnlyHint`, `destruct
 | `ListDiagnostics` | `true` | `false` | `true` |
 | `ApplyFixes` | `false` | `true`\* | `false` |
 | `CheckCompilation` | `true` | `false` | `true` |
+| `SuggestFixExamples` | `true` | `false` | `true` |
 | `CreatePatch` | `true` | `false` | `true` |
 | `SearchSymbols` | `true` | `false` | `true` |
 | `GetSymbolInfo` | `true` | `false` | `true` |
@@ -1199,6 +1257,20 @@ blank or relative `filePath`, a file under no project — rather than returning 
 guard's contract is that anything other than a real verdict means silence.
 
 ## Service Interfaces
+
+### IFixExampleService
+
+```csharp
+public interface IFixExampleService
+{
+    Task<FixExamplesResponse> SuggestAsync(
+        string? project, string id, string? file, int? line,
+        int maxExamples, int maxCandidates, CancellationToken cancellationToken = default);
+}
+```
+
+Backs `suggest_fix_examples`. Read-only; returns `FixExamplesResponse` (`ResolvedPath`, `Rule`, `HasFixer`,
+`Alert`, `Examples`, `CandidatesScanned`, `Truncated`, `Notes`) built from `RuleInfo`, `AlertSite` and `FixExample`.
 
 ### ISolutionAnalyzerService
 
@@ -1830,14 +1902,17 @@ than silently shrinking the diagnostic set.
 
 ### Roslynator (RCS)
 Bundled and executed by default — reported by `AnalyzeSolution`/`ListDiagnostics` and fixable via
-`ApplyFixes` when Roslynator ships a fixer for the rule (most rules; ~440 fixable IDs are
-discovered at runtime). Examples:
+`ApplyFixes` when Roslynator ships a fixer for the rule (most rules; 273 Roslynator IDs, and 676 across all families, have a registered fixer, pinned by
+`FixerCoverageTests`). Examples:
 - RCS1001: Add braces
 - RCS1036: Remove unnecessary blank line
 - RCS1104: Simplify conditional expression
 - RCS1213: Remove unused member declaration
 - And 500+ more... (rules disabled by default in Roslynator, e.g. most RCS0xxx formatting rules,
   stay disabled unless the analyzed project enables them via `.editorconfig`)
+
+Diagnostics with no registered fixer (most of the compiler's `CS*` surface and the `CA*` family)
+are what [`SuggestFixExamples`](#suggestfixexamples) serves.
 
 ### IDE (IDE)
 - IDE0001: Simplify name

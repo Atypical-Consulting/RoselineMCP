@@ -286,6 +286,15 @@ is fast enough for the inner loop; read-only.
 - **Returns**: the verification verdict — `resolvedPath`, `compiles`, `errors[]`, `omitted`,
   `scope[]`, `scopeComplete`, `notes[]`
 
+### 15. SuggestFixExamples
+For a diagnostic no code fixer can repair: returns *key examples* - sites in the same solution, in the
+same syntactic/symbol shape (`ShapeKey`), where the diagnostic does **not** fire - plus the rule's
+title, description and help link. Read-only; the analyzer is the predicate (set difference against
+the one diagnostics pass), and the agent writes the edit itself.
+- **Parameters**: id (required), project (optional), file, line, maxExamples (default 3), maxCandidates (default 2000)
+- **Returns**: `resolvedPath`, `rule`, `hasFixer`, `alert` (absent when the ID does not fire), `examples[]`,
+  `candidatesScanned`, `truncated`, `notes[]`
+
 ### 4. CreatePatch
 Generates unified diff patches between text versions.
 - **Parameters**: before, after, fileName
@@ -580,6 +589,11 @@ Logging levels adjust automatically:
 - **`check_compilation` builds a compilation**, so it carries the same code-execution surface as
   every other semantic path: source generators shipped through the target project's
   `AnalyzerReferences` run as part of building it. It does *not* run diagnostic analyzers.
+- **`suggest_fix_examples` is read-only and deliberately outside the write/compile-verification gate**:
+  it proposes no edit and builds no candidate solution. It runs the diagnostic analyzers exactly as
+  `list_diagnostics` does (so it carries the same code-execution surface and honours
+  `RoselineMCP:RunAnalyzers`); the edit the agent then writes still goes through `edit_member` /
+  `apply_fixes` and their compile gate.
 - **No dedicated path-traversal sanitization**: solution/project paths are resolved with plain
   `File.Exists`/`Directory.Exists` checks, not canonicalized against an allowed root. Treat
   `pathOrGit`, `project`, and `branch` as trusted operator input rather than sandboxed against
