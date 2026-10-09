@@ -123,7 +123,8 @@ analyzer reference it cannot load — an assembly built against a newer
 `Microsoft.CodeAnalysis` than the server's, a corrupt file — by returning zero
 analyzers and raising `AnalyzerLoadFailed`, not by throwing. The diagnostics
 responses carry an `analyzerLoad` block naming every reference that
-contributed nothing, with Roslyn's reason. That matters for security reviews
+failed to load, with Roslyn's reason (references that merely carry no C# analyzer are counted, not named).
+A reference whose code-fix providers fail to load is reported there too (`fixer-load-failure`), not only logged. That matters for security reviews
 as much as for correctness: a diagnostics run whose coverage silently shrank by
 an entire analyzer family (the SDK's `CA*` rules, say) looked exactly like a
 clean run.

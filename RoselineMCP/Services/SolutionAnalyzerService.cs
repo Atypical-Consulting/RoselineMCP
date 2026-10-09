@@ -371,6 +371,10 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
                 // as "every reference contributed" (#242).
                 analyzerLoad.AddUnresolved(loaded.UnresolvedAnalyzerReferences);
 
+                // Then the fixer side: a reference whose fixers cannot load would otherwise just
+                // drop its IDs out of suggestedFixableIds, indistinguishable from "no fixer exists".
+                analyzerLoad.Notes.AddRange(_filterService.DescribeFixerLoad(msProject));
+
                 var stats = CollectDiagnosticStatistics(allDiagnostics, msProject);
                 var diagnosticDetails = CreateDiagnosticDetails(allDiagnostics, msProject.Name, max);
 

@@ -187,7 +187,7 @@ public class DiagnosticComputationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Should_Consult_Every_Reference_Of_A_Real_Project_And_Name_The_Silent_Ones()
+    public async Task Should_Consult_Every_Reference_Of_A_Real_Project_And_Count_The_Silent_Ones()
     {
         // Arrange — this repository's own project, the way the tools load it. Some of its
         // references carry no C# analyzer (generator-only assemblies, fixer-only assemblies, an
@@ -205,22 +205,24 @@ public class DiagnosticComputationServiceTests : IDisposable
 
         // The ground truth, read after the fact (Roslyn caches each reference's answer).
         var inProcess = typeof(Diagnostic).Assembly.GetName().Version!;
-        var expected = project.AnalyzerReferences
+        var failed = project.AnalyzerReferences
             .Where(r => r.GetAnalyzers(LanguageNames.CSharp).IsEmpty)
-            .Select(r => (r.Display, Reason: r.FullPath is { } path
-                && AnalyzerReferenceLoadTests.ReadReferencedRoslynVersion(path) is { } binds && binds > inProcess
-                    ? AnalyzerLoadNote.LoadFailure
-                    : AnalyzerLoadNote.NoCSharpAnalyzers))
+            .Where(r => r.FullPath is { } path
+                && AnalyzerReferenceLoadTests.ReadReferencedRoslynVersion(path) is { } binds && binds > inProcess)
+            .Select(r => (r.Display, Reason: AnalyzerLoadNote.LoadFailure))
             .ToList();
-        expected.ShouldNotBeEmpty("the ground truth pinned by AnalyzerReferenceLoadTests");
+        var silent = project.AnalyzerReferences
+            .Count(r => r.GetAnalyzers(LanguageNames.CSharp).IsEmpty) - failed.Count;
+        silent.ShouldBeGreaterThan(0, "the ground truth pinned by AnalyzerReferenceLoadTests");
 
-        // Assert
+        // Assert — load failures are named, the benign silent ones only counted.
         var report = result.AnalyzerLoad;
         report.AnalyzersRan.ShouldBeTrue();
         report.ReferencesConsulted.ShouldBe(project.AnalyzerReferences.Count);
-        report.ReferencesContributing.ShouldBe(report.ReferencesConsulted - expected.Count);
+        report.ReferencesWithoutAnalyzers.ShouldBe(silent);
+        report.ReferencesContributing.ShouldBe(report.ReferencesConsulted - failed.Count - silent);
         report.AnalyzersLoaded.ShouldBeGreaterThan(0);
-        report.Notes.Select(n => (n.Reference, n.Reason)).ShouldBe(expected, ignoreOrder: true);
+        report.Notes.Select(n => (n.Reference, n.Reason)).ShouldBe(failed, ignoreOrder: true);
         result.Diagnostics.ShouldNotBeEmpty();
     }
 
@@ -264,7 +266,7 @@ public class DiagnosticComputationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Should_Name_A_Reference_That_Declares_No_CSharp_Analyzers()
+    public async Task Should_Count_A_Reference_That_Declares_No_CSharp_Analyzers()
     {
         // Arrange — loads fine, carries nothing for C#: accurate, not alarming.
         var (project, compilation) = await WidgetProjectAsync(
@@ -277,11 +279,9 @@ public class DiagnosticComputationServiceTests : IDisposable
         // Assert
         result.AnalyzerLoad.ReferencesConsulted.ShouldBe(1);
         result.AnalyzerLoad.ReferencesContributing.ShouldBe(0);
-        var note = result.AnalyzerLoad.Notes.ShouldHaveSingleItem();
-        note.Reference.ShouldBe("Generators.Only");
-        note.Reason.ShouldBe(AnalyzerLoadNote.NoCSharpAnalyzers);
-        note.Message.ShouldBeNull();
-        note.ErrorCode.ShouldBeNull();
+        result.AnalyzerLoad.ReferencesWithoutAnalyzers.ShouldBe(1);
+        result.AnalyzerLoad.Notes.ShouldBeEmpty();
+        result.AnalyzerLoad.HasSomethingToReport.ShouldBeTrue();
     }
 
     [Fact]
@@ -432,7 +432,8 @@ public class DiagnosticComputationServiceTests : IDisposable
         result.AnalyzerLoad.ReferencesConsulted.ShouldBe(2);
         result.AnalyzerLoad.ReferencesContributing.ShouldBe(1);
         result.AnalyzerLoad.AnalyzersLoaded.ShouldBe(1);
-        result.AnalyzerLoad.Notes.ShouldHaveSingleItem().Reference.ShouldBe("Silent");
+        result.AnalyzerLoad.ReferencesWithoutAnalyzers.ShouldBe(1);
+        result.AnalyzerLoad.Notes.ShouldBeEmpty();
     }
 
     [Fact]

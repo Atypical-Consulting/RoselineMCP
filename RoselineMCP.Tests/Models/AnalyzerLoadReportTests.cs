@@ -124,6 +124,43 @@ public class AnalyzerLoadReportTests
     }
 
     [Fact]
+    public void Should_Serialize_ReferencesWithoutAnalyzers()
+    {
+        var report = new AnalyzerLoadReport { AnalyzersRan = true, ReferencesConsulted = 44, ReferencesWithoutAnalyzers = 33 };
+
+        var json = JsonNode.Parse(JsonSerializer.Serialize(report))!.AsObject();
+
+        json["referencesWithoutAnalyzers"]!.GetValue<int>().ShouldBe(33);
+    }
+
+    [Fact]
+    public void ForResponse_Should_Keep_A_Report_That_Only_Counts_References_Without_Analyzers()
+    {
+        var report = new AnalyzerLoadReport { AnalyzersRan = true, ReferencesConsulted = 1, ReferencesWithoutAnalyzers = 1 };
+
+        report.HasSomethingToReport.ShouldBeTrue();
+        AnalyzerLoadReport.ForResponse(report).ShouldBeSameAs(report);
+    }
+
+    [Fact]
+    public void Merge_Should_Sum_ReferencesWithoutAnalyzers()
+    {
+        var merged = AnalyzerLoadReport.Merge(
+        [
+            new AnalyzerLoadReport { AnalyzersRan = true, ReferencesWithoutAnalyzers = 2 },
+            new AnalyzerLoadReport { AnalyzersRan = true, ReferencesWithoutAnalyzers = 3 }
+        ]);
+
+        merged.ReferencesWithoutAnalyzers.ShouldBe(5);
+    }
+
+    [Fact]
+    public void FixerLoadFailure_Should_Have_The_Documented_Wire_Value()
+    {
+        AnalyzerLoadNote.FixerLoadFailure.ShouldBe("fixer-load-failure");
+    }
+
+    [Fact]
     public void Merge_Should_Sum_Counters_And_Name_Each_Reference_Once()
     {
         // Arrange — two projects of one solution, both referencing the same silent assembly, and

@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
+using RoselineMCP.Models;
 
 namespace RoselineMCP.Interfaces;
 
@@ -54,6 +55,15 @@ public interface ICodeFixProviderFactory
     /// </param>
     /// <returns>Collection of fixable diagnostic IDs.</returns>
     IEnumerable<string> GetFixableDiagnosticIds(Project? project);
+
+    /// <summary>
+    /// Names the analyzer references of <paramref name="project"/> whose code fix providers could
+    /// not be loaded or instantiated — one <see cref="AnalyzerLoadNote.FixerLoadFailure"/> note per
+    /// degraded reference, in project order. Builds the reference's overlay if it is not yet built,
+    /// so the answer is never stale relative to a lookup. Empty when every overlay is clean.
+    /// </summary>
+    /// <param name="project">The target project whose analyzer references are consulted.</param>
+    IReadOnlyList<AnalyzerLoadNote> DescribeFixerLoad(Project project);
 
     /// <summary>
     /// Loads all available code fix providers.
