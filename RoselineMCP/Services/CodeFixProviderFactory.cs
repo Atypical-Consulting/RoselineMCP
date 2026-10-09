@@ -234,7 +234,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     }
 
     /// <returns><see langword="true"/> when the provider could be instantiated.</returns>
-    private bool RegisterProvider(IDictionary<string, Type> map, Type type)
+    private bool RegisterProvider(IDictionary<string, Type> map, Type type, Action<Exception>? onFailure = null)
     {
         try
         {
@@ -257,6 +257,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         {
             _logger.LogDebug("Could not instantiate code fix provider {Type}: {Message}",
                 type.Name, ex.Message);
+            onFailure?.Invoke(ex);
         }
 
         return false;
@@ -309,10 +310,11 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
             var scanned = ProviderTypes(assembly);
             var attempted = 0;
             var instantiated = 0;
+            Exception? firstError = null;
             foreach (var type in scanned.Types)
             {
                 attempted++;
-                if (RegisterProvider(map, type))
+                if (RegisterProvider(map, type, ex => firstError ??= ex))
                 {
                     instantiated++;
                 }
@@ -325,8 +327,10 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
             }
             else if (attempted > 0 && instantiated == 0)
             {
-                RecordFailure(reference, "InstantiationFailure",
-                    $"{attempted} code fix provider type(s) could not be instantiated");
+                // The exception is unwrapped from the reflection wrapper so the caller sees the real type.
+                var cause = firstError is System.Reflection.TargetInvocationException { InnerException: { } inner } ? inner : firstError;
+                RecordFailure(reference, cause?.GetType().Name ?? "InstantiationFailure",
+                    $"{attempted} code fix provider type(s) could not be instantiated: {cause?.Message}");
             }
 
             if (map.Count > 0)

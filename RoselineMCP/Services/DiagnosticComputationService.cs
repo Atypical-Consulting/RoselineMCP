@@ -158,10 +158,11 @@ public class DiagnosticComputationService : IDiagnosticComputationService
     /// <summary>
     /// Bundled analyzers first, then the project's own analyzer references, deduplicated by
     /// analyzer type full name so a target project that itself references Roslynator doesn't get
-    /// every RCS diagnostic reported twice. Every reference that yields nothing is named in the
-    /// report: with Roslyn's load-failure diagnosis when it raised one, as
-    /// <see cref="AnalyzerLoadNote.NoCSharpAnalyzers"/> when it loaded and simply declares none,
-    /// or as <see cref="AnalyzerLoadNote.Exception"/> when <c>GetAnalyzers</c> itself threw. A
+    /// every RCS diagnostic reported twice. Every reference that yields nothing is accounted for in the
+    /// report: named with Roslyn's load-failure diagnosis when it raised one, counted in
+    /// <see cref="AnalyzerLoadReport.ReferencesWithoutAnalyzers"/> (not named) when it loaded and
+    /// simply declares none, or named as <see cref="AnalyzerLoadNote.Exception"/> when
+    /// <c>GetAnalyzers</c> itself threw. A
     /// reference that loaded only some of its analyzers keeps the ones it loaded <em>and</em> is
     /// named, so a partial failure is neither dropped nor silent.
     /// </summary>

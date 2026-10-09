@@ -14,7 +14,8 @@ namespace RoselineMCP.Models;
 /// subscribe to. A diagnostics pass that guarded only the throwing path therefore served a smaller
 /// diagnostic set with no warning, no note and no field — degraded coverage that looked exactly like
 /// clean coverage. This report is the remedy: every reference that contributed nothing is
-/// <b>named</b>, with Roslyn's reason when it gave one.
+/// <b>named</b>, with Roslyn's reason when it gave one; references that merely declare no C#
+/// analyzer are only counted (<see cref="ReferencesWithoutAnalyzers"/>).
 /// </para>
 /// <para>
 /// The block is omitted from a response when every consulted reference contributed, so an absent
@@ -207,7 +208,7 @@ public class AnalyzerLoadNote
     /// <see cref="Reason"/> when the reference's analyzer assembly is <b>not on disk</b>, so Roslyn
     /// resolved it to a sentinel (<c>UnresolvedAnalyzerReference</c>) that carries no analyzers, no
     /// generators, and that the project-state checksum cannot serialize. Distinct from
-    /// <see cref="NoCSharpAnalyzers"/>, which says the assembly loaded and simply declares none —
+    /// a reference counted in <see cref="AnalyzerLoadReport.ReferencesWithoutAnalyzers"/>, which says the assembly loaded and simply declares none —
     /// here nothing loaded at all. <see cref="Message"/> names the absent path;
     /// <see cref="ErrorCode"/> is omitted, because Roslyn raises no load failure for it.
     /// </summary>
@@ -242,7 +243,7 @@ public class AnalyzerLoadNote
 
     /// <summary>
     /// Why the reference contributed nothing: <see cref="LoadFailure"/>,
-    /// <see cref="NoCSharpAnalyzers"/>, <see cref="Unresolved"/> or <see cref="Exception"/>.
+    /// <see cref="Unresolved"/>, <see cref="Exception"/> or <see cref="FixerLoadFailure"/>.
     /// </summary>
     [JsonPropertyName("reason")]
     public string Reason { get; set; } = string.Empty;
@@ -258,7 +259,7 @@ public class AnalyzerLoadNote
 
     /// <summary>
     /// The failure message Roslyn (or the thrown exception) gave. Omitted when there is none —
-    /// <see cref="NoCSharpAnalyzers"/> has nothing more to say.
+    /// a note with nothing more to say (an <see cref="Unresolved"/> one) omits it.
     /// </summary>
     [JsonPropertyName("message")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
