@@ -11,7 +11,8 @@ how does it scale with project size?*
 > [`RoselineMCP.TokenBenchmark`](RoselineMCP.TokenBenchmark) measures how compact a single tool
 > response is (the **85% median** headline; pooled, size-weighted: 93%); and
 > [`docs/AGENT-BENCHMARK.md`](docs/AGENT-BENCHMARK.md) measures whether an AI agent doing a real
-> task **end to end** actually spends fewer tokens with RoselineMCP installed (spoiler: on large
+> task **end to end** actually spends fewer tokens — and, once recorded, fewer turns and tool
+> calls — with RoselineMCP installed (spoiler: on large
 > codebases, yes — ~50% when forced onto the tools (the ceiling), ~13% in realistic self-directed
 > use (n = 1); on tiny ones, break-even).
 

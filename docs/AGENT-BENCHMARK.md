@@ -28,7 +28,17 @@ of the target repo, differing only in which tools are available:
 
 Quality is an objective gate — `dotnet test` / injected acceptance tests / a graded structural
 answer — not a subjective judgement. "Tokens" is total input tokens (regular + cache) from the
-session's reported usage. **n = 1 per cell**: treat single-digit-percent gaps as noise; the 2×
+session's reported usage. Two further quantities are defined here because they are easy to
+conflate — they are related but **not interchangeable**:
+
+- **Turns** — assistant turns in the session: the agent-loop iterations (one model response each).
+  This is the quantity per-session cost grows with, because every turn re-reads the context that
+  carried over from the previous one.
+- **Tool calls** — individual tool invocations. Several can occur in a single turn, so a session
+  has at least as many turns as it has *sequential* round trips, but its tool-call count can exceed
+  its turn count.
+
+**n = 1 per cell**: treat single-digit-percent gaps as noise; the 2×
 gap on the large repo is not noise.
 
 ## Results
@@ -36,19 +46,25 @@ gap on the large repo is not noise.
 Quality was **identical in every cell** — every run produced passing tests / the correct answer.
 So RoselineMCP was never a *correctness* factor here; the only variable that moved is token cost.
 
-| Scenario | Target files | Control (tokens / $) | +MCP (tokens / $) | MCP actually used? | Token Δ |
-|---|---|---|---|---|---|
-| **Greenfield** — build a small library from a spec | brand new | 453,554 / $0.42 | 440,268 / $0.39 *(available)* | **no — 0 calls** | −3% (noise) |
-| **Brownfield** — add a feature to a *small* solution | ~30-line | 691,499 / $0.61 | 457,918 / $0.46 *(available)* | **no — 0 calls** | −34%, but see below |
-| **Comprehension** — map a *small* solution | ~30-line | 453,722 / $0.46 | 350,189 / $0.64 *(forced)* | yes — 11 calls | −23% tok / +37% $ |
-| **Comprehension** — map a *large* solution (RoselineMCP) | 700-line | 499,675 / $0.50 | **239,357 / $0.37** *(forced)* | yes — 3 calls | **−52% tok / −27% $** |
+| Scenario | Target files | Control (tokens / $) | +MCP (tokens / $) | Tool calls (MCP) | Turns | Token Δ |
+|---|---|---|---|---|---|---|
+| **Greenfield** — build a small library from a spec | brand new | 453,554 / $0.42 | 440,268 / $0.39 *(available)* | **0** | — | −3% (noise) |
+| **Brownfield** — add a feature to a *small* solution | ~30-line | 691,499 / $0.61 | 457,918 / $0.46 *(available)* | **0** | — | −34%, but see below |
+| **Comprehension** — map a *small* solution | ~30-line | 453,722 / $0.46 | 350,189 / $0.64 *(forced)* | **11** | — | −23% tok / +37% $ |
+| **Comprehension** — map a *large* solution (RoselineMCP) | 700-line | 499,675 / $0.50 | **239,357 / $0.37** *(forced)* | **3** | — | **−52% tok / −27% $** |
+
+*Turns (—): not recorded.* These four sessions are gone and their turn counts were never kept, so
+the cell is empty rather than reconstructed. That gap is why the column now exists; see
+[Why turns matter](#why-turns-matter-and-where-turn-control-does-not-belong) and
+[Reproducing](#reproducing). A tool-call count of `0` still answers "was the MCP used at all?".
 
 ## What it means
 
 1. **The benefit scales with file size — that is the whole story.** On large source files
    (RoselineMCP's own ~700-line services) navigating structurally instead of reading whole files
-   **roughly halved** the tokens for the same correct answer, in half the turns (3 tool calls
-   total) — under forced use, i.e. the ceiling. This is where the unit benchmark's per-call savings
+   **roughly halved** the tokens for the same correct answer, using 3 tool calls in total (the
+   control's turn count was not recorded, so "fewer turns" is an unrecorded observation, not a
+   measurement) — under forced use, i.e. the ceiling. This is where the unit benchmark's per-call savings
    (85% median) convert into real end-to-end savings. On tiny files it is
    **break-even to slightly worse** — reading a 30-line file is already cheap, so the fixed cost of
    the MCP's tool schemas plus per-call round-trips cancels the saving.
@@ -71,13 +87,41 @@ highest-leverage improvement is **adoption** — making the
 tool descriptions actively steer the model to prefer structural navigation over reading large files,
 so the win materialises in normal use rather than only when the agent is forced.
 
+## Why turns matter, and where turn control does not belong
+
+Cost is not only a function of how big each tool response is. *"More with Less: An Empirical Study
+of Turn-Control Strategies for Efficient Coding Agents"* (Gao & Peng, ICSE 2026,
+[arXiv:2510.16786](https://arxiv.org/abs/2510.16786)) reports, on SWE-bench across three frontier
+models — **these are that paper's findings, not RoselineMCP measurements**:
+
+- agent cost grows **quadratically with the number of turns**, because context carries over from
+  turn to turn, and controlling the *total* number of turns is under-explored;
+- a **fixed** turn cap at the 75th percentile of the unconstrained baseline cuts cost by
+  **24%–68%** with minimal impact on resolution rate;
+- a **dynamic** strategy (extensions granted on request) does a further **12%–24%** better than the
+  fixed cap.
+
+One hint inside this document is worth testing, as a **hypothesis at n = 1, not a finding**: the
+11-call comprehension cell is the only `+MCP` cell where dollars rose (+37%) while tokens fell
+(−23%), which is the shape a spend-follows-round-trips model predicts — but the 11-call and 3-call
+cells are different repos and different tasks, so they are confounded, and one run per cell cannot
+separate a structural effect from a lucky run.
+
+**Scope boundary: RoselineMCP will not implement turn control.** The server is called by the
+client's loop; it does not call, cannot see the loop, and cannot cap, budget or extend it. The
+paper's better (dynamic) strategy needs the agent to be able to request an extension, which
+requires sitting inside the loop. The lever RoselineMCP *does* own is the tool surface: it decides
+how many round trips a unit of understanding costs. The repo has pulled it once — making `project`
+optional took the same task from **8 calls / 594k tokens to 3 calls / 437k tokens** (see the
+[follow-up table](#follow-up--making-the-model-actually-use-the-tools)).
+
 ## Follow-up — making the model actually use the tools
 
 The finding above (the model won't call the MCP by default) turned out to be fixable in-product.
 Three levers, each tested on the large-repo comprehension task in **plain mode** — the MCP available,
 **no external nudge**, so it reflects real product behavior:
 
-| Build | roseline calls (unprompted) | failed on `project` | Read | Tokens |
+| Build | roseline tool calls (unprompted) | failed on `project` | Read | Tokens |
 |---|---|---|---|---|
 | Baseline — neutral descriptions, no server instructions | **0** | — | many | — |
 | + server `instructions` + decision-rule descriptions | 8 | **4** | 0 | 594k |
@@ -210,3 +254,41 @@ claude -p "<task>" --output-format json --permission-mode bypassPermissions \
 
 Compare `usage` (input/output/cache tokens, `total_cost_usd`) between the two, and confirm both
 produce equal quality (build + tests). Single runs are noisy — repeat the run you intend to cite.
+
+### Capturing turns and tool calls
+
+`claude -p --output-format json` reports a `num_turns` field in the result object, alongside
+`usage` and `total_cost_usd` (checked against a trivial prompt: `"num_turns": 1`). Record it
+per run:
+
+```bash
+claude -p "<task>" --output-format json ... > run.json
+jq '{turns: .num_turns, cost: .total_cost_usd, usage: .usage}' run.json
+```
+
+To count **tool calls** (and cross-check turns) run with `--output-format stream-json --verbose`
+and read the transcript; the method that produced the number is the `jq` below, so state it
+beside the figure:
+
+```bash
+claude -p "<task>" --output-format stream-json --verbose ... > run.jsonl
+
+# turns = distinct assistant messages (one message may be split across several lines)
+jq -r 'select(.type=="assistant") | .message.id' run.jsonl | sort -u | wc -l
+
+# tool calls, per tool; RoselineMCP calls are the mcp__roseline__* names
+jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name' run.jsonl \
+  | sort | uniq -c
+```
+
+On a two-`Bash`-call probe session the distinct-message count matched `num_turns` (3), and the
+tool-call listing showed `2 Bash`. This makes the hand-counted `11` / `3` above mechanically
+reproducible in future runs.
+
+**What would make the metric conclusive:** `n ≥ 3` per cell, and matched tasks (same repo, same
+prompt, control vs. +MCP). The current tables meet neither bar: they are `n = 1`, and the 11-call
+and 3-call cells are different repos.
+
+**Relation to #166.** Its six pre-registered `claude -p` sessions should record these two
+variables (turns, tool calls) as well; that costs no extra runs, and neither issue blocks the
+other. Its criterion, task and `n` are unchanged by this section.
