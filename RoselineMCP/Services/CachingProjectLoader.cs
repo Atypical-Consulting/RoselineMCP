@@ -153,7 +153,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
             }
 
             var loaded = await _inner.LoadAsync(project, cancellationToken);
-            var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution, _utcNow());
+            var fingerprint = WorkspaceFingerprint.Capture(key, loaded.Solution, _utcNow(), loaded.UnresolvedAnalyzerReferences);
 
             EvictLeastRecentlyUsedIfFull();
             _entries[key] = new CacheEntry(loaded.Workspace, loaded.Solution, loaded.Project, loaded.ResolvedPath, loaded.TargetPath, loaded.UnresolvedAnalyzerReferences, fingerprint)
@@ -250,7 +250,7 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
 
     /// <summary>
     /// Disk fingerprint of a loaded solution: a stamp (exists + last-write-time UTC + length) for
-    /// the resolved target, the <c>.sln</c>, every <c>.csproj</c>, and every document file, plus a
+    /// the resolved target, the <c>.sln</c>, every <c>.csproj</c>, every document file, and every analyzer reference path (resolved or not), plus a
     /// stamp for each distinct directory containing them (a directory's last-write-time changes when
     /// a direct child is added, removed, or renamed — catching new files that per-file stamps
     /// cannot). Re-checking is a handful of <c>stat</c> calls, no MSBuild involved.
@@ -284,7 +284,8 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
         /// records a content signature (see <see cref="FileStamp"/>/<see cref="DirectoryStamp"/>'s own
         /// remarks and issue #235) so a later check has real evidence instead of a fresh suspicion.
         /// </param>
-        public static WorkspaceFingerprint Capture(string targetPath, Solution solution, DateTime capturedAtUtc)
+        public static WorkspaceFingerprint Capture(
+            string targetPath, Solution solution, DateTime capturedAtUtc, IEnumerable<string>? unresolvedAnalyzerReferences = null)
         {
             var paths = new HashSet<string>(PathComparer) { targetPath };
 
@@ -306,6 +307,26 @@ public sealed class CachingProjectLoader : IProjectLoader, IDisposable
                     {
                         paths.Add(Path.GetFullPath(document.FilePath));
                     }
+                }
+
+                // A reference that resolves later (or stops resolving) must bust the cache (#248).
+                foreach (var reference in project.AnalyzerReferences)
+                {
+                    if (!string.IsNullOrEmpty(reference.FullPath))
+                    {
+                        paths.Add(Path.GetFullPath(reference.FullPath));
+                    }
+                }
+            }
+
+            // Unresolved references were stripped from the solution by the loader, so they are only
+            // visible here as paths; a missing file stamps as "does not exist" and flips on creation.
+            // The list can also hold a Display/type-name fallback, which is not a path.
+            foreach (var unresolved in unresolvedAnalyzerReferences ?? [])
+            {
+                if (Path.IsPathFullyQualified(unresolved))
+                {
+                    paths.Add(Path.GetFullPath(unresolved));
                 }
             }
 

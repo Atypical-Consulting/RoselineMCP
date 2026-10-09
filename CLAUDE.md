@@ -123,7 +123,7 @@ The application uses a dependency injection-based service architecture with clea
   `CachingProjectLoader` passes the list through `CacheEntry`/`WrapShared` like `resolvedPath`
 - **Workspace Cache (IProjectLoader-backed tools)**: `IProjectLoader` resolves to
   `CachingProjectLoader`, which reuses the loaded MSBuildWorkspace across tool calls. Each entry is
-  fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, plus
+  fingerprinted (last-write-time + length of the `.sln`, every `.csproj`, every document, every analyzer reference path — including ones the loader stripped as unresolved, so a DLL that later appears busts the cache (#248) — plus
   their directories' mtimes to catch added/removed files) and re-stat'd on every load — any change
   on disk disposes the cached workspace and reloads fresh, so RoselineMCP's own
   `ApplyFixes`/`EditMember`/`RenameSymbol` writes self-invalidate it. Bounded (4 entries, LRU);
