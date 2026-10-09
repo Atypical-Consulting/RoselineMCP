@@ -46,13 +46,13 @@ public class FixExampleService : IFixExampleService
             {
                 return await BuildAsync(loaded, id, file, line, maxExamples, maxCandidates, cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 ResolvedPathStamp.Stamp(ex, loaded);
                 throw;
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Failed to suggest fix examples");
             throw;
@@ -114,6 +114,7 @@ public class FixExampleService : IFixExampleService
         };
 
         var found = new List<(FixExample Example, int Rank)>();
+        var seen = new HashSet<(string, int)>();
         var scanned = 0;
         var truncated = false;
         var alertTypeName = TypeNameOf(alertNode);
@@ -128,6 +129,7 @@ public class FixExampleService : IFixExampleService
             var isAnchor = proj.Id == anchor.Id;
             if (!isAnchor && found.Count >= maxExamples)
             {
+                truncated = true; // unscanned sibling projects remain
                 break;
             }
 
@@ -143,7 +145,7 @@ public class FixExampleService : IFixExampleService
                 .GroupBy(d => d.Location.SourceTree!.FilePath, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.Select(d => d.Location.SourceSpan).ToList(), StringComparer.Ordinal);
 
-            foreach (var tree in compilation.SyntaxTrees)
+            foreach (var tree in compilation.SyntaxTrees.OrderBy(t => t.FilePath == alertTree.FilePath ? 0 : 1))
             {
                 firesByPath.TryGetValue(tree.FilePath, out var treeFires);
                 SemanticModel? model = null;
@@ -163,7 +165,7 @@ public class FixExampleService : IFixExampleService
                     }
 
                     // The bridging predicate: the rule does not fire anywhere inside this node.
-                    if (treeFires is not null && treeFires.Any(s => node.Span.IntersectsWith(s)))
+                    if (treeFires is not null && treeFires.Any(s => s.Length == 0 ? node.Span.Contains(s.Start) : node.Span.OverlapsWith(s)))
                     {
                         continue;
                     }
@@ -176,6 +178,11 @@ public class FixExampleService : IFixExampleService
                     }
 
                     var nodeLine = tree.GetLineSpan(node.Span).StartLinePosition.Line;
+                    if (!seen.Add((tree.FilePath, nodeLine)))
+                    {
+                        continue; // same file seen through another project (multi-targeting, linked files)
+                    }
+
                     var rank = isAnchor ? 2 : 3;
                     if (isAnchor && tree.FilePath == alertTree.FilePath)
                     {
