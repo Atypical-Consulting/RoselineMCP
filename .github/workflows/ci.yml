@@ -79,7 +79,9 @@ jobs:
             exit 1
           fi
           echo "Found coverage report: $COVERAGE_FILE"
-          COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' "$COVERAGE_FILE" | head -1)
+          # awk, not head: head exits after one line, grep then dies on SIGPIPE and -o pipefail
+          # turns that into a red job with every test green (seen on dev after #267).
+          COVERAGE=$(grep -oP 'line-rate="\K[0-9.]+' "$COVERAGE_FILE" | awk 'NR==1')
           PERCENT=$(echo "$COVERAGE * 100" | bc)
           echo "Coverage: $PERCENT%"
           if (( $(echo "$PERCENT < 80" | bc -l) )); then
