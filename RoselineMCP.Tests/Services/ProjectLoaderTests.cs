@@ -764,6 +764,11 @@ public class ProjectLoaderTests : IDisposable
     [UnsupportedOSPlatform("windows")]
     public void RecursiveSweep_DoesNotFollowASymlinkedDirectory()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symlinks needs elevation on Windows.");
+        }
+
         var real = Touch(Path.Combine("Real", "Acme.csproj"));
         var elsewhere = Path.Combine(_root, "elsewhere");
         Directory.CreateDirectory(elsewhere);
@@ -778,6 +783,11 @@ public class ProjectLoaderTests : IDisposable
     [UnsupportedOSPlatform("windows")]
     public void RecursiveSweep_SurvivesASymlinkLoop()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symlinks needs elevation on Windows.");
+        }
+
         var real = Touch(Path.Combine("Real", "Acme.csproj"));
         Directory.CreateSymbolicLink(Path.Combine(_baseDir, "Loop"), _baseDir);
 

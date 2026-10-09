@@ -412,6 +412,7 @@ public class ProjectLoader : IProjectLoader
     private static IEnumerable<string> IncidentalFiles(string directory, string pattern, EnumerationOptions options) =>
         pattern.Split(';')
             .SelectMany(p => Directory.EnumerateFiles(directory, p, options))
+            .Distinct(StringComparer.OrdinalIgnoreCase) // Win32 matching may let "*.sln" also match .slnx
             .Where(f => !IsAppleDoubleShadow(f));
 
     /// <summary>Solution file patterns, <c>;</c>-separated (see <see cref="IncidentalFiles"/>).</summary>

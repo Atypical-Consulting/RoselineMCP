@@ -28,7 +28,7 @@ public static class ListDiagnosticsTool
         + " Example: list_diagnostics{ids:['CS0168'], max:50} -> resolvedPath + diagnostics[] + per-ID/severity stats.")]
     public static async Task<ToolResult<ListDiagnosticsResponse>> ListDiagnostics(
         ISolutionAnalyzerService analyzerService,
-        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        [Description("Project name, directory, .csproj, .sln, or .slnx path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
         [Description("Optional list of diagnostic IDs to filter (e.g., ['CS0168', 'CS0219'])")]
         string[]? ids = null,

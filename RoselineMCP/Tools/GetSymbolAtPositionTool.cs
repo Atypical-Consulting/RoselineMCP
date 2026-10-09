@@ -31,7 +31,7 @@ public static class GetSymbolAtPositionTool
         int line,
         [Description("Optional 1-based column. Omit to resolve the most relevant symbol on the line (declarations win over references).")]
         int? column = null,
-        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        [Description("Project name, directory, .csproj, .sln, or .slnx path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,

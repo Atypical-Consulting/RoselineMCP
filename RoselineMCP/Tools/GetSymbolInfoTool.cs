@@ -28,7 +28,7 @@ public static class GetSymbolInfoTool
         string symbol,
         [Description("If true (the default), include the exact source text of the symbol's declaration")]
         bool includeSource = true,
-        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        [Description("Project name, directory, .csproj, .sln, or .slnx path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
         IOptions<RoselineMcpOptions>? options = null,
         ILoggerFactory? loggerFactory = null,

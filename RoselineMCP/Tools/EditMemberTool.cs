@@ -42,7 +42,7 @@ public static class EditMemberTool
         string? newSource = null,
         [Description("If true (the default), only preview the change and return a diff — no files are modified. Set explicitly to false to write the change to disk.")]
         bool previewOnly = true,
-        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        [Description("Project name, directory, .csproj, .sln, or .slnx path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
         [Description("If false (the default), an edit that introduces compiler errors is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.")]
         bool allowIntroducedErrors = false,
