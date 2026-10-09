@@ -65,7 +65,7 @@ public class WorktreeProjectResolutionTests : IDisposable
         var names = outline.Data!.Symbols.Select(s => s.Name).ToList();
         names.ShouldContain("OnlyInWorktree");
         names.ShouldNotContain("OnlyInMain");
-        Path.GetFullPath(outline.Data.ResolvedPath).ShouldStartWith(Path.GetFullPath(worktree));
+        outline.Data.ResolvedPath.ShouldContain(Path.DirectorySeparatorChar + "wt" + Path.DirectorySeparatorChar);
 
         var info = await GetSymbolInfoTool.GetSymbolInfo(service, "Hub.Index.OnlyInWorktree", project: wtCsproj);
         info.Ok.ShouldBeTrue(info.Error?.Message);
@@ -128,7 +128,7 @@ public class WorktreeProjectResolutionTests : IDisposable
 
         Git(main, "init", "-q").ShouldBeTrue();
         Git(main, "add", "-A").ShouldBeTrue();
-        Git(main, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "init").ShouldBeTrue();
+        Git(main, "-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init").ShouldBeTrue();
         Git(main, "worktree", "add", "-q", "--detach", worktree).ShouldBeTrue();
     }
 

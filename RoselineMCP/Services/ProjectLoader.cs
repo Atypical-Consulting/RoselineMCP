@@ -144,12 +144,20 @@ public class ProjectLoader : IProjectLoader
                 // opened) — distinct from resolvedPath, which is what answered. See LoadedProject.TargetPath.
                 targetPath: Path.GetFullPath(targetPath),
                 unresolvedAnalyzerReferences: unresolved,
-                workspaceFailures: workspaceFailures.ToArray());
+                workspaceFailures: SnapshotOf(workspaceFailures));
         }
         catch
         {
             workspace.Dispose();
             throw;
+        }
+    }
+
+    private static string[] SnapshotOf(List<string> list)
+    {
+        lock (list)
+        {
+            return list.ToArray();
         }
     }
 
