@@ -194,8 +194,8 @@ export const writeToolAgreement = agreement(writeToolCount);
 
 // ── The analyzerLoad-reporting tools, derived ──
 // tools.astro used to name these three inline and call them "the three diagnostics tools" — but that
-// collides with `kind: 'diagnostics'`, which is four tools (analyze_solution, list_diagnostics,
-// check_compilation, create_patch), and apply_fixes is `kind: 'write'`. The sentence was never really
+// collides with `kind: 'diagnostics'`, which is five tools (analyze_solution, list_diagnostics,
+// check_compilation, create_patch, suggest_fix_examples), and apply_fixes is `kind: 'write'`. The sentence was never really
 // about `kind`; it was about which tools return an `analyzerLoad` block (CLAUDE.md § MCP Tools
 // Available: "the diagnostics tools (1–3)"). Deriving both the count and the member list from the
 // `analyzerLoad` flag keeps the sentence from drifting in either direction again.
