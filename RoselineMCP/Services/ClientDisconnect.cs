@@ -15,16 +15,27 @@ public sealed class ClientDisconnect
     public CancellationToken Token => _eof.Token;
 
     /// <summary>Raises the signal. Public so tests can simulate an EOF without real pipes.</summary>
-    public void Signal() => _eof.Cancel();
+    public void Signal()
+    {
+        try
+        {
+            _eof.Cancel();
+        }
+        catch (AggregateException)
+        {
+            // A cancellation callback threw. This runs on the transport's read path: a clean EOF
+            // must stay a clean EOF, not become a read-loop fault.
+        }
+    }
 
     /// <summary>Wraps <paramref name="input"/> so reading end-of-stream raises <see cref="Signal"/>.</summary>
     public Stream Wrap(Stream input) => new EofSignalingStream(input, this);
 
     private sealed class EofSignalingStream(Stream inner, ClientDisconnect owner) : Stream
     {
-        private int Observe(int read)
+        private int Observe(int read, int requested)
         {
-            if (read == 0)
+            if (read == 0 && requested > 0) // a zero-length read returning 0 is not EOF
             {
                 owner.Signal();
             }
@@ -32,15 +43,15 @@ public sealed class ClientDisconnect
             return read;
         }
 
-        public override int Read(byte[] buffer, int offset, int count) => Observe(inner.Read(buffer, offset, count));
+        public override int Read(byte[] buffer, int offset, int count) => Observe(inner.Read(buffer, offset, count), count);
 
-        public override int Read(Span<byte> buffer) => Observe(inner.Read(buffer));
+        public override int Read(Span<byte> buffer) => Observe(inner.Read(buffer), buffer.Length);
 
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-            => Observe(await inner.ReadAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false));
+            => Observe(await inner.ReadAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false), count);
 
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-            => Observe(await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false));
+            => Observe(await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false), buffer.Length);
 
         protected override void Dispose(bool disposing)
         {
