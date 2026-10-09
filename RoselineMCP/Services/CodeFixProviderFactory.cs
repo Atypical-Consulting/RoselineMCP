@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 
 namespace RoselineMCP.Services;
 
@@ -44,7 +45,11 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     private readonly IAnalyzerCatalog? _analyzerCatalog;
     private readonly Dictionary<string, Type> _providers = new();
     private readonly ConditionalWeakTable<AnalyzerReference, FrozenDictionary<string, Type>> _overlays = new();
+    private readonly ConditionalWeakTable<AnalyzerReference, AnalyzerLoadNote> _overlayFailures = new();
     private bool _providersLoaded;
+
+    /// <summary>The provider types of one assembly, and what could not be scanned.</summary>
+    private sealed record ScannedTypes(IEnumerable<Type> Types, int Failed, string? FirstFailure);
 
     /// <summary>
     /// Initializes a new instance of the CodeFixProviderFactory.
@@ -188,7 +193,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     {
         try
         {
-            foreach (var type in ProviderTypes(assembly))
+            foreach (var type in ProviderTypes(assembly).Types)
             {
                 RegisterProvider(_providers, type);
             }
@@ -205,9 +210,11 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
     /// some of whose types cannot be loaded (a dependency bound to a newer Roslyn, say) still yields
     /// the types that can: the same "degrade, never fail" rule the analyzer pass follows.
     /// </summary>
-    private IEnumerable<Type> ProviderTypes(Assembly assembly)
+    private ScannedTypes ProviderTypes(Assembly assembly)
     {
         Type?[] types;
+        var failed = 0;
+        string? first = null;
         try
         {
             types = assembly.GetTypes();
@@ -215,16 +222,19 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         catch (ReflectionTypeLoadException ex)
         {
             types = ex.Types;
+            failed = Math.Max(ex.LoaderExceptions.Length, 1);
+            first = ex.LoaderExceptions.FirstOrDefault()?.Message ?? ex.Message;
             _logger.LogWarning(
                 "{Count} type(s) of {Assembly} could not be loaded; scanning the rest for code fix providers: {Message}",
-                ex.LoaderExceptions.Length, assembly.GetName().Name,
-                ex.LoaderExceptions.FirstOrDefault()?.Message ?? ex.Message);
+                ex.LoaderExceptions.Length, assembly.GetName().Name, first);
         }
 
-        return types.Where(t => t is { IsAbstract: false } && t.IsSubclassOf(typeof(CodeFixProvider)))!;
+        var found = types.Where(t => t is { IsAbstract: false } && t.IsSubclassOf(typeof(CodeFixProvider)))!;
+        return new ScannedTypes(found!, failed, first);
     }
 
-    private void RegisterProvider(IDictionary<string, Type> map, Type type)
+    /// <returns><see langword="true"/> when the provider could be instantiated.</returns>
+    private bool RegisterProvider(IDictionary<string, Type> map, Type type)
     {
         try
         {
@@ -239,6 +249,8 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
                             id, type.Name);
                     }
                 }
+
+                return true;
             }
         }
         catch (Exception ex)
@@ -246,7 +258,34 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
             _logger.LogDebug("Could not instantiate code fix provider {Type}: {Message}",
                 type.Name, ex.Message);
         }
+
+        return false;
     }
+
+    /// <inheritdoc />
+    public IReadOnlyList<AnalyzerLoadNote> DescribeFixerLoad(Project project)
+    {
+        var notes = new List<AnalyzerLoadNote>();
+        foreach (var reference in project.AnalyzerReferences)
+        {
+            OverlayFor(reference);
+            if (_overlayFailures.TryGetValue(reference, out var note))
+            {
+                notes.Add(note);
+            }
+        }
+
+        return notes;
+    }
+
+    private void RecordFailure(AnalyzerReference reference, string errorCode, string message) =>
+        _overlayFailures.AddOrUpdate(reference, new AnalyzerLoadNote
+        {
+            Reference = reference.Display,
+            Reason = AnalyzerLoadNote.FixerLoadFailure,
+            ErrorCode = errorCode,
+            Message = message
+        });
 
     /// <summary>
     /// The providers carried by one analyzer reference, reflected once per reference object.
@@ -267,9 +306,27 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
         {
             var assembly = fileReference.AssemblyLoader.LoadFromPath(path);
             var map = new Dictionary<string, Type>(StringComparer.Ordinal);
-            foreach (var type in ProviderTypes(assembly))
+            var scanned = ProviderTypes(assembly);
+            var attempted = 0;
+            var instantiated = 0;
+            foreach (var type in scanned.Types)
             {
-                RegisterProvider(map, type);
+                attempted++;
+                if (RegisterProvider(map, type))
+                {
+                    instantiated++;
+                }
+            }
+
+            if (scanned.Failed > 0)
+            {
+                RecordFailure(reference, nameof(ReflectionTypeLoadException),
+                    $"{scanned.Failed} type(s) could not be loaded: {scanned.FirstFailure}");
+            }
+            else if (attempted > 0 && instantiated == 0)
+            {
+                RecordFailure(reference, "InstantiationFailure",
+                    $"{attempted} code fix provider type(s) could not be instantiated");
             }
 
             if (map.Count > 0)
@@ -287,6 +344,7 @@ public class CodeFixProviderFactory : ICodeFixProviderFactory
             // coverage is logged where an operator looks, never at Debug.
             _logger.LogWarning("Could not load code fix providers from project reference {Reference}: {Message}",
                 reference.Display, ex.Message);
+            RecordFailure(reference, ex.GetType().Name, ex.Message);
             return NoProviders;
         }
     }

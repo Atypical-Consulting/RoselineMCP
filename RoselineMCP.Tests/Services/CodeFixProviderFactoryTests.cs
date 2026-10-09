@@ -1,9 +1,11 @@
 using System.Collections.Immutable;
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.Extensions.Logging;
+using RoselineMCP.Models;
 using RoselineMCP.Services;
 using Shouldly;
 
@@ -249,6 +251,102 @@ public class CodeFixProviderFactoryTests
             {
                 File.Delete(garbage);
             }
+        }
+
+        [Fact]
+        public void DescribeFixerLoad_Should_Name_A_Reference_Whose_Fixers_Cannot_Load()
+        {
+            // Arrange — a fixer assembly built against a stub Microsoft.CodeAnalysis.Workspaces 99.0.0.0:
+            // its CodeFixProvider base type cannot bind in this process, so GetTypes() throws
+            // ReflectionTypeLoadException while the same package's analyzers would load fine.
+            var dir = Path.Combine(Path.GetTempPath(), $"roseline-fixers-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var trusted = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+                    .Split(Path.PathSeparator)
+                    .Where(p => p.Length > 0 && !Path.GetFileName(p).StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal))
+                    .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
+                    .ToList();
+                var stub = CSharpCompilation.Create(
+                    "Microsoft.CodeAnalysis.Workspaces",
+                    [CSharpSyntaxTree.ParseText("""
+                        [assembly: System.Reflection.AssemblyVersion("99.0.0.0")]
+                        namespace Microsoft.CodeAnalysis.CodeFixes
+                        {
+                            public abstract class CodeFixProvider { }
+                        }
+                        """)],
+                    trusted,
+                    new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+                var fixers = CSharpCompilation.Create(
+                    "ContosoFixers",
+                    [CSharpSyntaxTree.ParseText("""
+                        using Microsoft.CodeAnalysis.CodeFixes;
+                        public sealed class BrokenFixer : CodeFixProvider { }
+                        """)],
+                    [.. trusted, stub.ToMetadataReference()],
+                    new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+                var path = Path.Combine(dir, "ContosoFixers.dll");
+                var emit = fixers.Emit(path);
+                emit.Success.ShouldBeTrue(string.Join(Environment.NewLine, emit.Diagnostics));
+
+                var (_, project) = AdhocProjectBuilder.Create("Fixers", [("W.cs", "public class W { }")]);
+                project = project.AddAnalyzerReference(new AnalyzerFileReference(path, TestAnalyzerAssemblyLoader.Instance));
+                var factory = CreateFactory(CreateCatalog());
+
+                // Act
+                var notes = factory.DescribeFixerLoad(project);
+
+                // Assert
+                var note = notes.ShouldHaveSingleItem();
+                note.Reference.ShouldBe("ContosoFixers");
+                note.Reason.ShouldBe(AnalyzerLoadNote.FixerLoadFailure);
+                note.ErrorCode.ShouldNotBeNullOrWhiteSpace();
+                note.Message.ShouldNotBeNullOrWhiteSpace();
+                factory.GetFixableDiagnosticIds(project).ToHashSet()
+                    .ShouldBe(factory.GetFixableDiagnosticIds(null).ToHashSet());
+            }
+            finally
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+
+        [Fact]
+        public void DescribeFixerLoad_Should_Name_A_Reference_That_Cannot_Be_Loaded_At_All()
+        {
+            var garbage = Path.Combine(Path.GetTempPath(), $"roseline-{Guid.NewGuid():N}.dll");
+            File.WriteAllText(garbage, "not a PE image");
+            try
+            {
+                var (_, project) = AdhocProjectBuilder.Create("Broken", [("W.cs", "public class W { }")]);
+                project = project.AddAnalyzerReference(new AnalyzerFileReference(garbage, TestAnalyzerAssemblyLoader.Instance));
+
+                var note = CreateFactory(CreateCatalog()).DescribeFixerLoad(project).ShouldHaveSingleItem();
+
+                note.Reason.ShouldBe(AnalyzerLoadNote.FixerLoadFailure);
+                note.ErrorCode.ShouldNotBeNullOrWhiteSpace();
+            }
+            finally
+            {
+                File.Delete(garbage);
+            }
+        }
+
+        [Fact]
+        public async Task DescribeFixerLoad_Should_Not_Flag_The_Roslynator_References_Of_This_Repository()
+        {
+            // Measured: Microsoft.CodeAnalysis.Analyzers' fixers genuinely cannot load here (they need
+            // Microsoft.Bcl.AsyncInterfaces 8.0.0.0), so the repository is not "clean" - but the
+            // Roslynator references, whose fixers do load, must never be reported.
+            using var loaded = await AnalyzerReferenceLoadTests.LoadRepositoryProjectAsync();
+
+            var notes = CreateFactory(CreateCatalog()).DescribeFixerLoad(loaded.Project);
+
+            notes.ShouldAllBe(n => n.Reason == AnalyzerLoadNote.FixerLoadFailure
+                && !string.IsNullOrWhiteSpace(n.ErrorCode) && !string.IsNullOrWhiteSpace(n.Message));
+            notes.ShouldNotContain(n => n.Reference.StartsWith("Roslynator", StringComparison.Ordinal));
         }
     }
 }
