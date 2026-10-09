@@ -62,11 +62,12 @@ public class ListDiagnosticsToolTests
         result.Ok.ShouldBeTrue(result.Error?.Message);
         var report = result.Data!.AnalyzerLoad.ShouldNotBeNull("at least one reference contributed nothing");
         report.ReferencesConsulted.ShouldBeGreaterThan(report.ReferencesContributing);
-        report.Notes.ShouldNotBeEmpty();
+        report.ReferencesWithoutAnalyzers.ShouldBeGreaterThan(0);
         report.Notes.ShouldAllBe(n => !string.IsNullOrWhiteSpace(n.Reference) && !string.IsNullOrWhiteSpace(n.Reason));
 
         var json = JsonNode.Parse(JsonSerializer.Serialize(result, Wire))!.AsObject();
         json["data"]!["analyzerLoad"]!["notes"]!.AsArray().Count.ShouldBe(report.Notes.Count);
+        json["data"]!["analyzerLoad"]!["referencesWithoutAnalyzers"]!.GetValue<int>().ShouldBe(report.ReferencesWithoutAnalyzers);
     }
 
     [Fact]
@@ -147,7 +148,8 @@ public class ListDiagnosticsToolTests
         // Assert
         var report = response.AnalyzerLoad.ShouldNotBeNull();
         report.ReferencesConsulted.ShouldBe(1);
-        report.Notes.ShouldHaveSingleItem().Reference.ShouldBe("Silent");
+        report.ReferencesWithoutAnalyzers.ShouldBe(1);
+        report.Notes.ShouldBeEmpty();
     }
 
     [Fact]

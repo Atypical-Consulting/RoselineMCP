@@ -189,6 +189,12 @@ public class DiagnosticComputationService : IDiagnosticComputationService
 
             if (projectAnalyzers.IsEmpty)
             {
+                // Empty with no note is the benign case (loaded, declares no C# analyzer): counted, not named.
+                if (note is null)
+                {
+                    report.ReferencesWithoutAnalyzers++;
+                }
+
                 continue;
             }
 
@@ -314,7 +320,7 @@ public class DiagnosticComputationService : IDiagnosticComputationService
         }
 
         _logger.LogDebug("Analyzer reference {Reference} declares no C# analyzers", reference.Display);
-        note = new AnalyzerLoadNote { Reference = reference.Display, Reason = AnalyzerLoadNote.NoCSharpAnalyzers };
+        note = null;
         return ImmutableArray<DiagnosticAnalyzer>.Empty;
     }
 
