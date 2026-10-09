@@ -423,8 +423,9 @@ See [`docs/API.md`](API.md#error-handling) for the full closed set of `type` val
    to `CachingProjectLoader`, a decorator over `ProjectLoader` that keeps up to 4 loaded
    workspaces (LRU-evicted, evicted workspaces disposed), keyed by the resolved `.sln`/`.csproj`
    path. Each entry stores a disk fingerprint — last-write-time + length of the `.sln`, every
-   `.csproj`, and every document, plus the last-write-time of their containing directories (which
-   catches added/removed files) — that is re-stat'd on every load; any mismatch disposes the
+   `.csproj`, every document, and every analyzer reference path — including ones the loader
+   stripped as unresolved, so a DLL that later appears busts the cache (#248) — plus the
+   last-write-time of their containing directories (which catches added/removed files) — that is re-stat'd on every load; any mismatch disposes the
    cached workspace and reloads fresh. A bare stat match on its own is not trusted as proof of
    "unchanged": each stamp — per file/directory, not the fingerprint as a whole — decides for
    itself, once at capture, whether its own last write was still fresher than a short window (2s)
