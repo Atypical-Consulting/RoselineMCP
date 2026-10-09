@@ -318,12 +318,12 @@ counted (`referencesWithoutAnalyzers`).
 
 Gets detailed diagnostics for a specific project. Read-only — never modifies files on disk.
 `project` is **optional** and accepts the same references as the navigation tools (name,
-directory, `.csproj`, or `.sln` path); when omitted, the solution/project is auto-discovered from
+directory, `.csproj`, `.sln`, or `.slnx` path); when omitted, the solution/project is auto-discovered from
 the working directory.
 
 ```typescript
 listDiagnostics({
-  project: "MyProject.csproj",     // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
+  project: "MyProject.csproj",     // Optional: name, directory, .csproj, .sln, or .slnx; auto-discovered if omitted
   ids: ["CS0168", "CS0219"],       // Optional: Filter by diagnostic IDs
   files: ["Controller.cs"],        // Optional: substring match against each diagnostic's file path (case-insensitive; NOT a glob pattern)
   max: 50                          // Optional: Maximum results
@@ -343,7 +343,7 @@ of those that carry no C# analyzer, present only when there is something to say.
 Applies automated code fixes for specified diagnostics. **Defaults to preview mode**:
 `previewOnly` defaults to `true`, so calling this tool without setting it never writes to disk —
 you must pass `previewOnly: false` explicitly to apply changes. `project` is **optional** and
-accepts the same references as the navigation tools (name, directory, `.csproj`, or `.sln` path);
+accepts the same references as the navigation tools (name, directory, `.csproj`, `.sln`, or `.slnx` path);
 when omitted, the solution/project is auto-discovered from the working directory. For a **write**
 (`previewOnly: false`) make it an **absolute** path — see the worktree note below.
 
@@ -388,7 +388,7 @@ call of a session pays a cold load, every call after it reuses an incremental Ro
 
 ```typescript
 checkCompilation({
-  project: "MyApp.sln",  // Optional: name, directory, .csproj, or .sln; auto-discovered if omitted
+  project: "MyApp.sln",  // Optional: name, directory, .csproj, .sln, or .slnx; auto-discovered if omitted
   max: 20                 // Optional (default: 20). The rest are counted in `omitted`.
 })
 ```
@@ -423,7 +423,7 @@ createPatch({
 
 These tools return **precise structure instead of whole files**, so an AI agent can orient itself
 in a codebase while spending far fewer tokens than reading source directly. All are read-only and
-take an **optional** `project` (name, directory, `.csproj` path, or `.sln` path) — when omitted,
+take an **optional** `project` (name, directory, `.csproj` path, `.sln`, or `.slnx` path) — when omitted,
 RoselineMCP auto-discovers the solution/project from its working directory. When the project belongs
 to a solution, the whole solution is loaded and symbol search/resolution spans every project in it
 (including sibling projects the requested project doesn't reference), so references/renames span

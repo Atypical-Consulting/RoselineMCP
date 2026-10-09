@@ -294,7 +294,7 @@ Generates unified diff patches between text versions.
 ### Code Navigation Tools (read-only, token-efficient)
 These return precise structure instead of whole files (backed by `ICodeNavigationService` /
 `CodeNavigationService`, which loads via `IProjectLoader`). All take an **optional** `project`
-(name, directory, `.csproj` path, or `.sln` path); when omitted, RoselineMCP auto-discovers the
+(name, directory, `.csproj` path, `.sln`, or `.slnx` path); when omitted, RoselineMCP auto-discovers the
 solution/project from its working directory, nearest level first — the cwd itself wins when it has
 exactly one candidate, then each parent directory (up to 3) in order, then immediate
 subdirectories — failing with an actionable message only when nothing is found or a single level

@@ -433,7 +433,7 @@ mcp call analyzeSolution '{
 
 Gets detailed diagnostics for a specific project with statistics. **Read-only** — never modifies
 files on disk. The project is resolved and loaded the same way as the code navigation/editing
-tools below (`IProjectLoader`): auto-discovery when `project` is omitted, `.sln` paths accepted,
+tools below (`IProjectLoader`): auto-discovery when `project` is omitted, `.sln`/`.slnx` paths accepted,
 exact-name project selection. Like `AnalyzeSolution`, reports compiler **and** analyzer diagnostics
 (bundled Roslynator + the project's own analyzer references; disable with
 `RoselineMCP:RunAnalyzers = false`).
@@ -442,7 +442,7 @@ exact-name project selection. Like `AnalyzeSolution`, reports compiler **and** a
 
 ```typescript
 {
-  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string;      // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   ids?: string[];        // Filter by diagnostic IDs (exact match)
   files?: string[];      // Substring match against each diagnostic's file path (case-insensitive; NOT a glob pattern)
   max?: number;          // Maximum diagnostics (default: 100)
@@ -504,7 +504,7 @@ parameter never writes to disk — pass `previewOnly: false` explicitly to write
 (`readOnlyHint: false`, `destructiveHint: true` as a worst-case annotation; see
 [Tool Annotations](#tool-annotations)). The project is resolved and loaded the same way as the
 code navigation/editing tools below (`IProjectLoader`): auto-discovery when `project` is omitted,
-`.sln` paths accepted, exact-name project selection. A `previewOnly: false` call is also subject to
+`.sln`/`.slnx` paths accepted, exact-name project selection. A `previewOnly: false` call is also subject to
 the [Write Confirmation](#write-confirmation) gate.
 
 **A `.sln` target fixes one project, not the solution.** Unlike the navigation tools, whose search
@@ -564,7 +564,7 @@ analyzer that reports X never loaded".
 ```typescript
 {
   ids: string[];         // Diagnostic IDs to fix (required, at least one)
-  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string;      // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   previewOnly?: boolean; // If true (the default), only generate a diff — no files written. Pass false to apply.
   allowIntroducedErrors?: boolean; // If false (default), fixes that introduce compiler errors are refused
   max?: number;          // Max diagnostics per verification list (default 20); the rest are counted in `omitted`
@@ -624,7 +624,7 @@ Rule of thumb: **`check_compilation` answers "is it still building?", `list_diag
 
 ```typescript
 {
-  project?: string;  // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string;  // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   max?: number;      // Max errors to return (default 20); the rest are counted in `omitted`
 }
 ```
@@ -700,7 +700,7 @@ mcp call createPatch '{
 The remaining tools are **code navigation and editing** tools backed by Roslyn. They exist to save
 tokens: rather than reading whole files into an agent's context, they return only the structure
 (symbols, signatures, references, graphs) or a member-level diff. They all take an **optional**
-`project` argument (a project name, a directory, a path to a `.csproj`, or a path to a `.sln`). When
+`project` argument (a project name, a directory, a path to a `.csproj`, or a path to a `.sln` or `.slnx`). When
 `project` is omitted, RoselineMCP auto-discovers the solution/project from its working directory,
 nearest level first — the working directory itself wins when it has exactly one candidate, then
 each parent directory (up to 3) in order, then immediate subdirectories — returning a
@@ -708,10 +708,10 @@ each parent directory (up to 3) in order, then immediate subdirectories — retu
 candidates (a solution in the working directory is never made ambiguous by one further up the
 tree, e.g. in a git worktree nested inside its main checkout). AppleDouble shadow files
 (`._App.sln`, `._App.csproj` — what macOS leaves beside a file after an exFAT/SMB/zip round-trip)
-are never candidates, at any level or in the bare-name sweep. Local paths
+are never candidates, at any level or in the bare-name sweep. Symlinked directories are never followed by auto-discovery or the bare-name sweep (a link to `/` would otherwise walk into `/proc`; #252). Local paths
 only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
 solution — the nearest ancestor `.sln` of the resolved `.csproj`; an ancestor directory holding
-more than one `.sln` is refused with the same ambiguity error rather than guessed at, but only when
+more than one solution file (`.sln` or `.slnx`) is refused with the same ambiguity error rather than guessed at, but only when
 the `.csproj` itself was **inferred** (auto-discovery, a bare name, or a directory) — an
 **explicitly-named** `.csproj` path is never refused over that ambiguity: the caller already said
 which project they mean, so it loads standalone instead (the same fallback already used when a
@@ -766,7 +766,7 @@ Find symbols by name pattern, or outline a single file. **Read-only.**
 
 ```typescript
 {
-  project?: string;   // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string;   // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   query?: string;     // Substring, or wildcard with * and ?. Omit to outline via `file`.
   file?: string;      // Restrict to a file (name or path suffix); outlines it when `query` is omitted
   kinds?: string[];   // Filter, e.g. ["class","interface","method","property","field","enum"]; also "type"/"member"
@@ -813,7 +813,7 @@ Declaration metadata, signature, and (optionally) the source of a single symbol.
 
 ```typescript
 {
-  project?: string;        // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string;        // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   symbol: string;          // Simple or fully-qualified name
   includeSource?: boolean; // Include the declaration's source text (default: true)
 }
@@ -850,7 +850,7 @@ Every use site of a symbol across the solution. **Read-only.**
 
 ```typescript
 {
-  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string; // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   symbol: string;
   includeDefinition?: boolean; // Also include the declaration (default: false)
   max?: number;                // Maximum references (default: 100)
@@ -883,7 +883,7 @@ of a class. **Read-only.**
 
 ```typescript
 {
-  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string; // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   symbol: string;  // Interface, class, or member
   max?: number;    // Maximum results (default: 100)
 }
@@ -911,7 +911,7 @@ A depth-bounded caller and/or callee graph for a method, with cycle detection. *
 
 ```typescript
 {
-  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string; // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   method: string;
   direction?: string; // "callers" (default) | "callees" | "both"
   depth?: number;     // Traversal depth, clamped to 1-3 (default: 1)
@@ -956,7 +956,7 @@ A type's base-class chain, implemented interfaces, and/or derived types. **Read-
 
 ```typescript
 {
-  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string; // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   type: string;
   direction?: string; // "base" | "derived" | "both" (default)
   max?: number;       // Maximum derived types to return (default: 100)
@@ -987,7 +987,7 @@ or grep hit to the symbol-name-based tools above. **Read-only.**
 
 ```typescript
 {
-  project?: string; // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string; // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   file: string;     // File name or path suffix (same matching as SearchSymbols' `file`)
   line: number;     // 1-based
   column?: number;  // 1-based; omit to resolve the most relevant symbol on the line
@@ -1028,7 +1028,7 @@ subject to the [Write Confirmation](#write-confirmation) gate.
 
 ```typescript
 {
-  project?: string;    // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string;    // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   symbol: string;      // The member (replace/delete), or the container type (add)
   operation: string;   // "replace" | "add" | "delete"
   newSource?: string;  // C# member declaration — required for "replace" and "add"
@@ -1066,7 +1066,7 @@ call is subject to the [Write Confirmation](#write-confirmation) gate.
 
 ```typescript
 {
-  project?: string;      // Optional — name, directory, .csproj, or .sln; auto-discovered from cwd if omitted
+  project?: string;      // Optional — name, directory, .csproj, .sln, or .slnx; auto-discovered from cwd if omitted
   symbol: string;
   newName: string;       // Must be a valid C# identifier
   previewOnly?: boolean; // If true (default), only return a diff; pass false to write
@@ -1392,7 +1392,7 @@ method-body edits, which is exactly how a write introduces a compiler error. Ent
 ### IProjectLoader
 
 Loads a project (and its solution, when found) into a workspace for navigation/edits. Accepts
-a project name, directory, `.csproj` path, or `.sln` path; when `project` is `null`/whitespace the
+a project name, directory, `.csproj` path, `.sln`, or `.slnx` path; when `project` is `null`/whitespace the
 solution/project is auto-discovered from the working directory, nearest level first (the working
 directory itself, then each parent up to 3 in order, then immediate subdirectories — throwing
 `ArgumentException` only when nothing is found or a single level itself has multiple candidates).
