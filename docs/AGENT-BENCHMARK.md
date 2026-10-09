@@ -307,7 +307,11 @@ behaviour, not part of this measurement, and are filed (#266) rather than fixed 
   an in-project `return "x";`: `introduced = 0`, `preexisting = 1`, silent, even though
   `check_compilation` reports the error. The harness therefore primes the guard (`prime.sh`: one call
   to establish the baseline, one whitespace-only touch to materialise the documents, touch undone)
-  before the agent's first prompt. With the priming the guard reports the fixture's `Core` signature
+  before the agent's first prompt. **Update: #266 is fixed** — the guard now pins the baseline text at
+  establishment, so the priming is no longer required for the guard to report the first edit (the
+  paragraph above is the record of the run as measured). Note also that the `PostToolUse` matcher
+  does not cover shell writes (`Bash` carries no `file_path`), so `sed`/heredoc edits never reach the
+  guard. With the priming the guard reports the fixture's `Core` signature
   change as three `CS7036` errors in `Consumer`. Without it, treatment would have been silent even for
   an agent that used `Edit`.
 - Priming is an intervention the treatment arm gets and a real user does not; it favours the gate, and

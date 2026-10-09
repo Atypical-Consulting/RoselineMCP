@@ -1,5 +1,6 @@
 using FakeItEasy;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using RoselineMCP.Interfaces;
 using RoselineMCP.Models;
@@ -160,6 +161,91 @@ public class GuardServiceTests : IDisposable
         // Nothing to compare against yet — the guard cannot know what this edit changed.
         report.Silent.ShouldBeTrue();
         report.Text.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// <see cref="CreateSolution"/> with every document re-pointed at a file-backed, lazily-read
+    /// <see cref="FileTextLoader"/> — what <c>MSBuildWorkspace</c> hands out. No document text is
+    /// resident until something asks for it (#266).
+    /// </summary>
+    private (IProjectLoader Loader, AdhocWorkspace Workspace, string SourcePath) CreateLazySolution(string source)
+    {
+        var (loader, workspace, sourcePath) = CreateSolution(source);
+        var solution = loader.LoadForFileAsync(sourcePath, CancellationToken.None).Result!.Solution;
+        var lazy = solution;
+
+        foreach (var document in solution.Projects.SelectMany(p => p.Documents))
+        {
+            lazy = lazy.WithDocumentTextLoader(
+                document.Id, new FileTextLoader(document.FilePath!, null), PreservationMode.PreserveValue);
+        }
+
+        var anchor = lazy.Projects.Single();
+        A.CallTo(() => loader.LoadForFileAsync(A<string>._, A<CancellationToken>._))
+            .ReturnsLazily(() => Task.FromResult<LoadedProject?>(
+                new LoadedProject(workspace, lazy, anchor, ownsWorkspace: false)));
+
+        return (loader, workspace, sourcePath);
+    }
+
+    [Fact]
+    public async Task The_First_Edit_After_Baseline_Is_Reported_When_Documents_Are_Lazy()
+    {
+        var (loader, workspace, sourcePath) = CreateLazySolution(GreenSource);
+        using var _ = workspace;
+        using var service = CreateService(loader);
+
+        (await service.VerifyFileAsync(sourcePath)).Silent.ShouldBeTrue();
+
+        File.WriteAllText(sourcePath, BrokenSource);
+        var report = await service.VerifyFileAsync(sourcePath);
+
+        report.Silent.ShouldBeFalse();
+        report.Verdict!.Introduced.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Pinning_The_Baseline_Neither_Reloads_Nor_Blames_An_Unchanged_File()
+    {
+        var (loader, workspace, sourcePath) = CreateLazySolution(GreenSource);
+        using var _ = workspace;
+        using var service = CreateService(loader);
+        Fake.ClearRecordedCalls(loader); // the fixture's own setup load is not the guard's
+
+        await service.VerifyFileAsync(sourcePath);
+        var unchanged = await service.VerifyFileAsync(sourcePath);
+
+        unchanged.Silent.ShouldBeTrue();
+        // One load per established entry: a second load would share no lineage with the first.
+        A.CallTo(() => loader.LoadForFileAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    /// <summary>
+    /// The same defect against a real <c>MSBuildWorkspace</c> load rather than a simulated lazy
+    /// loader — the one place the lazy-text assumption can actually be proven (#266).
+    /// </summary>
+    [Fact]
+    public async Task The_First_Edit_After_Baseline_Is_Reported_On_A_Real_MSBuild_Load()
+    {
+        var dir = Path.Combine(_root, "real");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        var sourcePath = Path.Combine(dir, "Thing.cs");
+        File.WriteAllText(sourcePath, GreenSource);
+
+        var loader = new ProjectLoader(
+            A.Fake<ILogger<ProjectLoader>>(), new MSBuildService(A.Fake<ILogger<MSBuildService>>()));
+        using var service = CreateService(loader);
+
+        (await service.VerifyFileAsync(sourcePath)).Silent.ShouldBeTrue();
+
+        File.WriteAllText(sourcePath, BrokenSource);
+        var report = await service.VerifyFileAsync(sourcePath);
+
+        report.Silent.ShouldBeFalse();
+        report.Verdict!.Introduced.ShouldNotBeEmpty();
     }
 
     [Fact]

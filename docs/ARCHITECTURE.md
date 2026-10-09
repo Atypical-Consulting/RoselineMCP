@@ -239,7 +239,13 @@ Location: `Services/` and `Interfaces/`
   **not** reload to build a baseline: two independent loads share no lineage, so
   `candidate.GetChanges(baseline)` matches nothing and reports every pre-existing error as
   introduced (measured: `introduced: 1, preexisting: 0` on two loads of identical broken code).
-  Adding or removing a file is structural, cannot be expressed as a text edit, and resets the
+  The baseline's text is **pinned at establishment** (#266): `MSBuildWorkspace` documents read
+  their file lazily, so the first verify would otherwise be the first reader and see the
+  already-edited bytes as "before". Each document is stat-ed, then read into an in-memory
+  `SourceText` via `WithDocumentText` (same ids, no reload); stat precedes read so a racing edit
+  self-heals on the next pass. A file unreadable at baseline stays lazy and unstamped. The text is
+  resident for the entry's life, bounded by `MaxEntries`
+- Adding or removing a file is structural, cannot be expressed as a text edit, and resets the
   baseline instead of producing a bogus delta
 - `GuardEndpoint` is an `IHostedService` — registered only when the switch is on — serving one
   request per connection over a local Unix domain socket (`0600`)
