@@ -24,11 +24,11 @@ public static class RoselineToolDescriptions
     /// <summary>
     /// The one limitation shared by every tool whose <c>project</c> parameter is optional:
     /// discovery is anchored to the server's working directory, not the caller's. Kept in one place
-    /// so <c>ToolDescriptionContractTests</c> can assert all twelve agree verbatim.
+    /// so <c>ToolDescriptionContractTests</c> can assert all thirteen agree verbatim.
     /// </summary>
     /// <remarks>
     /// It carries no <c>Limitations:</c> label of its own: each tool's bespoke clause opens the
-    /// label and this fragment continues that same sentence, so the twelve descriptions read as one
+    /// label and this fragment continues that same sentence, so the thirteen descriptions read as one
     /// paragraph instead of two consecutively-labelled ones.
     /// </remarks>
     public const string ProjectAutoDiscoveryLimit =

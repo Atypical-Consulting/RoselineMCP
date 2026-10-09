@@ -202,6 +202,7 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
             services.AddSingleton<ICodeFixService, CodeFixService>();
             services.AddSingleton<IPatchService, PatchService>();
             services.AddSingleton<ICodeNavigationService, CodeNavigationService>();
+            services.AddSingleton<IFixExampleService, FixExampleService>();
             services.AddSingleton<ICodeEditService, CodeEditService>();
 
             // Compile guard (RoselineMCP:Guard, default false). Registered only when asked for, so a

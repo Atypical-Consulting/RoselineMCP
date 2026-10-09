@@ -54,6 +54,10 @@
       "description": "Does this code compile right now, and what broke? Compiler errors only, in under a second on a warm workspace — use instead of running `dotnet build` after an edit. Read-only."
     },
     {
+      "name": "suggest_fix_examples",
+      "description": "For a diagnostic no code fixer can repair: clean sites in the same solution, in the same syntactic and symbol shape, where it does not fire, plus the rule's description. Evidence for writing the edit yourself. Read-only."
+    },
+    {
       "name": "create_patch",
       "description": "Generate a unified diff between two text versions."
     },

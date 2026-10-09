@@ -29,6 +29,7 @@ public class ToolListingTests : McpProtocolTestBase
         "edit_member",
         "rename_symbol",
         "check_compilation",
+        "suggest_fix_examples",
     ];
 
     [Fact]

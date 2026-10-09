@@ -288,7 +288,7 @@ using the same `command`/`args` shape as the VS Code snippet above.
 
 Every tool's description — the text an MCP client shows the model at tool-selection time — states
 its own `Limitations:` and shows one `Example:` call, within a test-enforced word ceiling; the
-twelve tools with an optional `project` share one wording for the worktree caveat below, and
+thirteen tools with an optional `project` share one wording for the worktree caveat below, and
 `resolvedPath` is how you confirm which checkout actually answered. See
 [docs/API.md § Tool description contract](docs/API.md#tool-description-contract).
 
@@ -400,6 +400,27 @@ checkCompilation({
 > building?"* — compiler errors, fast, for the edit loop. `list_diagnostics` answers *"what should I
 > clean up?"* — analyzer diagnostics, statistics, and which IDs are auto-fixable. Reach for the
 > first after an edit and the second when exploring.
+
+### 15. SuggestFixExamples
+
+For a diagnostic that no code fixer can repair, returns **key examples**: sites in the same solution,
+in the same syntactic and symbol shape, where the diagnostic does *not* fire, plus the rule's
+description and help link. Read-only and deliberately outside the compile-verification path: it
+proposes nothing, the agent writes the edit, and `edit_member`/`apply_fixes` still verify it.
+
+```typescript
+suggestFixExamples({
+  id: "CS0121",           // Required: the diagnostic ID
+  project: "MyApp.sln",   // Optional: auto-discovered if omitted
+  file: "Foo.cs",         // Optional: anchor on one occurrence (with line)
+  line: 42,
+  maxExamples: 3,         // Optional (default: 3)
+  maxCandidates: 2000     // Optional (default: 2000)
+})
+```
+
+**Returns:** `resolvedPath`, `rule`, `hasFixer`, `alert` (absent when the ID does not fire),
+`examples`, `candidatesScanned`, `truncated` and `notes`.
 
 ### 4. CreatePatch
 
@@ -628,6 +649,7 @@ RoselineMCP's SDK (`ModelContextProtocol` 2.2.0) supports the standard MCP tool
 | `ListDiagnostics` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `ApplyFixes` | ❌ false | ⚠️ true | ❌ false | `destructiveHint` is a static, worst-case annotation: it's `true` because the tool *can* write files when `previewOnly: false` is passed, even though the default call (`previewOnly` unset, i.e. `true`) writes nothing. The SDK's annotation model has no way to express "destructive only for a specific parameter value" — see the doc comment on `ApplyFixesTool.ApplyFixes` in source. |
 | `CheckCompilation` | ✅ true | ❌ false | ✅ true | Never writes to disk. Compiles the loaded solution and reports the compiler's verdict. |
+| `SuggestFixExamples` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `CreatePatch` | ✅ true | ❌ false | ✅ true | Operates purely on the two provided strings; never touches the filesystem. |
 | `SearchSymbols` | ✅ true | ❌ false | ✅ true | Never writes to disk. |
 | `GetSymbolInfo` | ✅ true | ❌ false | ✅ true | Never writes to disk. |

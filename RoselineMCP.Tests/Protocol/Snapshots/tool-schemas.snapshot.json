@@ -498,5 +498,55 @@
       }
     },
     "type": "object"
+  },
+  "suggest_fix_examples": {
+    "properties": {
+      "file": {
+        "default": null,
+        "description": "Optional file (name or path suffix) of the occurrence to anchor on; default: the first occurrence",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fixExampleService": {
+        "type": "object"
+      },
+      "id": {
+        "description": "Diagnostic ID to find examples for, e.g. \u0027CS0121\u0027, \u0027CA1848\u0027, \u0027RCS1175\u0027",
+        "type": "string"
+      },
+      "line": {
+        "default": null,
+        "description": "Optional 1-based line of the occurrence to anchor on",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "maxCandidates": {
+        "default": 2000,
+        "description": "Maximum number of shape-candidate syntax nodes to scan (default: 2000)",
+        "type": "integer"
+      },
+      "maxExamples": {
+        "default": 3,
+        "description": "Maximum number of examples to return (default: 3)",
+        "type": "integer"
+      },
+      "project": {
+        "default": null,
+        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "fixExampleService",
+      "id"
+    ],
+    "type": "object"
   }
 }

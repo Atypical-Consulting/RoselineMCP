@@ -97,6 +97,12 @@ export const tools: Tool[] = [
     returns: 'resolvedPath, compiles, errors[], omitted?, scope[], scopeComplete, notes[]',
   },
   {
+    name: 'suggest_fix_examples', title: 'Suggest Fix Examples', group: 'Diagnostics & fixes', kind: 'diagnostics',
+    summary: 'For a diagnostic no code fixer can repair: clean sites in the same solution, in the same syntactic and symbol shape, where it does not fire, plus the rule\'s own description. Evidence for writing the edit yourself; read-only.',
+    params: 'id, project?, file?, line?, maxExamples?, maxCandidates?',
+    returns: 'resolvedPath, rule, hasFixer, alert?, examples[], candidatesScanned, truncated, notes[]',
+  },
+  {
     name: 'create_patch', title: 'Create Patch', group: 'Diagnostics & fixes', kind: 'diagnostics',
     summary: 'Generate a unified diff between two text versions. Pure text, no filesystem.',
     params: 'before, after, fileName?, ignoreWhitespace?, ignoreCase?',
@@ -188,8 +194,8 @@ export const writeToolAgreement = agreement(writeToolCount);
 
 // ── The analyzerLoad-reporting tools, derived ──
 // tools.astro used to name these three inline and call them "the three diagnostics tools" — but that
-// collides with `kind: 'diagnostics'`, which is four tools (analyze_solution, list_diagnostics,
-// check_compilation, create_patch), and apply_fixes is `kind: 'write'`. The sentence was never really
+// collides with `kind: 'diagnostics'`, which is five tools (analyze_solution, list_diagnostics,
+// check_compilation, create_patch, suggest_fix_examples), and apply_fixes is `kind: 'write'`. The sentence was never really
 // about `kind`; it was about which tools return an `analyzerLoad` block (CLAUDE.md § MCP Tools
 // Available: "the diagnostics tools (1–3)"). Deriving both the count and the member list from the
 // `analyzerLoad` flag keeps the sentence from drifting in either direction again.
