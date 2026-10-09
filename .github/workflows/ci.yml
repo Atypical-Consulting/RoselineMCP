@@ -120,3 +120,7 @@ jobs:
         run: npm run build
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      # The OG card is a rendered copy of og-card.html; fail when the committed PNG is stale (#198).
+      # Chrome is preinstalled on ubuntu-latest; fonts come from node_modules, so no network at render.
+      - name: Check the OG card matches its template
+        run: npm run og:check
