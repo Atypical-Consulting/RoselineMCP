@@ -309,7 +309,10 @@ public class CodeFixProviderFactoryTests
             }
             finally
             {
-                Directory.Delete(dir, recursive: true);
+                // The emitted dll was loaded into this process (and the loader keeps it mapped), so
+                // Windows refuses to delete it. Best-effort: a stray file in %TEMP% is harmless.
+                try { Directory.Delete(dir, recursive: true); }
+                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
             }
         }
 
