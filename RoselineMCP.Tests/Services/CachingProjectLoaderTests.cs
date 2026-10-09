@@ -316,6 +316,24 @@ public class CachingProjectLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task Unresolved_Analyzer_Reference_Appearing_On_Disk_Invalidates_The_Entry()
+    {
+        CreateProjectOnDisk("App");
+        var missing = Path.Combine(_root, "App", "Missing.Analyzer.dll");
+        var inner = new FakeInnerLoader(_root) { Unresolved = [missing] };
+        using var loader = CreateLoader(inner);
+        using var first = await loader.LoadAsync("App", Ct);
+        using var cached = await loader.LoadAsync("App", Ct);
+        inner.LoadCount.ShouldBe(1);
+
+        File.WriteAllText(missing, "x");
+        File.SetLastWriteTimeUtc(missing, DateTime.UtcNow.AddMinutes(1));
+        using var second = await loader.LoadAsync("App", Ct);
+
+        inner.LoadCount.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task WorkspaceCache_False_Bypasses_The_Cache_Entirely()
     {
         CreateProjectOnDisk("App");
@@ -430,6 +448,8 @@ public class CachingProjectLoaderTests : IDisposable
 
         public int LoadCount { get; private set; }
 
+        public IReadOnlyList<string>? Unresolved { get; init; }
+
         public List<TrackedWorkspace> Workspaces { get; } = [];
 
         public Task<LoadedProject> LoadAsync(string? project, CancellationToken cancellationToken = default)
@@ -461,7 +481,8 @@ public class CachingProjectLoaderTests : IDisposable
 
             Workspaces.Add(workspace);
             return Task.FromResult(new LoadedProject(
-                workspace, solution, solution.GetProject(projectId)!, resolvedPath: _resolvedPathOverride));
+                workspace, solution, solution.GetProject(projectId)!, resolvedPath: _resolvedPathOverride,
+                unresolvedAnalyzerReferences: Unresolved));
         }
 
         /// <summary>

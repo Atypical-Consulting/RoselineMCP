@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "postbuild": "node scripts/check-whitespace.mjs",
+    "preview": "astro preview",
+    "og:render": "node scripts/og-card.mjs --write",
+    "og:check": "node scripts/og-card.mjs"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.2.10",

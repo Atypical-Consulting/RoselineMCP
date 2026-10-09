@@ -5,24 +5,24 @@
   This file is NOT part of the built site; it exists so the card can be regenerated
   instead of living only as a baked PNG. To regenerate:
 
-    1. Open this file in Chrome (file://…/website/og-card.html).
-    2. Screenshot the page at a 1200×630 viewport with deviceScaleFactor 2
-       (→ a 2400×1260 PNG, matching the og:image:width/height in Base.astro), e.g.
-       headless: chrome ⌐-headless ⌐-screenshot=og.png ⌐-window-size=1200,630 ⌐-force-device-scale-factor=2 og-card.html
-       (replace ⌐- with two dashes; or use any DevTools-protocol screenshot tool)
-    3. Save over website/public/og.png and keep og:image:alt in src/layouts/Base.astro
-       in sync with the number shown here.
+    1. From website/: `npm ci`, then `npm run og:render` (scripts/og-card.mjs). It renders this file
+       in headless Chrome at a 1200×630 viewport with deviceScaleFactor 2 (→ a 2400×1260 PNG,
+       matching the og:image:width/height in Base.astro) and overwrites public/og.png.
+       CI runs `npm run og:check`, which fails when the committed PNG no longer matches.
+    2. Keep og:image:alt in src/layouts/Base.astro in sync with the number shown here.
 
   Colors/typography mirror the site's DARK design tokens in src/layouts/Base.astro
-  (:root dark block): update both together. Fonts load from Google Fonts at render
-  time only — the shipped site self-hosts via @fontsource.
+  (:root dark block): update both together. Fonts come from the same
+  @fontsource-variable packages the shipped site uses, loaded from node_modules (run
+  `npm ci` first), so the render needs no network and is deterministic.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <title>RoselineMCP OG card</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="node_modules/@fontsource-variable/bricolage-grotesque/opsz.css" />
+<link rel="stylesheet" href="node_modules/@fontsource-variable/hanken-grotesk/wght.css" />
+<link rel="stylesheet" href="node_modules/@fontsource-variable/jetbrains-mono/wght.css" />
 <style>
   /* Dark design tokens from src/layouts/Base.astro */
   :root {
@@ -33,9 +33,9 @@
     --rose: #ff4f80;           /* headline line 2, pill text */
     --rose-bar: #e01e5a;       /* left signature bar + logo mark */
     --teal: #33d6c1;           /* stat */
-    --display: 'Bricolage Grotesque', sans-serif;
-    --sans: 'Hanken Grotesk', sans-serif;
-    --mono: 'JetBrains Mono', monospace;
+    --display: 'Bricolage Grotesque Variable', sans-serif;
+    --sans: 'Hanken Grotesk Variable', sans-serif;
+    --mono: 'JetBrains Mono Variable', monospace;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 1200px; height: 630px; overflow: hidden; }
