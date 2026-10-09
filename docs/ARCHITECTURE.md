@@ -95,7 +95,7 @@ exit at all:
 | EOF before any handshake (client dies on spawn) | exits in well under a second (~0.04 s; was ~0.2 s) |
 | EOF while an ordinary tool call is in flight | drains the in-flight call, then exits (~1.1 s; was ~2.3 s) — it does **not** linger to `DefaultTimeout` |
 | stdin held open | stays alive (checked for 15 s), as it must — a live client holding stdin is not a leak |
-| **EOF while a write tool awaits an unanswered confirmation** | **does not exit on EOF.** With the timeout set to 600 s, the process stayed alive for the whole 400 s observation, well beyond `DefaultTimeout` (120 s); it exited (code 0) only when `ConfirmDestructiveWritesTimeout` expired — at 45.06 s with the timeout set to 45 s, 200.05 s with 200 s. Nothing was written |
+| **EOF while a write tool awaits an unanswered confirmation** | exits in well under a second (~0.02 s), code 0, nothing written — with the default timeout and with `ConfirmDestructiveWritesTimeout=0` alike (#261). *Before #261* it did not exit on EOF at all: it lingered until `ConfirmDestructiveWritesTimeout` expired (45.06 s at 45 s, 200.05 s at 200 s, still alive at 400 s with 600 s) |
 
 The in-flight timings are indicative, not thresholds: the figures depend on the machine and on
 warm caches, and no CI gate asserts them. The in-flight row used `list_diagnostics` on a one-file
@@ -103,18 +103,20 @@ project; the confirmation row used `edit_member` with `previewOnly: false` again
 advertised the `elicitation` capability, received the elicitation request, never answered, and then
 closed stdin.
 
-⚠️ The last row is the exception to the "exits when the client disconnects" promise. A write tool
-parked in `ConfirmDestructiveWriteAsync` is waiting on a second clock
-(`ConfirmDestructiveWritesTimeout`, 5 min by default — longer than `DefaultTimeout`), and EOF does
-**not** free that wait: the gate keeps waiting on its own clock, and the process lingers for up to
-the full timeout after its client has gone. Which clock ended the wait is unambiguous from the two
-timeouts tried, because the exit tracked the configured value. A supervisor that reaps servers on
-client exit should therefore allow `ConfirmDestructiveWritesTimeout` plus a few seconds before
-force-killing — and with a timeout of `0` (unbounded) the process never exits on EOF at all; see
-`SECURITY.md`. Changing this behaviour is out of scope for the measurement and tracked in #261.
+The last row used to be an exception to the "exits when the client disconnects" promise, and #261
+closed it. A write tool parked in `ConfirmDestructiveWriteAsync` waits on a second clock
+(`ConfirmDestructiveWritesTimeout`), and the SDK gives a handler no signal on EOF: **measured**
+against 2.2.0, neither the tool call's `CancellationToken` nor
+`IHostApplicationLifetime.ApplicationStopping` moves while the handler is in flight, because the
+SDK drains in-flight handlers before it shuts down (the same drain the "ordinary tool call" row
+shows). So the server owns the signal: `Program.cs` hands the transport a stdin wrapped by
+`ClientDisconnect` (`WithStreamServerTransport`, the same two standard streams
+`WithStdioServerTransport` uses), which is cancelled the moment a read returns 0 bytes. The gate
+links it into its wait and turns it into a cancellation — never `Proceed`, never the "timed out"
+preview — so nothing is written. Verified over real pipes with the default timeout and with `0`:
+exit in ~0.02 s, code 0.
 
-This is what the README means by "exits when the client disconnects" (with the confirmation-wait
-exception above); the claim is measured, not assumed. A server still resident while its client holds stdin open is behaving correctly, so look
+This is what the README means by "exits when the client disconnects"; the claim is measured, not assumed. A server still resident while its client holds stdin open is behaving correctly, so look
 for the client that never exited rather than for a defect here.
 
 ### 2. Tool Layer

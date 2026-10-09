@@ -157,6 +157,8 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
             services.Configure<RoselineMcpOptions>(context.Configuration.GetSection("RoselineMCP"));
 
             // Configure MCP Server
+            var clientDisconnect = new ClientDisconnect();
+            services.AddSingleton(clientDisconnect);
             services
                 .AddMcpServer(options =>
                 {
@@ -167,7 +169,12 @@ static IHostBuilder CreateHostBuilder(string[] args) =>
                     // real package semver (InformationalVersion minus +buildmetadata) instead.
                     options.ServerInfo = RoselineMCP.RoselineServerInfo.Create();
                 })
-                .WithStdioServerTransport()
+                // Not WithStdioServerTransport(): that is these same two standard streams, but the
+                // wrapper lets the write-confirmation gate see stdin EOF (#261), which the SDK
+                // does not expose to an in-flight handler.
+                .WithStreamServerTransport(
+                    clientDisconnect.Wrap(Console.OpenStandardInput()),
+                    Console.OpenStandardOutput())
                 .WithToolsFromAssembly();
 
             // Add Core Services

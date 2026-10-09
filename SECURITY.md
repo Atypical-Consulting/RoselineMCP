@@ -324,14 +324,14 @@ client that has blocked itself.
   effect must set `ConfirmDestructiveWrites=false` — the timeout ends the
   server-side wait, it does not grant consent, and it cannot unblock a client
   that is itself parked on an unanswered prompt.
-- Size a supervisor's kill timeout for the confirmation wait. Measured on
-  2026-10-09 against `ModelContextProtocol` 2.2.0: when the client disconnects
-  (stdin EOF) while a write tool is parked on an unanswered confirmation, the
-  server does **not** exit on EOF — it exits (code 0, nothing written) only when
-  `ConfirmDestructiveWritesTimeout` expires, 5 minutes by default (never, if the
-  timeout is `0`, so a reaping supervisor must force-kill). Every other
-  shutdown path exits in about a second. See `docs/ARCHITECTURE.md` § Process
-  lifetime and shutdown.
+- A client disconnect frees the confirmation wait. When the client closes stdin
+  (EOF) while a write tool is parked on an unanswered confirmation, the wait is
+  cancelled — not read as consent and not as a timeout — nothing is written, and
+  the server exits in about a second, whatever
+  `ConfirmDestructiveWritesTimeout` is (including `0`). Measured 2026-10-09
+  against `ModelContextProtocol` 2.2.0 (#261): the SDK offers a handler no EOF
+  signal, so the server wraps its own stdin to raise one. See
+  `docs/ARCHITECTURE.md` § Process lifetime and shutdown.
 - Keep `RoselineMCP:ConfirmDestructiveWritesTimeout` above `0` on any install
   reachable by an automated caller. `0` restores the unbounded wait, in
   which a client that never answers pins the call — and the slot it holds —

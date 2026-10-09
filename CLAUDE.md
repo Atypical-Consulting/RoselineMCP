@@ -156,6 +156,11 @@ The application uses a dependency injection-based service architecture with clea
   write-confirmation elicitation, so a human is never asked to approve a write that is about to be
   refused **or that carries no changes at all** — both checks live once in
   `ToolExecutionHelper.RunVerifiedWriteAsync`, which all three tools call
+- **Client disconnect frees the confirmation wait** (#261): the SDK cancels nothing in flight on
+  stdin EOF, so `Program.cs` uses `WithStreamServerTransport` over a stdin wrapped by
+  `ClientDisconnect`, whose token `ConfirmDestructiveWriteAsync` links into its wait. It surfaces as
+  `OperationCanceledException` — never `Proceed`, never `TimedOut` — and is independent of
+  `ConfirmDestructiveWritesTimeout` (including `0`). Absent outside the real host (unit tests)
 - **Compile guard (opt-in, `RoselineMCP:Guard`)**: the same verdict, applied to **every** file
   write rather than only RoselineMCP's own. `GuardEndpoint` (an `IHostedService`, registered only
   when the switch is on) serves a local Unix-domain socket; the `roseline-mcp guard` verb
