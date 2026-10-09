@@ -84,26 +84,37 @@ which returns normally so the "stopped gracefully" path runs. Reading `UseConsol
 whole lifetime story is the natural misreading, and it leads to the wrong conclusion that a client
 which merely closes the pipe would strand a server.
 
-Verified empirically on 2026-07-25 against `ModelContextProtocol` 1.4.1, which was the pinned version
-at the time (the project has since moved to 2.2.0; this shutdown behavior has not been re-measured
-against it), by driving the release binary over real pipes. All four paths exit with code 0:
+Verified empirically by driving the release binary over real pipes. The four original paths were
+first measured on 2026-07-25 against `ModelContextProtocol` 1.4.1 and **re-measured on 2026-10-09
+against 2.2.0** (the fifth path was first measured then). All five exit with code 0 where they
+exit at all:
 
-| Path | Behaviour |
+| Path | Behaviour (2.2.0, 2026-10-09) |
 |---|---|
-| EOF after a completed handshake | exits in ~0.8 s |
-| EOF before any handshake (client dies on spawn) | exits in ~0.2 s |
-| EOF while a tool call is in flight | drains the in-flight call, then exits (~2.3 s) — it does **not** linger to `DefaultTimeout` |
-| stdin held open | stays alive, as it must — a live client holding stdin is not a leak |
+| EOF after a completed handshake | exits in well under a second (~0.02 s; was ~0.8 s on 1.4.1) |
+| EOF before any handshake (client dies on spawn) | exits in well under a second (~0.04 s; was ~0.2 s) |
+| EOF while an ordinary tool call is in flight | drains the in-flight call, then exits (~1.1 s; was ~2.3 s) — it does **not** linger to `DefaultTimeout` |
+| stdin held open | stays alive (checked for 15 s), as it must — a live client holding stdin is not a leak |
+| **EOF while a write tool awaits an unanswered confirmation** | **does not exit on EOF.** With the timeout set to 600 s, the process stayed alive for the whole 400 s observation, well beyond `DefaultTimeout` (120 s); it exited (code 0) only when `ConfirmDestructiveWritesTimeout` expired — at 45.06 s with the timeout set to 45 s, 200.05 s with 200 s. Nothing was written |
 
-⚠️ The in-flight row predates the write-confirmation gate and does **not** cover it. A write tool
+The in-flight timings are indicative, not thresholds: the figures depend on the machine and on
+warm caches, and no CI gate asserts them. The in-flight row used `list_diagnostics` on a one-file
+project; the confirmation row used `edit_member` with `previewOnly: false` against a client that
+advertised the `elicitation` capability, received the elicitation request, never answered, and then
+closed stdin.
+
+⚠️ The last row is the exception to the "exits when the client disconnects" promise. A write tool
 parked in `ConfirmDestructiveWriteAsync` is waiting on a second clock
-(`ConfirmDestructiveWritesTimeout`, 5 min by default — longer than `DefaultTimeout`), and whether
-EOF frees that wait depends on the SDK cancelling the tool's request token on session teardown,
-which this measurement never exercised. Treat the ~2.3 s figure as measured for an ordinary
-analysis call only, until the confirmation path is re-measured.
+(`ConfirmDestructiveWritesTimeout`, 5 min by default — longer than `DefaultTimeout`), and EOF does
+**not** free that wait: the gate keeps waiting on its own clock, and the process lingers for up to
+the full timeout after its client has gone. Which clock ended the wait is unambiguous from the two
+timeouts tried, because the exit tracked the configured value. A supervisor that reaps servers on
+client exit should therefore allow `ConfirmDestructiveWritesTimeout` plus a few seconds before
+force-killing — and with a timeout of `0` (unbounded) the process never exits on EOF at all; see
+`SECURITY.md`. Changing this behaviour is out of scope for the measurement and tracked in #261.
 
-This is what the README means by "exits when the client disconnects"; the claim is measured, not
-assumed. A server still resident while its client holds stdin open is behaving correctly, so look
+This is what the README means by "exits when the client disconnects" (with the confirmation-wait
+exception above); the claim is measured, not assumed. A server still resident while its client holds stdin open is behaving correctly, so look
 for the client that never exited rather than for a defect here.
 
 ### 2. Tool Layer
