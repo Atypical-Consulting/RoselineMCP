@@ -215,10 +215,13 @@ public sealed class GuardService : IGuardService, IDisposable
         }
 
         var resolvedPath = loaded.ResolvedPath;
+        // Stat first, then read: an edit landing between the two pairs an old stamp with new text,
+        // which self-heals on the next pass; the reverse order would skip that edit forever.
+        var stamps = StampAll(loaded.Solution);
         var entry = new Entry
         {
-            Snapshot = loaded.Solution,
-            Stamps = StampAll(loaded.Solution),
+            Snapshot = PinBaselineText(loaded.Solution, stamps),
+            Stamps = stamps,
             ResolvedPath = resolvedPath,
             BaseDirectory = loaded.BaseDirectory,
         };
@@ -352,6 +355,39 @@ public sealed class GuardService : IGuardService, IDisposable
         return changed
             ? new AdvanceResult(AdvanceOutcome.Advanced, solution, stamps)
             : AdvanceResult.Unchanged;
+    }
+
+    /// <summary>
+    /// Makes every document's text an in-memory constant (#266). Documents from
+    /// <c>MSBuildWorkspace</c> read their file lazily, so without this the first verify is the first
+    /// reader and sees the already-edited bytes for baseline and candidate alike — the edit is
+    /// absorbed as pre-existing. This is a forward edit of the loaded solution (same ids), never a
+    /// reload. A file that cannot be read stays lazy and is dropped from <paramref name="stamps"/>
+    /// so the next <see cref="TryAdvance"/> reads it.
+    /// </summary>
+    private static Solution PinBaselineText(Solution solution, Dictionary<string, (long Ticks, long Length)> stamps)
+    {
+        var pinned = solution;
+
+        foreach (var document in solution.Projects.SelectMany(p => p.Documents))
+        {
+            var path = document.FilePath;
+            if (string.IsNullOrEmpty(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                pinned = pinned.WithDocumentText(document.Id, SourceText.From(File.ReadAllText(path)));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                stamps.Remove(path);
+            }
+        }
+
+        return pinned;
     }
 
     private static Dictionary<string, (long Ticks, long Length)> StampAll(Solution solution)

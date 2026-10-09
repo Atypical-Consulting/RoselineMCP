@@ -169,6 +169,9 @@ The application uses a dependency injection-based service architecture with clea
   snapshot and edits it **forward** from disk — it never reloads to build a baseline, because two
   independent loads share no lineage and `GetChanges` then reports every pre-existing error as
   introduced (measured: `introduced: 1, preexisting: 0` on two loads of identical broken code).
+  The baseline's document text is **pinned at establishment** (stat, then `WithDocumentText` from
+  the file): `MSBuildWorkspace` documents are lazy, so otherwise the first verify reads the
+  already-edited file as the "before" state and the first edit is silently absorbed (#266).
   It reports; it cannot block — `PostToolUse` has no blocking decision
 - **Service Injection**: Tools receive services as first parameters via DI container
 - **Typed Envelope**: Every tool returns a `ToolResult<T>` envelope (`{ ok, data, error }`) — the
