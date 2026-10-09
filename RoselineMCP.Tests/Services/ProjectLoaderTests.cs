@@ -794,6 +794,26 @@ public class ProjectLoaderTests : IDisposable
         ResolveTargetPath("Acme", _baseDir).ShouldBe(real);
     }
 
+    [Theory]
+    [InlineData("App.sln")]
+    [InlineData("App.csproj")]
+    [UnsupportedOSPlatform("windows")]
+    public void AutoDiscover_FollowsASymlinkedProjectOrSolutionFile(string name)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Creating symlinks needs elevation on Windows.");
+        }
+
+        var target = Path.Combine(_root, "elsewhere", name);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.WriteAllText(target, string.Empty);
+        var link = Path.Combine(_baseDir, name);
+        File.CreateSymbolicLink(link, target);
+
+        ResolveTargetPath(null, _baseDir).ShouldBe(link);
+    }
+
     /// <summary>Invokes the private static <c>FindSolutionFile</c> that walks up from a resolved path to its containing solution.</summary>
     private static string? FindSolutionFile(string startPath)
     {

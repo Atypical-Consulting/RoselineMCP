@@ -372,13 +372,15 @@ public class ProjectLoader : IProjectLoader
     /// CALLER NAMED the directory (<see cref="ResolveProjectPath"/>'s first branch) deliberately do
     /// NOT use this. One factory rather than two independently-maintained property lists, so a
     /// property added here can never silently diverge between the non-recursive and recursive scan.
+    /// Only the recursive scan skips symlinks/junctions (the #252 crash); non-recursive discovery follows them.
     /// </summary>
     private static EnumerationOptions CreateIncidentalScan(bool recurseSubdirectories = false) => new()
     {
         IgnoreInaccessible = true,
-        // ReparsePoint: do not follow symlinks/junctions. A bare-name sweep can otherwise walk into
+        // Only the RECURSIVE sweep skips ReparsePoint (symlinks/junctions): it can otherwise walk into
         // a link to / (a Wine prefix's dosdevices/z:) and die on a vanished /proc/<pid>/cwd (#252).
-        AttributesToSkip = FileAttributes.ReparsePoint,
+        // Non-recursive scans keep 0 so a symlinked App.sln/App.csproj or project directory is still found.
+        AttributesToSkip = recurseSubdirectories ? FileAttributes.ReparsePoint : 0,
         MatchType = MatchType.Win32,
         RecurseSubdirectories = recurseSubdirectories
     };

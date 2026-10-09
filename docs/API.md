@@ -708,7 +708,7 @@ each parent directory (up to 3) in order, then immediate subdirectories — retu
 candidates (a solution in the working directory is never made ambiguous by one further up the
 tree, e.g. in a git worktree nested inside its main checkout). AppleDouble shadow files
 (`._App.sln`, `._App.csproj` — what macOS leaves beside a file after an exFAT/SMB/zip round-trip)
-are never candidates, at any level or in the bare-name sweep. Symlinked directories are never followed by auto-discovery or the bare-name sweep (a link to `/` would otherwise walk into `/proc`; #252). Local paths
+are never candidates, at any level or in the bare-name sweep. Symlinks are followed by auto-discovery, but the recursive bare-name sweep never follows a symlinked directory (a link to `/` would otherwise walk into `/proc`; #252). Local paths
 only — unlike `AnalyzeSolution`, these do not accept a Git URL. When the project belongs to a
 solution — the nearest ancestor `.sln` of the resolved `.csproj`; an ancestor directory holding
 more than one solution file (`.sln` or `.slnx`) is refused with the same ambiguity error rather than guessed at, but only when
