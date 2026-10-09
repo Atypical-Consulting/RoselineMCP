@@ -60,6 +60,16 @@ public class AnalyzerLoadReport
     public int ReferencesContributing { get; set; }
 
     /// <summary>
+    /// How many consulted references loaded and declare no C# analyzer — code-fix-only and
+    /// generator-only assemblies and analyzers' support libraries. Counted, not named: the caller
+    /// cannot act on them, and the names stay in the Debug log. The identity
+    /// <c>referencesConsulted == referencesContributing + referencesWithoutAnalyzers +
+    /// (references that failed entirely)</c> holds.
+    /// </summary>
+    [JsonPropertyName("referencesWithoutAnalyzers")]
+    public int ReferencesWithoutAnalyzers { get; set; }
+
+    /// <summary>
     /// Number of distinct analyzers that ran on the project — the bundled catalog plus the
     /// project's own references, deduplicated by analyzer type. On a multi-project
     /// <c>analyze_solution</c> it is the <b>largest</b> per-project count (see <see cref="Merge"/>),
@@ -84,7 +94,7 @@ public class AnalyzerLoadReport
     /// <see langword="false"/> is the clean case, and the block is then omitted from the wire.
     /// </summary>
     [JsonIgnore]
-    public bool HasSomethingToReport => Notes.Count > 0 || !AnalyzersRan;
+    public bool HasSomethingToReport => Notes.Count > 0 || ReferencesWithoutAnalyzers > 0 || !AnalyzersRan;
 
     /// <summary>
     /// The report to put on a response: <paramref name="report"/> itself when it has something to
@@ -136,6 +146,7 @@ public class AnalyzerLoadReport
             merged.AnalyzersRan |= report.AnalyzersRan;
             merged.ReferencesConsulted += report.ReferencesConsulted;
             merged.ReferencesContributing += report.ReferencesContributing;
+            merged.ReferencesWithoutAnalyzers += report.ReferencesWithoutAnalyzers;
             merged.AnalyzersLoaded = Math.Max(merged.AnalyzersLoaded, report.AnalyzersLoaded);
             foreach (var note in report.Notes)
             {
@@ -163,11 +174,20 @@ public class AnalyzerLoadNote
     public const string LoadFailure = "load-failure";
 
     /// <summary>
-    /// <see cref="Reason"/> when the reference loaded and simply declares no C# analyzer — a
+    /// The state of a reference that loaded and simply declares no C# analyzer — a
     /// source-generator-only assembly, a code-fix-only assembly, or an analyzer's support library.
-    /// Accurate, not alarming.
+    /// Accurate, not alarming. No longer emitted as a note: such references are counted in
+    /// <see cref="AnalyzerLoadReport.ReferencesWithoutAnalyzers"/>.
     /// </summary>
     public const string NoCSharpAnalyzers = "no C# analyzers";
+
+    /// <summary>
+    /// <see cref="Reason"/> when a reference's <c>CodeFixProvider</c> types could not be loaded or
+    /// instantiated (fixers bound to a newer <c>Microsoft.CodeAnalysis.Workspaces</c>, a
+    /// <c>ReflectionTypeLoadException</c>, a throwing constructor). <see cref="ErrorCode"/> is the
+    /// exception type name; <see cref="Message"/> the count and the first loader message.
+    /// </summary>
+    public const string FixerLoadFailure = "fixer-load-failure";
 
     /// <summary>
     /// <see cref="Reason"/> when <c>GetAnalyzers</c> itself threw — or, for the
