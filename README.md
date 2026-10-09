@@ -804,7 +804,7 @@ Configure logging and other settings:
 
 ## Architecture
 
-RoselineMCP uses **stdio transport** — this is an intentional design decision. The server runs as a local process launched by the MCP client (Claude Desktop, AI agents), communicates over stdin/stdout, and exits when the client disconnects (except while a write confirmation is pending, where it first waits out `ConfirmDestructiveWritesTimeout` — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#process-lifetime-and-shutdown)). This makes it perfectly suited for distribution as a NuGet global tool (`dotnet tool install -g RoselineMCP`) or Docker image — no port binding, no HTTP server, no infrastructure to manage.
+RoselineMCP uses **stdio transport** — this is an intentional design decision. The server runs as a local process launched by the MCP client (Claude Desktop, AI agents), communicates over stdin/stdout, and exits when the client disconnects (except while a write confirmation is pending, where it lingers until `ConfirmDestructiveWritesTimeout` expires, or indefinitely if that is `0` — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#process-lifetime-and-shutdown)). This makes it perfectly suited for distribution as a NuGet global tool (`dotnet tool install -g RoselineMCP`) or Docker image — no port binding, no HTTP server, no infrastructure to manage.
 
 ```
 ┌─────────────────────┐

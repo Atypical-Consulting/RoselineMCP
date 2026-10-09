@@ -94,8 +94,8 @@ exit at all:
 | EOF after a completed handshake | exits in well under a second (~0.02 s; was ~0.8 s on 1.4.1) |
 | EOF before any handshake (client dies on spawn) | exits in well under a second (~0.04 s; was ~0.2 s) |
 | EOF while an ordinary tool call is in flight | drains the in-flight call, then exits (~1.1 s; was ~2.3 s) — it does **not** linger to `DefaultTimeout` |
-| stdin held open | stays alive, as it must — a live client holding stdin is not a leak |
-| **EOF while a write tool awaits an unanswered confirmation** | **does not exit on EOF.** The process stayed alive past 400 s, well beyond `DefaultTimeout` (120 s); it exited (code 0) only when `ConfirmDestructiveWritesTimeout` expired — at 45.06 s with the timeout set to 45 s, 200.05 s with 200 s. Nothing was written |
+| stdin held open | stays alive (checked for 15 s), as it must — a live client holding stdin is not a leak |
+| **EOF while a write tool awaits an unanswered confirmation** | **does not exit on EOF.** With the timeout set to 600 s, the process stayed alive for the whole 400 s observation, well beyond `DefaultTimeout` (120 s); it exited (code 0) only when `ConfirmDestructiveWritesTimeout` expired — at 45.06 s with the timeout set to 45 s, 200.05 s with 200 s. Nothing was written |
 
 The in-flight timings are indicative, not thresholds: the figures depend on the machine and on
 warm caches, and no CI gate asserts them. The in-flight row used `list_diagnostics` on a one-file
@@ -110,8 +110,8 @@ parked in `ConfirmDestructiveWriteAsync` is waiting on a second clock
 the full timeout after its client has gone. Which clock ended the wait is unambiguous from the two
 timeouts tried, because the exit tracked the configured value. A supervisor that reaps servers on
 client exit should therefore allow `ConfirmDestructiveWritesTimeout` plus a few seconds before
-force-killing; see `SECURITY.md`. Changing this behaviour is out of scope for the measurement and
-tracked separately.
+force-killing — and with a timeout of `0` (unbounded) the process never exits on EOF at all; see
+`SECURITY.md`. Changing this behaviour is out of scope for the measurement and tracked in #261.
 
 This is what the README means by "exits when the client disconnects" (with the confirmation-wait
 exception above); the claim is measured, not assumed. A server still resident while its client holds stdin open is behaving correctly, so look

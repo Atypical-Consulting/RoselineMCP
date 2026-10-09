@@ -327,7 +327,8 @@ client that has blocked itself.
   2026-10-09 against `ModelContextProtocol` 2.2.0: when the client disconnects
   (stdin EOF) while a write tool is parked on an unanswered confirmation, the
   server does **not** exit on EOF — it exits (code 0, nothing written) only when
-  `ConfirmDestructiveWritesTimeout` expires, 5 minutes by default. Every other
+  `ConfirmDestructiveWritesTimeout` expires, 5 minutes by default (never, if the
+  timeout is `0`, so a reaping supervisor must force-kill). Every other
   shutdown path exits in about a second. See `docs/ARCHITECTURE.md` § Process
   lifetime and shutdown.
 - Keep `RoselineMCP:ConfirmDestructiveWritesTimeout` above `0` on any install
