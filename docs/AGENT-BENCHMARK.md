@@ -16,6 +16,13 @@ honestly — including where the MCP does **not** help.
 > (see the [follow-up](#follow-up--making-the-model-actually-use-the-tools)) — the measured saving
 > on the same large-repo task is **~13%** (437k vs. 500k tokens, **n = 1**).
 
+> **What this document does *not* show: that the compile-verified edit loop improves quality.** Every
+> table above measures cost. The one experiment aimed at correctness
+> ([the quality A/B](#does-the-compile-gate-change-quality-pre-registered-run-once-inconclusive),
+> six sessions) was **inconclusive**: neither pre-registered axis improved, and the treatment arm's
+> gate never fired, so it neither supports nor refutes the claim. Do not cite the token figures as
+> evidence of a correctness benefit.
+
 ## Method
 
 Each cell is one real Claude Code session (`claude -p`, Claude Sonnet), run on a **fresh git clone**
@@ -144,7 +151,7 @@ fixed tool-schema/instruction overhead plus a little extra exploration remain, s
 realistic figure today. The tools are a large-codebase win; the steering is what makes the model
 take it.
 
-## Planned: does the compile gate change *quality*? (pre-registered, NOT YET RUN)
+## Does the compile gate change *quality*? (pre-registered; run once, inconclusive)
 
 Everything above measures cost. The line that matters most in it is this one: **quality was
 identical in every cell.** RoselineMCP has never been a correctness factor, only a cost one — which
@@ -153,10 +160,13 @@ break.
 
 This section is written **before the experiment runs**, so the criterion cannot be chosen after
 seeing the data. It records what would count as the bet paying off, and what would count as it
-failing. Nothing below is a result.
+failing. The criterion, task and `n` below are exactly as written before the run; the
+[Results](#results) section records what happened, including that the treatment arm did not
+exercise the mechanism.
 
-> **Status: not yet run.** The protocol is pre-registered here; the results table is deliberately
-> empty. Do not cite anything from this section as a measurement.
+> **Status: run once (6 sessions, 2026-10-09), inconclusive.** Neither axis improved, but the treatment
+> arm's guard fired **0 times in 3 runs**, so this measures nothing about the gate. Read
+> [Results](#results) before citing it — in either direction.
 
 > **Update (compile guard, #168) — this changes what the treatment arm *is*, not what counts as
 > success.** As written below, the treatment assumes the agent routes its writes through
@@ -234,7 +244,81 @@ token regression is a trade-off to state, not a victory to announce.
 
 ### Results
 
-*(empty — the experiment has not been run)*
+Six `claude -p` sessions (Claude Sonnet, `claude-sonnet-5-5`), run 2026-10-09, one per row, **none
+re-run, none dropped**. Build under test: a `dev`-based worktree build carrying #145 and #168
+(`3.1.2-alpha.0.10`). Fixture and harness are committed under
+[`RoselineMCP.Benchmarks/Fixtures/QualityAb/`](../RoselineMCP.Benchmarks/Fixtures/QualityAb)
+(`make-fixture.sh`, `prompt.txt`, `run-cell.sh`, `snap.sh`, `prime.sh`, `analyze.py`).
+
+| Run | Final tree compiles | Broken intermediate states | Turns to green | Turns | Tool calls | Tokens | $ |
+|---|---|--:|--:|--:|---|--:|--:|
+| control 1 | yes | 0 | 0 | 6 | Bash 4, find_references 1, ToolSearch 1 | 124,366 | 0.0696 |
+| control 2 | yes | 1 | 0 | 5 | Bash 4, find_references 1, edit_member 1, ToolSearch 1 | 103,872 | 0.0670 |
+| control 3 | yes | 1 | 0 | 5 | Bash 4, find_references 1, edit_member 1, ToolSearch 1 | 104,621 | 0.0702 |
+| treatment 1 | yes | 0 | 0 | 5 | Bash 4 | 94,389 | 0.0498 |
+| treatment 2 | yes | 1 | 1 | 5 | Bash 4 | 93,713 | 0.0479 |
+| treatment 3 | yes | 0 | 0 | 5 | Bash 4 | 96,223 | 0.0578 |
+
+Total cost of the six sessions: **$0.3623**. "Turns" is the distinct-assistant-message count (the
+method above); tokens are input + cache-creation + cache-read + output from the result event.
+"Broken intermediate states" counts distinct snapshot trees, taken after every `Edit`, `Write`,
+`MultiEdit`, `Bash` or RoselineMCP call, whose `dotnet build` failed. "Turns to green" is measured
+from the first such tree to the first later one that builds; `0` means broken and repaired inside one
+turn (or never broken). Both are bounded by that observer: a break repaired *within* one tool call
+(for instance one `sed` over three files) is invisible to it.
+
+**Verdict against the pre-registered criterion, which was not changed.**
+
+- **Axis 1, broken final states:** 0 of 3 versus 0 of 3. A tie at zero, so, as pre-registered, this
+  axis is uninformative rather than passed.
+- **Axis 2, turns to green:** treatment 0, 1, 0 versus control 0, 0, 0. Treatment is **not** lower, so
+  the axis did not move in the direction the bet needs.
+- Neither axis improved, so by the literal criterion the bet **did not pay off** on this data. The
+  third pre-registered outcome (the gate raising turns to green) shows up as treatment 2 (1 turn
+  against 0), but it cannot be attributed to the gate, see below.
+
+**This run does not test the gate, and should not be cited as evidence about it.** The treatment arm
+is only a treatment if the mechanism fires, and the sanity check the protocol calls for failed:
+
+1. **The guard fired 0 times in 3 treatment runs.** All three agents edited with `Bash` (`sed -i`,
+   `cat > file <<EOF`) and never used `Edit`, `Write` or a RoselineMCP write tool. The guard hook
+   receives no `file_path` for a `Bash` call and stays silent by contract, so it never judged a single
+   write. The #168 note above, that the guard applies "regardless of which tool made the write", holds
+   for the file-writing tools and not for shell writes. In none of the three runs did the guard output
+   reach the agent. The one intermediate break in treatment 2 (consumers updated before `Core`) was
+   therefore the agent's own ordering, not something the gate caused or prevented.
+2. **The control arm is not a clean control.** Waiving the gate required telling the agent to pass
+   `allowIntroducedErrors: true` on RoselineMCP write calls, which was done with an
+   `--append-system-prompt` line in the control arm only (the user prompt is byte-identical). That
+   line also made the control agents reach for RoselineMCP (3 of 3 used `find_references`, 2 of 3
+   `edit_member`) while the treatment agents used none. The two intermediate breaks in the control
+   arm are `edit_member` writes with the gate waived, which is the control behaving as designed.
+3. **The fixture lets the agent avoid the failure.** `OrderPricing.ComputeTotal` has three call sites,
+   all visible to one `grep`. Every run found them first and fixed them in one or two shell commands,
+   so there was little room for a break to be left behind. All six final trees compile, which is a
+   ceiling effect, not evidence that the gate is unnecessary.
+
+Two setup facts found while building the harness, relevant to anyone re-running it. They are product
+behaviour, not part of this measurement, and are filed (#266) rather than fixed here:
+
+- **The guard is silent on the first write it sees for a solution** (it takes its baseline from disk
+  after that write), which is by design, and, separately, **a verify that is the first to read the
+  baseline's file-backed documents reads the already-edited file as the "before" state**. Measured on
+  an in-project `return "x";`: `introduced = 0`, `preexisting = 1`, silent, even though
+  `check_compilation` reports the error. The harness therefore primes the guard (`prime.sh`: one call
+  to establish the baseline, one whitespace-only touch to materialise the documents, touch undone)
+  before the agent's first prompt. With the priming the guard reports the fixture's `Core` signature
+  change as three `CS7036` errors in `Consumer`. Without it, treatment would have been silent even for
+  an agent that used `Edit`.
+- Priming is an intervention the treatment arm gets and a real user does not; it favours the gate, and
+  the gate still never fired.
+
+**What a conclusive run needs** (a new pre-registration, not an amendment of this one): a treatment
+that actually routes the agent's writes through something the gate covers (the forced mode used
+elsewhere in this document, or a fixture where shell edits are impractical), a control that differs
+from it in the gate alone, and a task with enough call sites that leaving one behind is a realistic
+failure. Until then the 3.0.0 correctness claim stays **unevidenced**: this run neither supports nor
+refutes it.
 
 ## Reproducing
 
@@ -289,6 +373,5 @@ reproducible in future runs.
 prompt, control vs. +MCP). The current tables meet neither bar: they are `n = 1`, and the 11-call
 and 3-call cells are different repos.
 
-**Relation to #166.** Its six pre-registered `claude -p` sessions should record these two
-variables (turns, tool calls) as well; that costs no extra runs, and neither issue blocks the
-other. Its criterion, task and `n` are unchanged by this section.
+**Relation to #166.** Its six pre-registered `claude -p` sessions recorded these two variables
+(turns, tool calls) as well; see [Results](#results).
