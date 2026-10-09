@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
@@ -260,7 +261,11 @@ internal static class ToolExecutionHelper
         var target = ResolveWriteTarget(project);
         var message = prompt.Render(target);
 
-        using var elicitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // Client gone (stdin EOF): the SDK drains in-flight handlers on EOF and cancels none, so
+        // without this the wait below would run to the deadline, or forever with timeout 0 (#261).
+        // Null outside the real host (unit tests), where there is no stdin to lose.
+        var disconnected = server!.Services?.GetService<ClientDisconnect>()?.Token ?? CancellationToken.None;
+        using var elicitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, disconnected);
         if (timeoutMs > 0)
         {
             elicitCts.CancelAfter(timeoutMs);
@@ -276,6 +281,14 @@ internal static class ToolExecutionHelper
             };
             var result = await server.ElicitAsync(request, elicitCts.Token);
             return (result.IsAccepted ? WriteConfirmation.Proceed : WriteConfirmation.Declined, target);
+        }
+        // The client disconnected while the prompt was unanswered. Checked FIRST and always a
+        // cancellation: it must not read as our deadline (TimedOut) and must never reach the
+        // catch-all below, which returns Proceed - a write on a question nobody answered.
+        catch (Exception) when (disconnected.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(
+                "The client disconnected before answering the write confirmation.", disconnected);
         }
         // OUR deadline fired, and the caller did not cancel: the client was asked and said
         // nothing. Silence is not consent — downgrade to a preview instead of writing. The test

@@ -380,10 +380,12 @@ public class ElicitationTests : IDisposable
         ICodeFixService codeFixService,
         Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>> elicitationHandler,
         Action<RoselineMcpOptions>? configureOptions = null,
-        ICodeEditService? editService = null)
+        ICodeEditService? editService = null,
+        Action<IServiceCollection>? configureExtra = null)
         => McpProtocolTestHost.StartAsync(
             services =>
             {
+                configureExtra?.Invoke(services);
                 services.AddSingleton(codeFixService);
                 services.AddSingleton(A.Fake<ISolutionAnalyzerService>());
                 services.AddSingleton(A.Fake<ICodeNavigationService>());
@@ -454,6 +456,67 @@ public class ElicitationTests : IDisposable
 
         // Accepted → the write proceeds; the service was invoked with previewOnly = false.
         captured.ShouldBe(false);
+    }
+
+    [Fact]
+    public async Task Client_Disconnect_While_Confirmation_Is_Unanswered_Cancels_The_Wait_Without_Writing()
+    {
+        // #261: stdin EOF while the prompt is unanswered must free the wait - even with the
+        // deadline switched off (0) - and must be neither consent (Proceed) nor a timeout.
+        var writes = new List<bool>();
+        var elicited = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var neverAnswers = new TaskCompletionSource<ElicitResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disconnect = new ClientDisconnect();
+        var codeFix = FakeCodeFixCapturingPreviewOnly(writes.Add);
+
+        await using var host = await StartHostAsync(
+            codeFix,
+            (_, _) =>
+            {
+                elicited.TrySetResult(true);
+                return new ValueTask<ElicitResult>(neverAnswers.Task);
+            },
+            options => options.ConfirmDestructiveWritesTimeout = 0,
+            configureExtra: services => services.AddSingleton(disconnect));
+
+        async Task<CallToolResult?> CallApplyFixesAsync()
+        {
+            try
+            {
+                return await host.Client.CallToolAsync("apply_fixes", new Dictionary<string, object?>
+                {
+                    ["project"] = _fixtureProject,
+                    ["ids"] = new[] { "RCS1213" },
+                    ["previewOnly"] = false,
+                });
+            }
+            catch (Exception)
+            {
+                return null; // a cancelled call may surface as a protocol error: also "no write"
+            }
+        }
+
+        var call = CallApplyFixesAsync();
+        await AsyncWaitHelpers.WaitForSignal(elicited.Task, CallCompletionWaitTimeout, "the elicitation handler", "fire");
+        disconnect.Signal();
+
+        // The in-process client cannot read the tool response while its own handler is parked (see
+        // the timeout test above), so release the handler a generous moment AFTER the disconnect.
+        // Had the wait survived it, this late "decline" would be taken as the answer and the call
+        // would end as an ordinary declined preview - which the assertions below reject.
+        await Task.Delay(2000, TestContext.Current.CancellationToken);
+        neverAnswers.TrySetResult(new ElicitResult { Action = "decline" });
+        var result = await AsyncWaitHelpers.WaitForCompletion(call, CallCompletionWaitTimeout, "the tool call");
+
+        // Only the verification preview ran: nothing was written.
+        writes.ShouldAllBe(previewOnly => previewOnly);
+
+        // Not consent, not a timeout, not a decline: the call fails as a cancellation.
+        if (result is not null && !result.IsError.GetValueOrDefault()
+            && result.Content[0] is TextContentBlock text)
+        {
+            JsonDocument.Parse(text.Text).RootElement.GetProperty("ok").GetBoolean().ShouldBeFalse(text.Text);
+        }
     }
 
     [Fact]
