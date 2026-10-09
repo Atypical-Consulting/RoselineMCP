@@ -20,7 +20,7 @@ honestly — including where the MCP does **not** help.
 > table above measures cost. The one experiment aimed at correctness
 > ([the quality A/B](#does-the-compile-gate-change-quality-pre-registered-run-once-inconclusive),
 > six sessions) was **inconclusive**: neither pre-registered axis improved, and the treatment arm's
-> gate never fired, so it neither supports nor refutes the claim. Do not cite the token figures as
+> gate had no effect on any run, so it neither supports nor refutes the claim. Do not cite the token figures as
 > evidence of a correctness benefit.
 
 ## Method
@@ -158,15 +158,15 @@ identical in every cell.** RoselineMCP has never been a correctness factor, only
 is a ceiling, not a plateau, and it is the ceiling the compile-verified edit loop (#133) exists to
 break.
 
-This section is written **before the experiment runs**, so the criterion cannot be chosen after
+This section was written **before the experiment ran**, so the criterion cannot be chosen after
 seeing the data. It records what would count as the bet paying off, and what would count as it
 failing. The criterion, task and `n` below are exactly as written before the run; the
-[Results](#results) section records what happened, including that the treatment arm did not
+[Results](#quality-ab-results) section records what happened, including that the treatment arm did not
 exercise the mechanism.
 
-> **Status: run once (6 sessions, 2026-10-09), inconclusive.** Neither axis improved, but the treatment
-> arm's guard fired **0 times in 3 runs**, so this measures nothing about the gate. Read
-> [Results](#results) before citing it — in either direction.
+> **Status: run once (6 sessions, 2026-10-09), inconclusive.** Neither axis improved, but no guard output
+> reached the agent in any of the 3 treatment runs, so this measures nothing about the gate. Read
+> [Results](#quality-ab-results) before citing it — in either direction.
 
 > **Update (compile guard, #168) — this changes what the treatment arm *is*, not what counts as
 > success.** As written below, the treatment assumes the agent routes its writes through
@@ -242,7 +242,7 @@ forgetting it is a realistic failure rather than a contrived one.
 Recording tokens too keeps the result honest in both directions: a quality win bought with a large
 token regression is a trade-off to state, not a victory to announce.
 
-### Results
+### Quality A/B results
 
 Six `claude -p` sessions (Claude Sonnet, `claude-sonnet-5-5`), run 2026-10-09, one per row, **none
 re-run, none dropped**. Build under test: a `dev`-based worktree build carrying #145 and #168
@@ -273,18 +273,18 @@ turn (or never broken). Both are bounded by that observer: a break repaired *wit
   axis is uninformative rather than passed.
 - **Axis 2, turns to green:** treatment 0, 1, 0 versus control 0, 0, 0. Treatment is **not** lower, so
   the axis did not move in the direction the bet needs.
-- Neither axis improved, so by the literal criterion the bet **did not pay off** on this data. The
+- Neither axis improved. The criterion as written says "the bet has failed if neither moves"; read literally, that is the outcome here. This document declines to draw that conclusion, for the reason below: the treatment never exercised the gate, so "neither moved" is the absence of a test, not a test with a null answer. The
   third pre-registered outcome (the gate raising turns to green) shows up as treatment 2 (1 turn
   against 0), but it cannot be attributed to the gate, see below.
 
 **This run does not test the gate, and should not be cited as evidence about it.** The treatment arm
 is only a treatment if the mechanism fires, and the sanity check the protocol calls for failed:
 
-1. **The guard fired 0 times in 3 treatment runs.** All three agents edited with `Bash` (`sed -i`,
+1. **No guard output reached the agent in any treatment run** (inferred from the transcripts: no hook feedback, and the agents' only write channel was `Bash`). All three agents edited with `Bash` (`sed -i`,
    `cat > file <<EOF`) and never used `Edit`, `Write` or a RoselineMCP write tool. The guard hook
    receives no `file_path` for a `Bash` call and stays silent by contract, so it never judged a single
    write. The #168 note above, that the guard applies "regardless of which tool made the write", holds
-   for the file-writing tools and not for shell writes. In none of the three runs did the guard output
+   for the file-writing tools and not for shell writes (that note is left as written above). In none of the three runs did the guard output
    reach the agent. The one intermediate break in treatment 2 (consumers updated before `Core`) was
    therefore the agent's own ordering, not something the gate caused or prevented.
 2. **The control arm is not a clean control.** Waiving the gate required telling the agent to pass
@@ -311,7 +311,7 @@ behaviour, not part of this measurement, and are filed (#266) rather than fixed 
   change as three `CS7036` errors in `Consumer`. Without it, treatment would have been silent even for
   an agent that used `Edit`.
 - Priming is an intervention the treatment arm gets and a real user does not; it favours the gate, and
-  the gate still never fired.
+  no guard report ever reached the agent.
 
 **What a conclusive run needs** (a new pre-registration, not an amendment of this one): a treatment
 that actually routes the agent's writes through something the gate covers (the forced mode used
@@ -374,4 +374,4 @@ prompt, control vs. +MCP). The current tables meet neither bar: they are `n = 1`
 and 3-call cells are different repos.
 
 **Relation to #166.** Its six pre-registered `claude -p` sessions recorded these two variables
-(turns, tool calls) as well; see [Results](#results).
+(turns, tool calls) as well; see [Results](#quality-ab-results).
