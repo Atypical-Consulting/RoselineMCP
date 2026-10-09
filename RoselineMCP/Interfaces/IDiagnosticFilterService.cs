@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using RoselineMCP.Models;
 
 namespace RoselineMCP.Interfaces;
 
@@ -49,4 +50,11 @@ public interface IDiagnosticFilterService
     /// consults the process-wide providers only.
     /// </param>
     bool IsFixableDiagnostic(string id, Project? project);
+
+    /// <summary>
+    /// Names the references of <paramref name="project"/> whose code fixers failed to load — a
+    /// pass-through to <see cref="ICodeFixProviderFactory.DescribeFixerLoad"/>.
+    /// </summary>
+    /// <param name="project">The target project.</param>
+    IReadOnlyList<AnalyzerLoadNote> DescribeFixerLoad(Project project);
 }

@@ -189,6 +189,7 @@ public class CodeFixService : ICodeFixService
                 // References the loader removed never reach either path above, so neither can name
                 // them — see SolutionAnalyzerService's own AddUnresolved call (#242).
                 loadReport.AddUnresolved(loaded.UnresolvedAnalyzerReferences);
+                loadReport.Notes.AddRange(_codeFixProviderFactory.DescribeFixerLoad(msProject));
                 response.AnalyzerLoad = AnalyzerLoadReport.ForResponse(loadReport);
 
                 // Format the changed documents

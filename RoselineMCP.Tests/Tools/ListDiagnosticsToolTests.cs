@@ -123,6 +123,70 @@ public class ListDiagnosticsToolTests
         JsonNode.Parse(JsonSerializer.Serialize(response, Wire))!.AsObject().ContainsKey("analyzerLoad").ShouldBeFalse();
     }
 
+    private static AnalyzerLoadNote FixerNote() => new()
+    {
+        Reference = "Contoso.Analyzers.CodeFixes",
+        Reason = AnalyzerLoadNote.FixerLoadFailure,
+        ErrorCode = "ReflectionTypeLoadException",
+        Message = "12 type(s) could not be loaded"
+    };
+
+    [Fact]
+    public async Task ListDiagnostics_Should_Append_Fixer_Load_Failures_To_AnalyzerLoad()
+    {
+        // Arrange — every analyzer reference contributes, so only the fixer side has something to say.
+        var (_, project) = AdhocProjectBuilder.Create("FixerList", [("Widget.cs", "public class Widget { }")]);
+        project = project.AddAnalyzerReference(
+            new AnalyzerImageReference([new QuietAnalyzer()], display: "Healthy"));
+        var loader = AdhocProjectBuilder.FakeLoaderFor((AdhocWorkspace)project.Solution.Workspace, project);
+        var catalog = A.Fake<Interfaces.IAnalyzerCatalog>();
+        A.CallTo(() => catalog.Analyzers).Returns(ImmutableArray<DiagnosticAnalyzer>.Empty);
+        var computation = new DiagnosticComputationService(
+            A.Fake<ILogger<DiagnosticComputationService>>(), Options.Create(new RoselineMcpOptions()), catalog);
+        var factory = A.Fake<Interfaces.ICodeFixProviderFactory>();
+        A.CallTo(() => factory.DescribeFixerLoad(A<Project>._)).Returns([FixerNote()]);
+        var analyzer = new SolutionAnalyzerService(
+            A.Fake<ILogger<SolutionAnalyzerService>>(), A.Fake<Interfaces.IMSBuildService>(),
+            new DiagnosticFilterService(factory), loader, computation);
+
+        // Act
+        var response = await analyzer.ListDiagnosticsAsync("FixerList", cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert — presence rule: notes non-empty.
+        var report = response.AnalyzerLoad.ShouldNotBeNull();
+        var note = report.Notes.ShouldHaveSingleItem();
+        note.Reason.ShouldBe(AnalyzerLoadNote.FixerLoadFailure);
+        note.Reference.ShouldBe("Contoso.Analyzers.CodeFixes");
+    }
+
+    [Fact]
+    public async Task ApplyFixes_Should_Append_Fixer_Load_Failures_To_AnalyzerLoad()
+    {
+        // Arrange — no fixer is found for the requested ID, which is precisely when the caller
+        // needs to know whether a fixer exists but could not load.
+        var (_, project) = AdhocProjectBuilder.Create("FixerApply", [("Widget.cs", "public class Widget { }")]);
+        project = project.AddAnalyzerReference(
+            new AnalyzerImageReference([new QuietAnalyzer()], display: "Healthy"));
+        var loader = AdhocProjectBuilder.FakeLoaderFor((AdhocWorkspace)project.Solution.Workspace, project);
+        var catalog = A.Fake<Interfaces.IAnalyzerCatalog>();
+        A.CallTo(() => catalog.Analyzers).Returns(ImmutableArray<DiagnosticAnalyzer>.Empty);
+        var computation = new DiagnosticComputationService(
+            A.Fake<ILogger<DiagnosticComputationService>>(), Options.Create(new RoselineMcpOptions()), catalog);
+        var factory = A.Fake<Interfaces.ICodeFixProviderFactory>();
+        A.CallTo(() => factory.GetProviderForDiagnostic(A<string>._, A<Project?>._)).Returns(null);
+        A.CallTo(() => factory.DescribeFixerLoad(A<Project>._)).Returns([FixerNote()]);
+        var fixer = new CodeFixService(
+            A.Fake<ILogger<CodeFixService>>(), A.Fake<Interfaces.ISolutionAnalyzerService>(), factory,
+            new DiffService(), loader, TestVerification.New(), computation);
+
+        // Act
+        var response = await fixer.ApplyFixesAsync("FixerApply", ["CA9999"], cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var report = response.AnalyzerLoad.ShouldNotBeNull();
+        report.Notes.ShouldHaveSingleItem().Reason.ShouldBe(AnalyzerLoadNote.FixerLoadFailure);
+    }
+
     [Fact]
     public async Task ApplyFixes_Should_Carry_AnalyzerLoad_From_Its_Diagnostics_Pass()
     {
@@ -181,7 +245,8 @@ public class ListDiagnosticsToolTests
             response.Notes.ShouldContain(n => n.Contains("No code fix provider found for CA9999"));
             var report = response.AnalyzerLoad.ShouldNotBeNull();
             report.ReferencesConsulted.ShouldBe(1);
-            report.Notes.ShouldHaveSingleItem().Reason.ShouldBe(AnalyzerLoadNote.LoadFailure);
+            // The garbage reference also carries no loadable fixers: named after the analyzer-side note.
+            report.Notes.Select(n => n.Reason).ShouldBe([AnalyzerLoadNote.LoadFailure, AnalyzerLoadNote.FixerLoadFailure]);
         }
         finally
         {

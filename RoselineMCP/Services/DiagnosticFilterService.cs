@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using RoselineMCP.Interfaces;
+using RoselineMCP.Models;
 
 namespace RoselineMCP.Services;
 
@@ -120,4 +121,8 @@ public class DiagnosticFilterService : IDiagnosticFilterService
             ? IsFixableDiagnostic(id)
             : _codeFixProviderFactory.GetFixableDiagnosticIds(project).Contains(id);
     }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<AnalyzerLoadNote> DescribeFixerLoad(Project project) =>
+        _codeFixProviderFactory.DescribeFixerLoad(project);
 }
