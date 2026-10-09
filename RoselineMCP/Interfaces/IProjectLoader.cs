@@ -132,6 +132,16 @@ public sealed class LoadedProject : IDisposable
     /// </remarks>
     public IReadOnlyList<string> UnresolvedAnalyzerReferences { get; }
 
+    /// <summary>Upper bound on <see cref="WorkspaceFailures"/> entries kept per load.</summary>
+    public const int MaxWorkspaceFailures = 5;
+
+    /// <summary>
+    /// The messages of the <c>WorkspaceFailed</c> diagnostics raised while loading (a project or
+    /// document MSBuild could not open), first <see cref="MaxWorkspaceFailures"/> only. Empty on a
+    /// clean load. Lets a file-not-found error say the workspace came back short (issue #254).
+    /// </summary>
+    public IReadOnlyList<string> WorkspaceFailures { get; }
+
     /// <summary>Initializes a new <see cref="LoadedProject"/>.</summary>
     /// <param name="workspace">The workspace the project/solution was loaded into.</param>
     /// <param name="solution">The loaded solution snapshot.</param>
@@ -160,8 +170,9 @@ public sealed class LoadedProject : IDisposable
     /// </param>
     public LoadedProject(
         Workspace workspace, Solution solution, Project project, bool ownsWorkspace = true, string? resolvedPath = null, string? targetPath = null,
-        IReadOnlyList<string>? unresolvedAnalyzerReferences = null)
+        IReadOnlyList<string>? unresolvedAnalyzerReferences = null, IReadOnlyList<string>? workspaceFailures = null)
     {
+        WorkspaceFailures = workspaceFailures ?? [];
         Workspace = workspace;
         Solution = solution;
         Project = project;

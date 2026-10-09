@@ -1792,7 +1792,7 @@ itself.
 | `type` | Meaning | Example trigger |
 |--------|---------|------------------|
 | `ValidationError` | Caller-supplied input was missing, malformed, or otherwise invalid | Unrecognized `severity` string; `ApplyFixes` called with an empty `ids` array |
-| `NotFoundError` | The requested solution, project, or file could not be located | `FileNotFoundException`, `DirectoryNotFoundException` |
+| `NotFoundError` | The requested solution, project, or file could not be located | `FileNotFoundException`, `DirectoryNotFoundException`; for `search_symbols{file}` and `get_symbol_at_position`, a file missing from the loaded solution. When the workspace raised load failures (`WorkspaceFailed`: a project or document MSBuild could not open) the message ends with a bounded summary — the count and the first three messages, each cut at 200 characters (#254); with none, the message is unchanged |
 | `AnalysisError` | Failure while analyzing, building, or fetching the target | MSBuild workspace load failure, Git clone failure/timeout, permission denied — a read-only source file the write tools cannot open, or a directory the server cannot read |
 | `CancelledError` | The caller's own cancellation token was triggered before completion | Client disconnects/cancels mid-call |
 | `TimeoutError` | The call exceeded the configured wall-clock timeout | `RoselineMCP:DefaultTimeout` elapsed (120,000 ms by default; 0 disables it) |
