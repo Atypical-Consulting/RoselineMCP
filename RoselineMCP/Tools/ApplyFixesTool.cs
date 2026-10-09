@@ -36,7 +36,7 @@ public static class ApplyFixesTool
         ICodeFixService codeFixService,
         [Description("List of diagnostic IDs to fix (e.g., ['RCS1213', 'SA1101'])")]
         string[] ids,
-        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        [Description("Project name, directory, .csproj, .sln, or .slnx path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
         [Description("If true (the default), only preview changes and return a diff — no files are modified. Set explicitly to false to apply the fixes and write changes to disk.")]
         bool previewOnly = true,

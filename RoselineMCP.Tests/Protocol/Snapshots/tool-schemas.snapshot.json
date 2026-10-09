@@ -74,7 +74,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -95,7 +95,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -170,7 +170,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -196,7 +196,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -226,7 +226,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -265,7 +265,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -297,7 +297,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -319,7 +319,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -349,7 +349,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -402,7 +402,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -434,7 +434,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"
@@ -482,7 +482,7 @@
       },
       "project": {
         "default": null,
-        "description": "Project name, directory, .csproj, or .sln path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
+        "description": "Project name, directory, .csproj, .sln, or .slnx path. Optional \u2014 if omitted, RoselineMCP auto-discovers the solution/project from its working directory.",
         "type": [
           "string",
           "null"

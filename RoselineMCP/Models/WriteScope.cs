@@ -1,3 +1,4 @@
+using RoselineMCP.Services;
 using System.Text;
 
 namespace RoselineMCP.Models;
@@ -189,7 +190,7 @@ public sealed record WritePrompt
         // moved the target to the end of the sentence, which left the .csproj arm's bare path to
         // carry the project-ness alone — "the write reaches '<x>.csproj'" read like a promise to
         // rewrite that FILE, when CodeFixService only ever writes the project's .cs documents.
-        var qualifier = target.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+        var qualifier = ProjectLoader.IsSolutionFile(target)
             ? "the primary project of "
             : "the project ";
         return $"Apply code fixes for {DiagnosticIdCount} diagnostic ID(s){AndWriteToDisk} "

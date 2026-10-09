@@ -36,7 +36,7 @@ public static class RenameSymbolTool
         string newName,
         [Description("If true (the default), only preview the rename and return a diff — no files are modified. Set explicitly to false to write the changes to disk.")]
         bool previewOnly = true,
-        [Description("Project name, directory, .csproj, or .sln path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
+        [Description("Project name, directory, .csproj, .sln, or .slnx path. Optional — if omitted, RoselineMCP auto-discovers the solution/project from its working directory.")]
         string? project = null,
         [Description("If false (the default), a rename that introduces compiler errors — including in a downstream project the caller never named — is refused and nothing is written: the response carries the diff and the introduced errors with applied=false. Set true to write it anyway.")]
         bool allowIntroducedErrors = false,

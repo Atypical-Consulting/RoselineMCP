@@ -648,7 +648,7 @@ public class CodeFixService : ICodeFixService
     /// </summary>
     private static string? DescribeSkippedProjects(LoadedProject loaded, Project anchor)
     {
-        if (!loaded.TargetPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
+        if (!ProjectLoader.IsSolutionFile(loaded.TargetPath))
         {
             return null;
         }
