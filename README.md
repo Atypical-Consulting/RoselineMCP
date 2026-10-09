@@ -310,8 +310,9 @@ analyzeSolution({
 
 **Returns:** solution file name, project count, a `diagnosticSummary` (counts by severity), a
 `topDiagnostics` array with project/file/line/column/id/severity/message per diagnostic, and
-`analyzerLoad` — present only when an analyzer reference contributed nothing (merged across the
-analyzed projects), naming it and why.
+`analyzerLoad` — present only when an analyzer reference failed to load or loaded without any C#
+analyzer (merged across the analyzed projects): failures are named and why, the benign rest only
+counted (`referencesWithoutAnalyzers`).
 
 ### 2. ListDiagnostics
 
@@ -334,7 +335,8 @@ listDiagnostics({
 severity), `suggestedFixableIds` — diagnostic IDs a code fix provider is actually registered for,
 whether it ships with Roslyn, in the bundled Roslynator catalog, or **inside one of the project's
 own analyzer references** — and `analyzerLoad`, which names every analyzer reference that
-contributed nothing (and why), present only when there is something to say.
+failed to load (and why) — including a reference whose **code fixers** failed to load — plus a count
+of those that carry no C# analyzer, present only when there is something to say.
 
 ### 3. ApplyFixes
 
@@ -361,8 +363,9 @@ diff `patch`, `notes` (the scope — which project was fixed and which of the so
 not analyzed, plus any linked file whose write reaches a sibling — and skipped/failed IDs and status
 messages), `previewOnly` echoing back what the caller asked for, `applied` (whether anything
 actually reached disk), `verification` — the compiler's verdict on the fixed code — and
-`analyzerLoad` (present only when an analyzer reference contributed nothing, so "no diagnostics
-found for X" can be told apart from "the analyzer that reports X never loaded"). Fixers are looked
+`analyzerLoad` (present only when a reference failed to load or loaded without analyzers, so "no
+diagnostics found for X" can be told apart from "the analyzer that reports X never loaded", and "no
+fixer" from "the fixer could not load"). Fixers are looked
 up in the Roslyn built-ins, then the bundled Roslynator catalog, then the project's own analyzer
 references; the bundled provider wins for an ID both carry.
 
@@ -678,11 +681,13 @@ it fast enough for an edit loop):
 **What could not be loaded is named.** Roslyn reports an analyzer reference it cannot load — one
 built against a newer `Microsoft.CodeAnalysis` than RoselineMCP's, a corrupt file — by
 contributing *zero* analyzers, not by failing. The three diagnostics responses carry an
-`analyzerLoad` block (`analyzersRan`, `referencesConsulted`, `referencesContributing`, `analyzersLoaded`, and a
-`notes[]` entry per reference that contributed nothing: its name, the reason — `load-failure`
-with Roslyn's `errorCode` and message, `no C# analyzers`, `unresolved` (the assembly is not on
-disk, so it was removed from the loaded solution before Roslyn choked on it), or `exception`). The block is omitted
-when every reference contributed, so a present one always says something; see
+`analyzerLoad` block (`analyzersRan`, `referencesConsulted`, `referencesContributing`,
+`referencesWithoutAnalyzers` — references that loaded and declare no C# analyzer, counted rather
+than named — `analyzersLoaded`, and a `notes[]` entry per reference that failed: its name, the
+reason — `load-failure` with Roslyn's `errorCode` and message, `unresolved` (the assembly is not on
+disk, so it was removed from the loaded solution before Roslyn choked on it), `exception`, or, on
+`list_diagnostics` and `apply_fixes`, `fixer-load-failure` (its code fixers could not be loaded)).
+The block is omitted when every reference contributed and nothing failed, so a present one always says something; see
 [`docs/API.md`](docs/API.md#analyzerloadreport).
 
 Set `RoselineMCP:RunAnalyzers` to `false` for compiler-only diagnostics (faster on big

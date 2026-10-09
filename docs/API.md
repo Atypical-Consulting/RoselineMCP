@@ -360,11 +360,13 @@ the diagnostics `ApplyFixes` sees.
 — an analyzer built against a newer `Microsoft.CodeAnalysis` than the server's, the .NET SDK's own
 NetAnalyzers being the universal case — by returning *zero analyzers*, not by throwing. All three
 diagnostics responses therefore carry an [`analyzerLoad`](#analyzerloadreport) block naming every
-reference that contributed nothing and why; it is **omitted** when every consulted reference
-contributed, so an absent block means "nothing to report" and a present one always says something
-(including `analyzersRan: false` when the analyzer pass is off). Without it a reference that
-failed to load was indistinguishable from one with no C# analyzers, and the response silently
-shrank.
+reference that failed to load and why, and *counting* (`referencesWithoutAnalyzers`) those that
+loaded and simply declare no C# analyzer. The same block names a reference whose **code fixers**
+failed to load (`fixer-load-failure`) on `ListDiagnostics` and `ApplyFixes`. It is **omitted** when
+every consulted reference contributed and nothing failed, so an absent block means "nothing to
+report" and a present one always says something (including `analyzersRan: false` when the analyzer
+pass is off). Without it a reference that failed to load was indistinguishable from one with no
+C# analyzers, and the response silently shrank.
 
 `pathOrGit` accepts a local `.sln` file, a directory containing one, or an `http(s)://` Git URL.
 A Git URL is shallow-cloned (`git clone --depth 1`, optionally with `--branch`) into a temporary
@@ -1471,7 +1473,8 @@ contributed** — an absent block means "nothing to report", a present one alway
 or reports `analyzersRan: false` when the analyzer pass did not run (`RoselineMCP:RunAnalyzers =
 false`), so "off" stays distinguishable from "all fine" — and from a project that simply carries no
 analyzer references, which is `analyzersRan: true, referencesConsulted: 0` and, being clean, is
-omitted. On `AnalyzeSolution` it is merged across the analyzed projects: the reference counters are
+omitted. The presence rule is: `notes[]` non-empty, **or** `referencesWithoutAnalyzers > 0`, **or**
+`analyzersRan: false`. On `AnalyzeSolution` it is merged across the analyzed projects: the reference counters are
 summed (they count reference *consultations*), `analyzersLoaded` is the **largest** per-project
 count (each project runs the whole bundled catalog, so a sum would inflate it by the project
 count), `analyzersRan` is true if any project's pass ran, and each reference is named once.
@@ -1483,14 +1486,16 @@ public class AnalyzerLoadReport
     public int ReferencesConsulted { get; set; }      // JSON: "referencesConsulted" — 0 when off, or when the project carries none;
                                                       // a reference the loader removed (reason "unresolved") still counts, even when off
     public int ReferencesContributing { get; set; }   // JSON: "referencesContributing" — yielded ≥ 1 analyzer (partial loads count)
+    public int ReferencesWithoutAnalyzers { get; set; } // JSON: "referencesWithoutAnalyzers" — loaded, declare no C# analyzer (counted, not named);
+                                                      // referencesConsulted == referencesContributing + referencesWithoutAnalyzers + (references that failed entirely)
     public int AnalyzersLoaded { get; set; }          // JSON: "analyzersLoaded" — distinct analyzers that ran (bundled + project); max across projects
-    public List<AnalyzerLoadNote> Notes { get; set; } // JSON: "notes" — one per reference that contributed nothing or only partially
+    public List<AnalyzerLoadNote> Notes { get; set; } // JSON: "notes" — one per reference that failed to load, in whole or part (analyzer side first, then fixer side)
 }
 
 public class AnalyzerLoadNote
 {
     public string Reference { get; set; }   // JSON: "reference" — the reference's display name
-    public string Reason { get; set; }      // JSON: "reason" — "load-failure" | "no C# analyzers" | "unresolved" | "exception"
+    public string Reason { get; set; }      // JSON: "reason" — "load-failure" | "unresolved" | "exception" | "fixer-load-failure"
     public string? ErrorCode { get; set; }  // JSON: "errorCode" — Roslyn's FailureErrorCode for a load-failure
                                             // (ReferencesNewerCompiler, UnableToLoadAnalyzer, UnableToCreateAnalyzer, …); omitted otherwise
     public string? Message { get; set; }    // JSON: "message" — Roslyn's or the exception's message; omitted when there is none
@@ -1500,8 +1505,9 @@ public class AnalyzerLoadNote
 | `reason` | What happened | `errorCode` / `message` |
 |---|---|---|
 | `load-failure` | Roslyn raised `AnalyzerLoadFailed` — the assembly or one of its analyzer types could not be loaded. The universal case is an analyzer built against a **newer** `Microsoft.CodeAnalysis` than the server's (`ReferencesNewerCompiler`; the message names both versions). A reference that lost only *some* of its analyzer types keeps the rest running, counts as contributing, and is still named — its message starts with `partial —` and says how many loaded. | present |
-| `no C# analyzers` | the reference loaded and declares no C# analyzer — a source-generator-only assembly, a code-fix-only assembly, an analyzer's support library. Accurate, not alarming. | omitted |
-| `unresolved` | the reference's analyzer assembly is **not on disk**, so Roslyn resolved it to a sentinel that carries no analyzers and no generators. Distinct from `no C# analyzers`, which says the assembly loaded and declared none. Routine in a git worktree whose `obj/` was populated elsewhere, or after a partial restore. | `message` only (the absent path) |
+| ~~`no C# analyzers`~~ | no longer emitted as a note. A reference that loaded and declares no C# analyzer — a source-generator-only assembly, a code-fix-only assembly, an analyzer's support library — is **counted** in `referencesWithoutAnalyzers`, not named (33 of 44 references on this repository; the names stay in the server's Debug log). | n/a |
+| `unresolved` | the reference's analyzer assembly is **not on disk**, so Roslyn resolved it to a sentinel that carries no analyzers and no generators. Distinct from a reference counted in `referencesWithoutAnalyzers`, which loaded and declared none. Routine in a git worktree whose `obj/` was populated elsewhere, or after a partial restore. | `message` only (the absent path) |
+| `fixer-load-failure` | the reference's `CodeFixProvider` types could not be loaded or instantiated (fixers bound to a newer `Microsoft.CodeAnalysis.Workspaces` while the same package's analyzers load fine, a `ReflectionTypeLoadException`, a throwing constructor). Its fixable IDs drop out of `suggestedFixableIds` and `ApplyFixes` answers `No code fix provider found` — this note says that is "the fixer could not load", not "no fixer exists". Reported on `ListDiagnostics` and `ApplyFixes` only (`AnalyzeSolution` does not consult fixers). | `errorCode` = the exception type name; `message` = the count and the first loader message |
 | `exception` | `GetAnalyzers` itself threw — or, for the one entry whose `reference` is `(analyzer pass)`, the analyzer pass as a whole failed after every reference loaded and the response fell back to compiler diagnostics: every analyzer diagnostic is missing, whatever the counters say. | `message` only |
 
 A failure is remembered per reference object: Roslyn raises the event only on its first attempt

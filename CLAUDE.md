@@ -67,8 +67,9 @@ The application uses a dependency injection-based service architecture with clea
      later call) under a per-reference lock (a solution's projects are analyzed in parallel).
      Reasons: `load-failure` (with Roslyn's `errorCode` — `ReferencesNewerCompiler` names both
      versions; a *partial* failure keeps the analyzers that loaded and is still named),
-     `no C# analyzers` (generator-only, fixer-only and support assemblies — accurate, not
-     alarming), `unresolved` (the analyzer assembly is not on disk at all, so Roslyn handed back a
+     a reference that loads and declares no C# analyzer (generator-only, fixer-only and support
+     assemblies — accurate, not alarming) is **counted** in `referencesWithoutAnalyzers`, never
+     named (it was 33 notes of ~3 KB on every response), `unresolved` (the analyzer assembly is not on disk at all, so Roslyn handed back a
      sentinel carrying no analyzers and no generators — the reference `ProjectLoader` removes; see
      the `Unified project loading` bullet), `exception` (also the `(analyzer pass)` entry when the
      whole pass failed and the response fell back to compiler diagnostics). `analyzersRan: false` is the off state.
@@ -94,7 +95,13 @@ The application uses a dependency injection-based service architecture with clea
      Lookup order is map first, overlay second: an ID both can fix resolves to the bundled
      provider. The `Project`-taking overloads (`GetProviderForDiagnostic(id, project)`,
      `GetFixableDiagnosticIds(project)`) are what `ApplyFixes` and `suggestedFixableIds` use; the
-     no-project members are the `null` case. The decision is recorded in `SECURITY.md`
+     no-project members are the `null` case. The decision is recorded in `SECURITY.md`. A
+     reference whose provider types cannot be loaded or instantiated (a `ReflectionTypeLoadException`,
+     an assembly bound to a newer `Microsoft.CodeAnalysis.Workspaces`, every constructor throwing) is
+     remembered per reference object at overlay build and read back by `DescribeFixerLoad(project)` as
+     a `fixer-load-failure` note; `ListDiagnostics` and `ApplyFixes` append those after the
+     analyzer-side notes (`IDiagnosticFilterService.DescribeFixerLoad` is the pass-through that
+     keeps `SolutionAnalyzerService` free of the factory)
    - `PatchService`/`DiffService`: Unified diff generation for code changes
    - `MSBuildService`: MSBuildWorkspace management and initialization
 
@@ -237,17 +244,20 @@ dotnet list package --outdated
 > Roslynator analyzers plus the target project's own analyzer references are executed via
 > `CompilationWithAnalyzers` (`DiagnosticComputationService`). `RoselineMCP:RunAnalyzers = false`
 > makes them compiler-only. All three carry an `analyzerLoad` block naming every analyzer
-> reference that contributed nothing and why (`referencesConsulted`, `referencesContributing`,
-> `analyzersLoaded`, `analyzersRan`, `notes[] { reference, reason, errorCode?, message? }`) — **omitted when every
-> consulted reference contributed**, so an absent block means "nothing to report" and a present
-> one always says something (`analyzersRan: false` when the pass is off). Degraded coverage is
+> reference that failed to load and why (`referencesConsulted`, `referencesContributing`,
+> `referencesWithoutAnalyzers` — references that loaded and declare no C# analyzer, counted not named,
+> `analyzersLoaded`, `analyzersRan`, `notes[] { reference, reason, errorCode?, message? }` with reasons
+> `load-failure`, `unresolved`, `exception` and, on tools 2 and 3, `fixer-load-failure`) — **omitted when
+> every consulted reference contributed and nothing failed** (present when `notes[]` is non-empty,
+> `referencesWithoutAnalyzers > 0`, or `analyzersRan` is false), so an absent block means "nothing to
+> report" and a present one always says something (`analyzersRan: false` when the pass is off). Degraded coverage is
 > named, never silent.
 
 ### 1. AnalyzeSolution
 Analyzes entire C# solutions for diagnostics with filtering options.
 - **Parameters**: pathOrGit, branch, include, exclude, severity, maxDiagnostics
 - **Returns**: Solution summary, project counts, top diagnostics with location details,
-  `analyzerLoad` (merged across the analyzed projects: reference counters summed, `analyzersLoaded` the largest per-project count, each reference named once)
+  `analyzerLoad` (merged across the analyzed projects: reference counters summed, `analyzersLoaded` the largest per-project count, each reference named once; no fixer-side notes)
 
 ### 2. ListDiagnostics  
 Gets detailed diagnostics for specific projects with statistics. Loads via `IProjectLoader`, so

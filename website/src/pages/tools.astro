@@ -58,10 +58,12 @@ const groupBlurb: Record<string, string> = {
           a newer <code>Microsoft.CodeAnalysis</code> than the server's, the .NET SDK's own analyzers being
           the universal case — by contributing <em>zero</em> analyzers, not by failing. The {analyzerLoadToolPhrase} that
           report{analyzerLoadAgreement.s} <code>analyzerLoad</code> ({analyzerLoadTools.map((t, i) => <Fragment>{i > 0 && ', '}<code>{t.name}</code></Fragment>)})
-          therefore return{analyzerLoadAgreement.s} that block naming every reference that contributed nothing and why
-          (<code>load-failure</code> with Roslyn's <code>errorCode</code> and message, <code>no C# analyzers</code>, <code>unresolved</code>
-          — the analyzer assembly is not on disk, so it is removed from the loaded solution before Roslyn chokes on it — or <code>exception</code>).
-          It is <strong>omitted when every reference contributed</strong>, so a present block always
+          therefore return{analyzerLoadAgreement.s} that block naming every reference that failed and why
+          (<code>load-failure</code> with Roslyn's <code>errorCode</code> and message, <code>unresolved</code>
+          — the analyzer assembly is not on disk, so it is removed from the loaded solution before Roslyn chokes on it — <code>exception</code>,
+          or <code>fixer-load-failure</code> when a reference's code fixers cannot load), and counting the references that
+          carry no C# analyzer (<code>referencesWithoutAnalyzers</code>) rather than naming each.
+          It is <strong>omitted when every reference contributed and nothing failed</strong>, so a present block always
           says something — including <code>analyzersRan: false</code> when analyzers are switched
           off. Code fixers are looked up in the Roslyn built-ins, the bundled Roslynator catalog, and
           the project's own analyzer references, in that order.</p>
