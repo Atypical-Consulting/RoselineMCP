@@ -72,6 +72,75 @@ public class WorktreeProjectResolutionTests : IDisposable
         info.Data!.Source.ShouldNotBeNull().ShouldContain("OnlyInWorktree");
     }
 
+    /// <summary>
+    /// The whole tool surface a Claude Code session uses, against a worktree nested in the main
+    /// checkout's <c>.claude/worktrees/</c> dot-directory with the main checkout's own <c>.sln</c>
+    /// as an ancestor: an inferred target (the worktree directory) resolves the worktree's
+    /// solution, every read answers from it, and a real write lands there and only there.
+    /// </summary>
+    [Fact]
+    public async Task Every_Tool_Answers_From_A_Dot_Directory_Worktree_Under_A_Parent_Solution()
+    {
+        var main = Path.Combine(_root, "main");
+        var worktree = Path.Combine(main, ".claude", "worktrees", "x");
+        CreateRepoWithWorktree(main, worktree);
+
+        var wtCodeBehind = Path.Combine(worktree, "src", "Hub", "Components", "Pages", "Index.razor.cs");
+        File.WriteAllText(wtCodeBehind,
+            "namespace Hub; public partial class Index { public int OnlyInWorktree() => 1; }");
+        File.WriteAllText(Path.Combine(worktree, "src", "Hub", "Caller.cs"), """
+            namespace Hub;
+            public class Caller
+            {
+                public int Run() => new Index().OnlyInWorktree();
+            }
+            """);
+
+        using var loader = new CachingProjectLoader(
+            new ProjectLoader(A.Fake<ILogger<ProjectLoader>>(), new MSBuildService(A.Fake<ILogger<MSBuildService>>())),
+            Options.Create(new RoselineMcpOptions()),
+            A.Fake<ILogger<CachingProjectLoader>>());
+        var nav = new CodeNavigationService(A.Fake<ILogger<CodeNavigationService>>(), loader);
+        var wtSln = Path.Combine(worktree, "Hub.sln");
+
+        var search = await SearchSymbolsTool.SearchSymbols(nav, query: "OnlyInWorktree", project: worktree);
+        search.Ok.ShouldBeTrue(search.Error?.Message);
+        search.Data!.ResolvedPath.ShouldBe(wtSln);
+        search.Data.Symbols.ShouldHaveSingleItem().Name.ShouldBe("OnlyInWorktree");
+
+        var info = await GetSymbolInfoTool.GetSymbolInfo(nav, "Hub.Index.OnlyInWorktree", project: worktree);
+        info.Ok.ShouldBeTrue(info.Error?.Message);
+        info.Data!.ResolvedPath.ShouldBe(wtSln);
+
+        var atPosition = await GetSymbolAtPositionTool.GetSymbolAtPosition(nav, "src/Hub/Caller.cs", line: 4, project: worktree);
+        atPosition.Ok.ShouldBeTrue(atPosition.Error?.Message);
+        atPosition.Data!.Name.ShouldBe("Run");
+        atPosition.Data.ResolvedPath.ShouldBe(wtSln);
+
+        var references = await FindReferencesTool.FindReferences(nav, "Hub.Index.OnlyInWorktree", project: worktree);
+        references.Ok.ShouldBeTrue(references.Error?.Message);
+        references.Data!.ResolvedPath.ShouldBe(wtSln);
+        references.Data.References.ShouldHaveSingleItem().File.ShouldBe("src/Hub/Caller.cs");
+
+        var callers = await GetCallGraphTool.GetCallGraph(nav, "Hub.Index.OnlyInWorktree", project: worktree);
+        callers.Ok.ShouldBeTrue(callers.Error?.Message);
+        callers.Data!.ResolvedPath.ShouldBe(wtSln);
+        callers.Data.Callers.ShouldNotBeNull().ShouldHaveSingleItem().FullName.ShouldBe("Hub.Caller.Run()");
+
+        var edit = new CodeEditService(
+            A.Fake<ILogger<CodeEditService>>(),
+            loader,
+            new DiffService(),
+            new VerificationService(A.Fake<ILogger<VerificationService>>(), DiagnosticComputationService.CompilerOnly));
+        var write = await EditMemberTool.EditMember(
+            edit, "Hub.Index.OnlyInWorktree", "replace", "public int OnlyInWorktree() => 2;",
+            previewOnly: false, project: wtSln);
+        write.Ok.ShouldBeTrue(write.Error?.Message);
+        write.Data!.Applied.ShouldBeTrue();
+        File.ReadAllText(wtCodeBehind).ShouldContain("OnlyInWorktree() => 2;");
+        File.ReadAllText(Path.Combine(main, "src", "Hub", CodeBehind)).ShouldContain("OnlyInMain");
+    }
+
     [Fact]
     public void FileNotFoundMessage_Is_Unchanged_Without_Load_Failures_And_Bounded_With_Them()
     {

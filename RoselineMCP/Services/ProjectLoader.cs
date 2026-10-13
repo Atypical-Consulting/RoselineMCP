@@ -32,6 +32,22 @@ public class ProjectLoader : IProjectLoader
     /// <inheritdoc/>
     public async Task<LoadedProject> LoadAsync(string? project, CancellationToken cancellationToken = default)
     {
+        var workloadResolverWasDisabled = _msBuildService.WorkloadResolverDisabled;
+        var loaded = await LoadOnceAsync(project, cancellationToken);
+        if (workloadResolverWasDisabled || !_msBuildService.WorkloadResolverDisabled)
+        {
+            return loaded;
+        }
+
+        // This load is the one that found the SDK's workload resolver broken: its projects came
+        // back without documents (empty searches, "Symbol not found"). Load again — the workspace
+        // service now creates workspaces with the workload imports switched off.
+        loaded.Dispose();
+        return await LoadOnceAsync(project, cancellationToken);
+    }
+
+    private async Task<LoadedProject> LoadOnceAsync(string? project, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
 
         // Resolve the caller's reference (or nothing) to a concrete .sln or .csproj path on disk.
@@ -577,8 +593,9 @@ public class ProjectLoader : IProjectLoader
 
     /// <summary>
     /// Resolves <paramref name="project"/> (a <c>.csproj</c> path, a directory, or a bare project
-    /// name) to a concrete <c>.csproj</c> path, throwing <see cref="FileNotFoundException"/> if none
-    /// can be found so the tool layer reports a <c>NotFoundError</c>. A bare <em>name</em> is looked
+    /// name) to a concrete <c>.csproj</c> path — or, for a directory holding no <c>.csproj</c> but
+    /// exactly one solution (a checkout or worktree root), that <c>.sln</c>/<c>.slnx</c> — throwing
+    /// <see cref="FileNotFoundException"/> if none can be found so the tool layer reports a <c>NotFoundError</c>. A bare <em>name</em> is looked
     /// up by sweeping <paramref name="baseDirectory"/> recursively — the same anchor
     /// <see cref="AutoDiscover"/> walks — rather than reaching for the process working directory
     /// independently of the caller that already resolved one.
@@ -624,6 +641,23 @@ public class ProjectLoader : IProjectLoader
             if (csprojFiles.Length > 0)
             {
                 return csprojFiles[0];
+            }
+
+            // A solution directory — a repository or worktree root holds a .sln and no .csproj —
+            // is the most natural way to name a checkout, so it resolves to its solution.
+            var solutions = SolutionPatterns.Split(';')
+                .SelectMany(p => Directory.GetFiles(project, p, SearchOption.TopDirectoryOnly))
+                .Where(f => IsSolutionFile(f) && !IsAppleDoubleShadow(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (solutions.Count == 1)
+            {
+                return Path.GetFullPath(solutions[0]);
+            }
+
+            if (solutions.Count > 1)
+            {
+                throw new ArgumentException(BuildAmbiguityMessage("solution (.sln/.slnx)", solutions, $"in '{project}'"));
             }
         }
 

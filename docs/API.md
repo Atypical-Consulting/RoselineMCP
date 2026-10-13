@@ -786,12 +786,21 @@ agent's. All that matters is that the two differ, whether the agent walked into 
 was started in one: a worktree (e.g. `.claude/worktrees/<name>`) sits below the level walk's reach,
 so an omitted `project` resolves the main checkout instead. Two checkouts of the same
 repository are otherwise indistinguishable in a response — same project name, same relative
-paths — so pass an absolute `.sln`/`.csproj` path to target a specific checkout, and check
+paths — so pass an absolute `.sln`/`.csproj` path, or the checkout's root directory (a directory
+with no `.csproj` but exactly one `.sln`/`.slnx` resolves to that solution), to target a specific checkout, and check
 `resolvedPath` in the response to confirm which one answered. For the three **write** tools that is
 not left to the caller: with `previewOnly: false`, a `project` that is not an **absolute** path —
 omitted, blank, `"."`, `"src/App"`, a bare project name, a relative `"App.sln"` — is refused outright
 when the resolved checkout belongs to a repository with linked worktrees, because only an absolute
 path names a checkout — see [Which checkout answered?](#which-checkout-answered).
+
+**A broken .NET workload install.** When the SDK's workload set has missing or corrupt manifests
+(`dotnet build` fails with MSB4242, "Run `dotnet workload repair`"), MSBuild's workload SDK resolver
+fails for *every* SDK-style project, and MSBuildWorkspace answers with projects that have no
+documents — every search comes back empty and every symbol "not found". The first load that sees
+this reloads with `MSBuildEnableWorkloadResolver=false`, and every later load in the process uses
+it too (a warning is logged once). Projects that genuinely need a workload (MAUI, mobile TFMs)
+still fail to load on such a machine — repairing the SDK is the real fix.
 
 **Relative file paths.** The seven navigation tools' `file`/`definitionFile`, `ApplyFixes`',
 `EditMember`' and `RenameSymbol`' `changedFiles` **and unified-diff `a/`…`b/` headers**, and the

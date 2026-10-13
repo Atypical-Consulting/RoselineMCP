@@ -103,7 +103,12 @@ The application uses a dependency injection-based service architecture with clea
      analyzer-side notes (`IDiagnosticFilterService.DescribeFixerLoad` is the pass-through that
      keeps `SolutionAnalyzerService` free of the factory)
    - `PatchService`/`DiffService`: Unified diff generation for code changes
-   - `MSBuildService`: MSBuildWorkspace management and initialization
+   - `MSBuildService`: MSBuildWorkspace management and initialization. When a workspace reports the
+     SDK's workload resolver failing (`MSBuildWorkloadSdkResolver` — a broken workload install,
+     MSB4242), it sets `WorkloadResolverDisabled` and creates every later workspace with the global
+     property `MSBuildEnableWorkloadResolver=false`; `ProjectLoader.LoadAsync` and `AnalyzeSolution`
+     reload once when their own load flipped it. Without this every project loads with no documents,
+     so every navigation tool answers "0 found"/"Symbol not found" (it looked like a worktree bug)
 
 3. **MCP Tool Layer** (`Tools/`): Static methods with `[McpServerTool]` attributes that bridge MCP protocol to services
 4. **Model Layer** (`Models/`): DTOs for structured responses
@@ -333,7 +338,8 @@ every project in it — a symbol declared only in a sibling project the anchor d
 ⚠️ **The working directory is the *server's*, fixed at spawn — not the agent's.** They diverge
 whenever the two are different checkouts, whether the agent walked into one or was spawned in one:
 a git worktree (`.claude/worktrees/<name>`) sits below the level walk's reach, so an omitted
-`project` silently resolves the **main checkout** — on a *read*. On a **write** it is now refused
+`project` silently resolves the **main checkout** — on a *read*. (A `project` naming a checkout's
+root **directory** — no `.csproj`, exactly one `.sln`/`.slnx` — resolves to that solution.) On a **write** it is now refused
 instead (#240, see *Write-target ambiguity* below). Two checkouts of the
 same repo are otherwise reported identically (same project name, same relative paths), so every
 response from a tool with an optional `project` — tools 2, 3, 5–13 and 14 — carries **`resolvedPath`**,

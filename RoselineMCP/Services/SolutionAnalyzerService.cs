@@ -78,9 +78,20 @@ public class SolutionAnalyzerService : ISolutionAnalyzerService
             clonedDirectory = cloneDirectory;
             ValidateSolutionPath(solutionPath);
 
+            var workloadResolverWasDisabled = _msBuildService.WorkloadResolverDisabled;
             using var workspace = _msBuildService.CreateWorkspace();
             progress?.Report(new ProgressNotificationValue { Progress = 2, Message = "Loading solution via MSBuild…" });
             var solution = await LoadSolutionAsync(workspace, solutionPath, cancellationToken);
+
+            // This load found the SDK's workload resolver broken (see IMSBuildService.WorkloadResolverDisabled):
+            // its projects are empty, so load again with the workload imports off.
+            using var retryWorkspace = !workloadResolverWasDisabled && _msBuildService.WorkloadResolverDisabled
+                ? _msBuildService.CreateWorkspace()
+                : null;
+            if (retryWorkspace is not null)
+            {
+                solution = await LoadSolutionAsync(retryWorkspace, solutionPath, cancellationToken);
+            }
 
             var analysisContext = new AnalysisContext
             {
