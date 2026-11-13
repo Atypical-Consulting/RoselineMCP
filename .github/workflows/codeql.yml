@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       # The repo has no packages.lock.json, so setup-dotnet's `cache: true` (which requires
       # lock files) cannot be used - cache the global NuGet package folder directly instead.
