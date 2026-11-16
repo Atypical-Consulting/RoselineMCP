@@ -22,8 +22,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" />
-    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
-    <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" Version="2.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="3.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" Version="3.0.0" />
     <!-- Security override: Microsoft.ML.Tokenizers 2.0.0 pulls in Microsoft.Bcl.Memory 9.0.4
          transitively, which is vulnerable to CVE-2026-26127 (GHSA-73j8-2gch-69rq, high severity:
          Base64Url out-of-bounds-read DoS; fixed in 9.0.14 / 10.0.4). Pin a patched version
