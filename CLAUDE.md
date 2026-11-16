@@ -472,7 +472,7 @@ dotnet test --report-xunit-html --report-xunit-html-filename test-results.html
 ## Dependencies
 
 ### Core MCP and Hosting
-- **ModelContextProtocol** (2.2.0): MCP server implementation
+- **ModelContextProtocol** (2.4.0): MCP server implementation
 - **Microsoft.Extensions.Hosting**: Application hosting and DI
 - **Microsoft.Extensions.DependencyInjection**: Service registration
 
@@ -503,7 +503,7 @@ from there via `Assembly.LoadFrom`; nothing references them as ordinary lib depe
 - **Microsoft.Testing.Extensions.CodeCoverage**: the single coverage producer (cobertura output)
 - **Microsoft.Testing.Extensions.TrxReport**: TRX report for CI
 
-> These two extension packages are versioned against `Microsoft.Testing.Platform` (2.3.3, pulled
+> These two extension packages are versioned against `Microsoft.Testing.Platform` (2.5.3, pulled
 > in by xunit.v3 4.x). Bump them together with xunit.v3, never one alone.
 
 ## Environment Configuration
