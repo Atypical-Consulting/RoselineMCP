@@ -14,7 +14,7 @@ By participating in this project, you agree to abide by our Code of Conduct:
 
 ### Prerequisites
 
-1. Install .NET 10.0 SDK or later
+1. Install .NET 11.0 SDK or later
 2. Install an IDE (Visual Studio, VS Code with C# extension, or JetBrains Rider)
 3. Fork and clone the repository
 4. Run `dotnet restore` to restore packages

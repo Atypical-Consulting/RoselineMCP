@@ -704,14 +704,14 @@ RoselineMCP.Tests/
 ### Docker Support
 
 Docker support is implemented today via a multi-stage [`Dockerfile`](../Dockerfile) (not a future
-item): the build stage uses the `.NET 10.0` SDK image, and the runtime stage uses the Alpine-based
-`.NET 10.0` runtime image, running as an unprivileged `roseline` user:
+item): the build stage uses the `.NET 11.0` SDK image, and the runtime stage uses the Alpine-based
+`.NET 11.0` runtime image, running as an unprivileged `roseline` user:
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 # ... restore, copy source, dotnet publish ...
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:11.0-alpine AS runtime
 WORKDIR /app
 RUN apk add --no-cache icu-libs
 COPY --from=build /app/publish .

@@ -356,7 +356,7 @@ public class VerificationServiceTests
             .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path)).ToList();
 
         var ids = new List<ProjectId>();
-        foreach (var tfm in new[] { "net8.0", "net10.0" })
+        foreach (var tfm in new[] { "net8.0", "net11.0" })
         {
             var projectId = ProjectId.CreateNewId();
             ids.Add(projectId);
@@ -383,7 +383,7 @@ public class VerificationServiceTests
         verdict.Scope.ShouldBe(["Multi(net8.0)"]);
         verdict.ScopeComplete.ShouldBeFalse();
         verdict.Notes.ShouldNotBeNull();
-        verdict.Notes.ShouldContain(n => n.Contains("Multi(net10.0)", StringComparison.Ordinal));
+        verdict.Notes.ShouldContain(n => n.Contains("Multi(net11.0)", StringComparison.Ordinal));
     }
 
     [Fact]

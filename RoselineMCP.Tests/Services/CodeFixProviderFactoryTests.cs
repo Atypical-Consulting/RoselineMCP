@@ -176,7 +176,7 @@ public class CodeFixProviderFactoryTests
         public async Task Project_Overlay_Should_Be_A_Strict_Superset_Of_The_Process_Wide_Map()
         {
             // Arrange — this repository's own project. SYSLIB1045's fixer ships inside the SDK's
-            // System.Text.RegularExpressions.Generator, a reference of every net10.0 project,
+            // System.Text.RegularExpressions.Generator, a reference of every net11.0 project,
             // and nowhere in the bundled catalog.
             var factory = CreateFactory(CreateCatalog());
             using var loaded = await AnalyzerReferenceLoadTests.LoadRepositoryProjectAsync();

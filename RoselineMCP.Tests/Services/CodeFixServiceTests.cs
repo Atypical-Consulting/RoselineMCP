@@ -112,7 +112,7 @@ public class CodeFixServiceTests
 
         /// <summary>
         /// <c>App.sln</c> holding <c>App</c> (the anchor) and <c>Lib</c> multi-targeting two TFMs — which
-        /// Roslyn loads as two projects, <c>Lib(net8.0)</c> and <c>Lib(net10.0)</c>, over one <c>.csproj</c>.
+        /// Roslyn loads as two projects, <c>Lib(net8.0)</c> and <c>Lib(net11.0)</c>, over one <c>.csproj</c>.
         /// </summary>
         private static (AdhocWorkspace Workspace, Project Anchor, string SolutionPath) CreateSolutionWithMultiTargetedSibling()
         {
@@ -126,7 +126,7 @@ public class CodeFixServiceTests
                 appId, VersionStamp.Create(), "App", "App", LanguageNames.CSharp,
                 filePath: Path.Combine(BaseDirectory, "App", "App.csproj")));
 
-            foreach (var tfm in new[] { "net8.0", "net10.0" })
+            foreach (var tfm in new[] { "net8.0", "net11.0" })
             {
                 solution = solution.AddProject(ProjectInfo.Create(
                     ProjectId.CreateNewId(), VersionStamp.Create(), $"Lib({tfm})", "Lib", LanguageNames.CSharp,

@@ -162,7 +162,7 @@ public class WorktreeProjectResolutionTests : IDisposable
         var csproj = Path.Combine(dir, "Broken.csproj");
         File.WriteAllText(csproj, """
             <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup>
               <ItemGroup><ProjectReference Include="..\Missing\Missing.csproj" /></ItemGroup>
             </Project>
             """);
@@ -188,7 +188,7 @@ public class WorktreeProjectResolutionTests : IDisposable
         SolutionFileBuilder.Write(Path.Combine(main, "Hub.sln"), ("Hub", "src/Hub/Hub.csproj"));
         File.WriteAllText(Path.Combine(proj, "Hub.csproj"), """
             <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup>
             </Project>
             """);
         File.WriteAllText(Path.Combine(proj, "Components", "Pages", "Index.razor"), "<h1>Hub</h1>");

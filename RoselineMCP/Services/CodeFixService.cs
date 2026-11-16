@@ -670,7 +670,7 @@ public class CodeFixService : ICodeFixService
     /// The C# projects among <paramref name="projects"/> that are not <paramref name="anchor"/>'s
     /// <c>.csproj</c>, named once each and sorted. Keyed on the project <em>file</em>, not the
     /// Roslyn project: a multi-targeted project loads as one Roslyn project per TFM
-    /// (<c>Lib(net8.0)</c>, <c>Lib(net10.0)</c>) over one <c>.csproj</c>, and that is one project
+    /// (<c>Lib(net8.0)</c>, <c>Lib(net11.0)</c>) over one <c>.csproj</c>, and that is one project
     /// to skip, or to share a linked file with — and the anchor's own other legs are not "other
     /// projects" at all, since the write covers them.
     /// </summary>

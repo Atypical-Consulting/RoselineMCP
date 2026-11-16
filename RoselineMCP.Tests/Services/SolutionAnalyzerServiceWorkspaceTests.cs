@@ -109,7 +109,7 @@ public class SolutionAnalyzerServiceWorkspaceTests : IDisposable
         {
             // Arrange — create a real .csproj file
             var csprojPath = Path.Combine(_testDirectory, "TestProject.csproj");
-            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
             A.CallTo(() => _msBuildService.CreateWorkspace()).Returns(null!);
 
             // Act & Assert
@@ -180,7 +180,7 @@ public class ListDiagnosticsProjectLoaderIntegrationTests : IDisposable
             """
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
-                <TargetFramework>net10.0</TargetFramework>
+                <TargetFramework>net11.0</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <Nullable>enable</Nullable>
               </PropertyGroup>

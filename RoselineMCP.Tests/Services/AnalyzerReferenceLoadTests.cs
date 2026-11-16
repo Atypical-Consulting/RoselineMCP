@@ -99,7 +99,7 @@ public class AnalyzerReferenceLoadTests
         using var loaded = await LoadRepositoryProjectAsync();
         var project = loaded.Project;
         project.AnalyzerReferences.ShouldNotBeEmpty(
-            "an SDK-style net10.0 project always carries analyzer references (the SDK's own set)");
+            "an SDK-style net11.0 project always carries analyzer references (the SDK's own set)");
 
         // Act — what Roslyn answers for each reference. No exception is thrown on a load failure;
         // the answer is simply an empty array.
