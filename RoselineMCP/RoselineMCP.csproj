@@ -56,7 +56,7 @@
     <PackageReference Include="Roslynator.Analyzers" Version="4.16.1" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.16.1" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Roslynator.CodeFixes" Version="4.16.1" GeneratePathProperty="true" />
-    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.16.1" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="5.0.1" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.CodeAnalysis.Features" Version="5.9.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.9.0" />
     <PackageReference Include="DiffPlex" Version="1.9.0" />
