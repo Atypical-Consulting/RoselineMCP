@@ -395,7 +395,7 @@ Apply fixes for all SA1101 (this qualifier) and SA1200 (using directives) issues
 
 ### 6. Apply Roslynator Fixes
 ```
-Fix all RCS1213 (remove unused member) and RCS1036 (remove redundant empty line) in the MyApp.API project
+Fix all RCS1213 (remove unused member) and RCS0063 (remove unnecessary blank line) in the MyApp.API project
 ```
 
 ## Advanced Fix Scenarios
@@ -717,7 +717,7 @@ Generate patches for each modernization phase for documentation
 
 ### Roslynator (RCS*)
 - RCS1001: Add braces
-- RCS1036: Remove redundant empty line
+- RCS0063: Remove unnecessary blank line
 - RCS1213: Remove unused member
 - RCS1018: Add accessibility modifiers
 

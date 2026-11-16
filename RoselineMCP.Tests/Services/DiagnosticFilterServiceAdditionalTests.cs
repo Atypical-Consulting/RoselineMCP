@@ -161,7 +161,7 @@ public class DiagnosticFilterServiceAdditionalTests
         [InlineData("CS0219")] // Microsoft.CodeAnalysis.CSharp.RemoveUnusedVariable
         [InlineData("IDE0001")] // Microsoft.CodeAnalysis.CSharp.SimplifyTypeNames
         [InlineData("IDE0004")] // Microsoft.CodeAnalysis.CSharp.RemoveUnnecessaryCast
-        [InlineData("RCS1036")] // Roslynator RemoveUnnecessaryBlankLine (bundled analyzer catalog)
+        [InlineData("RCS0063")] // Roslynator RemoveUnnecessaryBlankLine (bundled analyzer catalog; RCS1036 before Roslynator 5)
         [InlineData("RCS1104")] // Roslynator SimplifyConditionalExpression (bundled analyzer catalog)
         [InlineData("RCS1213")] // Roslynator RemoveUnusedMemberDeclaration (bundled analyzer catalog)
         public void Should_Return_True_For_Id_With_A_Real_Runtime_Provider(string id)
