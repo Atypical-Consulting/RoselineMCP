@@ -30,7 +30,7 @@
   job runs `dotnet format`**. Scope it to the files you touched; do not reformat the repo.
 - **Format/lint verify (the gate):** **none.** There is no `--verify-no-changes` check in CI. The
   build itself is the style gate (analyzer warnings), plus the coverage threshold below.
-- **Prerequisites / caveats:** needs the .NET **10.0.x** SDK. CI builds and tests in `Release`
+- **Prerequisites / caveats:** needs the .NET **11.0.x** SDK. CI builds and tests in `Release`
   (`dotnet build --no-restore -c Release`, `dotnet test --no-build -c Release`) on
   ubuntu/windows/macos. Analyzer assets are mirrored into `analyzers/` at build time — build before
   running anything that loads the catalog.

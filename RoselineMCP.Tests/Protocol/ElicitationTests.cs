@@ -67,7 +67,7 @@ public class ElicitationTests : IDisposable
         _fixtureProject = Path.Combine(_fixtureRoot, "Fixture.csproj");
         File.WriteAllText(
             _fixtureProject,
-            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
         _fixtureSolution = Path.Combine(_fixtureRoot, "Fixture.sln");
         File.WriteAllText(_fixtureSolution, "Microsoft Visual Studio Solution File, Format Version 12.00\n");
     }
@@ -139,7 +139,7 @@ public class ElicitationTests : IDisposable
 
         File.WriteAllText(
             Path.Combine(solutionDirectory, "Checkout.csproj"),
-            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
         File.WriteAllText(
             Path.Combine(solutionDirectory, "Checkout.sln"),
             "Microsoft Visual Studio Solution File, Format Version 12.00\n");
@@ -1412,7 +1412,7 @@ public class ElicitationTests : IDisposable
                 var csproj = Path.Combine(directory, "Relative.csproj");
                 await File.WriteAllTextAsync(
                     csproj,
-                    "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>",
+                    "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>",
                     TestContext.Current.CancellationToken);
 
                 var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), csproj);

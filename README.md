@@ -9,7 +9,7 @@
 <!-- Badges: Row 1 — Identity -->
 [![Atypical-Consulting - RoselineMCP](https://img.shields.io/static/v1?label=Atypical-Consulting&message=RoselineMCP&color=blue&logo=github)](https://github.com/Atypical-Consulting/RoselineMCP)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![.NET 10](https://img.shields.io/badge/.NET-10.0-purple?logo=dotnet)](https://dotnet.microsoft.com/)
+[![.NET 11](https://img.shields.io/badge/.NET-11.0-purple?logo=dotnet)](https://dotnet.microsoft.com/)
 [![stars - RoselineMCP](https://img.shields.io/github/stars/Atypical-Consulting/RoselineMCP?style=social)](https://github.com/Atypical-Consulting/RoselineMCP)
 [![forks - RoselineMCP](https://img.shields.io/github/forks/Atypical-Consulting/RoselineMCP?style=social)](https://github.com/Atypical-Consulting/RoselineMCP)
 
@@ -75,7 +75,7 @@ per task** (pooled, size-weighted: 93%) than reading the corresponding files —
 ## Quick Start
 
 Any MCP client that speaks `dnx` (the .NET equivalent of `npx`) runs it on demand — no install step.
-Requires the .NET 10 SDK.
+Requires the .NET 11 SDK.
 
 ```jsonc
 // claude_desktop_config.json  ·  .vscode/mcp.json  ·  ~/.cursor/mcp.json
@@ -104,7 +104,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | .NET 10.0 |
+| Runtime | .NET 11.0 |
 | Compiler Platform | Roslyn (Microsoft.CodeAnalysis) 5.6.0 |
 | Analyzers | Roslynator 4.15.0 |
 | MCP SDK | ModelContextProtocol 2.2.0 |
@@ -118,9 +118,9 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 
 ### Prerequisites
 
-- **NuGet global tool**: .NET 10.0 SDK or later
+- **NuGet global tool**: .NET 11.0 SDK or later
 - **Docker**: Docker Desktop or Docker Engine
-- **Build from source**: .NET 10.0 SDK + MSBuild (included with Visual Studio or .NET SDK)
+- **Build from source**: .NET 11.0 SDK + MSBuild (included with Visual Studio or .NET SDK)
 - **MCP client**: Claude Desktop or any MCP-compatible client
 
 ### Installation
@@ -128,7 +128,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 > **Claude Desktop, one click:** download **`RoselineMCP.mcpb`** from the
 > [latest release](https://github.com/Atypical-Consulting/RoselineMCP/releases/latest) and open it —
 > Claude Desktop shows an install dialog, no config editing. (It launches via `dnx` under the hood,
-> so the .NET 10 SDK is still required.) Prefer to edit config yourself, or using another client?
+> so the .NET 11 SDK is still required.) Prefer to edit config yourself, or using another client?
 > Use one of the options below.
 
 **Option 1 -- `dnx` (no install step)** *(recommended)*
@@ -136,7 +136,7 @@ across the solution."* Prefer a pinned NuGet install or Docker? See
 RoselineMCP ships an [MCP server registry manifest](.mcp/server.json), so any MCP client that
 understands the `dnx` launcher (the .NET equivalent of `npx` — resolves and runs a NuGet-packaged
 tool on demand, without a separate `dotnet tool install` step) can start it directly. Requires the
-.NET 10.0 SDK.
+.NET 11.0 SDK.
 
 ```json
 {
@@ -157,7 +157,7 @@ Add this to your Claude Desktop or VS Code MCP configuration (see
 
 **Option 2 -- NuGet Global Tool** *(offline / pinned-version installs)*
 
-Requires .NET 10.0 SDK or later.
+Requires .NET 11.0 SDK or later.
 
 ```bash
 dotnet tool install -g RoselineMCP

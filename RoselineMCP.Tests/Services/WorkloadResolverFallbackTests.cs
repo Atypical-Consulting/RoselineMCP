@@ -49,7 +49,7 @@ public sealed class WorkloadResolverFallbackTests : IDisposable
         var csproj = Path.Combine(dir, "App.csproj");
         File.WriteAllText(csproj, """
             <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup>
             </Project>
             """);
         File.WriteAllText(Path.Combine(dir, "A.cs"), "class A { }");

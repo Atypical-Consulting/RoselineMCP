@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 
 # The runtime stage below is alpine (musl) and docker-publish.yml builds linux/amd64 +
@@ -40,7 +40,7 @@ RUN dotnet publish RoselineMCP/RoselineMCP.csproj \
     -o /app/publish
 
 # Stage 2: Runtime
-FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:11.0-alpine AS runtime
 WORKDIR /app
 
 # Install MSBuild dependencies (required by Roslyn workspace) and git (required for

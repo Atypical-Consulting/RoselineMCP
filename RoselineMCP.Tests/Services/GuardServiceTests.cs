@@ -231,7 +231,7 @@ public class GuardServiceTests : IDisposable
         var dir = Path.Combine(_root, "real");
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "App.csproj"),
-            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup></Project>");
         var sourcePath = Path.Combine(dir, "Thing.cs");
         File.WriteAllText(sourcePath, GreenSource);
 

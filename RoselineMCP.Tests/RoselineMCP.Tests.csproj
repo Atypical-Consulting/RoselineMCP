@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>RoselineMCP.Tests</RootNamespace>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <!-- An MTP test project is its own host process, so it must be an executable. This used to
          come for free from Microsoft.NET.Test.Sdk; xunit.v3 4.x has no VSTest bridge and errors
