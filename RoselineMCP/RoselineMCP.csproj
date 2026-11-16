@@ -53,7 +53,7 @@
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="18.10.1" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="18.10.1" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.StringTools" Version="18.10.1" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="Roslynator.Analyzers" Version="4.16.1" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Roslynator.Analyzers" Version="5.0.1" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Roslynator.CodeAnalysis.Analyzers" Version="4.16.1" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Roslynator.CodeFixes" Version="4.16.1" GeneratePathProperty="true" />
     <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.16.1" GeneratePathProperty="true" />
