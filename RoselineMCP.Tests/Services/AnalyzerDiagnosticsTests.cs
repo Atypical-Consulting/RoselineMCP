@@ -75,7 +75,7 @@ public class AnalyzerDiagnosticsTests
                 .Select(d => d.Id)
                 .ToHashSet();
             supportedIds.ShouldContain("RCS1104"); // Simplify conditional expression
-            supportedIds.ShouldContain("RCS1036"); // Remove unnecessary blank line
+            supportedIds.ShouldContain("RCS0063"); // Remove unnecessary blank line
         }
 
         [Fact]
@@ -105,7 +105,7 @@ public class AnalyzerDiagnosticsTests
             // Assert — the Roslynator fixers that Assembly.Load("Roslynator.CodeFixes")
             // could never reach (analyzer-asset-only package, no lib/) are now registered.
             fixableIds.ShouldContain("RCS1104");
-            fixableIds.ShouldContain("RCS1036");
+            fixableIds.ShouldContain("RCS0063");
             fixableIds.ShouldContain("RCS1213");
             factory.GetProviderForDiagnostic("RCS1104").ShouldNotBeNull();
         }

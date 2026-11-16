@@ -1911,10 +1911,10 @@ than silently shrinking the diagnostic set.
 
 ### Roslynator (RCS)
 Bundled and executed by default — reported by `AnalyzeSolution`/`ListDiagnostics` and fixable via
-`ApplyFixes` when Roslynator ships a fixer for the rule (most rules; 273 Roslynator IDs, and 676 across all families, have a registered fixer, pinned by
+`ApplyFixes` when Roslynator ships a fixer for the rule (most rules; 248 Roslynator IDs, and 652 across all families, have a registered fixer, pinned by
 `FixerCoverageTests`). Examples:
 - RCS1001: Add braces
-- RCS1036: Remove unnecessary blank line
+- RCS0063: Remove unnecessary blank line
 - RCS1104: Simplify conditional expression
 - RCS1213: Remove unused member declaration
 - And 500+ more... (rules disabled by default in Roslynator, e.g. most RCS0xxx formatting rules,
